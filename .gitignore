@@ -1,0 +1,13 @@
+# Java / Gradle
+backend/.gradle/
+backend/build/
+backend/data/
+*.log
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+*.iml
+.vscode/

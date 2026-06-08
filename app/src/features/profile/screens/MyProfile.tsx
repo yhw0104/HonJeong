@@ -1,0 +1,125 @@
+// MyProfile — 내 프로필 (원본: screens/MyProfile.jsx)
+// 더보기 프로필 카드에서 진입. 편집→ProfileEdit, 최근 뱃지 전체보기→ChallengeBadges.
+import React from 'react';
+import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Screen, Avatar, Icon } from '@/shared/components';
+import { T2 } from '@/shared/theme';
+import type { RootStackScreenProps } from '@/navigation/types';
+
+const FOODS = ['한식', '일식', '면 요리'];
+const STATS = [
+  { n: '32', l: '혼밥' },
+  { n: '7', l: '메이트' },
+  { n: '7', l: '뱃지' },
+];
+const RECENT_BADGES = ['🌱', '🍚', '🔥', '🤝'];
+
+export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'>) {
+  return (
+    <Screen bg={T2.bg} edges={['top']}>
+      {/* 헤더 */}
+      <View style={styles.header}>
+        <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.headerBtn}>
+          <Icon name="chevronLeft" size={22} color={T2.text} />
+        </Pressable>
+        <Pressable onPress={() => navigation.navigate('ProfileEdit')} hitSlop={10}>
+          <Text style={styles.edit}>편집</Text>
+        </Pressable>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scroll}>
+        {/* 프로필 헤더 */}
+        <View style={styles.profile}>
+          <Avatar name="혼" bg={T2.text} size={84} />
+          <Text style={styles.name}>조용한혼밥러</Text>
+          <Text style={styles.sub}>연남동 · 혼밥 입문 6개월차</Text>
+          <Text style={styles.bio}>"혼자 먹는 시간이 좋아졌어요.{'\n'}가끔은 같이 먹는 것도요 :)"</Text>
+        </View>
+
+        {/* 통계 */}
+        <View style={styles.statsCard}>
+          {STATS.map((s, i) => (
+            <View key={s.l} style={[styles.statCell, i > 0 && styles.statDivider]}>
+              <Text style={styles.statNum}>{s.n}</Text>
+              <Text style={styles.statLabel}>{s.l}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* 좋아하는 음식 */}
+        <View style={{ marginTop: 28 }}>
+          <Text style={styles.sectionLabel}>좋아하는 음식</Text>
+          <View style={styles.chipWrap}>
+            {FOODS.map((f) => (
+              <View key={f} style={styles.foodChip}>
+                <Text style={styles.foodText}>{f}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* 같이 먹을 때 */}
+        <View style={{ marginTop: 28 }}>
+          <Text style={styles.sectionLabel}>같이 먹을 때</Text>
+          <View style={styles.styleCard}>
+            <Text style={{ fontSize: 22 }}>💬</Text>
+            <View>
+              <Text style={styles.styleTitle}>도란도란 대화하며</Text>
+              <Text style={styles.styleSub}>가볍게 이야기 나누는 게 좋아요</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* 최근 획득 뱃지 */}
+        <View style={{ marginTop: 28 }}>
+          <View style={styles.badgeHead}>
+            <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>최근 획득 뱃지</Text>
+            <Pressable onPress={() => navigation.navigate('ChallengeBadges')} hitSlop={8}>
+              <Text style={styles.viewAll}>전체보기</Text>
+            </Pressable>
+          </View>
+          <View style={styles.badgeRow}>
+            {RECENT_BADGES.map((e, i) => (
+              <View key={i} style={styles.badgeCell}>
+                <Text style={{ fontSize: 24 }}>{e}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  header: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 },
+  headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  edit: { fontSize: 14, fontWeight: '700', color: T2.brand, letterSpacing: -0.2, paddingHorizontal: 8 },
+
+  scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
+
+  profile: { alignItems: 'center', paddingTop: 8 },
+  name: { fontSize: 22, fontWeight: '800', color: T2.text, letterSpacing: -0.6, marginTop: 14 },
+  sub: { fontSize: 13, color: T2.textMute, marginTop: 5, letterSpacing: -0.2 },
+  bio: { fontSize: 14, color: T2.textSub, marginTop: 14, lineHeight: 22, letterSpacing: -0.3, textAlign: 'center', maxWidth: 280 },
+
+  statsCard: { flexDirection: 'row', marginTop: 24, paddingVertical: 18, backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: T2.border },
+  statCell: { flex: 1, alignItems: 'center' },
+  statDivider: { borderLeftWidth: 1, borderLeftColor: T2.border },
+  statNum: { fontSize: 22, fontWeight: '800', color: T2.text, letterSpacing: -0.6 },
+  statLabel: { fontSize: 11, color: T2.textMute, marginTop: 4 },
+
+  sectionLabel: { fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: 0.6, marginBottom: 12 },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  foodChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.borderStrong },
+  foodText: { fontSize: 13, fontWeight: '600', color: T2.text, letterSpacing: -0.2 },
+
+  styleCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 14, backgroundColor: T2.text },
+  styleTitle: { fontSize: 15, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
+  styleSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+
+  badgeHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  viewAll: { fontSize: 12, fontWeight: '700', color: T2.brand },
+  badgeRow: { flexDirection: 'row', gap: 10 },
+  badgeCell: { flex: 1, aspectRatio: 1, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border, alignItems: 'center', justifyContent: 'center' },
+});

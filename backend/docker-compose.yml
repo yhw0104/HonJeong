@@ -1,0 +1,31 @@
+# 운영/통합 환경용. 배포 단계에서 사용한다.
+# 로컬 개발은 H2를 쓰므로 지금은 실행하지 않아도 된다.
+# 사용 예: docker compose up -d
+services:
+  db:
+    image: postgres:17
+    container_name: honjeong-db
+    environment:
+      POSTGRES_DB: honjeong
+      POSTGRES_USER: honjeong
+      POSTGRES_PASSWORD: honjeong
+    ports:
+      - "5432:5432"
+    volumes:
+      - honjeong-db-data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: honjeong-app
+    depends_on:
+      - db
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://db:5432/honjeong
+      DB_USERNAME: honjeong
+      DB_PASSWORD: honjeong
+    ports:
+      - "8080:8080"
+
+volumes:
+  honjeong-db-data:

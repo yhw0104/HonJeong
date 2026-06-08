@@ -1,0 +1,21 @@
+# 운영(배포) 프로파일 — PostgreSQL. 배포 단계에서 활성화한다(SPRING_PROFILES_ACTIVE=prod).
+# 민감 값은 환경변수로 주입한다 (NFR-02: 시크릿 분리).
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/honjeong}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USERNAME:honjeong}
+    password: ${DB_PASSWORD:honjeong}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  h2:
+    console:
+      enabled: false
+
+server:
+  port: 8080

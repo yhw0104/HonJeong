@@ -1,0 +1,53 @@
+// RootNavigator — 인증/온보딩 흐름 + 메인 탭을 묶는 루트 스택.
+import React from 'react';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import type { RootStackParamList } from './types';
+import { WelcomeScreen } from '@/features/auth/screens/Welcome';
+import { PhoneAuthScreen } from '@/features/auth/screens/PhoneAuth';
+import { VerifyCodeScreen } from '@/features/auth/screens/VerifyCode';
+import { ProfileSetupScreen } from '@/features/auth/screens/ProfileSetup';
+import { NewGroupScreen } from '@/features/favorites/screens/NewGroup';
+import { RestaurantDetailScreen } from '@/features/place/screens/RestaurantDetail';
+import { MealRequestScreen } from '@/features/mate/screens/MealRequest';
+import { MatesScreen } from '@/features/mate/screens/Mates';
+import { MateProfileScreen } from '@/features/mate/screens/MateProfile';
+import { ReceivedRequestsScreen } from '@/features/mate/screens/ReceivedRequests';
+import { DiningHistoryScreen } from '@/features/record/screens/DiningHistory';
+import { DiningLogWriteScreen } from '@/features/record/screens/DiningLogWrite';
+import { ChallengeBadgesScreen } from '@/features/record/screens/ChallengeBadges';
+import { MyProfileScreen } from '@/features/profile/screens/MyProfile';
+import { ProfileEditScreen } from '@/features/profile/screens/ProfileEdit';
+import { NotificationSettingsScreen } from '@/features/settings/screens/NotificationSettings';
+import { NoticesScreen } from '@/features/settings/screens/Notices';
+import { BlockReportScreen } from '@/features/settings/screens/BlockReport';
+import { SupportScreen } from '@/features/settings/screens/Support';
+import { MainTabs } from './MainTabs';
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+export function RootNavigator() {
+  return (
+    <Stack.Navigator initialRouteName="Welcome" screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Welcome" component={WelcomeScreen} />
+      <Stack.Screen name="PhoneAuth" component={PhoneAuthScreen} />
+      <Stack.Screen name="VerifyCode" component={VerifyCodeScreen} />
+      <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
+      <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen name="NewGroup" component={NewGroupScreen} options={{ presentation: 'modal' }} />
+      <Stack.Screen name="RestaurantDetail" component={RestaurantDetailScreen} />
+      <Stack.Screen name="MealRequest" component={MealRequestScreen} options={{ presentation: 'modal' }} />
+      <Stack.Screen name="Mates" component={MatesScreen} />
+      <Stack.Screen name="MateProfile" component={MateProfileScreen} />
+      <Stack.Screen name="ReceivedRequests" component={ReceivedRequestsScreen} />
+      <Stack.Screen name="DiningHistory" component={DiningHistoryScreen} />
+      <Stack.Screen name="ChallengeBadges" component={ChallengeBadgesScreen} />
+      <Stack.Screen name="MyProfile" component={MyProfileScreen} />
+      <Stack.Screen name="DiningLogWrite" component={DiningLogWriteScreen} options={{ presentation: 'modal' }} />
+      <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} options={{ presentation: 'modal' }} />
+      <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+      <Stack.Screen name="Notices" component={NoticesScreen} />
+      <Stack.Screen name="BlockReport" component={BlockReportScreen} />
+      <Stack.Screen name="Support" component={SupportScreen} />
+    </Stack.Navigator>
+  );
+}
