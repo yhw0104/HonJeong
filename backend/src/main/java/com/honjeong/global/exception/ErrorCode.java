@@ -1,0 +1,60 @@
+package com.honjeong.global.exception;
+
+import org.springframework.http.HttpStatus;
+
+/**
+ * 도메인 공통 에러 코드. {@code code()}는 enum 이름을 그대로 노출한다(예: CHECKIN_ALREADY_ACTIVE).
+ * 각 슬라이스에서 도메인별 코드를 추가한다.
+ */
+public enum ErrorCode {
+
+    // 공통 — 어느 도메인에서나 쓰는 범용 에러(잘못된 입력 400 / 미인증 401 / 권한부족 403 / 없음 404 / 충돌 409)
+    INVALID_INPUT(HttpStatus.BAD_REQUEST, "잘못된 요청입니다."),
+    UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요합니다."),
+    FORBIDDEN(HttpStatus.FORBIDDEN, "권한이 없습니다."),
+    NOT_FOUND(HttpStatus.NOT_FOUND, "리소스를 찾을 수 없습니다."),
+    CONFLICT(HttpStatus.CONFLICT, "요청이 충돌했습니다."),
+
+    // 인증·계정 — 토큰 재발급, 휴대폰 인증, 약관 동의, 닉네임/사용자 조회 등 가입·로그인 흐름의 에러
+    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 리프레시 토큰입니다."),
+    PHONE_CODE_MISMATCH(HttpStatus.BAD_REQUEST, "인증번호가 일치하지 않습니다."),
+    PHONE_CODE_EXPIRED(HttpStatus.BAD_REQUEST, "인증번호가 만료되었습니다."),
+    PHONE_ATTEMPTS_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "인증 시도 횟수를 초과했습니다."),
+    PHONE_NOT_VERIFIED(HttpStatus.BAD_REQUEST, "휴대폰 인증이 필요합니다."),
+    TERMS_REQUIRED(HttpStatus.BAD_REQUEST, "필수 약관에 동의해야 합니다."),
+    NICKNAME_DUPLICATE(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다."),
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
+
+    // 예기치 못한 서버 내부 오류(처리되지 않은 예외 → 500)
+    INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
+
+    // 각 enum 상수가 들고 다니는 HTTP 상태와 기본 메시지(응답 변환의 출처)
+    private final HttpStatus status;
+    private final String message;
+
+    /**
+     * 각 에러 코드를 HTTP 상태·기본 메시지와 함께 정의하는 enum 생성자.
+     *
+     * @param status 이 에러에 대응하는 HTTP 상태
+     * @param message 기본 사용자 메시지
+     */
+    ErrorCode(HttpStatus status, String message) {
+        this.status = status;
+        this.message = message;
+    }
+
+    /** 이 에러의 HTTP 상태를 반환한다(예: 404 NOT_FOUND). */
+    public HttpStatus status() {
+        return status;
+    }
+
+    /** 클라이언트에 노출할 코드 문자열을 반환한다 — enum 이름을 그대로 사용한다(예: "NOT_FOUND"). */
+    public String code() {
+        return name();
+    }
+
+    /** 이 에러의 기본 메시지를 반환한다. */
+    public String message() {
+        return message;
+    }
+}

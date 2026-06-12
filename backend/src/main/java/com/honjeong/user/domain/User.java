@@ -1,0 +1,199 @@
+package com.honjeong.user.domain;
+
+import com.honjeong.global.common.BaseTimeEntity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+/**
+ * 회원. 온보딩 시작 시 status=PENDING으로 생성되고(휴대폰/소셜 식별만), /auth/complete에서
+ * 프로필을 채우며 status=ACTIVE로 전환된다. 컬럼명은 기본 스네이크케이스 전략으로 매핑된다.
+ */
+@Entity
+@Table(name = "users")
+public class User extends BaseTimeEntity {
+
+    // PK. IDENTITY 전략 → DB의 auto-increment(시퀀스/자동 증가)에 위임해 INSERT 시 채워진다.
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    // 휴대폰 번호. 별도 @Column이 없으면 필드명을 스네이크케이스로 자동 매핑(phone).
+    private String phone;
+    // 이메일(소셜 로그인 시 공급자가 준 값이 들어올 수 있음). nullable.
+    private String email;
+    // 표시용 닉네임. 프로필 완료 단계에서 채워진다.
+    private String nickname;
+    // 프로필 이미지 URL. 카멜케이스 필드 → profile_image_url 컬럼으로 자동 매핑.
+    private String profileImageUrl;
+
+    // 성별. @Enumerated(EnumType.STRING) → enum 이름(MALE/FEMALE/NONE)을 문자열로 저장.
+    // ordinal(순서 숫자) 대신 문자열로 두면 enum 값 순서를 바꿔도 기존 데이터가 깨지지 않는다.
+    @Enumerated(EnumType.STRING)
+    private Gender gender;
+
+    // 연령대(예: "20대"). 정밀 나이 대신 구간 문자열로 보관.
+    private String ageGroup;
+    // 자기소개 한 줄.
+    private String introduction;
+    // 활동 지역명(예: "서울 강남구").
+    private String region;
+    // 지역 좌표(위도). region_lat 컬럼으로 매핑.
+    private Double regionLat;
+    // 지역 좌표(경도). region_lng 컬럼으로 매핑.
+    private Double regionLng;
+
+    // 식사 성향(TALK/QUIET). 마찬가지로 문자열로 저장.
+    @Enumerated(EnumType.STRING)
+    private DiningStyle diningStyle;
+
+    // 같이먹기 신청 수신 허용 여부(opt-in). 기본값 true, NOT NULL.
+    @Column(nullable = false)
+    private boolean allowMealRequest = true;
+
+    // 회원 상태. 문자열 enum + NOT NULL. 생성 시 PENDING(온보딩 중), 프로필 완료 시 ACTIVE.
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private UserStatus status = UserStatus.PENDING;
+
+    /** JPA가 리플렉션으로 엔티티를 생성할 때 쓰는 기본 생성자. 외부 직접 호출은 막으려고 protected. */
+    protected User() {
+    }
+
+    /**
+     * 내부 전용 생성자. 휴대폰/이메일만 받아 PENDING 상태로 초기화한다.
+     * 외부에서는 {@link #pending(String, String)} 팩토리로만 생성하도록 private으로 막는다.
+     *
+     * @param phone 휴대폰 번호(없으면 null 가능)
+     * @param email 이메일(없으면 null 가능)
+     */
+    private User(String phone, String email) {
+        this.phone = phone;
+        this.email = email;
+        this.allowMealRequest = true;
+        this.status = UserStatus.PENDING;
+    }
+
+    /**
+     * 온보딩 시작용 PENDING 회원을 생성하는 정적 팩토리.
+     * 휴대폰/이메일은 알면 채우고 없으면 null로 둔다. 생성 시점의 status는 항상 PENDING.
+     *
+     * @param phone 휴대폰 번호(nullable)
+     * @param email 이메일(nullable)
+     * @return PENDING 상태로 초기화된 새 User 인스턴스
+     */
+    public static User pending(String phone, String email) {
+        return new User(phone, email);
+    }
+
+    /**
+     * 온보딩 중 휴대폰 인증을 끝냈을 때 번호를 채운다.
+     * 소셜 로그인으로 먼저 들어와 회원이 만들어진(OAuth 선진입) 뒤 휴대폰을 나중에 인증하는 경로에서 쓴다.
+     *
+     * @param phone 인증 완료된 휴대폰 번호
+     */
+    public void assignPhone(String phone) {
+        this.phone = phone;
+    }
+
+    /**
+     * 프로필 셋업을 완료하며 가입을 확정한다. 전달된 프로필 값들을 모두 채운 뒤
+     * status를 PENDING → ACTIVE로 전환한다(이 호출 이후 {@link #isActive()}가 true).
+     *
+     * @param nickname        닉네임
+     * @param gender          성별
+     * @param ageGroup        연령대
+     * @param introduction    자기소개
+     * @param region          지역명
+     * @param regionLat       지역 위도
+     * @param regionLng       지역 경도
+     * @param diningStyle     식사 성향
+     * @param profileImageUrl 프로필 이미지 URL
+     */
+    public void completeProfile(String nickname, Gender gender, String ageGroup, String introduction,
+            String region, Double regionLat, Double regionLng, DiningStyle diningStyle, String profileImageUrl) {
+        this.nickname = nickname;
+        this.gender = gender;
+        this.ageGroup = ageGroup;
+        this.introduction = introduction;
+        this.region = region;
+        this.regionLat = regionLat;
+        this.regionLng = regionLng;
+        this.diningStyle = diningStyle;
+        this.profileImageUrl = profileImageUrl;
+        this.status = UserStatus.ACTIVE;
+    }
+
+    /**
+     * 가입이 확정된 ACTIVE 회원인지 판정한다.
+     *
+     * @return status가 ACTIVE면 true(아직 온보딩 중이거나 정지/탈퇴면 false)
+     */
+    public boolean isActive() {
+        return status == UserStatus.ACTIVE;
+    }
+
+    // --- 이하 게터: 필드 값을 읽기 전용으로 노출(상태 변경 없음) ---
+
+    public Long getId() {
+        return id;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public String getProfileImageUrl() {
+        return profileImageUrl;
+    }
+
+    public Gender getGender() {
+        return gender;
+    }
+
+    public String getAgeGroup() {
+        return ageGroup;
+    }
+
+    public String getIntroduction() {
+        return introduction;
+    }
+
+    public String getRegion() {
+        return region;
+    }
+
+    public Double getRegionLat() {
+        return regionLat;
+    }
+
+    public Double getRegionLng() {
+        return regionLng;
+    }
+
+    public DiningStyle getDiningStyle() {
+        return diningStyle;
+    }
+
+    public boolean isAllowMealRequest() {
+        return allowMealRequest;
+    }
+
+    public UserStatus getStatus() {
+        return status;
+    }
+}
