@@ -8,7 +8,7 @@
 - **사회적 증거 통계** — "오늘 혼밥 N명", "현재 혼밥 중 N명"을 실시간 집계해 심리적 부담을 완화합니다.
 - **지도 기반 혼밥러 표시** — 반경 내 식당별 현재 혼밥러 수를 마커로 보여줍니다.
 - **식당 검색·캐싱** — 카카오 로컬 API로 검색하고, 체크인/리뷰 시 `external_id`를 키로 우리 DB(`places`)에 upsert합니다.
-- **초간단 반응** — "나도 여기 있음"(`HERE`) / "같이 먹는 중"(`EATING_TOGETHER`)으로 대화 없는 가벼운 연결을 제공합니다.
+<!-- - **초간단 반응** — "나도 여기 있음"(`HERE`) / "같이 먹는 중"(`EATING_TOGETHER`)으로 대화 없는 가벼운 연결을 제공합니다. -->
 - **혼밥러 목록** — 같은 식당의 현재 체크인 사용자 목록을 보여줍니다(프라이버시: 닉네임/레벨/경과시간만 노출).
 - **같이먹기 신청** — 같은 식당 혼밥러에게 신청하고 수락/거절합니다(수신 opt-in 필수, 차단/신고 안전장치 제공).
 
@@ -133,38 +133,70 @@ com.honjeong
 
 ## 주요 명령어
 
-> 로컬 개발은 H2(`local` 프로파일)로 동작한다. Docker는 배포/통합용.
+> **전제**: 로컬 개발·테스트 모두 **PostgreSQL**을 쓴다. 컨테이너 런타임으로 **OrbStack**이 실행 중이어야 한다(메뉴바 아이콘 / `docker ps`로 확인). H2는 더 이상 쓰지 않는다(단일 활성 체크인의 부분 유니크 인덱스가 Postgres 전용이기 때문).
+> 모든 명령은 `backend/`에서 실행한다: `cd ~/project/backend`.
 
-### 개발 실행
+### 로컬 DB (개발용·영구)
+
+`docker-compose.yml`의 `db` 서비스 = `honjeong-db`(postgres:17, localhost:5432, db/user/pass 모두 `honjeong`).
 
 ```bash
-./gradlew bootRun           # 앱 실행 (local 프로파일·H2, http://localhost:8080)
+docker compose up -d db      # 로컬 Postgres 기동
+docker ps                    # 상태 확인
+docker compose stop db       # 끄기(데이터 유지)
+docker compose down -v       # 완전 초기화(테이블·데이터 삭제)
 ```
 
-H2 콘솔: 앱 실행 후 `http://localhost:8080/h2-console`
-(JDBC URL `jdbc:h2:file:./data/honjeong`, user `sa`, 비밀번호 없음)
+> 빈 DB를 처음 켠 뒤 앱을 한 번 실행하면 **Flyway가 `V1__core.sql`을 적용**해 테이블이 생성된다.
+
+### 앱 실행
+
+```bash
+docker compose up -d db                 # DB 먼저
+./gradlew bootRun                       # 앱 실행(local 프로파일·Postgres, :8080, Ctrl+C로 종료)
+curl http://localhost:8080/api/health   # {"status":"UP"}
+```
 
 ### 빌드 / 테스트
 
+> 테스트는 **Testcontainers**로 Postgres를 띄우므로 **OrbStack 실행 필수**. 소켓은 `~/.testcontainers.properties`(`docker.host=unix://~/.orbstack/run/docker.sock`)로 잡혀 있어 추가 설정 없이 동작한다.
+
 ```bash
-./gradlew build                                  # 컴파일 + 테스트 + 패키징
-./gradlew clean bootJar                          # 실행 가능 JAR 생성 (build/libs/*.jar)
-java -jar build/libs/*.jar                       # 빌드된 JAR 직접 실행
 ./gradlew test                                   # 전체 테스트
-./gradlew test --info                            # 상세 출력
-./gradlew test --tests "com.honjeong.checkin.*"  # 특정 패키지
+./gradlew test --tests "*CheckInServiceTest"     # 특정 테스트
+./gradlew test --info                            # 실패 원인 상세
+open build/reports/tests/test/index.html         # HTML 리포트
+./gradlew build                                  # 컴파일 + 테스트 + 패키징
+./gradlew clean bootJar                          # 실행 JAR 생성 (build/libs/*.jar)
 ```
 
-### Docker (배포 / 통합)
+### DB 들여다보기
+
+로컬 `honjeong-db`를 본다(테스트용 Testcontainers DB는 휘발성이라 직접 못 봄).
 
 ```bash
-docker compose up -d        # PostgreSQL + 앱 기동 (prod 프로파일, :8080)
+# (A) 터미널 psql — 설치 불필요(컨테이너 안 psql)
+docker exec -it honjeong-db psql -U honjeong -d honjeong
+#   \dt                                  테이블 목록
+#   \d users                             컬럼 구조
+#   \d check_ins                         부분 유니크 인덱스 확인
+#   SELECT * FROM flyway_schema_history; 적용된 마이그레이션
+#   \q                                   나가기
+```
+
+(B) GUI 툴(TablePlus / DBeaver) 연결정보: `Host localhost · Port 5432 · DB honjeong · User honjeong · Password honjeong`.
+
+### Docker 배포(통합)
+
+```bash
+docker compose up -d        # app(prod 프로파일) + db 동시 기동
 docker compose logs -f app  # 앱 로그 추적
 docker compose down         # 중지 (-v 추가 시 DB 볼륨까지 삭제)
 ```
 
 ### 프로파일
 
-- `local` (기본) — H2 파일 DB, `show-sql` 활성, H2 콘솔 노출.
-- `prod` — PostgreSQL, 환경변수(`DB_URL`/`DB_USERNAME`/`DB_PASSWORD`) 주입, `ddl-auto: validate`.
+- `local` (기본) — **PostgreSQL**(docker compose `db`), `show-sql` 활성, 스키마는 Flyway 적용 후 `ddl-auto: validate`.
+- `test` — Testcontainers Postgres(`@ActiveProfiles("test")`, 단위 테스트는 Mockito로 DB 불필요).
+- `prod` — PostgreSQL, 환경변수(`DB_URL`/`DB_USERNAME`/`DB_PASSWORD`) 주입, `ddl-auto: validate`, 외부연동 `honjeong.*.mode=real`.
 - 전환: `SPRING_PROFILES_ACTIVE=prod ./gradlew bootRun` (Docker는 자동 지정).

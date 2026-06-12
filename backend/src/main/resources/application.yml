@@ -4,28 +4,44 @@ spring:
   profiles:
     active: local
 
+# 애플리케이션 고유 설정 (모든 프로파일 공통 — prod에서 일부 override)
+honjeong:
+  # 외부 연동 모드: mock(기본) | real. real은 application-prod.yml에서 지정.
+  oauth:
+    mode: mock
+  sms:
+    mode: mock
+  place:
+    mode: mock
+  jwt:
+    # HS256용 시크릿(>= 256bit). 운영은 환경변수 JWT_SECRET으로 주입(NFR-02).
+    secret: ${JWT_SECRET:honjeong-local-dev-secret-please-change-in-production-0123456789}
+    access-token-ttl-seconds: 3600        # 1시간
+    refresh-token-ttl-seconds: 1209600    # 14일
+    onboarding-token-ttl-seconds: 900     # 15분
+  checkin:
+    ttl-hours: 3                          # 방치된 ACTIVE 자동 만료 기준(NFR-07)
+
 ---
-# 로컬 개발 프로파일 (H2, Docker 불필요)
+# 로컬 개발 프로파일 (PostgreSQL via docker-compose: `docker compose up -d db`)
 spring:
   config:
     activate:
       on-profile: local
   datasource:
-    url: jdbc:h2:file:./data/honjeong;AUTO_SERVER=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: ""
+    url: jdbc:postgresql://localhost:5432/honjeong
+    driver-class-name: org.postgresql.Driver
+    username: honjeong
+    password: honjeong
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate   # 스키마는 Flyway가 소유
     show-sql: true
     properties:
       hibernate:
         format_sql: true
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+  flyway:
+    enabled: true
 
 server:
   port: 8080

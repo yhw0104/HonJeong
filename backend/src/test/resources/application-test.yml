@@ -1,0 +1,10 @@
+# 테스트 프로파일 (@ActiveProfiles("test")).
+# datasource는 Testcontainers @ServiceConnection이 주입한다(URL/계정 미지정).
+# honjeong.* mock 설정과 jwt 시크릿은 메인 application.yml의 공통 섹션에서 상속된다.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate   # 스키마는 Flyway가 소유
+    show-sql: false
+  flyway:
+    enabled: true
