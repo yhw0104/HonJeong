@@ -2,6 +2,7 @@ package com.honjeong.auth.domain;
 
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.DynamicUpdate;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -21,6 +22,9 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "phone_verifications")
 @EntityListeners(AuditingEntityListener.class)
+// 변경된 컬럼만 UPDATE 한다. attempts는 별도 트랜잭션(PhoneAttemptRecorder)에서 갱신되므로,
+// 인증 성공 시 verified=true만 커밋하는 바깥 트랜잭션이 (제 메모리상의) 옛 attempts 값으로 덮어쓰지 않게 한다.
+@DynamicUpdate
 public class PhoneVerification {
 
     // PK. DB auto-increment(IDENTITY).

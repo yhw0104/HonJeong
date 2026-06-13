@@ -46,6 +46,7 @@ public class AuthService {
     private final UserRepository userRepository;                             // 회원 조회·저장
     private final SocialAccountRepository socialAccountRepository;           // 소셜 계정(공급자별 식별자) 매핑
     private final PhoneVerificationRepository phoneVerificationRepository;   // 휴대폰 인증번호 발송 이력
+    private final PhoneAttemptRecorder phoneAttemptRecorder;                 // 시도 카운트를 독립 트랜잭션으로 누적
     private final TermsAgreementRepository termsAgreementRepository;         // 약관 동의 기록
     private final OAuthVerifier oAuthVerifier;                               // 소셜 토큰 검증(공급자 신원 확인)
     private final SmsSender smsSender;                                       // 인증번호 SMS 발송
@@ -59,12 +60,14 @@ public class AuthService {
      * (생성자 주입 + final로 불변 의존성을 보장한다.)
      */
     public AuthService(UserRepository userRepository, SocialAccountRepository socialAccountRepository,
-            PhoneVerificationRepository phoneVerificationRepository, TermsAgreementRepository termsAgreementRepository,
+            PhoneVerificationRepository phoneVerificationRepository, PhoneAttemptRecorder phoneAttemptRecorder,
+            TermsAgreementRepository termsAgreementRepository,
             OAuthVerifier oAuthVerifier, SmsSender smsSender, VerificationCodeGenerator codeGenerator,
             TokenService tokenService, JwtProvider jwtProvider, Clock clock) {
         this.userRepository = userRepository;
         this.socialAccountRepository = socialAccountRepository;
         this.phoneVerificationRepository = phoneVerificationRepository;
+        this.phoneAttemptRecorder = phoneAttemptRecorder;
         this.termsAgreementRepository = termsAgreementRepository;
         this.oAuthVerifier = oAuthVerifier;
         this.smsSender = smsSender;
@@ -131,7 +134,9 @@ public class AuthService {
         if (verification.getAttempts() >= MAX_ATTEMPTS) {            // 5회 이상 시도했으면 차단
             throw new BusinessException(ErrorCode.PHONE_ATTEMPTS_EXCEEDED);
         }
-        verification.incrementAttempts();                            // 이번 시도를 카운트(불일치여도 누적됨)
+        // 이번 시도를 카운트한다(불일치여도 누적). 아래 불일치 throw로 이 트랜잭션이 롤백돼도 카운트는 남아야
+        // rate-limit이 동작하므로, 같은 트랜잭션의 incrementAttempts()가 아니라 REQUIRES_NEW로 독립 커밋한다.
+        phoneAttemptRecorder.record(verification.getId());
         if (!verification.matches(code)) {                          // 코드 불일치
             throw new BusinessException(ErrorCode.PHONE_CODE_MISMATCH);
         }

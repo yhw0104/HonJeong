@@ -45,6 +45,7 @@ class AuthServiceTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     private final SocialAccountRepository socialAccountRepository = mock(SocialAccountRepository.class);
     private final PhoneVerificationRepository phoneVerificationRepository = mock(PhoneVerificationRepository.class);
+    private final PhoneAttemptRecorder phoneAttemptRecorder = mock(PhoneAttemptRecorder.class);
     private final TermsAgreementRepository termsAgreementRepository = mock(TermsAgreementRepository.class);
     private final OAuthVerifier oAuthVerifier = mock(OAuthVerifier.class);
     private final SmsSender smsSender = mock(SmsSender.class);
@@ -54,8 +55,8 @@ class AuthServiceTest {
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-12T00:00:00Z"), ZoneOffset.UTC);
 
     private final AuthService authService = new AuthService(userRepository, socialAccountRepository,
-            phoneVerificationRepository, termsAgreementRepository, oAuthVerifier, smsSender, codeGenerator,
-            tokenService, jwtProvider, clock);
+            phoneVerificationRepository, phoneAttemptRecorder, termsAgreementRepository, oAuthVerifier, smsSender,
+            codeGenerator, tokenService, jwtProvider, clock);
 
     /**
      * 테스트용 User를 만든다. active=true면 프로필을 채워 ACTIVE 상태로 만들고, 엔티티에는 보통 자동
