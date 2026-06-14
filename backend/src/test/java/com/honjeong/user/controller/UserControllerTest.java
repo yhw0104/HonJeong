@@ -164,4 +164,35 @@ class UserControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
     }
+
+    /**
+     * given: userId 1L의 온보딩 토큰(typ=onboarding → ROLE_ONBOARDING).
+     * when: USER 전용인 GET /me 호출.
+     * then: 권한 부족으로 403(Forbidden). /me는 정식 가입(USER)만 허용됨을 확인한다.
+     */
+    @Test
+    @DisplayName("GET /me: 온보딩 토큰이면 403(USER 전용)")
+    void getMe_onboardingToken_403() throws Exception {
+        String token = jwtProvider.createOnboardingToken(1L);
+
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * given: 온보딩 토큰 + checkNickname 스텁(available=true).
+     * when: GET /nickname-check 호출.
+     * then: 200으로 통과한다 — nickname-check은 온보딩 ProfileSetup 단계에서도 호출되므로 ONBOARDING도 허용됨을 확인한다.
+     */
+    @Test
+    @DisplayName("GET /nickname-check: 온보딩 토큰으로도 200(온보딩 ProfileSetup 지원)")
+    void checkNickname_onboardingToken_ok() throws Exception {
+        when(userService.checkNickname("새닉")).thenReturn(new NicknameCheckResponse("새닉", true));
+        String token = jwtProvider.createOnboardingToken(1L);
+
+        mockMvc.perform(get("/api/users/nickname-check").param("nickname", "새닉")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.available").value(true));
+    }
 }
