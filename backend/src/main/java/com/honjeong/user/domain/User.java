@@ -131,6 +131,32 @@ public class User extends BaseTimeEntity {
     }
 
     /**
+     * 프로필을 부분 수정한다(PATCH). 전달된 값 중 <b>null이 아닌 필드만</b> 반영하고, null인 필드는 기존 값을
+     * 보존한다. 빈 문자열("")은 "해당 필드를 비움"으로 취급해 그대로 반영한다. 닉네임 중복 검사는 호출 측
+     * (서비스)에서 미리 수행한다. {@code gender}·{@code ageGroup}은 수정 대상이 아니다(온보딩 시 고정).
+     *
+     * @param nickname        새 닉네임(선택)
+     * @param profileImageUrl 새 프로필 이미지 URL(선택)
+     * @param introduction    새 한 줄 소개(선택, ""로 비우기 가능)
+     * @param region          새 활동 지역명(선택)
+     * @param regionLat       새 지역 위도(선택)
+     * @param regionLng       새 지역 경도(선택)
+     * @param diningStyle     새 식사 성향(선택)
+     * @param allowMealRequest 같이먹기 수신 허용 토글(선택). 엔티티 필드는 primitive지만 부분수정을 위해 Boolean으로 받는다.
+     */
+    public void updateProfile(String nickname, String profileImageUrl, String introduction,
+            String region, Double regionLat, Double regionLng, DiningStyle diningStyle, Boolean allowMealRequest) {
+        if (nickname != null) this.nickname = nickname;
+        if (profileImageUrl != null) this.profileImageUrl = profileImageUrl;
+        if (introduction != null) this.introduction = introduction;
+        if (region != null) this.region = region;
+        if (regionLat != null) this.regionLat = regionLat;
+        if (regionLng != null) this.regionLng = regionLng;
+        if (diningStyle != null) this.diningStyle = diningStyle;
+        if (allowMealRequest != null) this.allowMealRequest = allowMealRequest;
+    }
+
+    /**
      * 가입이 확정된 ACTIVE 회원인지 판정한다.
      *
      * @return status가 ACTIVE면 true(아직 온보딩 중이거나 정지/탈퇴면 false)
