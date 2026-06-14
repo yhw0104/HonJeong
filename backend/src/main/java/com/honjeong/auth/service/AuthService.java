@@ -128,24 +128,36 @@ public class AuthService {
         // 같은 번호로 여러 번 받았을 수 있으니 가장 최근 발송분을 기준으로 검증한다.
         PhoneVerification verification = phoneVerificationRepository.findTopByPhoneOrderByCreatedAtDesc(phone)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PHONE_CODE_MISMATCH));
-        if (verification.isExpired(LocalDateTime.now(clock))) {       // 3분 지났으면 만료
+
+        // 3분 지났으면 만료
+        if (verification.isExpired(LocalDateTime.now(clock))) {
             throw new BusinessException(ErrorCode.PHONE_CODE_EXPIRED);
         }
-        if (verification.getAttempts() >= MAX_ATTEMPTS) {            // 5회 이상 시도했으면 차단
+        
+        // 5회 이상 시도했으면 차단
+        if (verification.getAttempts() >= MAX_ATTEMPTS) {            
             throw new BusinessException(ErrorCode.PHONE_ATTEMPTS_EXCEEDED);
         }
+
         // 이번 시도를 카운트한다(불일치여도 누적). 아래 불일치 throw로 이 트랜잭션이 롤백돼도 카운트는 남아야
         // rate-limit이 동작하므로, 같은 트랜잭션의 incrementAttempts()가 아니라 REQUIRES_NEW로 독립 커밋한다.
         phoneAttemptRecorder.record(verification.getId());
-        if (!verification.matches(code)) {                          // 코드 불일치
+
+        // 코드 불일치
+        if (!verification.matches(code)) {                          
             throw new BusinessException(ErrorCode.PHONE_CODE_MISMATCH);
         }
-        verification.markVerified();                                // 검증 성공 표시
 
+        // 검증 성공 표시
+        verification.markVerified();                                
+
+        // users 테이블에 phone으로 해당 유저 있는지 판단.
+        // 이미 정상 회원 → 즉시 로그인
         Optional<User> existing = userRepository.findByPhone(phone);
-        if (existing.isPresent() && existing.get().isActive()) {     // 이미 정상 회원 → 즉시 로그인
+        if (existing.isPresent() && existing.get().isActive()) {     
             return AuthResult.login(tokenService.issue(existing.get().getId()));
         }
+
         // 신규면 PENDING 회원을 새로 생성, 미완(PENDING) 회원이면 그대로 재사용 → 온보딩 토큰 발급
         User user = existing.orElseGet(() -> userRepository.save(User.pending(phone, null)));
         return AuthResult.onboarding(jwtProvider.createOnboardingToken(user.getId()));
