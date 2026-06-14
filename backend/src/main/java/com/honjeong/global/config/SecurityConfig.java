@@ -7,6 +7,7 @@ import java.util.List;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -89,6 +90,8 @@ public class SecurityConfig {
                                 "/api/auth/oauth/**", "/api/auth/phone/**", "/api/auth/refresh").permitAll()
                         // 온보딩 단계(약관 동의·가입 완료)는 온보딩 토큰 또는 정식 USER 모두 허용.
                         .requestMatchers("/api/auth/terms", "/api/auth/complete").hasAnyRole("ONBOARDING", "USER")
+                        // 닉네임 중복확인은 온보딩 단계(ProfileSetup)에서도 호출하므로 ONBOARDING도 허용.
+                        .requestMatchers(HttpMethod.GET, "/api/users/nickname-check").hasAnyRole("ONBOARDING", "USER")
                         // 그 외 모든 요청은 정식 가입 사용자(USER)만 허용.
                         // authenticated() 대신 hasRole("USER")로 게이팅하는 이유: authenticated()면 온보딩 토큰도
                         // "인증됨"으로 통과하므로, 가입 미완료 온보딩 토큰이 일반 API를 호출하는 것을 막기 위함.
