@@ -29,6 +29,23 @@ public class UserService {
         return UserProfileResponse.from(findUser(userId));
     }
 
+    /**
+     * 프로필 부분수정. 닉네임이 들어오고 현재 닉네임과 <b>다를 때만</b> 중복 검사를 한다(본인 닉네임 유지는 통과).
+     * 이후 엔티티가 non-null 필드만 반영한다. 영속 컨텍스트의 dirty checking으로 UPDATE가 나간다.
+     */
+    @Transactional
+    public UserProfileResponse updateProfile(long userId, UpdateProfileCommand command) {
+        User user = findUser(userId);
+        if (command.nickname() != null && !command.nickname().equals(user.getNickname())
+                && userRepository.existsByNickname(command.nickname())) {
+            throw new BusinessException(ErrorCode.NICKNAME_DUPLICATE);
+        }
+        user.updateProfile(command.nickname(), command.profileImageUrl(), command.introduction(),
+                command.region(), command.regionLat(), command.regionLng(),
+                command.diningStyle(), command.allowMealRequest());
+        return UserProfileResponse.from(user);
+    }
+
     /** 닉네임 사용 가능 여부. 존재하지 않으면 available=true. */
     @Transactional(readOnly = true)
     public NicknameCheckResponse checkNickname(String nickname) {

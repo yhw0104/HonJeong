@@ -2,7 +2,10 @@ package com.honjeong.user.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
@@ -77,5 +80,45 @@ class UserServiceTest {
 
         assertThat(res.available()).isTrue();
         assertThat(res.nickname()).isEqualTo("빈닉");
+    }
+
+    @Test
+    @DisplayName("updateProfile: 닉네임을 본인 현재값과 동일하게 두면 중복검사 없이 통과한다")
+    void updateProfile_sameNickname_skipsDupCheck() {
+        User user = userWithId(1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        UpdateProfileCommand cmd = new UpdateProfileCommand("기존닉", null, "새소개", null, null, null, null, null);
+
+        UserProfileResponse res = userService.updateProfile(1L, cmd);
+
+        assertThat(res.introduction()).isEqualTo("새소개");
+        assertThat(res.nickname()).isEqualTo("기존닉");
+        verify(userRepository, never()).existsByNickname(anyString());
+    }
+
+    @Test
+    @DisplayName("updateProfile: 닉네임을 타인과 중복되게 바꾸면 NICKNAME_DUPLICATE")
+    void updateProfile_duplicateNickname_throws() {
+        User user = userWithId(1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.existsByNickname("중복닉")).thenReturn(true);
+        UpdateProfileCommand cmd = new UpdateProfileCommand("중복닉", null, null, null, null, null, null, null);
+
+        assertThatThrownBy(() -> userService.updateProfile(1L, cmd))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NICKNAME_DUPLICATE);
+    }
+
+    @Test
+    @DisplayName("updateProfile: allowMealRequest=false 토글이 반영된다")
+    void updateProfile_toggle() {
+        User user = userWithId(1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        UpdateProfileCommand cmd = new UpdateProfileCommand(null, null, null, null, null, null, null, Boolean.FALSE);
+
+        UserProfileResponse res = userService.updateProfile(1L, cmd);
+
+        assertThat(res.allowMealRequest()).isFalse();
     }
 }
