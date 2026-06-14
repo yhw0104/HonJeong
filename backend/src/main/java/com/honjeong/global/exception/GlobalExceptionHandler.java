@@ -2,6 +2,7 @@ package com.honjeong.global.exception;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -41,6 +42,18 @@ public class GlobalExceptionHandler {
         String message = fieldError != null ? fieldError.getDefaultMessage() : ErrorCode.INVALID_INPUT.message();
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.status())
                 .body(ApiResponse.error(ErrorCode.INVALID_INPUT.code(), message));
+    }
+
+    /**
+     * 필수 {@code @RequestParam} 누락을 400 INVALID_INPUT으로 변환한다(예: nickname-check의 nickname 누락).
+     *
+     * @param ex 누락된 파라미터 정보를 담은 예외
+     * @return 400 상태 + INVALID_INPUT 코드 엔벨로프
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingParam(MissingServletRequestParameterException ex) {
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.status())
+                .body(ApiResponse.error(ErrorCode.INVALID_INPUT.code(), ex.getParameterName() + " 파라미터가 필요합니다."));
     }
 
     /**
