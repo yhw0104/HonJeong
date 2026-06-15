@@ -5,6 +5,7 @@ export { MiniPin } from './MiniPin';
 export { FieldLabel } from './FieldLabel';
 export { MoreHeader } from './MoreHeader';
 export { MapBackground } from './MapBackground';
+export { HonjeongMap } from './HonjeongMap';
 export { CTAButton } from './CTAButton';
 export { StepProgress } from './StepProgress';
 export { Toggle } from './Toggle';

@@ -1,10 +1,10 @@
 // MapHome — 지도/홈 (원본: screens/MapHome.jsx)
-// MapBackground 플레이스홀더 위에 핀/검색바/라이브카운터/하단시트를 오버레이.
+// 실제 카카오맵(HonjeongMap) 위에 핀/검색바/라이브카운터/하단시트를 오버레이.
 // 하단 탭바는 MainTabs 네비게이터가 렌더하므로 여기서는 그리지 않는다.
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MapBackground, MiniPin, Icon, HonbabStatusBar } from '@/shared/components';
+import { HonjeongMap, MiniPin, Icon, HonbabStatusBar } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { MainTabScreenProps } from '@/navigation/types';
 
@@ -47,14 +47,15 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
 
   return (
     <View style={styles.root}>
-      <MapBackground />
+      <HonjeongMap />
 
-      {/* 핀 */}
+      {/* 핀 — 아직 화면 절대좌표 기반 목업 오버레이(지도와 함께 움직이지 않음).
+          다음 단계에서 place 검색 API + geo 좌표 마커로 교체한다. */}
       {PINS.map((p, i) => (
         <MiniPin key={i} {...p} />
       ))}
 
-      {/* 내 위치 */}
+      {/* 내 위치(목업) — expo-location 연동 시 실제 GPS로 교체 */}
       <View style={styles.myLocation} />
 
       {/* 상단 검색 + 길찾기 + (혼밥 중 상태 카드) + 라이브 카운터 */}
