@@ -138,7 +138,7 @@ public class CheckIn {
 }
 ```
 - 시각은 모두 서비스가 주입한 `Clock`에서 받아 넘긴다(테스트에서 고정 가능). 감사 리스너(@CreatedDate) 대신 명시적 set — 단일 시간소스로 통일.
-- **시간대 일관성(중요)**: `Clock` 빈 = `Clock.system(ZoneId.of("Asia/Seoul"))`. 저장 시각(`LocalDateTime.now(clock)`)과 통계 "오늘" 경계(`LocalDate.now(clock).atStartOfDay()`)가 **같은 KST 기준**이라 §5.3의 경계 어긋남이 없다. (JWT의 별도 UTC Clock과 무관 — 도메인 시각은 KST로 통일.)
+- **시간대 일관성(중요)**: 기존 전역 `Clock` 빈(AppConfig, `systemDefaultZone()`)을 **그대로 주입**받되, CheckInService가 **모든 시각을 `clock.instant()`에서 `ZoneId.of("Asia/Seoul")`로 환산**한다 — `now()`(저장 시각)와 `todayStart`(통계 경계)가 같은 KST 기준이라 §5.3의 어긋남이 없다. 전역 빈을 안 건드려 auth 회귀 위험이 없고, instant는 시간대 무관이라 빈의 zone과도 독립적이다.
 - `@ManyToOne(LAZY)`로 둬서 혼밥러 목록(`c.user.nickname`)·지도(`c.place.*`)를 **생성자 프로젝션 JPQL**로 N+1 없이 뽑는다.
 
 ## 5. 핵심 비즈니스 규칙 (`CheckInService`)
@@ -193,13 +193,13 @@ public CheckInResponse getMyActiveCheckIn(Long userId) {
 ```java
 @Transactional(readOnly = true)
 public CheckInStatsResponse getStats() {
-    LocalDateTime todayStart = LocalDate.now(clock).atStartOfDay();   // KST Clock → KST 자정
+    LocalDateTime todayStart = LocalDate.ofInstant(clock.instant(), KST).atStartOfDay();  // KST 자정
     long today  = checkInRepository.countDistinctUsersStartedSince(todayStart);
     long active = checkInRepository.countByStatus(ACTIVE);
     return new CheckInStatsResponse(today, active);
 }
 ```
-- `clock`이 Asia/Seoul이라 `todayStart`(KST 자정)와 저장 `startedAt`(KST)이 **같은 기준** — 경계 어긋남 없음(§4). naive timestamp 컬럼이라도 저장·조회가 한 시간대라 안전. 테스트는 고정 Clock으로 경계(자정 직전/직후) 검증.
+- `now()`·`todayStart` 모두 `clock.instant()`를 KST로 환산해 만든다(§4). `todayStart`(KST 자정)와 저장 `startedAt`(KST)이 같은 기준이라 경계 어긋남 없음. naive timestamp 컬럼이라도 저장·조회가 한 시간대라 안전. 테스트는 고정 Clock으로 경계(자정 직전/직후) 검증.
 
 ### 5.4 지도 (바운딩박스 + Haversine 보정)
 ```java
@@ -266,7 +266,7 @@ public int expireStaleCheckIns() {
 
 ## 8. 설정 변경
 
-- `@EnableScheduling` (config 클래스에 추가) + `Clock` 빈(`Clock.systemUTC()`, 없으면 신규).
+- `@EnableScheduling` (config 클래스에 추가). **`Clock` 빈은 기존 AppConfig 것 재사용**(신규 없음) — 서비스가 `clock.instant()`를 KST로 환산.
 - `HonjeongCheckInProperties`(`@ConfigurationProperties("honjeong.checkin")`): `activeTtlHours`(기본 3), `expiryIntervalMs`(기본 300000).
 - `application.yml`(local·prod)에 `honjeong.checkin.*` 추가.
 - **SecurityConfig 무변경** — `/api/check-ins/**`·`/api/places/{id}/check-ins` 전부 `anyRequest().hasRole("USER")` 커버.
