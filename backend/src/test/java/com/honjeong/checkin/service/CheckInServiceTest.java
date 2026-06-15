@@ -3,6 +3,7 @@ package com.honjeong.checkin.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -12,6 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -23,6 +25,7 @@ import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.dto.CheckInRequest;
 import com.honjeong.checkin.dto.CheckInResponse;
 import com.honjeong.checkin.dto.CheckInStatsResponse;
+import com.honjeong.checkin.dto.MapMarkerResponse;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
@@ -190,5 +193,30 @@ class CheckInServiceTest {
 
         assertThat(res.todayCount()).isEqualTo(124L);
         assertThat(res.activeCount()).isEqualTo(17L);
+    }
+
+    @Test
+    @DisplayName("getMap: lat/lng 누락이면 INVALID_INPUT(400)")
+    void map_missingCoords() {
+        assertThatThrownBy(() -> service.getMap(null, 127.0, 1000))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+    }
+
+    @Test
+    @DisplayName("getMap: 반경 밖 마커는 Haversine 보정으로 제외하고 거리순 정렬한다")
+    void map_filtersAndSorts() {
+        // 중심 (37.5,127.0). near≈120m, mid≈445m, far≈2004m(반경 1000 밖)
+        MapMarkerResponse near = new MapMarkerResponse(2L, "가까운집", 37.5010, 127.0005, 1);
+        MapMarkerResponse mid = new MapMarkerResponse(1L, "중간집", 37.5040, 127.0000, 2);
+        MapMarkerResponse far = new MapMarkerResponse(3L, "먼집", 37.5180, 127.0000, 5);
+        when(checkInRepository.countActiveByPlaceWithinBounds(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+                .thenReturn(List.of(mid, near, far));
+
+        var result = service.getMap(37.5, 127.0, 1000);
+
+        // far 제외, near→mid 거리순
+        assertThat(result).extracting(MapMarkerResponse::placeId).containsExactly(2L, 1L);
     }
 }

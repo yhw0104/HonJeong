@@ -4,6 +4,8 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -15,6 +17,7 @@ import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.dto.CheckInRequest;
 import com.honjeong.checkin.dto.CheckInResponse;
 import com.honjeong.checkin.dto.CheckInStatsResponse;
+import com.honjeong.checkin.dto.MapMarkerResponse;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
@@ -33,6 +36,11 @@ import com.honjeong.user.repository.UserRepository;
 public class CheckInService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
+    // 반경 상한(m). 이보다 큰 radius 요청은 이 값으로 줄인다(방어적 클램프).
+    static final int MAX_RADIUS = 10_000;
+    private static final double METERS_PER_DEGREE_LAT = 111_320.0;
+    private static final double EARTH_RADIUS_M = 6_371_000.0;
 
     private final CheckInRepository checkInRepository;
     private final PlaceService placeService;
@@ -119,6 +127,40 @@ public class CheckInService {
         long today = checkInRepository.countDistinctUsersStartedSince(todayStart);
         long active = checkInRepository.countByStatus(CheckInStatus.ACTIVE);
         return new CheckInStatsResponse(today, active);
+    }
+
+    /**
+     * 반경 내 식당별 현재 혼밥러 수 마커. 바운딩박스로 후보를 좁힌 뒤 Haversine로 원형 보정·거리순 정렬한다.
+     *
+     * @param lat    중심 위도(필수)
+     * @param lng    중심 경도(필수)
+     * @param radius 반경(m, 1~{@link #MAX_RADIUS}로 클램프)
+     * @return 거리순 정렬된 마커 목록(반경 밖 제외)
+     * @throws BusinessException lat/lng가 없으면 {@link ErrorCode#INVALID_INPUT}
+     */
+    @Transactional(readOnly = true)
+    public List<MapMarkerResponse> getMap(Double lat, Double lng, int radius) {
+        if (lat == null || lng == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "lat/lng는 필수입니다.");
+        }
+        int r = Math.min(Math.max(radius, 1), MAX_RADIUS);
+        double dLat = r / METERS_PER_DEGREE_LAT;
+        double dLng = r / (METERS_PER_DEGREE_LAT * Math.cos(Math.toRadians(lat)));
+        return checkInRepository.countActiveByPlaceWithinBounds(lat - dLat, lat + dLat, lng - dLng, lng + dLng)
+                .stream()
+                .filter(m -> haversine(lat, lng, m.latitude(), m.longitude()) <= r)
+                .sorted(Comparator.comparingDouble(m -> haversine(lat, lng, m.latitude(), m.longitude())))
+                .toList();
+    }
+
+    /** 두 좌표 간 거리(m)를 Haversine 공식으로 계산한다. */
+    private static double haversine(double lat1, double lng1, double lat2, double lng2) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
     /** 현재 시각을 KST LocalDateTime으로 반환한다(Clock instant를 Asia/Seoul로 환산). */

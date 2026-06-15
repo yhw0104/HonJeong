@@ -113,4 +113,24 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
 
         assertThat(checkInRepository.countDistinctUsersStartedSince(todayStart)).isEqualTo(1);
     }
+
+    @Test
+    @DisplayName("countActiveByPlaceWithinBounds: 박스 안 식당별 ACTIVE 수, 박스 밖·ENDED 제외")
+    void mapAggregation() {
+        User u1 = persistUser("01000000001", "A");
+        User u2 = persistUser("01000000002", "B");
+        User u3 = persistUser("01000000003", "C");
+        Place inBox = persistPlace("in", 37.5000, 127.0000);
+        Place outBox = persistPlace("out", 38.0000, 128.0000);
+        em.persist(CheckIn.start(u1, inBox, NOW));   // inBox ACTIVE
+        em.persist(CheckIn.start(u2, inBox, NOW));   // inBox ACTIVE → count 2
+        em.persist(CheckIn.start(u3, outBox, NOW));  // 박스 밖
+        em.flush();
+
+        var markers = checkInRepository.countActiveByPlaceWithinBounds(37.49, 37.51, 126.99, 127.01);
+
+        assertThat(markers).hasSize(1);
+        assertThat(markers.get(0).placeId()).isEqualTo(inBox.getId());
+        assertThat(markers.get(0).activeCount()).isEqualTo(2);
+    }
 }
