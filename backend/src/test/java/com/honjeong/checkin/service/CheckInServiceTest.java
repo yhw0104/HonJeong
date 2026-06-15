@@ -28,6 +28,7 @@ import com.honjeong.checkin.dto.CheckInStatsResponse;
 import com.honjeong.checkin.dto.CheckInUserResponse;
 import com.honjeong.checkin.dto.MapMarkerResponse;
 import com.honjeong.checkin.repository.CheckInRepository;
+import com.honjeong.global.config.HonjeongCheckInProperties;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
@@ -46,8 +47,9 @@ class CheckInServiceTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     // KST 12:00 = UTC 03:00 으로 고정. now()는 ofInstant(instant, KST) = 2026-06-15T12:00.
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneOffset.UTC);
+    private final HonjeongCheckInProperties props = new HonjeongCheckInProperties(3, 300_000L);
     private final CheckInService service =
-            new CheckInService(checkInRepository, placeService, userRepository, clock);
+            new CheckInService(checkInRepository, placeService, userRepository, clock, props);
 
     private final LocalDateTime nowKst = LocalDateTime.of(2026, 6, 15, 12, 0);
 
@@ -235,5 +237,15 @@ class CheckInServiceTest {
         assertThat(diners).hasSize(1);
         assertThat(diners.get(0).nickname()).isEqualTo("혼밥러");
         assertThat(diners.get(0).elapsedMinutes()).isEqualTo(15L);
+    }
+
+    @Test
+    @DisplayName("expireStaleCheckIns: now-ttl 이전 ACTIVE를 만료시키고 건수를 반환한다")
+    void expire() {
+        // now=2026-06-15T12:00 KST, ttl=3h → threshold=09:00
+        when(checkInRepository.endActiveStartedBefore(
+                LocalDateTime.of(2026, 6, 15, 9, 0), nowKst)).thenReturn(2);
+
+        assertThat(service.expireStaleCheckIns()).isEqualTo(2);
     }
 }

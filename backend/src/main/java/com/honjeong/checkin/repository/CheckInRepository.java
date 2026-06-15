@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -77,4 +78,18 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             ORDER BY c.startedAt
             """)
     List<CheckIn> findActiveWithUserByPlace(@Param("placeId") Long placeId);
+
+    /**
+     * 기준 시각 이전 시작된 ACTIVE를 일괄 ENDED 처리하고 만료 건수를 반환한다(TTL 자동 만료).
+     *
+     * @param threshold 이 시각 이전 시작된 ACTIVE가 만료 대상
+     * @param now       종료 시각으로 기록할 현재 시각
+     * @return 만료된 건수
+     */
+    @Modifying
+    @Query("""
+            UPDATE CheckIn c SET c.status = com.honjeong.checkin.domain.CheckInStatus.ENDED, c.endedAt = :now
+            WHERE c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE AND c.startedAt < :threshold
+            """)
+    int endActiveStartedBefore(@Param("threshold") LocalDateTime threshold, @Param("now") LocalDateTime now);
 }

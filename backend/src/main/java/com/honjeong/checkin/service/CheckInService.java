@@ -21,6 +21,7 @@ import com.honjeong.checkin.dto.CheckInStatsResponse;
 import com.honjeong.checkin.dto.CheckInUserResponse;
 import com.honjeong.checkin.dto.MapMarkerResponse;
 import com.honjeong.checkin.repository.CheckInRepository;
+import com.honjeong.global.config.HonjeongCheckInProperties;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
@@ -48,13 +49,15 @@ public class CheckInService {
     private final PlaceService placeService;
     private final UserRepository userRepository;
     private final Clock clock;
+    private final HonjeongCheckInProperties props;
 
     public CheckInService(CheckInRepository checkInRepository, PlaceService placeService,
-            UserRepository userRepository, Clock clock) {
+            UserRepository userRepository, Clock clock, HonjeongCheckInProperties props) {
         this.checkInRepository = checkInRepository;
         this.placeService = placeService;
         this.userRepository = userRepository;
         this.clock = clock;
+        this.props = props;
     }
 
     /**
@@ -181,6 +184,18 @@ public class CheckInService {
                         c.getStartedAt(),
                         Duration.between(c.getStartedAt(), now).toMinutes()))
                 .toList();
+    }
+
+    /**
+     * 방치된 ACTIVE 체크인(activeTtlHours 초과)을 일괄 ENDED 처리하고 만료 건수를 반환한다.
+     *
+     * @return 만료된 체크인 수
+     */
+    @Transactional
+    public int expireStaleCheckIns() {
+        LocalDateTime now = now();
+        LocalDateTime threshold = now.minusHours(props.activeTtlHours());
+        return checkInRepository.endActiveStartedBefore(threshold, now);
     }
 
     /** 현재 시각을 KST LocalDateTime으로 반환한다(Clock instant를 Asia/Seoul로 환산). */

@@ -151,4 +151,23 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         assertThat(diners.get(0).getUser().getNickname()).isEqualTo("먼저온사람");
         assertThat(diners.get(1).getUser().getNickname()).isEqualTo("나중온사람");
     }
+
+    @Test
+    @DisplayName("endActiveStartedBefore: 임계 이전 ACTIVE만 ENDED, 이후는 보존")
+    void ttlBulkEnd() {
+        User u1 = persistUser("01000000001", "오래된");
+        User u2 = persistUser("01000000002", "최근");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        LocalDateTime threshold = LocalDateTime.of(2026, 6, 15, 9, 0);
+        em.persist(CheckIn.start(u1, place, threshold.minusHours(1))); // 08:00 → 만료 대상
+        em.persist(CheckIn.start(u2, place, threshold.plusHours(1)));  // 10:00 → 보존
+        em.flush();
+        em.clear();
+
+        int expired = checkInRepository.endActiveStartedBefore(threshold, LocalDateTime.of(2026, 6, 15, 12, 0));
+
+        assertThat(expired).isEqualTo(1);
+        assertThat(checkInRepository.countByStatus(CheckInStatus.ACTIVE)).isEqualTo(1);
+        assertThat(checkInRepository.countByStatus(CheckInStatus.ENDED)).isEqualTo(1);
+    }
 }
