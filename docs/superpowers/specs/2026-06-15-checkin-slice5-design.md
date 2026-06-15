@@ -269,7 +269,7 @@ public int expireStaleCheckIns() {
 - `@EnableScheduling` (config 클래스에 추가). **`Clock` 빈은 기존 AppConfig 것 재사용**(신규 없음) — 서비스가 `clock.instant()`를 KST로 환산.
 - `HonjeongCheckInProperties`(`@ConfigurationProperties("honjeong.checkin")`): `activeTtlHours`(기본 3), `expiryIntervalMs`(기본 300000).
 - `application.yml`(local·prod)에 `honjeong.checkin.*` 추가.
-- **SecurityConfig 무변경** — `/api/check-ins/**`·`/api/places/{id}/check-ins` 전부 `anyRequest().hasRole("USER")` 커버.
+- **SecurityConfig** — `/api/check-ins/**`·`/api/places/{id}/check-ins`는 `anyRequest().hasRole("USER")`가 커버. **단, `GET /api/check-ins/stats`만 `permitAll`**(사회적 증거는 비로그인 첫 화면 노출, FR-103 — 집계 숫자만 반환). 나머지는 USER 전용.
 
 ## 9. 테스트 계획 (TDD: 실패 → 구현 → 통과)
 

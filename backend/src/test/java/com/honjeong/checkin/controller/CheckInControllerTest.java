@@ -160,6 +160,17 @@ class CheckInControllerTest {
     }
 
     @Test
+    @DisplayName("GET /stats: 토큰 없이도 200 — 사회적 증거는 비로그인 첫 화면에 노출(공개)")
+    void stats_noToken_200() throws Exception {
+        when(checkInService.getStats()).thenReturn(new CheckInStatsResponse(124L, 17L));
+
+        mockMvc.perform(get("/api/check-ins/stats"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.todayCount").value(124))
+                .andExpect(jsonPath("$.data.activeCount").value(17));
+    }
+
+    @Test
     @DisplayName("GET /map: 200 + 마커 배열")
     void map_200() throws Exception {
         when(checkInService.getMap(any(), any(), anyInt()))

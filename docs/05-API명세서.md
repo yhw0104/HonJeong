@@ -122,7 +122,8 @@ Authorization: Bearer <accessToken>
 ### GET `/api/check-ins/me` — 내 현재 체크인 · 🔒
 응답 `200`: 현재 ACTIVE 체크인(없으면 `data: null`).
 
-### GET `/api/check-ins/stats` — 혼밥 통계 · 🔒 · FR-103
+### GET `/api/check-ins/stats` — 혼밥 통계 · 🔓 (비로그인 공개) · FR-103
+> 사회적 증거(오늘 N명/현재 N명)는 **로그인 전 첫 화면**에 노출되어 심리적 장벽을 낮추므로 토큰 없이 공개한다(집계 숫자만 반환, 개인정보 없음).
 응답 `200`:
 ```json
 { "success": true, "data": { "todayCount": 124, "activeCount": 17 } }

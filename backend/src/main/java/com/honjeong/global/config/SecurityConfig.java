@@ -88,6 +88,8 @@ public class SecurityConfig {
                         // 헬스 체크와 로그인 전(前) 인증 흐름(소셜/휴대폰 인증, 토큰 재발급)은 토큰 없이 공개.
                         .requestMatchers("/api/health",
                                 "/api/auth/oauth/**", "/api/auth/phone/**", "/api/auth/refresh").permitAll()
+                        // 혼밥 통계(사회적 증거)는 비로그인 첫 화면에 노출되므로 토큰 없이 공개(FR-103). 집계 숫자만 반환.
+                        .requestMatchers(HttpMethod.GET, "/api/check-ins/stats").permitAll()
                         // 온보딩 단계(약관 동의·가입 완료)는 온보딩 토큰 또는 정식 USER 모두 허용.
                         .requestMatchers("/api/auth/terms", "/api/auth/complete").hasAnyRole("ONBOARDING", "USER")
                         // 닉네임 중복확인은 온보딩 단계(ProfileSetup)에서도 호출하므로 ONBOARDING도 허용.
