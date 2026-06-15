@@ -21,6 +21,7 @@ honjeong:
     onboarding-token-ttl-seconds: 900     # 15분
   checkin:
     ttl-hours: 3                          # 방치된 ACTIVE 자동 만료 기준(NFR-07)
+    expiry-interval-ms: 300000            # 만료 스케줄러 주기(5분)
 
 ---
 # 로컬 개발 프로파일 (PostgreSQL via docker-compose: `docker compose up -d db`)

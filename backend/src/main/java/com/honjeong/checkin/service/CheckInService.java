@@ -194,7 +194,7 @@ public class CheckInService {
     @Transactional
     public int expireStaleCheckIns() {
         LocalDateTime now = now();
-        LocalDateTime threshold = now.minusHours(props.activeTtlHours());
+        LocalDateTime threshold = now.minusHours(props.ttlHours());
         return checkInRepository.endActiveStartedBefore(threshold, now);
     }
 

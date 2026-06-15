@@ -5,9 +5,11 @@ import java.time.Clock;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /** 애플리케이션 공통 빈. 시간은 Clock 빈으로 주입해 테스트에서 고정 가능하게 한다. */
 @Configuration
+@EnableScheduling
 @EnableConfigurationProperties(HonjeongCheckInProperties.class)
 public class AppConfig {
 
