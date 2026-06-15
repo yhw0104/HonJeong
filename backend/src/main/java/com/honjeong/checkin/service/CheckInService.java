@@ -1,6 +1,7 @@
 package com.honjeong.checkin.service;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -17,6 +18,7 @@ import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.dto.CheckInRequest;
 import com.honjeong.checkin.dto.CheckInResponse;
 import com.honjeong.checkin.dto.CheckInStatsResponse;
+import com.honjeong.checkin.dto.CheckInUserResponse;
 import com.honjeong.checkin.dto.MapMarkerResponse;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.exception.BusinessException;
@@ -161,6 +163,24 @@ public class CheckInService {
                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
                 * Math.sin(dLng / 2) * Math.sin(dLng / 2);
         return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    /**
+     * 식당의 현재 혼밥러 목록을 반환한다. 경과분은 now−startedAt. 프라이버시상 닉네임·시작시각·경과만 노출한다.
+     *
+     * @param placeId 식당 id
+     * @return 현재 ACTIVE 혼밥러 목록(startedAt 오름차순)
+     */
+    @Transactional(readOnly = true)
+    public List<CheckInUserResponse> getActiveDiners(Long placeId) {
+        LocalDateTime now = now();
+        return checkInRepository.findActiveWithUserByPlace(placeId).stream()
+                .map(c -> new CheckInUserResponse(
+                        c.getId(),
+                        c.getUser().getNickname(),
+                        c.getStartedAt(),
+                        Duration.between(c.getStartedAt(), now).toMinutes()))
+                .toList();
     }
 
     /** 현재 시각을 KST LocalDateTime으로 반환한다(Clock instant를 Asia/Seoul로 환산). */

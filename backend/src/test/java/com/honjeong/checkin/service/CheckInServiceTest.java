@@ -25,6 +25,7 @@ import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.dto.CheckInRequest;
 import com.honjeong.checkin.dto.CheckInResponse;
 import com.honjeong.checkin.dto.CheckInStatsResponse;
+import com.honjeong.checkin.dto.CheckInUserResponse;
 import com.honjeong.checkin.dto.MapMarkerResponse;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.exception.BusinessException;
@@ -218,5 +219,21 @@ class CheckInServiceTest {
 
         // far 제외, near→mid 거리순
         assertThat(result).extracting(MapMarkerResponse::placeId).containsExactly(2L, 1L);
+    }
+
+    @Test
+    @DisplayName("getActiveDiners: 닉네임·경과분(now−startedAt) 매핑")
+    void diners_elapsed() {
+        // clock now = 2026-06-15T12:00 KST. 11:45 시작 → 경과 15분
+        User user = mock(User.class);
+        when(user.getNickname()).thenReturn("혼밥러");
+        CheckIn ci = CheckIn.start(user, place(3L), nowKst.minusMinutes(15));
+        when(checkInRepository.findActiveWithUserByPlace(3L)).thenReturn(List.of(ci));
+
+        var diners = service.getActiveDiners(3L);
+
+        assertThat(diners).hasSize(1);
+        assertThat(diners.get(0).nickname()).isEqualTo("혼밥러");
+        assertThat(diners.get(0).elapsedMinutes()).isEqualTo(15L);
     }
 }

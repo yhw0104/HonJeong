@@ -133,4 +133,22 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         assertThat(markers.get(0).placeId()).isEqualTo(inBox.getId());
         assertThat(markers.get(0).activeCount()).isEqualTo(2);
     }
+
+    @Test
+    @DisplayName("findActiveWithUserByPlace: 식당의 ACTIVE 혼밥러를 startedAt 오름차순, user fetch")
+    void activeDiners() {
+        User u1 = persistUser("01000000001", "먼저온사람");
+        User u2 = persistUser("01000000002", "나중온사람");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        em.persist(CheckIn.start(u1, place, NOW));
+        em.persist(CheckIn.start(u2, place, NOW.plusMinutes(10)));
+        em.flush();
+        em.clear(); // fetch join 실제 동작 확인(영속성 컨텍스트 비움)
+
+        var diners = checkInRepository.findActiveWithUserByPlace(place.getId());
+
+        assertThat(diners).hasSize(2);
+        assertThat(diners.get(0).getUser().getNickname()).isEqualTo("먼저온사람");
+        assertThat(diners.get(1).getUser().getNickname()).isEqualTo("나중온사람");
+    }
 }

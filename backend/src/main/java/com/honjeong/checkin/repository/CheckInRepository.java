@@ -64,4 +64,17 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     List<MapMarkerResponse> countActiveByPlaceWithinBounds(
             @Param("latMin") double latMin, @Param("latMax") double latMax,
             @Param("lngMin") double lngMin, @Param("lngMax") double lngMax);
+
+    /**
+     * 식당의 현재 ACTIVE 체크인을 startedAt 오름차순으로 조회한다. 닉네임을 위해 user를 fetch join한다(N+1 방지).
+     *
+     * @param placeId 식당 id
+     * @return ACTIVE 체크인 목록(user 로딩됨)
+     */
+    @Query("""
+            SELECT c FROM CheckIn c JOIN FETCH c.user
+            WHERE c.place.id = :placeId AND c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE
+            ORDER BY c.startedAt
+            """)
+    List<CheckIn> findActiveWithUserByPlace(@Param("placeId") Long placeId);
 }
