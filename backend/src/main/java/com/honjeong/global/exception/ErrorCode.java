@@ -25,6 +25,10 @@ public enum ErrorCode {
     NICKNAME_DUPLICATE(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
 
+    // 체크인 — 단일 활성 제약 충돌(다른 장소 ACTIVE)·대상 없음
+    CHECKIN_ALREADY_ACTIVE(HttpStatus.CONFLICT, "이미 진행 중인 체크인이 있습니다."),
+    CHECKIN_NOT_FOUND(HttpStatus.NOT_FOUND, "체크인을 찾을 수 없습니다."),
+
     // 예기치 못한 서버 내부 오류(처리되지 않은 예외 → 500)
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
 
