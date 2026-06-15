@@ -22,6 +22,7 @@ import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.dto.CheckInRequest;
 import com.honjeong.checkin.dto.CheckInResponse;
+import com.honjeong.checkin.dto.CheckInStatsResponse;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
@@ -175,5 +176,19 @@ class CheckInServiceTest {
 
         when(checkInRepository.findByUser_IdAndStatus(2L, CheckInStatus.ACTIVE)).thenReturn(Optional.empty());
         assertThat(service.getMyActiveCheckIn(2L)).isNull();
+    }
+
+    @Test
+    @DisplayName("getStats: todayCount는 KST 자정 기준, activeCount는 ACTIVE 수")
+    void stats() {
+        // clock = 2026-06-15T12:00 KST → todayStart = 2026-06-15T00:00
+        when(checkInRepository.countDistinctUsersStartedSince(LocalDateTime.of(2026, 6, 15, 0, 0)))
+                .thenReturn(124L);
+        when(checkInRepository.countByStatus(CheckInStatus.ACTIVE)).thenReturn(17L);
+
+        CheckInStatsResponse res = service.getStats();
+
+        assertThat(res.todayCount()).isEqualTo(124L);
+        assertThat(res.activeCount()).isEqualTo(17L);
     }
 }

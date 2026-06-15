@@ -1,8 +1,11 @@
 package com.honjeong.checkin.repository;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
@@ -28,4 +31,13 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
      * @return 건수
      */
     long countByStatus(CheckInStatus status);
+
+    /**
+     * 기준 시각 이후 시작된 체크인의 distinct 사용자 수(오늘 혼밥 "N명").
+     *
+     * @param start 집계 시작 경계(KST 자정)
+     * @return 중복 제거된 사용자 수
+     */
+    @Query("SELECT COUNT(DISTINCT c.user.id) FROM CheckIn c WHERE c.startedAt >= :start")
+    long countDistinctUsersStartedSince(@Param("start") LocalDateTime start);
 }

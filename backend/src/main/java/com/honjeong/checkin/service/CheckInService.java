@@ -1,6 +1,7 @@
 package com.honjeong.checkin.service;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Optional;
@@ -13,6 +14,7 @@ import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.dto.CheckInRequest;
 import com.honjeong.checkin.dto.CheckInResponse;
+import com.honjeong.checkin.dto.CheckInStatsResponse;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
@@ -104,6 +106,19 @@ public class CheckInService {
         return checkInRepository.findByUser_IdAndStatus(userId, CheckInStatus.ACTIVE)
                 .map(CheckInResponse::from)
                 .orElse(null);
+    }
+
+    /**
+     * 사회적 증거 통계를 반환한다. "오늘"은 Asia/Seoul 자정 기준이다.
+     *
+     * @return todayCount(오늘 distinct 사용자)·activeCount(현재 ACTIVE)
+     */
+    @Transactional(readOnly = true)
+    public CheckInStatsResponse getStats() {
+        LocalDateTime todayStart = LocalDate.ofInstant(clock.instant(), KST).atStartOfDay();
+        long today = checkInRepository.countDistinctUsersStartedSince(todayStart);
+        long active = checkInRepository.countByStatus(CheckInStatus.ACTIVE);
+        return new CheckInStatsResponse(today, active);
     }
 
     /** 현재 시각을 KST LocalDateTime으로 반환한다(Clock instant를 Asia/Seoul로 환산). */

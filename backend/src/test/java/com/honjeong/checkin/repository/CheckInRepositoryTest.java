@@ -94,4 +94,23 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         assertThatThrownBy(() -> checkInRepository.saveAndFlush(second))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
+
+    @Test
+    @DisplayName("countDistinctUsersStartedSince: 기준 이후 시작된 distinct 사용자 수(어제·중복 제외)")
+    void todayDistinctUsers() {
+        User u1 = persistUser("01000000001", "A");
+        User u2 = persistUser("01000000002", "B");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        LocalDateTime todayStart = LocalDateTime.of(2026, 6, 15, 0, 0);
+        // u1: 오늘 ACTIVE 1건 + 오늘 ENDED 1건(같은 사용자 2건 → distinct 1)
+        em.persist(CheckIn.start(u1, place, todayStart.plusHours(9)));
+        CheckIn ended = CheckIn.start(u1, place, todayStart.plusHours(10));
+        ended.end(todayStart.plusHours(11));
+        em.persist(ended);
+        // u2: 어제 시작 → 제외
+        em.persist(CheckIn.start(u2, place, todayStart.minusHours(2)));
+        em.flush();
+
+        assertThat(checkInRepository.countDistinctUsersStartedSince(todayStart)).isEqualTo(1);
+    }
 }
