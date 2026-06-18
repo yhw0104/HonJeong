@@ -29,6 +29,14 @@ public enum ErrorCode {
     CHECKIN_ALREADY_ACTIVE(HttpStatus.CONFLICT, "이미 진행 중인 체크인이 있습니다."),
     CHECKIN_NOT_FOUND(HttpStatus.NOT_FOUND, "체크인을 찾을 수 없습니다."),
 
+    // 같이먹기 — 대상 체크인 상태·opt-in·자기신청/중복·응답완료 충돌
+    MEALREQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "같이먹기 신청을 찾을 수 없습니다."),
+    TARGET_CHECKIN_NOT_AVAILABLE(HttpStatus.NOT_FOUND, "대상 체크인이 없거나 이미 종료되었습니다."),
+    MEALREQUEST_SELF(HttpStatus.CONFLICT, "자기 자신에게는 신청할 수 없습니다."),
+    MEALREQUEST_OPT_OUT(HttpStatus.FORBIDDEN, "상대가 같이먹기 신청을 받지 않습니다."),
+    MEALREQUEST_DUPLICATE(HttpStatus.CONFLICT, "이미 신청한 대상입니다."),
+    MEALREQUEST_ALREADY_RESPONDED(HttpStatus.CONFLICT, "이미 응답한 신청입니다."),
+
     // 예기치 못한 서버 내부 오류(처리되지 않은 예외 → 500)
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
 
