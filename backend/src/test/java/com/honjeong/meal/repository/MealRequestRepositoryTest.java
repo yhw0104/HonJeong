@@ -1,0 +1,150 @@
+package com.honjeong.meal.repository;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
+import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
+
+import com.honjeong.checkin.domain.CheckIn;
+import com.honjeong.global.config.JpaConfig;
+import com.honjeong.meal.domain.MealRequest;
+import com.honjeong.meal.domain.MealRequestStatus;
+import com.honjeong.place.domain.Place;
+import com.honjeong.support.AbstractPostgresTest;
+import com.honjeong.user.domain.User;
+
+/**
+ * MealRequestRepository 슬라이스 테스트. 실제 Postgres(Testcontainers)에서 매핑·유니크 제약·조회 쿼리를 검증한다.
+ */
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import(JpaConfig.class)
+class MealRequestRepositoryTest extends AbstractPostgresTest {
+
+    @Autowired
+    private MealRequestRepository mealRequestRepository;
+
+    @Autowired
+    private TestEntityManager em;
+
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 6, 18, 12, 0);
+
+    private User persistUser(String phone, String nickname) {
+        User user = User.pending(phone, null);
+        user.completeProfile(nickname, null, null, null, null, null, null, null, null);
+        return em.persist(user);
+    }
+
+    private Place persistPlace(String externalId) {
+        // lat/lng 고정 — meal 테스트는 지리 쿼리가 없다.
+        return em.persist(Place.of(externalId, externalId + "식당", "서울", 37.5, 127.0, "한식"));
+    }
+
+    private CheckIn persistCheckIn(User user, Place place) {
+        return em.persist(CheckIn.start(user, place, NOW));
+    }
+
+    @Test
+    @DisplayName("중복 신청: 같은 (from_user, to_check_in)이면 유니크 위반")
+    void duplicateConstraint() {
+        User from = persistUser("01000000001", "신청자");
+        User to = persistUser("01000000002", "수신자");
+        Place place = persistPlace("ext-1");
+        CheckIn target = persistCheckIn(to, place);
+        em.persist(MealRequest.create(from, target, place, "1차", NOW));
+        em.flush();
+
+        MealRequest dup = MealRequest.create(from, target, place, "2차", NOW);
+        assertThatThrownBy(() -> mealRequestRepository.saveAndFlush(dup))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("findReceived: 내가 수신자인 신청만(타인 대상 제외), fromUser fetch, placeId 노출")
+    void findReceived() {
+        User from = persistUser("01000000001", "신청자");
+        User me = persistUser("01000000002", "나");
+        User other = persistUser("01000000003", "남");
+        Place place = persistPlace("ext-1");
+        CheckIn myCheckIn = persistCheckIn(me, place);
+        CheckIn otherCheckIn = persistCheckIn(other, place);
+        em.persist(MealRequest.create(from, myCheckIn, place, "받은신청", NOW));
+        em.persist(MealRequest.create(from, otherCheckIn, place, "남에게간신청", NOW)); // 내 것 아님 → 제외돼야
+        em.flush();
+        em.clear();
+
+        List<MealRequest> received = mealRequestRepository.findReceived(me.getId(), null);
+
+        assertThat(received).hasSize(1);
+        assertThat(received.get(0).getFromUser().getNickname()).isEqualTo("신청자");
+        assertThat(received.get(0).getMessage()).isEqualTo("받은신청");
+        assertThat(received.get(0).getPlace().getId()).isEqualTo(place.getId());
+    }
+
+    @Test
+    @DisplayName("findReceived: status 필터(PENDING·ACCEPTED 양방향, null=전체)")
+    void findReceivedWithStatus() {
+        User from = persistUser("01000000001", "신청자");
+        User from2 = persistUser("01000000003", "신청자2");
+        User me = persistUser("01000000002", "나");
+        Place place = persistPlace("ext-1");
+        CheckIn myCheckIn = persistCheckIn(me, place);
+        em.persist(MealRequest.create(from, myCheckIn, place, "PENDING건", NOW));
+        MealRequest accepted = MealRequest.create(from2, myCheckIn, place, "ACCEPTED건", NOW);
+        accepted.accept(NOW.plusMinutes(5));
+        em.persist(accepted);
+        em.flush();
+        em.clear();
+
+        assertThat(mealRequestRepository.findReceived(me.getId(), MealRequestStatus.PENDING)).hasSize(1);
+        assertThat(mealRequestRepository.findReceived(me.getId(), MealRequestStatus.ACCEPTED)).hasSize(1);
+        assertThat(mealRequestRepository.findReceived(me.getId(), MealRequestStatus.DECLINED)).isEmpty();
+        assertThat(mealRequestRepository.findReceived(me.getId(), null)).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("findSent: 내가 신청자인 신청만(타인 발신 제외)")
+    void findSent() {
+        User me = persistUser("01000000001", "나");
+        User to = persistUser("01000000002", "수신자");
+        User other = persistUser("01000000003", "남신청자");
+        Place place = persistPlace("ext-1");
+        CheckIn target = persistCheckIn(to, place);
+        em.persist(MealRequest.create(me, target, place, "보낸신청", NOW));
+        em.persist(MealRequest.create(other, target, place, "남이보낸신청", NOW)); // 내 것 아님 → 제외돼야
+        em.flush();
+        em.clear();
+
+        List<MealRequest> sent = mealRequestRepository.findSent(me.getId(), null);
+        assertThat(sent).hasSize(1);
+        assertThat(sent.get(0).getFromUser().getNickname()).isEqualTo("나");
+        assertThat(sent.get(0).getMessage()).isEqualTo("보낸신청");
+    }
+
+    @Test
+    @DisplayName("findWithReceiverById: toCheckIn.user fetch로 수신자 식별 가능")
+    void findWithReceiverById() {
+        User from = persistUser("01000000001", "신청자");
+        User to = persistUser("01000000002", "수신자");
+        Place place = persistPlace("ext-1");
+        CheckIn target = persistCheckIn(to, place);
+        MealRequest saved = em.persist(MealRequest.create(from, target, place, "msg", NOW));
+        em.flush();
+        em.clear();
+
+        MealRequest found = mealRequestRepository.findWithReceiverById(saved.getId()).orElseThrow();
+        assertThat(found.isReceivedBy(to.getId())).isTrue();
+        assertThat(found.isReceivedBy(from.getId())).isFalse();
+        assertThat(mealRequestRepository.findWithReceiverById(-1L)).isEmpty();
+    }
+}
