@@ -1,5 +1,6 @@
 // PhoneAuth — 휴대폰 번호 인증 01/03 (원본: screens/PhoneAuth.jsx)
-// 목업의 가짜 <div> 입력을 실제 TextInput으로, 약관은 useState 토글로 구현.
+// 전화번호를 입력받아 인증번호를 발송한다.
+// (약관 동의는 신규 가입 단계인 ProfileSetup로 이동했다 — 기존 회원 로그인은 약관을 다시 볼 필요가 없기 때문.)
 import React, { useState } from 'react';
 import {
   View,
@@ -10,37 +11,32 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
+  Alert,
 } from 'react-native';
-import { Screen, StepProgress, CTAButton, Icon } from '@/shared/components';
+import { Screen, StepProgress, CTAButton } from '@/shared/components';
 import { T2 } from '@/shared/theme';
+import { apiPost, ApiError } from '@/shared/api/client';
 import type { RootStackScreenProps } from '@/navigation/types';
-
-type Term = { key: string; label: string; req: boolean };
-const TERMS: Term[] = [
-  { key: 'tos', label: '서비스 이용약관', req: true },
-  { key: 'privacy', label: '개인정보 처리방침', req: true },
-  { key: 'location', label: '위치정보 이용 동의', req: true },
-  { key: 'marketing', label: '마케팅 알림 수신', req: false },
-];
 
 export function PhoneAuthScreen({ navigation }: RootStackScreenProps<'PhoneAuth'>) {
   const [phone, setPhone] = useState('');
-  const [checked, setChecked] = useState<Record<string, boolean>>({
-    tos: true,
-    privacy: true,
-    location: true,
-    marketing: false,
-  });
+  const [sending, setSending] = useState(false);
 
-  const allChecked = TERMS.every((t) => checked[t.key]);
-  const requiredOk = TERMS.filter((t) => t.req).every((t) => checked[t.key]);
-  const canProceed = requiredOk && phone.replace(/\D/g, '').length >= 8;
+  const canProceed = phone.replace(/\D/g, '').length >= 8;
 
-  const toggleAll = () => {
-    const v = !allChecked;
-    setChecked(Object.fromEntries(TERMS.map((t) => [t.key, v])));
+  // 인증번호 발송 → 성공 시 VerifyCode로(전화번호 전달).
+  const onSendCode = async () => {
+    const phoneDigits = phone.replace(/\D/g, '');
+    setSending(true);
+    try {
+      await apiPost('/auth/phone/send-code', { phone: phoneDigits });
+      navigation.navigate('VerifyCode', { phone: phoneDigits });
+    } catch (e) {
+      Alert.alert('인증번호 발송 실패', e instanceof ApiError ? e.message : '잠시 후 다시 시도해주세요.');
+    } finally {
+      setSending(false);
+    }
   };
-  const toggle = (k: string) => setChecked((p) => ({ ...p, [k]: !p[k] }));
 
   return (
     <Screen bg={T2.bg}>
@@ -76,52 +72,11 @@ export function PhoneAuthScreen({ navigation }: RootStackScreenProps<'PhoneAuth'
               />
             </View>
           </View>
-
-          {/* 약관 */}
-          <View style={{ marginTop: 32 }}>
-            <Pressable style={styles.allRow} onPress={toggleAll}>
-              <View style={[styles.allCheck, { backgroundColor: allChecked ? T2.text : '#fff', borderColor: allChecked ? T2.text : T2.borderStrong }]}>
-                <Text style={styles.checkMark}>✓</Text>
-              </View>
-              <Text style={styles.allText}>약관에 모두 동의</Text>
-            </Pressable>
-
-            {TERMS.map((t) => {
-              const on = checked[t.key];
-              return (
-                <Pressable key={t.key} style={styles.termRow} onPress={() => toggle(t.key)}>
-                  <View
-                    style={[
-                      styles.termCheck,
-                      {
-                        backgroundColor: on ? T2.brand : 'transparent',
-                        borderWidth: on ? 0 : 1.5,
-                        borderColor: T2.borderStrong,
-                      },
-                    ]}
-                  >
-                    {on ? <Text style={styles.termMark}>✓</Text> : null}
-                  </View>
-                  <Text style={styles.termLabel}>
-                    <Text style={[styles.termTag, { color: t.req ? T2.text : T2.textMute }]}>
-                      {t.req ? '필수 ' : '선택 '}
-                    </Text>
-                    {t.label}
-                  </Text>
-                  <Icon name="chevronRight" size={12} color={T2.textMute} />
-                </Pressable>
-              );
-            })}
-          </View>
         </ScrollView>
 
         {/* CTA */}
         <View style={styles.ctaWrap}>
-          <CTAButton
-            label="인증번호 받기"
-            disabled={!canProceed}
-            onPress={() => navigation.navigate('VerifyCode', { phone })}
-          />
+          <CTAButton label="인증번호 받기" disabled={!canProceed || sending} onPress={onSendCode} />
         </View>
       </KeyboardAvoidingView>
     </Screen>
@@ -147,31 +102,6 @@ const styles = StyleSheet.create({
   },
   cc: { fontSize: 22, fontWeight: '700', color: T2.textMute, letterSpacing: -0.5 },
   input: { flex: 1, fontSize: 22, fontWeight: '700', color: T2.text, letterSpacing: 0.5, padding: 0 },
-
-  allRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: T2.border,
-  },
-  allCheck: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkMark: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  allText: { flex: 1, fontSize: 14, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
-
-  termRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11 },
-  termCheck: { width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  termMark: { color: '#fff', fontSize: 9, fontWeight: '800' },
-  termLabel: { flex: 1, fontSize: 13, color: T2.textSub, letterSpacing: -0.2 },
-  termTag: { fontWeight: '700' },
 
   ctaWrap: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24 },
 });

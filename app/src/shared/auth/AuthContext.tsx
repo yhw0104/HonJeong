@@ -1,0 +1,93 @@
+// 인증 상태 컨텍스트 — 앱 전역의 로그인 여부와 로그인/로그아웃 동작을 제공한다.
+//
+// status:
+//   - 'loading' : 앱 시작 직후, 저장된 토큰으로 세션 복원을 시도하는 중(스플래시)
+//   - 'authed'  : 로그인됨 → 메인 화면
+//   - 'guest'   : 미로그인 → 온보딩 화면
+//
+// 자동로그인은 "앱 시작 시 저장된 refresh 토큰으로 1회 재발급"으로 구현한다(refresh 수명 14일).
+// access 토큰은 1시간이라 그것만으론 부족하므로, 시작 시 refresh로 새 토큰 쌍을 받아 세션을 복원한다.
+// (요청 도중 401이 나면 자동 재시도하는 per-request refresh는 다음 단계로 분리.)
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+
+import { apiPost } from '@/shared/api/client';
+import { clearTokens, getRefreshToken, loadTokens, setTokens, type Tokens } from '@/shared/auth/session';
+
+type AuthStatus = 'loading' | 'authed' | 'guest';
+
+type AuthContextValue = {
+  /** 현재 인증 상태. RootNavigator가 이 값으로 보여줄 화면 그룹을 고른다. */
+  status: AuthStatus;
+  /** 로그인 확정 — 토큰을 저장하고 상태를 authed로 전환한다(온보딩 완료/기존 회원 로그인). */
+  signIn: (tokens: Tokens) => Promise<void>;
+  /** 로그아웃 — 서버 refresh 무효화 시도 후 로컬 토큰을 비우고 guest로 전환한다. */
+  signOut: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [status, setStatus] = useState<AuthStatus>('loading');
+
+  // 앱 시작 시 1회: 저장된 refresh 토큰으로 세션 복원을 시도한다.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const refresh = await loadTokens();
+      if (!refresh) {
+        if (alive) setStatus('guest'); // 저장된 세션 없음 → 온보딩
+        return;
+      }
+      try {
+        // refresh는 공개 엔드포인트라 토큰 없이 호출(token: null). 성공하면 새 토큰 쌍으로 교체.
+        const tokens = await apiPost<Tokens>('/auth/refresh', { refreshToken: refresh }, { token: null });
+        await setTokens(tokens);
+        if (alive) setStatus('authed');
+      } catch {
+        await clearTokens(); // 만료/무효화된 refresh → 세션 폐기하고 온보딩으로
+        if (alive) setStatus('guest');
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const signIn = useCallback(async (tokens: Tokens) => {
+    await setTokens(tokens);
+    setStatus('authed');
+  }, []);
+
+  const signOut = useCallback(async () => {
+    // 서버에 refresh 무효화를 알린다(실패해도 로컬은 반드시 정리). access 토큰은 클라이언트가 자동 첨부.
+    const refresh = getRefreshToken();
+    if (refresh) {
+      try {
+        await apiPost('/auth/logout', { refreshToken: refresh });
+      } catch {
+        /* 네트워크 실패 등은 무시하고 로컬 정리로 진행 */
+      }
+    }
+    await clearTokens();
+    setStatus('guest');
+  }, []);
+
+  // 세션 복원 중에는 스플래시(빈 로딩 화면)를 보여준다.
+  if (status === 'loading') {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  return <AuthContext.Provider value={{ status, signIn, signOut }}>{children}</AuthContext.Provider>;
+}
+
+/** 인증 컨텍스트 접근 훅. AuthProvider 하위에서만 사용. */
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
+}

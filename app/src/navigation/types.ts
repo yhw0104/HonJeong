@@ -6,8 +6,8 @@ import type { CompositeScreenProps } from '@react-navigation/native';
 export type RootStackParamList = {
   Welcome: undefined;
   PhoneAuth: undefined;
-  VerifyCode: { phone?: string } | undefined;
-  ProfileSetup: undefined;
+  VerifyCode: { phone: string };
+  ProfileSetup: { onboardingToken: string };
   MainTabs: undefined;
   NewGroup: undefined;
   RestaurantDetail: { name?: string } | undefined;

@@ -1,18 +1,22 @@
 // VerifyCode — 인증번호 입력 02/03 (원본: screens/VerifyCode.jsx)
 // 6칸 박스 + 숨은 TextInput으로 실제 입력 캡처, 재전송 카운트다운 타이머.
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Alert } from 'react-native';
 import { Screen, StepProgress, CTAButton, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
+import { apiPost, ApiError } from '@/shared/api/client';
+import { useAuth } from '@/shared/auth/AuthContext';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 const CELLS = 6;
 const pad = (n: number) => String(n).padStart(2, '0');
 
 export function VerifyCodeScreen({ navigation, route }: RootStackScreenProps<'VerifyCode'>) {
-  const phone = route.params?.phone;
+  const { phone } = route.params;
+  const { signIn } = useAuth();
   const [code, setCode] = useState('');
   const [secs, setSecs] = useState(180);
+  const [verifying, setVerifying] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -21,10 +25,42 @@ export function VerifyCodeScreen({ navigation, route }: RootStackScreenProps<'Ve
   }, []);
 
   const onChange = (t: string) => setCode(t.replace(/\D/g, '').slice(0, CELLS));
-  const resend = () => {
-    setCode('');
-    setSecs(180);
-    inputRef.current?.focus();
+  // 재전송 — 실제로 인증번호를 다시 요청한다(phone_verifications에 새 행 생성). 성공 시 코드 초기화+타이머 리셋.
+  const resend = async () => {
+    try {
+      await apiPost('/auth/phone/send-code', { phone });
+      setCode('');
+      setSecs(180);
+      inputRef.current?.focus();
+    } catch (e) {
+      Alert.alert('재전송 실패', e instanceof ApiError ? e.message : '잠시 후 다시 시도해주세요.');
+    }
+  };
+
+  // 인증번호 확인. 신규=온보딩토큰 받아 약관 제출→ProfileSetup / 기존=토큰 받아 바로 로그인.
+  const onVerify = async () => {
+    setVerifying(true);
+    try {
+      const result = await apiPost<{
+        onboarding: boolean;
+        onboardingToken?: string;
+        accessToken?: string;
+        refreshToken?: string;
+      }>('/auth/phone/verify', { phone, code });
+
+      if (result.onboarding && result.onboardingToken) {
+        // 신규 회원 → 약관 동의 + 프로필 작성을 위해 ProfileSetup로(약관은 거기서 제출).
+        navigation.navigate('ProfileSetup', { onboardingToken: result.onboardingToken });
+      } else if (result.accessToken && result.refreshToken) {
+        await signIn({ accessToken: result.accessToken, refreshToken: result.refreshToken });
+      } else {
+        Alert.alert('인증 오류', '예상치 못한 응답입니다. 다시 시도해주세요.');
+      }
+    } catch (e) {
+      Alert.alert('인증 실패', e instanceof ApiError ? e.message : '잠시 후 다시 시도해주세요.');
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const phoneLabel = phone ? `+82 ${phone}` : '+82 10 2580 ····';
@@ -96,8 +132,8 @@ export function VerifyCodeScreen({ navigation, route }: RootStackScreenProps<'Ve
       <View style={styles.ctaWrap}>
         <CTAButton
           label="인증 완료"
-          disabled={code.length < CELLS}
-          onPress={() => navigation.navigate('ProfileSetup')}
+          disabled={code.length < CELLS || verifying}
+          onPress={onVerify}
         />
       </View>
     </Screen>

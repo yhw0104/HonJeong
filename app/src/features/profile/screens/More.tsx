@@ -1,10 +1,11 @@
 // More — 더보기 / 마이페이지 (원본: screens/More.jsx)
 // 프로필 카드 + 3섹션 메뉴 + 로그아웃. 메뉴 대상 화면은 아직 미변환이라 onPress no-op.
 import React from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
 import { Screen, Avatar, Icon } from '@/shared/components';
 import type { IconName } from '@/shared/components';
 import { T2 } from '@/shared/theme';
+import { useAuth } from '@/shared/auth/AuthContext';
 import type { MainTabScreenProps } from '@/navigation/types';
 
 type MenuRoute =
@@ -51,6 +52,15 @@ const STATS: { n: string; l: string; route?: StatRoute }[] = [
 ];
 
 export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
+  const { signOut } = useAuth();
+
+  const onLogout = () => {
+    Alert.alert('로그아웃', '로그아웃하시겠어요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '로그아웃', style: 'destructive', onPress: () => signOut() },
+    ]);
+  };
+
   return (
     <Screen bg={T2.bg} edges={['top']}>
       <ScrollView contentContainerStyle={{ paddingBottom: 16 }}>
@@ -117,7 +127,7 @@ export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
 
         {/* 로그아웃 */}
         <View style={styles.footer}>
-          <Pressable>
+          <Pressable onPress={onLogout}>
             <Text style={styles.footerText}>로그아웃</Text>
           </Pressable>
           <Text style={styles.footerText}>버전 1.0.0</Text>
