@@ -23,11 +23,25 @@ const TERMS: Term[] = [
   { key: 'marketing', label: '마케팅 알림 수신', req: false },
 ];
 
+// 닉네임 중복확인 상태별 표시(문구·색). invalid = 완성된 글자 없이 자음/모음 낱자만(예: 'ㅋㅋ').
+type NickStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'error';
+const NICK_HINT: Record<NickStatus, { text: string; color: string }> = {
+  idle: { text: '', color: T2.textMute },
+  checking: { text: '확인 중…', color: T2.textMute },
+  available: { text: '사용 가능', color: T2.brand },
+  taken: { text: '이미 사용 중', color: '#E1493F' },
+  invalid: { text: '자음·모음만으로는 안 돼요', color: '#E1493F' },
+  error: { text: '확인 실패', color: T2.textMute },
+};
+
+// 완성된 한글 글자(가-힣)·영문·숫자 없이 자음/모음 낱자(ㄱ-ㅎ, ㅏ-ㅣ)만으로 이뤄졌는지.
+const isOnlyJamo = (s: string) => /^[ㄱ-ㅎㅏ-ㅣ]+$/.test(s);
+
 export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'ProfileSetup'>) {
   const { onboardingToken } = route.params;
   const { signIn } = useAuth();
   const [submitting, setSubmitting] = useState(false);
-  const [nickname, setNickname] = useState('혜린');
+  const [nickname, setNickname] = useState('');
   const [intro, setIntro] = useState('조용히 먹는 것도, 도란도란 얘기하는 것도 좋아요.');
   const [gender, setGender] = useState<'female' | 'male'>('female');
   const [foods, setFoods] = useState<string[]>(['한식', '일식', '면 요리']);
@@ -46,12 +60,16 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
 
   // 닉네임 실시간 중복 확인. 입력이 멈추면(디바운스 400ms) nickname-check를 호출한다.
   // 2자 미만은 확인하지 않고(idle), 온보딩 토큰으로 호출한다(아직 정식 로그인 전).
-  const [nickStatus, setNickStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'error'>('idle');
+  const [nickStatus, setNickStatus] = useState<NickStatus>('idle');
 
   useEffect(() => {
     const trimmed = nickname.trim();
     if (trimmed.length < 2) {
       setNickStatus('idle');
+      return;
+    }
+    if (isOnlyJamo(trimmed)) {
+      setNickStatus('invalid'); // 자음/모음 낱자만 → 서버 확인 없이 거절
       return;
     }
     setNickStatus('checking');
@@ -131,7 +149,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
         <View style={styles.photoRow}>
           <View>
             <View style={styles.photo}>
-              <Text style={styles.photoInitial}>혜</Text>
+              <Text style={styles.photoEmoji}>👤</Text>
             </View>
             <View style={styles.cameraBadge}>
               <Text style={{ fontSize: 12 }}>📷</Text>
@@ -156,26 +174,8 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
               placeholderTextColor={T2.textMute}
             />
             {nickStatus !== 'idle' && (
-              <Text
-                style={[
-                  styles.nickStatusText,
-                  {
-                    color:
-                      nickStatus === 'available'
-                        ? T2.brand
-                        : nickStatus === 'taken'
-                          ? '#E1493F'
-                          : T2.textMute,
-                  },
-                ]}
-              >
-                {nickStatus === 'checking'
-                  ? '확인 중…'
-                  : nickStatus === 'available'
-                    ? '사용 가능'
-                    : nickStatus === 'taken'
-                      ? '이미 사용 중'
-                      : '확인 실패'}
+              <Text style={[styles.nickStatusText, { color: NICK_HINT[nickStatus].color }]}>
+                {NICK_HINT[nickStatus].text}
               </Text>
             )}
           </View>
@@ -339,7 +339,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
       <View style={styles.ctaWrap}>
         <CTAButton
           label="시작하기"
-          disabled={submitting || !requiredOk || !nickname.trim() || nickStatus === 'taken'}
+          disabled={submitting || !requiredOk || !nickname.trim() || nickStatus === 'taken' || nickStatus === 'invalid'}
           onPress={onComplete}
         />
       </View>
@@ -356,8 +356,8 @@ const styles = StyleSheet.create({
   lead: { fontSize: 14, color: T2.textSub, marginTop: 12, lineHeight: 21, letterSpacing: -0.3 },
 
   photoRow: { marginTop: 28, flexDirection: 'row', alignItems: 'center', gap: 16 },
-  photo: { width: 72, height: 72, borderRadius: 36, backgroundColor: T2.text, alignItems: 'center', justifyContent: 'center' },
-  photoInitial: { color: '#fff', fontSize: 28, fontWeight: '800' },
+  photo: { width: 72, height: 72, borderRadius: 36, backgroundColor: T2.border, alignItems: 'center', justifyContent: 'center' },
+  photoEmoji: { fontSize: 34 },
   cameraBadge: {
     position: 'absolute',
     right: -2,
