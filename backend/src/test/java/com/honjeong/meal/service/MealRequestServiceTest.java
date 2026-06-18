@@ -28,6 +28,7 @@ import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.meal.domain.MealRequest;
 import com.honjeong.meal.domain.MealRequestStatus;
 import com.honjeong.meal.dto.MealRequestCreateRequest;
+import com.honjeong.meal.dto.MealRequestListItemResponse;
 import com.honjeong.meal.dto.MealRequestResponse;
 import com.honjeong.meal.dto.MealRequestStatusResponse;
 import com.honjeong.meal.repository.MealRequestRepository;
@@ -241,6 +242,27 @@ class MealRequestServiceTest {
         when(mealRequestRepository.findReceived(1L, MealRequestStatus.PENDING)).thenReturn(List.of());
         service.getMealRequests(1L, "received", "PENDING");
         verify(mealRequestRepository).findReceived(1L, MealRequestStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("getMealRequests: 엔티티를 목록 DTO로 매핑한다(닉네임·placeId·message·status·createdAt)")
+    void list_mapsToDto() {
+        User from = mock(User.class);
+        when(from.getNickname()).thenReturn("옆자리");
+        Place place = mock(Place.class);
+        when(place.getId()).thenReturn(3L);
+        MealRequest mr = MealRequest.create(from, mock(CheckIn.class), place, "같이 드실래요?", nowKst);
+        when(mealRequestRepository.findReceived(1L, null)).thenReturn(List.of(mr));
+
+        List<MealRequestListItemResponse> result = service.getMealRequests(1L, "received", null);
+
+        assertThat(result).hasSize(1);
+        MealRequestListItemResponse item = result.get(0);
+        assertThat(item.fromUser().nickname()).isEqualTo("옆자리");
+        assertThat(item.placeId()).isEqualTo(3L);
+        assertThat(item.message()).isEqualTo("같이 드실래요?");
+        assertThat(item.status()).isEqualTo("PENDING");
+        assertThat(item.createdAt()).isEqualTo(nowKst);
     }
 
     @Test
