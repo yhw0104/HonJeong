@@ -11,3 +11,6 @@ backend/data/
 .idea/
 *.iml
 .vscode/
+
+# Office 임시/잠금 파일 (예: ~$문서.xlsx)
+~$*
