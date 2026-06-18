@@ -1,12 +1,24 @@
 // Welcome — 웰컴 / 로그인 진입 (원본: screens/Welcome.jsx)
 // absolute 레이아웃을 flex 컬럼(상단 타이포 / 중단 카운터 / 하단 CTA)으로 재배치.
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Screen, Icon } from '@/shared/components';
 import { T2, C } from '@/shared/theme';
+import { apiGet } from '@/shared/api/client';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
+  // 지금 혼밥 중인 사람 수(사회적 증거). 비로그인 공개 통계라 로그인 전에도 호출 가능. 실패/로딩 시 '–'.
+  const [activeCount, setActiveCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    apiGet<{ todayCount: number; activeCount: number }>('/check-ins/stats')
+      .then((stats) => { if (alive) setActiveCount(stats.activeCount); })
+      .catch(() => { /* 연결 실패 시 폴백('–') 유지 */ });
+    return () => { alive = false; };
+  }, []);
+
   return (
     <Screen bg={T2.bg}>
       <View style={styles.container}>
@@ -34,7 +46,7 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
             <Text style={styles.indicatorLabel}>지금 이 순간,</Text>
           </View>
           <View style={styles.countRow}>
-            <Text style={styles.countNum}>27</Text>
+            <Text style={styles.countNum}>{activeCount ?? '–'}</Text>
             <Text style={styles.countUnit}>명의 혼밥러들</Text>
           </View>
         </View>

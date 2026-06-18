@@ -1,11 +1,12 @@
 // MapHome — 지도/홈 (원본: screens/MapHome.jsx)
 // 실제 카카오맵(HonjeongMap) 위에 핀/검색바/라이브카운터/하단시트를 오버레이.
 // 하단 탭바는 MainTabs 네비게이터가 렌더하므로 여기서는 그리지 않는다.
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HonjeongMap, MiniPin, Icon, HonbabStatusBar } from '@/shared/components';
 import { T2 } from '@/shared/theme';
+import { apiGet } from '@/shared/api/client';
 import type { MainTabScreenProps } from '@/navigation/types';
 
 const PINS = [
@@ -38,6 +39,17 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const [honbabOn, setHonbabOn] = useState(false);
   const [picking, setPicking] = useState(false);
   const [placeName, setPlaceName] = useState('큰순두부 연남점');
+
+  // 현재 혼밥 중인 사람 수(실시간). 백엔드 통계 API에서 받아 채운다. 실패/로딩 시 null → '–' 표시.
+  const [activeCount, setActiveCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    apiGet<{ todayCount: number; activeCount: number }>('/check-ins/stats')
+      .then((stats) => { if (alive) setActiveCount(stats.activeCount); })
+      .catch(() => { /* 연결 실패 시 폴백('–') 유지 */ });
+    return () => { alive = false; };
+  }, []);
 
   const startHonbab = (name: string) => {
     setPlaceName(name);
@@ -102,7 +114,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
               <Text style={styles.liveTag}>지금 · 실시간</Text>
             </View>
             <Text style={styles.sheetTitle}>
-              연남동에서 <Text style={{ color: T2.brand }}>27명</Text>이{'\n'}혼자 식사 중
+              연남동에서 <Text style={{ color: T2.brand }}>{activeCount ?? '–'}명</Text>이{'\n'}혼자 식사 중
             </Text>
             <Text style={styles.sheetSub}>
               메이트 모집 중 <Text style={{ color: T2.text, fontWeight: '700' }}>3명</Text> · 가게 8곳
