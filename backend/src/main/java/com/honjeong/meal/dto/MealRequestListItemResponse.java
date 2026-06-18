@@ -6,6 +6,7 @@ import com.honjeong.meal.domain.MealRequest;
 
 /**
  * 같이먹기 신청 목록 항목(GET). 프라이버시상 신청자는 닉네임만 노출한다.
+ * <p>sent(보낸) 목록에서도 {@code fromUser}는 신청자(=본인)다 — API 명세 §7 형태를 그대로 유지한다(수신자 식별 노출은 P2).
  *
  * @param mealRequestId 신청 id
  * @param fromUser      신청자(닉네임만)
