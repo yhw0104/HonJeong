@@ -18,19 +18,27 @@ import { T2 } from '@/shared/theme';
 import { apiPost, ApiError } from '@/shared/api/client';
 import type { RootStackScreenProps } from '@/navigation/types';
 
+// 입력 숫자를 국내 휴대폰 형식(010-XXXX-XXXX)으로 변환. 최대 11자리까지만 반영.
+function formatPhone(raw: string): string {
+  const d = raw.replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 7) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+}
+
 export function PhoneAuthScreen({ navigation }: RootStackScreenProps<'PhoneAuth'>) {
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(''); // 화면 표시용(하이픈 포함)
   const [sending, setSending] = useState(false);
 
-  const canProceed = phone.replace(/\D/g, '').length >= 8;
+  const digits = phone.replace(/\D/g, '');
+  const canProceed = /^01[01]\d{8}$/.test(digits); // 010·011로 시작하는 11자리만 통과
 
-  // 인증번호 발송 → 성공 시 VerifyCode로(전화번호 전달).
+  // 인증번호 발송 → 성공 시 VerifyCode로(숫자만 전달).
   const onSendCode = async () => {
-    const phoneDigits = phone.replace(/\D/g, '');
     setSending(true);
     try {
-      await apiPost('/auth/phone/send-code', { phone: phoneDigits });
-      navigation.navigate('VerifyCode', { phone: phoneDigits });
+      await apiPost('/auth/phone/send-code', { phone: digits });
+      navigation.navigate('VerifyCode', { phone: digits });
     } catch (e) {
       Alert.alert('인증번호 발송 실패', e instanceof ApiError ? e.message : '잠시 후 다시 시도해주세요.');
     } finally {
@@ -60,17 +68,17 @@ export function PhoneAuthScreen({ navigation }: RootStackScreenProps<'PhoneAuth'
           <View style={{ marginTop: 40 }}>
             <Text style={styles.fieldLabel}>휴대폰 번호</Text>
             <View style={styles.inputRow}>
-              <Text style={styles.cc}>+82</Text>
               <TextInput
                 style={styles.input}
                 value={phone}
-                onChangeText={setPhone}
-                placeholder="10 0000 0000"
+                onChangeText={(t) => setPhone(formatPhone(t))}
+                placeholder="010-0000-0000"
                 placeholderTextColor={T2.textMute}
-                keyboardType="phone-pad"
+                keyboardType="number-pad"
                 maxLength={13}
               />
             </View>
+            <Text style={styles.hint}>010·011로 시작하는 휴대폰 번호 (- 없이 입력해도 돼요)</Text>
           </View>
         </ScrollView>
 
@@ -100,8 +108,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: T2.text,
   },
-  cc: { fontSize: 22, fontWeight: '700', color: T2.textMute, letterSpacing: -0.5 },
   input: { flex: 1, fontSize: 22, fontWeight: '700', color: T2.text, letterSpacing: 0.5, padding: 0 },
+  hint: { marginTop: 10, fontSize: 11, color: T2.textMute, letterSpacing: -0.2 },
 
   ctaWrap: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24 },
 });
