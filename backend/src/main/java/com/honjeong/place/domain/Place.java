@@ -10,12 +10,11 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * 장소(식당) 캐시. 카카오 로컬 검색 결과를 우리 DB가 영구 소유하는 형태로, 체크인·리뷰 등 장소 UGC가 참조하는
- * 기준 엔티티다. 외부 카카오 place id({@code external_id})를 캐싱 키로 삼아, 체크인 시 없으면 INSERT,
- * 있으면 재사용(upsert)한다. 컬럼명은 기본 스네이크케이스 전략으로 매핑된다.
+ * 장소(식당) 엔티티. V1에서는 카카오 place id({@code external_id})를 캐싱 키로 사용했으나,
+ * V2 이후 공공데이터 마스터로 전환 중이다. {@code external_id} 컬럼과 {@link #of} 팩토리는 Task 8(V3)에서
+ * 호출부 정리 후 제거된다. 현재는 두 팩토리({@link #of}, {@link #ofPublicData})가 공존한다.
  *
- * <p>{@code phone}·{@code homepage_url} 컬럼은 P1에서 쓰지 않아 매핑하지 않는다(스키마 검증은 매핑된 컬럼만 보므로
- * 무방하며, 출처가 확정되는 P2 상세 기능에서 필요해질 때 매핑을 추가한다).
+ * <p>컬럼명은 기본 스네이크케이스 전략으로 매핑된다.
  */
 @Entity
 @Table(name = "places")
@@ -26,44 +25,55 @@ public class Place extends BaseTimeEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 카카오 place id. 캐싱 upsert 키이며 DB에서 UNIQUE·NOT NULL이다.
-    @Column(nullable = false)
+    // 카카오 place id. V2에서 nullable로 완화(공공데이터 행은 없음). Task 8(V3)에서 컬럼 제거 예정.
+    // @Column(nullable=false)를 제거해 V2 스키마(nullable)와 일치시킨다.
     private String externalId;
+
+    // 데이터 출처 식별자. 'PUBLIC_DATA' 또는 향후 추가 출처. NOT NULL.
+    @Column(nullable = false)
+    private String source;
+
+    // 출처별 관리번호. 공공데이터 적재 행의 식별 키 (source, source_id) UNIQUE.
+    private String sourceId;
 
     // 가게명. NOT NULL.
     @Column(nullable = false)
     private String name;
 
-    // 주소. 카카오가 안 줄 수 있어 nullable.
+    // 카테고리(예: 한식). nullable.
+    private String category;
+
+    // 지번 주소. nullable.
     private String address;
 
-    // 위도. 지도·반경검색에 쓰여 NOT NULL. 결측이 없으므로 원시 double로 둔다.
+    // 도로명 주소. nullable.
+    private String roadAddress;
+
+    // 위도. NOT NULL.
     @Column(nullable = false)
     private double latitude;
 
-    // 경도. 위와 동일하게 NOT NULL·원시 double.
+    // 경도. NOT NULL.
     @Column(nullable = false)
     private double longitude;
 
-    // 카테고리(예: 한식). nullable.
-    private String category;
+    // 전화번호. nullable.
+    private String phone;
+
+    // 영업 상태 (예: '영업', '폐업'). nullable.
+    private String businessStatus;
 
     /** JPA가 리플렉션으로 엔티티를 생성할 때 쓰는 기본 생성자. 외부 직접 호출은 막으려고 protected. */
     protected Place() {
     }
 
     /**
-     * 내부 전용 생성자. 외부에서는 {@link #of} 팩토리로만 생성하도록 private으로 막는다.
-     *
-     * @param externalId 카카오 place id(캐싱 키)
-     * @param name       가게명
-     * @param address    주소(nullable)
-     * @param latitude   위도
-     * @param longitude  경도
-     * @param category   카테고리(nullable)
+     * 레거시 카카오 캐시용 생성자. {@link #of} 팩토리에서만 호출한다.
+     * source 는 'PUBLIC_DATA' 로 고정한다(V2 NOT NULL DEFAULT 충족).
      */
     private Place(String externalId, String name, String address, double latitude, double longitude, String category) {
         this.externalId = externalId;
+        this.source = "PUBLIC_DATA";
         this.name = name;
         this.address = address;
         this.latitude = latitude;
@@ -72,7 +82,24 @@ public class Place extends BaseTimeEntity {
     }
 
     /**
-     * 검색 결과(또는 체크인 요청)로 전달된 장소 정보로 새 캐시 엔티티를 만드는 정적 팩토리.
+     * 공공데이터 마스터용 생성자. {@link #ofPublicData} 팩토리에서만 호출한다.
+     */
+    private Place(String source, String sourceId, String name, String category, String address,
+            String roadAddress, double latitude, double longitude, String phone, String businessStatus) {
+        this.source = source;
+        this.sourceId = sourceId;
+        this.name = name;
+        this.category = category;
+        this.address = address;
+        this.roadAddress = roadAddress;
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.phone = phone;
+        this.businessStatus = businessStatus;
+    }
+
+    /**
+     * 카카오 검색 결과로 새 캐시 엔티티를 만드는 레거시 팩토리. Task 8에서 제거 예정.
      *
      * @param externalId 카카오 place id(캐싱 키)
      * @param name       가게명
@@ -87,14 +114,44 @@ public class Place extends BaseTimeEntity {
         return new Place(externalId, name, address, latitude, longitude, category);
     }
 
+    /**
+     * 공공데이터 원천으로 새 Place 엔티티를 만드는 팩토리.
+     *
+     * @param sourceId       출처별 관리번호
+     * @param name           가게명
+     * @param category       카테고리(nullable)
+     * @param address        지번 주소(nullable)
+     * @param roadAddress    도로명 주소(nullable)
+     * @param latitude       위도
+     * @param longitude      경도
+     * @param phone          전화번호(nullable)
+     * @param businessStatus 영업 상태(nullable)
+     * @return 새 Place 인스턴스
+     */
+    public static Place ofPublicData(String sourceId, String name, String category, String address,
+            String roadAddress, double latitude, double longitude, String phone, String businessStatus) {
+        return new Place("PUBLIC_DATA", sourceId, name, category, address, roadAddress,
+                latitude, longitude, phone, businessStatus);
+    }
+
     /** 내부 식별자(PK)를 반환한다. */
     public Long getId() {
         return id;
     }
 
-    /** 카카오 place id(캐싱 키)를 반환한다. */
+    /** 카카오 place id(캐싱 키)를 반환한다. Task 8에서 제거 예정. */
     public String getExternalId() {
         return externalId;
+    }
+
+    /** 데이터 출처 식별자를 반환한다. */
+    public String getSource() {
+        return source;
+    }
+
+    /** 출처별 관리번호를 반환한다(없으면 null). */
+    public String getSourceId() {
+        return sourceId;
     }
 
     /** 가게명을 반환한다. */
@@ -102,9 +159,19 @@ public class Place extends BaseTimeEntity {
         return name;
     }
 
-    /** 주소를 반환한다(없으면 null). */
+    /** 카테고리를 반환한다(없으면 null). */
+    public String getCategory() {
+        return category;
+    }
+
+    /** 지번 주소를 반환한다(없으면 null). */
     public String getAddress() {
         return address;
+    }
+
+    /** 도로명 주소를 반환한다(없으면 null). */
+    public String getRoadAddress() {
+        return roadAddress;
     }
 
     /** 위도를 반환한다. */
@@ -117,8 +184,13 @@ public class Place extends BaseTimeEntity {
         return longitude;
     }
 
-    /** 카테고리를 반환한다(없으면 null). */
-    public String getCategory() {
-        return category;
+    /** 전화번호를 반환한다(없으면 null). */
+    public String getPhone() {
+        return phone;
+    }
+
+    /** 영업 상태를 반환한다(없으면 null). */
+    public String getBusinessStatus() {
+        return businessStatus;
     }
 }

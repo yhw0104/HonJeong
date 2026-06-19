@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 
@@ -33,6 +34,27 @@ class PlaceRepositoryTest extends AbstractPostgresTest {
 
     @Autowired
     private PlaceRepository placeRepository;
+
+    @Autowired
+    private TestEntityManager em;
+
+    @Test
+    @DisplayName("공공데이터 식당을 저장하고 source_id로 조회한다")
+    void saveAndFind() {
+        // given
+        Place p = Place.ofPublicData("MGMT-1", "혼밥식당", "한식", "서울 지번", "서울 도로명",
+                37.5, 127.0, "02-111", "영업");
+        em.persistAndFlush(p);
+        em.clear();
+
+        // when
+        Place found = placeRepository.findById(p.getId()).orElseThrow();
+
+        // then
+        assertThat(found.getSourceId()).isEqualTo("MGMT-1");
+        assertThat(found.getRoadAddress()).isEqualTo("서울 도로명");
+        assertThat(found.getBusinessStatus()).isEqualTo("영업");
+    }
 
     @Test
     @DisplayName("장소를 저장하면 id·감사시각이 자동으로 채워진다")
