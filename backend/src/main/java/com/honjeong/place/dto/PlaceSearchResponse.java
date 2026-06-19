@@ -1,28 +1,30 @@
 package com.honjeong.place.dto;
 
-import com.honjeong.place.client.PlaceCandidate;
+import com.honjeong.place.domain.Place;
 
 /**
- * 장소 검색 결과 1건의 응답 DTO. 클라이언트 후보({@link PlaceCandidate})에서 노출용 6개 필드만 그대로 옮긴다.
+ * 장소 검색 결과 1건의 응답 DTO. Task 6 이후 우리 DB({@link Place}) 기반으로 전환됐다.
  *
- * @param externalId 카카오 place id(체크인 시 이 값을 다시 보내 캐싱 upsert에 쓴다)
- * @param name       가게명
- * @param address    주소(nullable)
- * @param latitude   위도
- * @param longitude  경도
- * @param category   카테고리(nullable)
+ * @param placeId     우리 DB의 장소 PK(체크인 등 후속 요청에 사용)
+ * @param name        가게명
+ * @param category    카테고리(nullable)
+ * @param address     지번 주소(nullable)
+ * @param roadAddress 도로명 주소(nullable)
+ * @param latitude    위도
+ * @param longitude   경도
+ * @param phone       전화번호(nullable)
  */
-public record PlaceSearchResponse(String externalId, String name, String address,
-        double latitude, double longitude, String category) {
+public record PlaceSearchResponse(Long placeId, String name, String category, String address,
+        String roadAddress, double latitude, double longitude, String phone) {
 
     /**
-     * 검색 클라이언트 후보를 응답 DTO로 변환한다.
+     * DB 장소 엔티티를 응답 DTO로 변환한다.
      *
-     * @param candidate 클라이언트가 돌려준 후보
+     * @param p DB에서 조회한 장소 엔티티
      * @return 응답 DTO
      */
-    public static PlaceSearchResponse from(PlaceCandidate candidate) {
-        return new PlaceSearchResponse(candidate.externalId(), candidate.name(), candidate.address(),
-                candidate.latitude(), candidate.longitude(), candidate.category());
+    public static PlaceSearchResponse from(Place p) {
+        return new PlaceSearchResponse(p.getId(), p.getName(), p.getCategory(), p.getAddress(),
+                p.getRoadAddress(), p.getLatitude(), p.getLongitude(), p.getPhone());
     }
 }

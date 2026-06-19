@@ -11,8 +11,6 @@ honjeong:
     mode: mock
   sms:
     mode: mock
-  place:
-    mode: mock
   jwt:
     # HS256용 시크릿(>= 256bit). 운영은 환경변수 JWT_SECRET으로 주입(NFR-02).
     secret: ${JWT_SECRET:honjeong-local-dev-secret-please-change-in-production-0123456789}

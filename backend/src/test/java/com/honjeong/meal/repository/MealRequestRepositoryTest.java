@@ -45,9 +45,10 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
         return em.persist(user);
     }
 
-    private Place persistPlace(String externalId) {
+    private Place persistPlace(String sourceId) {
         // lat/lng 고정 — meal 테스트는 지리 쿼리가 없다.
-        return em.persist(Place.of(externalId, externalId + "식당", "서울", 37.5, 127.0, "한식"));
+        return em.persist(Place.ofPublicData(sourceId, sourceId + "식당", "한식", "서울", "서울 도로명",
+                37.5, 127.0, null, "영업"));
     }
 
     private CheckIn persistCheckIn(User user, Place place) {

@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.dto.MapMarkerResponse;
+import com.honjeong.checkin.dto.PlaceActiveCount;
 
 /**
  * 체크인 저장소. 단일 활성 제약은 DB 부분 유니크 인덱스가 강제하고, 여기서는 조회·집계 쿼리를 제공한다.
@@ -78,6 +79,24 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             ORDER BY c.startedAt
             """)
     List<CheckIn> findActiveWithUserByPlace(@Param("placeId") Long placeId);
+
+    /**
+     * 주어진 장소 ID 목록에 대해 현재 ACTIVE 체크인 수를 장소별로 집계한다.
+     * ACTIVE가 없는 장소는 결과에 포함되지 않는다(카운트 0은 서비스에서 기본값으로 처리).
+     *
+     * <p><b>주의:</b> placeIds가 빈 리스트이면 JPQL {@code IN ()} 오류가 발생할 수 있으므로
+     * 호출 전 반드시 빈 리스트 여부를 확인하고 단락 처리해야 한다.
+     *
+     * @param placeIds 조회할 장소 PK 목록
+     * @return 장소별 ACTIVE 혼밥러 수(ACTIVE가 있는 장소만 포함)
+     */
+    @Query("""
+            SELECT new com.honjeong.checkin.dto.PlaceActiveCount(c.place.id, COUNT(c.id))
+            FROM CheckIn c
+            WHERE c.place.id IN :placeIds AND c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE
+            GROUP BY c.place.id
+            """)
+    List<PlaceActiveCount> countActiveByPlaceIds(@Param("placeIds") List<Long> placeIds);
 
     /**
      * 기준 시각 이전 시작된 ACTIVE를 일괄 ENDED 처리하고 만료 건수를 반환한다(TTL 자동 만료).

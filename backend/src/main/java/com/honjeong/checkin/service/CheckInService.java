@@ -61,16 +61,16 @@ public class CheckInService {
     }
 
     /**
-     * 혼밥 체크인을 시작한다. 가게를 캐시 upsert한 뒤, 기존 ACTIVE가 있으면 같은 장소는 멱등 반환, 다른 장소는 409.
+     * 혼밥 체크인을 시작한다. placeId로 장소를 조회한 뒤, 기존 ACTIVE가 있으면 같은 장소는 멱등 반환, 다른 장소는 409.
      * 경쟁으로 단일활성 인덱스가 위반되면 {@link DataIntegrityViolationException}을 409로 변환한다.
      *
      * @param userId  체크인하는 회원 id
-     * @param request 선택한 가게 정보
+     * @param request 선택한 장소 id를 담은 요청
      * @return 체크인 응답(새로 만들었거나 멱등 반환한 기존 체크인)
      */
     @Transactional
     public CheckInResponse createCheckIn(Long userId, CheckInRequest request) {
-        Place place = placeService.findOrCreateByExternalId(request.toUpsertCommand());
+        Place place = placeService.getById(request.placeId());
 
         Optional<CheckIn> active = checkInRepository.findByUser_IdAndStatus(userId, CheckInStatus.ACTIVE);
         if (active.isPresent()) {

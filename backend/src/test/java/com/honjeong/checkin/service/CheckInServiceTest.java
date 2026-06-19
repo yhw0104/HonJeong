@@ -60,15 +60,15 @@ class CheckInServiceTest {
     }
 
     private CheckInRequest request() {
-        return new CheckInRequest("ext-1", "혼밥식당", "서울 중구", 37.5, 127.0, "한식");
+        return new CheckInRequest(3L);
     }
 
     @Test
     @DisplayName("createCheckIn: 기존 ACTIVE 없으면 새 체크인을 저장하고 응답을 반환한다")
     void create_new() {
-        // given: 가게 upsert 결과 placeId=3, 기존 ACTIVE 없음, save는 인자를 그대로 반환
+        // given: placeId=3 장소 조회 결과, 기존 ACTIVE 없음, save는 인자를 그대로 반환
         Place place = place(3L);
-        when(placeService.findOrCreateByExternalId(any())).thenReturn(place);
+        when(placeService.getById(3L)).thenReturn(place);
         when(checkInRepository.findByUser_IdAndStatus(1L, CheckInStatus.ACTIVE)).thenReturn(Optional.empty());
         when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
         when(checkInRepository.save(any(CheckIn.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -88,7 +88,7 @@ class CheckInServiceTest {
     void create_samePlace_idempotent() {
         // given: 기존 ACTIVE의 place와 새 요청의 place가 같은 id=3
         Place place = place(3L);
-        when(placeService.findOrCreateByExternalId(any())).thenReturn(place);
+        when(placeService.getById(3L)).thenReturn(place);
         CheckIn existing = CheckIn.start(mock(User.class), place, nowKst);
         when(checkInRepository.findByUser_IdAndStatus(1L, CheckInStatus.ACTIVE)).thenReturn(Optional.of(existing));
 
@@ -104,10 +104,10 @@ class CheckInServiceTest {
     @Test
     @DisplayName("createCheckIn: 다른 장소에 이미 ACTIVE면 CHECKIN_ALREADY_ACTIVE(409)")
     void create_differentPlace_conflict() {
-        // given: 기존 ACTIVE place id=4, 새 요청 place id=3 (place(...)는 when()을 쓰므로 변수로 분리 — 중첩 스터빙 방지)
+        // given: 기존 ACTIVE place id=4, 새 요청 place id=3
         Place requestedPlace = place(3L);
         Place existingPlace = place(4L);
-        when(placeService.findOrCreateByExternalId(any())).thenReturn(requestedPlace);
+        when(placeService.getById(3L)).thenReturn(requestedPlace);
         CheckIn existing = CheckIn.start(mock(User.class), existingPlace, nowKst);
         when(checkInRepository.findByUser_IdAndStatus(1L, CheckInStatus.ACTIVE)).thenReturn(Optional.of(existing));
 
@@ -123,7 +123,7 @@ class CheckInServiceTest {
     @DisplayName("createCheckIn: 경쟁으로 인덱스 위반 시 DataIntegrityViolationException을 409로 변환한다")
     void create_raceConflict() {
         Place place = place(3L);
-        when(placeService.findOrCreateByExternalId(any())).thenReturn(place);
+        when(placeService.getById(3L)).thenReturn(place);
         when(checkInRepository.findByUser_IdAndStatus(1L, CheckInStatus.ACTIVE)).thenReturn(Optional.empty());
         when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
         when(checkInRepository.save(any())).thenThrow(new DataIntegrityViolationException("uq violation"));
@@ -132,6 +132,18 @@ class CheckInServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.CHECKIN_ALREADY_ACTIVE));
+    }
+
+    @Test
+    @DisplayName("createCheckIn: 존재하지 않는 placeId면 PLACE_NOT_FOUND(404)")
+    void create_placeNotFound() {
+        when(placeService.getById(999L)).thenThrow(new BusinessException(ErrorCode.PLACE_NOT_FOUND));
+
+        assertThatThrownBy(() -> service.createCheckIn(1L, new CheckInRequest(999L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.PLACE_NOT_FOUND));
+        verify(checkInRepository, never()).save(any());
     }
 
     @Test

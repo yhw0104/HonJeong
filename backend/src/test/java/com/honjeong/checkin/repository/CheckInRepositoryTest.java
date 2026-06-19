@@ -46,8 +46,9 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         return em.persist(user);
     }
 
-    private Place persistPlace(String externalId, double lat, double lng) {
-        return em.persist(Place.of(externalId, externalId + "식당", "서울 어딘가", lat, lng, "한식"));
+    private Place persistPlace(String sourceId, double lat, double lng) {
+        return em.persist(Place.ofPublicData(sourceId, sourceId + "식당", "한식", "서울 어딘가", "서울 도로명",
+                lat, lng, null, "영업"));
     }
 
     @Test

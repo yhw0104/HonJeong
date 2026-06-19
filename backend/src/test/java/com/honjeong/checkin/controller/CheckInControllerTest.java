@@ -54,7 +54,7 @@ class CheckInControllerTest {
 
     private String body() {
         return """
-                {"externalId":"ext-1","name":"혼밥식당","address":"서울 중구","latitude":37.5,"longitude":127.0,"category":"한식"}
+                {"placeId": 3}
                 """;
     }
 
@@ -74,10 +74,10 @@ class CheckInControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/check-ins: externalId 누락이면 400")
+    @DisplayName("POST /api/check-ins: placeId 누락이면 400")
     void create_invalid() throws Exception {
         String bad = """
-                {"name":"혼밥식당","latitude":37.5,"longitude":127.0}
+                {}
                 """;
         mockMvc.perform(post("/api/check-ins").header("Authorization", userToken())
                         .contentType(MediaType.APPLICATION_JSON).content(bad))
@@ -112,6 +112,18 @@ class CheckInControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content(body()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("CHECKIN_ALREADY_ACTIVE"));
+    }
+
+    @Test
+    @DisplayName("POST /api/check-ins: 존재하지 않는 placeId면 404")
+    void create_placeNotFound() throws Exception {
+        when(checkInService.createCheckIn(eq(1L), any()))
+                .thenThrow(new BusinessException(ErrorCode.PLACE_NOT_FOUND));
+
+        mockMvc.perform(post("/api/check-ins").header("Authorization", userToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(body()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("PLACE_NOT_FOUND"));
     }
 
     @Test
