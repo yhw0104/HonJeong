@@ -47,7 +47,7 @@ H_X = "좌표정보(X)"
 H_Y = "좌표정보(Y)"
 
 UPSERT_SQL = """
-INSERT INTO places (source, source_id, name, category, address, road_address,
+INSERT INTO {table} (source, source_id, name, category, address, road_address,
                     latitude, longitude, phone, business_status, created_at, updated_at)
 VALUES %s
 ON CONFLICT (source, source_id) DO UPDATE SET
@@ -89,9 +89,13 @@ def iter_rows(csv_path, charset):
             yield row
 
 
-def load(csv_path, charset, dsn, batch_size):
+def load(csv_path, charset, dsn, batch_size, table="places"):
     read = upserted = skipped_closed = skipped_nocoord = skipped_noid = 0
     batch = []
+    # table은 운영자가 주는 식별자(사용자 입력 아님). 화이트리스트로 한 번 더 방어.
+    if not table.replace("_", "").isalnum():
+        raise ValueError(f"잘못된 테이블명: {table}")
+    upsert_sql = UPSERT_SQL.format(table=table)
     conn = psycopg2.connect(dsn)
     conn.autocommit = False
     try:
@@ -100,7 +104,7 @@ def load(csv_path, charset, dsn, batch_size):
                 nonlocal upserted
                 if not batch:
                     return
-                execute_values(cur, UPSERT_SQL, batch, template=UPSERT_TEMPLATE, page_size=batch_size)
+                execute_values(cur, upsert_sql, batch, template=UPSERT_TEMPLATE, page_size=batch_size)
                 conn.commit()  # 청크 단위 커밋 — 긴 단일 트랜잭션 회피
                 upserted += len(batch)
                 batch.clear()
@@ -143,12 +147,14 @@ def main():
     ap.add_argument("--dsn", default=os.environ.get("DATABASE_URL"),
                     help="postgresql://user:pass@host:port/db (또는 env DATABASE_URL)")
     ap.add_argument("--batch-size", type=int, default=5000)
+    ap.add_argument("--table", default="places",
+                    help="적재 대상 테이블(기본 places). 검증용 스테이징은 places_staging 등)")
     args = ap.parse_args()
     if not args.dsn:
         ap.error("--dsn 또는 환경변수 DATABASE_URL 필요")
 
-    print(f"적재 시작: {args.csv} ({args.charset})", file=sys.stderr)
-    read, upserted, sc, snc, sni = load(args.csv, args.charset, args.dsn, args.batch_size)
+    print(f"적재 시작: {args.csv} ({args.charset}) → {args.table}", file=sys.stderr)
+    read, upserted, sc, snc, sni = load(args.csv, args.charset, args.dsn, args.batch_size, args.table)
     print(
         f"완료 — read={read:,} upserted={upserted:,} "
         f"skipped(폐업={sc:,} 좌표결측={snc:,} 관리번호없음={sni:,})",
