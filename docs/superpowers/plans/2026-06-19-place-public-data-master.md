@@ -4,6 +4,8 @@
 
 **Goal:** 식당(`places`)을 카카오 캐시에서 공공데이터(전국일반음식점표준데이터) 일괄 적재 마스터로 전환하고, 우리 DB 위에서 검색·주변검색을 제공하며, 체크인을 `placeId` 기반으로 바꾼다.
 
+> ⚠️ **갱신(2026-06-19)**: Task 2~5(좌표변환·CSV파서·적재서비스·러너)와 Task 9(적재 실행)는 구현 후 **앱 밖 외부 ETL로 분리**되어 백엔드에서 제거됨(commit c135641). 앱에는 스키마(V2~V4)·엔티티·검색/주변/체크인(런타임)만 남는다. 적재 절차: [07-식당데이터-전략 §5](../../07-식당데이터-전략.md).
+
 **Architecture:** `places`를 공공데이터로 적재(CSV 스트리밍 → EPSG:5174→WGS84 좌표변환 → 멱등 upsert). 검색/주변은 우리 DB 질의(pg_trgm·바운딩박스 + 현재 혼밥러수 오버레이). 카카오 로컬 데이터 경로(`KakaoPlaceClient` 등) 제거, 카카오는 앱 지도 렌더링 SDK로만 잔존.
 
 **Tech Stack:** Java 21 · Spring Boot 4.0.6 · Spring Data JPA · PostgreSQL(+pg_trgm) · Flyway · proj4j(좌표변환) · OpenCSV(스트리밍 파싱) · JUnit5/AssertJ/Mockito/Testcontainers.
