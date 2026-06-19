@@ -193,4 +193,14 @@ class PlaceServiceTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
     }
+
+    @Test
+    @DisplayName("바운딩박스 결과가 없으면 countActiveByPlaceIds를 호출하지 않는다")
+    void nearby_emptyBox_noCountQuery() {
+        when(placeRepository.findOpenWithinBounds(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+                .thenReturn(java.util.List.of());
+        var res = service.nearby(37.5, 127.0, 1000, 0, 20);
+        assertThat(res.content()).isEmpty();
+        verify(checkInRepository, never()).countActiveByPlaceIds(anyList());
+    }
 }

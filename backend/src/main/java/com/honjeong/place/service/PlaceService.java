@@ -100,7 +100,7 @@ public class PlaceService {
         if (lat == null || lng == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "lat/lng는 필수입니다.");
         }
-        if (page < 0 || size < 1) {
+        if (page < 0 || size < 1 || page > 1_000_000) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "page/size가 올바르지 않습니다.");
         }
         int clampedSize = Math.min(size, MAX_SIZE);
