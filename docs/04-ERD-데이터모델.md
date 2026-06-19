@@ -1,7 +1,7 @@
 # 🗄️ ERD & 데이터 모델 — 혼정 (혼밥을 정상화하다)
 
 > 2단계(설계) 문서 — **v2 (전체 확장본)**. MVP 6개 테이블에 더해, `06-화면별-기능요구사항`이 흡수한 22개 화면(P1~P3)을 데이터 모델로 정식화한다.
-> 외부 카카오 API 가게 정보는 `places`에 **캐싱**하고, 체크인·리뷰·일기·메이트 등 UGC는 우리 DB가 소유한다.
+> 식당(`places`)은 **공공데이터(전국일반음식점표준데이터) 일괄 적재 마스터**이고(카카오 로컬은 약관상 저장불가 → 지도 렌더링 SDK 전용), 체크인·리뷰·일기·메이트 등 UGC는 우리 DB가 소유한다.
 > **단계 태그**: P1(MVP·핵심) / P2(경험 강화) / P3(콘텐츠·운영). 구현은 단계순으로 마이그레이션을 분리한다(§6).
 
 ---
@@ -60,8 +60,8 @@ erDiagram
     }
     places {
         bigint   id PK
-        varchar  external_id UK "카카오 place id"
-        varchar  name "식당"
+        varchar  source_id UK "공공데이터 관리번호"
+        varchar  name "식당(사업장명)"
         varchar  address "주소"
         double   latitude "위도"
         double   longitude "경도"
@@ -240,21 +240,24 @@ erDiagram
 
 ### B. 장소
 
-#### B-1. `places` — 장소 캐시 (P1, 확장) · FR-105/105E
+#### B-1. `places` — 장소 마스터 (P1, 공공데이터) · FR-105/105E
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
-| id | BIGINT | 🔑 auto | 내부 식별자(모든 장소 UGC가 참조) |
-| external_id | VARCHAR(64) | ⭐ NOT NULL | 카카오 place id(캐싱 upsert 키) |
-| name | VARCHAR(255) | NOT NULL | 가게명 |
-| address | VARCHAR(255) | | 주소 |
-| latitude / longitude | DOUBLE | NOT NULL | 좌표(지도·반경검색) |
-| category | VARCHAR(100) | | 카테고리 |
-| phone | VARCHAR(30) | NULL | 전화(P2, 출처 G3) |
-| homepage_url | VARCHAR(500) | NULL | 홈페이지(P2) |
-| business_hours | JSONB | NULL | 영업시간 요일별(P2, 출처 G3) |
+| id | BIGINT | 🔑 auto | 내부 식별자(모든 장소 UGC가 참조 · **시스템 식당 식별자**) |
+| source | VARCHAR(20) | NOT NULL | 출처 `PUBLIC_DATA`(현재) / 향후 `MANUAL` 등 |
+| source_id | VARCHAR(64) | ⭐ NOT NULL | 공공데이터 관리번호(멱등 적재 키). `UNIQUE(source, source_id)` |
+| name | VARCHAR(255) | NOT NULL | 사업장명 |
+| category | VARCHAR(100) | | 업태(한식/중식/일식…) |
+| address | VARCHAR(300) | | 지번주소 |
+| road_address | VARCHAR(300) | | 도로명주소 |
+| latitude / longitude | DOUBLE | NOT NULL | **WGS84** 좌표(공공데이터 EPSG:5174→변환) |
+| phone | VARCHAR(40) | NULL | 소재지전화(공공데이터 제공) |
+| business_status | VARCHAR(20) | NULL | 영업/폐업 — 노출필터·동기화용 |
+| homepage_url | VARCHAR(500) | NULL | 홈페이지(P2, 미제공) |
+| business_hours | JSONB | NULL | 영업시간 요일별(P2, 미제공) |
 | created_at / updated_at | TIMESTAMP | NOT NULL | |
 
-> **캐싱 규칙**: 체크인/리뷰/즐겨찾기 시 `external_id`로 조회 → 없으면 INSERT, 있으면 재사용(upsert). 카카오 로컬은 검색에만, 영구 소유는 우리 DB. phone·homepage·business_hours는 카카오 미제공분(G3) — 출처 확정 후 채움.
+> **출처 = 공공데이터 마스터(P1)**: 전국일반음식점표준데이터(약 213만 건)를 **일괄 적재**한다. 카카오 로컬 데이터는 약관(운영정책 제20조)상 장기 저장 불가라 식당 데이터 출처로 쓰지 않고, **카카오는 앱의 지도 렌더링 SDK 전용**. 기존 `external_id`(카카오) 제거 — 식별자는 `places.id`, 외부키는 `source_id`. 좌표는 **EPSG:5174→WGS84 변환**(towgs84 7파라미터 필수) 후 저장. 검색·주변검색·체크인은 우리 DB(`places.id`) 기준. 적재는 멱등 upsert(`ON CONFLICT(source, source_id)`), 동기화·결측 지오코딩은 P2. (전략: [07-식당데이터-전략](./07-식당데이터-전략.md))
 
 #### B-2. `place_menus` — 메뉴 (P2, G3) · RestaurantDetail
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -488,7 +491,8 @@ erDiagram
 | social_accounts | ⭐ UNIQUE(provider, provider_user_id) | 소셜 로그인 매핑 |
 | phone_verifications | (phone, created_at) | 최근 코드 조회·rate-limit |
 | terms_agreements | ⭐ UNIQUE(user_id) | 사용자당 1행 |
-| places | ⭐ UNIQUE(external_id) | 캐싱 upsert |
+| places | ⭐ UNIQUE(source, source_id) | 공공데이터 멱등 적재 |
+| places | GIN(name gin_trgm_ops) | 이름 부분일치 검색(pg_trgm) |
 | places | (latitude, longitude) | 반경 BETWEEN 검색 |
 | place_facilities | ⭐ UNIQUE(place_id) | 가게당 1행(혼밥 요소 칩) |
 | check_ins | **부분 UNIQUE(user_id) WHERE status='ACTIVE'** | 단일 활성 체크인(C8) |

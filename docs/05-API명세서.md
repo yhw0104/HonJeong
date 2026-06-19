@@ -84,31 +84,47 @@ Authorization: Bearer <accessToken>
 
 ## 4. 장소 (Place) — FR-105
 
+> **데이터 출처 = 공공데이터 마스터.** `places`는 전국일반음식점표준데이터(약 213만 건)를 일괄 적재한 우리 DB 마스터다. 검색·주변검색은 **우리 DB를 직접 질의**한다(카카오 로컬 API 프록시 아님). 카카오 로컬 데이터는 약관상 저장 불가라 식당 데이터 출처로 쓰지 않으며, 카카오는 앱의 **지도 렌더링 SDK 전용**이다. 응답의 `placeId`(우리 식별자)를 체크인에 사용한다.
+
 ### GET `/api/places/search` — 가게 검색 · 🔒
-카카오 로컬 API 프록시. 선택된 가게는 체크인/리뷰 시 `places`에 캐싱.
+우리 DB(`places`) 이름 부분일치 검색(pg_trgm). `business_status=영업`만 노출.
 
 쿼리 파라미터:
 | 파라미터 | 필수 | 설명 |
 | --- | --- | --- |
-| query | ✅ | 검색어(가게명/지역) |
+| query | ✅ | 검색어(가게명) |
 | lat, lng | ⬜ | 중심 좌표(거리순 정렬용) |
+| page, size | ⬜ | 0-base 페이지네이션 |
 
 응답 `200`:
 ```json
-{ "success": true, "data": [
-  { "externalId": "12345", "name": "혼밥식당", "address": "서울 ...", "latitude": 37.5, "longitude": 127.0, "category": "한식" }
-] }
+{ "success": true, "data": { "content": [
+  { "placeId": 3, "name": "혼밥식당", "category": "한식", "address": "서울 ...", "roadAddress": "서울 ...", "latitude": 37.5, "longitude": 127.0, "phone": "02-..." }
+], "page": 0, "size": 20, "totalElements": 1 } }
 ```
+
+### GET `/api/places/nearby` — 주변 식당 · 🔒 · FR-105
+GPS 기준 주변 식당을 거리순으로 노출하고, 각 식당의 **현재 혼밥러 수(사회적 증거)** 를 함께 준다(우리 DB 바운딩박스 + active 체크인 집계). MapHome 주변 리스트·장소 선택 시트용.
+
+쿼리: `lat`,`lng`(필수), `radius`(m, 기본 1000), `page`,`size`
+응답 `200`:
+```json
+{ "success": true, "data": { "content": [
+  { "placeId": 3, "name": "혼밥식당", "category": "한식", "roadAddress": "서울 ...", "latitude": 37.5, "longitude": 127.0, "distanceMeters": 120, "activeCount": 3 }
+], "page": 0, "size": 20, "totalElements": 1 } }
+```
+> 메이트수·별점·1인석 태그는 P2(mates·reviews·place_facilities 의존)로 연기. 현재는 혼밥러수만 보강.
 
 ---
 
 ## 5. 체크인 (CheckIn) — FR-101~104
 
 ### POST `/api/check-ins` — 혼밥 체크인 시작 · 🔒 · FR-101
-요청 (선택한 가게의 externalId 전달 → 서버가 places upsert):
+요청 (검색/주변에서 받은 우리 `placeId` 전달 — 식당은 이미 마스터에 있으므로 upsert 불필요):
 ```json
-{ "externalId": "12345", "name": "혼밥식당", "address": "서울 ...", "latitude": 37.5, "longitude": 127.0, "category": "한식" }
+{ "placeId": 3 }
 ```
+- `404` 존재하지 않는 `placeId`(`PLACE_NOT_FOUND`).
 응답 `201`:
 ```json
 { "success": true, "data": { "checkInId": 10, "placeId": 3, "status": "ACTIVE", "startedAt": "2026-05-22T12:00:00" } }
@@ -200,7 +216,7 @@ Authorization: Bearer <accessToken>
 | --- | --- |
 | POST /api/auth/oauth/{provider}, /phone/send-code, /phone/verify, /terms, /refresh | FR-001, FR-004, FR-005, FR-006 |
 | GET/PATCH /api/users/me | FR-003 |
-| GET /api/places/search | FR-105 |
+| GET /api/places/search, /api/places/nearby | FR-105 |
 | POST /api/check-ins, PATCH .../end, GET .../me | FR-101, FR-102 |
 | GET /api/check-ins/stats | FR-103 |
 | GET /api/check-ins/map | FR-104 |
@@ -215,7 +231,7 @@ Authorization: Bearer <accessToken>
 1. 프로젝트 셋업(Gradle, application.yml, Flyway, PostgreSQL via Docker)
 2. 엔티티 + 마이그레이션(`V1__init.sql`)
 3. 인증(Security + JWT): OAuth(카카오/애플)+휴대폰 인증/약관/refresh
-4. 장소 검색(카카오 클라이언트 + 캐싱)
+4. 장소: 공공데이터 마스터 적재(좌표 EPSG:5174→WGS84 변환) + 우리 DB 검색/주변검색
 5. 체크인 + 통계 + 지도 API (+ 같은 식당 혼밥러 목록, FR-107)
 6. ~~반응 API~~ (보류)
 7. 같이먹기 API (신청/수락/거절/목록, FR-108) + opt-in 토글

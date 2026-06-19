@@ -14,7 +14,7 @@
 | | `phone_verifications` | 휴대폰 인증 | 인증번호 발송·확인 |
 | | `terms_agreements` | 약관 동의 | 약관별 동의 기록 |
 | | `user_food_preferences` | 선호 음식 | 회원이 고른 음식(최대 3) |
-| B 장소 | `places` | 장소(가게) | 카카오 가게 캐시 |
+| B 장소 | `places` | 장소(가게) | 공공데이터 식당 마스터(전국 일괄 적재) |
 | | `place_menus` | 가게 메뉴 | 메뉴·가격·사진 |
 | | `place_facilities` | 가게 편의시설 | 바테이블·1인석 등 |
 | C 체크인·연결 | `check_ins` | 혼밥 체크인 | "지금 혼밥 중"(핵심) |
@@ -193,19 +193,24 @@ erDiagram
 
 ## B. 장소
 
-### `places` — 장소(가게)
+### `places` — 장소(가게) · **공공데이터 마스터**
 | 컬럼 | 한글명 | 타입 | 설명 |
 | --- | --- | --- | --- |
-| id | 식별자 | bigint | PK |
-| external_id | 카카오 ID | varchar | 캐싱 키 · UK |
-| name | 가게명 | varchar | |
-| address | 주소 | varchar | |
-| latitude / longitude | 좌표 | double | 위도/경도 |
-| category | 카테고리 | varchar | |
-| phone | 전화 | varchar | (카카오 미제공) |
-| homepage_url | 홈페이지 | varchar | |
-| business_hours | 영업시간 | jsonb | 요일별 |
+| id | 식별자 | bigint | PK · **시스템 식당 식별자**(FK 대상) |
+| source | 출처 | varchar | `PUBLIC_DATA`(현재) / 향후 `MANUAL` 등 |
+| source_id | 출처 ID | varchar | 공공데이터 관리번호 · 멱등 적재 키 · UK(source+source_id) |
+| name | 가게명 | varchar | 사업장명 |
+| category | 카테고리 | varchar | 업태(한식/중식/일식…) |
+| address | 지번주소 | varchar | |
+| road_address | 도로명주소 | varchar | |
+| latitude / longitude | 좌표 | double | **WGS84**(공공데이터 EPSG:5174→변환) |
+| phone | 전화 | varchar | 공공데이터 제공 |
+| business_status | 영업상태 | varchar | 영업/폐업 — 노출필터·동기화용 |
+| homepage_url | 홈페이지 | varchar | (P2 — 공공/카카오 미제공) |
+| business_hours | 영업시간 | jsonb | (P2 — 미제공) |
 | created_at / updated_at | 생성/수정 시각 | timestamp | |
+
+> **출처 = 공공데이터(전국일반음식점표준데이터, 약 213만 건)를 일괄 적재한 마스터.** 카카오 로컬 데이터는 약관상 장기 저장 불가(운영정책 제20조)라 식당 데이터 출처로 쓰지 않으며, **카카오는 앱의 지도 렌더링 SDK 용도로만** 사용한다. 기존 `external_id`(카카오 ID) 컬럼은 제거. 좌표는 EPSG:5174→WGS84 변환 후 저장(towgs84 7파라미터 필수). 검색·주변검색·체크인은 이 마스터(`places.id`)를 기준으로 동작한다. (상세: [식당데이터 전략](./07-식당데이터-전략.md))
 
 ### `place_menus` — 가게 메뉴
 | 컬럼 | 한글명 | 타입 | 설명 |
@@ -232,7 +237,7 @@ erDiagram
 | long_stay | 오래 머무르기 | bool | |
 | updated_at | 수정 시각 | timestamp | |
 
-> 시설별 boolean 컬럼(가게당 1행). 카카오 미제공이라 **UGC/관리자 입력**으로 채움. 시설 종류 추가 시 컬럼 추가(마이그레이션).
+> 시설별 boolean 컬럼(가게당 1행). 공공데이터·카카오 모두 미제공이라 **점주 직접 등록(가장 안전, P2) / 관리자 입력 / UGC**로 채운다(크롤은 법적 리스크). 공공데이터 마스터(`places`)가 그 부착 토대. 시설 종류 추가 시 컬럼 추가(마이그레이션).
 
 > **가게 사진은 별도 테이블 없음** — 식당 상세 사진 탭/`GET /api/places/{placeId}/photos`는 `review_photos`를 `place_id`로 집계해(`reviews` JOIN) 노출한다(출처 = 리뷰 UGC). 카카오 미제공·관리자 큐레이션 부재로 `place_photos`는 두지 않음(필요 시 추후 추가). 메뉴 사진은 `place_menus.image_url`로 별도 유지.
 
