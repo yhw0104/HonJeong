@@ -58,17 +58,16 @@ class CheckInMealHappyPathE2eTest extends AbstractPostgresTest {
         String aliceToken = onboard("01077770001", "e2eAlice"); // 신청자
         String bobToken = onboard("01077770002", "e2eBob");      // 수신자
 
-        // when: Bob이 식당을 검색해 첫 결과로 혼밥 체크인한다(검색 결과의 external_id가 places로 캐싱 upsert된다).
-        JsonNode search = perform(get("/api/places/search")
-                .param("query", "김밥").param("lat", "37.5665").param("lng", "126.9780"), bobToken, 200);
-        JsonNode place = search.path("data").path("content").get(0);
-        assertThat(place).withFailMessage("검색 결과가 비어 있으면 안 된다").isNotNull();
+        // when: Bob이 식당을 검색한다(Task 6: 우리 DB 기반 검색, E2E 환경에서는 공공데이터 미적재라 빈 결과 정상).
+        //       검색 엔드포인트 자체가 200을 반환하는지만 확인한다(내용 검증은 PlaceServiceTest).
+        perform(get("/api/places/search").param("query", "김밥"), bobToken, 200);
 
+        // Bob이 혼밥 체크인한다(externalId 기반 — Task 8에서 placeId 기반으로 전환 예정).
         JsonNode checkIn = perform(jsonPost("/api/check-ins", Map.of(
-                "externalId", place.path("externalId").asText(),
-                "name", place.path("name").asText(),
-                "latitude", place.path("latitude").asDouble(),
-                "longitude", place.path("longitude").asDouble())), bobToken, 201);
+                "externalId", "e2e-test-place-001",
+                "name", "E2E테스트식당",
+                "latitude", 37.5665,
+                "longitude", 126.9780)), bobToken, 201);
         // then: 새 체크인은 ACTIVE 상태이고 체크인 id·장소 id가 발급된다.
         assertThat(checkIn.path("data").path("status").asText()).isEqualTo("ACTIVE");
         long bobCheckInId = checkIn.path("data").path("checkInId").asLong();

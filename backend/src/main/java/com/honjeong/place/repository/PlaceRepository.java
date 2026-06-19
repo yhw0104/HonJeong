@@ -2,6 +2,8 @@ package com.honjeong.place.repository;
 
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -10,7 +12,7 @@ import org.springframework.data.repository.query.Param;
 import com.honjeong.place.domain.Place;
 
 /**
- * 장소 캐시 저장소. Spring Data JPA가 메서드 이름으로 쿼리를 생성한다.
+ * 장소 저장소. V1 카카오 캐시 + V2 공공데이터 마스터를 함께 관리한다.
  */
 public interface PlaceRepository extends JpaRepository<Place, Long> {
 
@@ -21,6 +23,20 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
      * @return 캐시된 장소(없으면 빈 Optional)
      */
     Optional<Place> findByExternalId(String externalId);
+
+    /**
+     * 영업 중인 장소를 이름 부분일치(대소문자 무시)로 페이지 조회한다. pg_trgm GIN 인덱스가 LIKE 검색을 가속한다.
+     *
+     * @param q        검색어(trim 된 값)
+     * @param pageable 페이지네이션 파라미터
+     * @return 일치하는 영업 장소 페이지
+     */
+    @Query("""
+            SELECT p FROM Place p
+            WHERE p.businessStatus = '영업'
+              AND LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%'))
+            """)
+    Page<Place> searchOpenByName(@Param("q") String q, Pageable pageable);
 
     /**
      * 공공데이터 단건을 멱등 upsert한다. (source, source_id) 충돌 시 필드를 덮어쓴다.

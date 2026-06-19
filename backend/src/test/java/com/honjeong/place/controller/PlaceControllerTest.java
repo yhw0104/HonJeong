@@ -28,11 +28,8 @@ import com.honjeong.place.service.PlaceService;
 /**
  * {@link PlaceController}의 웹 계층 슬라이스 테스트.
  *
- * <p>검증 목적은 컨트롤러의 HTTP 관심사 — 요청 매핑/상태코드, 페이지 엔벨로프 JSON 형태, 그리고 보안 규칙
- * (검색은 정식 USER 토큰 필요) — 이며, 검색 비즈니스 로직은 {@code PlaceServiceTest}의 몫이다.
- *
- * <p>{@code @WebMvcTest(controllers = PlaceController.class)} + {@code @Import({SecurityConfig, WebConfig})}로
- * MVC·보안·인자 리졸버만 로드하고, 의존 {@link PlaceService}는 {@code @MockitoBean}으로 대체한다(UserControllerTest와 동일 구성).
+ * <p>Task 6: 검색이 우리 DB 기반으로 전환됐다. PlaceSearchResponse 형태가 바뀌었고(placeId 추가,
+ * lat/lng 파라미터 제거) PlaceService.search 시그니처가 (query, page, size) 3인자로 단순화됐다.
  */
 @WebMvcTest(controllers = PlaceController.class)
 @Import({SecurityConfig.class, WebConfig.class})
@@ -50,7 +47,8 @@ class PlaceControllerTest {
     private PageResponse<PlaceSearchResponse> samplePage() {
         List<PlaceSearchResponse> content = IntStream.range(0, 5)
                 .mapToObj(i -> new PlaceSearchResponse(
-                        "mock-1-" + i, "김밥 맛집 " + (i + 1), "서울 어딘가", 37.5 + i * 0.001, 127.0, "한식"))
+                        (long) (i + 1), "김밥 맛집 " + (i + 1), "분식",
+                        "서울 어딘가", "서울 도로명", 37.5 + i * 0.001, 127.0, "02-111"))
                 .toList();
         return PageResponse.of(content, 0, 5, 23L);
     }
@@ -59,7 +57,7 @@ class PlaceControllerTest {
     @DisplayName("GET /search: USER 토큰이면 200 + 페이지 엔벨로프(content/page/size/totalElements)")
     void search_ok_pagedEnvelope() throws Exception {
         // given: 서비스가 5건·전체 23건 페이지를 돌려주도록 스텁 + USER access 토큰
-        when(placeService.search(any(), any(), any(), anyInt(), anyInt())).thenReturn(samplePage());
+        when(placeService.search(any(), anyInt(), anyInt())).thenReturn(samplePage());
         String token = jwtProvider.createAccessToken(1L);
 
         // when & then
@@ -69,7 +67,7 @@ class PlaceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.content.length()").value(5))
-                .andExpect(jsonPath("$.data.content[0].externalId").value("mock-1-0"))
+                .andExpect(jsonPath("$.data.content[0].placeId").value(1))
                 .andExpect(jsonPath("$.data.content[0].name").value("김밥 맛집 1"))
                 .andExpect(jsonPath("$.data.page").value(0))
                 .andExpect(jsonPath("$.data.size").value(5))

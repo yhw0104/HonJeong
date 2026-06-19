@@ -89,6 +89,47 @@ class PlaceRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
+    @DisplayName("searchOpenByName: 이름 부분일치 + 영업 중인 장소만 반환한다")
+    void searchOpenByName() {
+        // given: 영업 중인 장소와 폐업 장소를 각각 저장
+        em.persistAndFlush(Place.ofPublicData("SRCH-1", "혼밥김밥천국", "분식", "서울 중구", "서울 도로명",
+                37.5665, 126.9780, "02-111", "영업"));
+        em.persistAndFlush(Place.ofPublicData("SRCH-2", "김밥나라(폐업)", "분식", "서울 중구", "서울 도로명",
+                37.5666, 126.9781, "02-222", "폐업"));
+        em.clear();
+
+        // when: "김밥"으로 검색하면
+        org.springframework.data.domain.Page<Place> result =
+                placeRepository.searchOpenByName("김밥",
+                        org.springframework.data.domain.PageRequest.of(0, 10));
+
+        // then: 영업 중인 장소만 반환된다(폐업은 제외)
+        assertThat(result.getContent())
+                .hasSize(1)
+                .allSatisfy(p -> {
+                    assertThat(p.getName()).contains("김밥");
+                    assertThat(p.getBusinessStatus()).isEqualTo("영업");
+                });
+        assertThat(result.getTotalElements()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("searchOpenByName: 대소문자를 무시하고 검색한다")
+    void searchOpenByNameCaseInsensitive() {
+        // given
+        em.persistAndFlush(Place.ofPublicData("SRCH-3", "Tokyo Ramen", "일식", "서울", "서울 도로명",
+                37.5, 127.0, null, "영업"));
+        em.clear();
+
+        // when & then: 소문자로 검색해도 찾힌다
+        org.springframework.data.domain.Page<Place> result =
+                placeRepository.searchOpenByName("tokyo",
+                        org.springframework.data.domain.PageRequest.of(0, 10));
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getName()).isEqualTo("Tokyo Ramen");
+    }
+
+    @Test
     @DisplayName("external_id UNIQUE 제약: 같은 external_id로 두 번 저장하면 무결성 위반이 난다")
     void externalIdUniqueConstraint() {
         // given: external_id "dup"인 장소를 먼저 저장
