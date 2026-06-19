@@ -125,9 +125,13 @@ public class PlaceService {
         List<Place> inBox = placeRepository.findOpenWithinBounds(
                 lat - dLat, lat + dLat, lng - dLng, lng + dLng);
 
-        List<Place> within = inBox.stream()
-                .filter(p -> haversine(lat, lng, p.getLatitude(), p.getLongitude()) <= r)
-                .sorted(Comparator.comparingDouble(p -> haversine(lat, lng, p.getLatitude(), p.getLongitude())))
+        record PlaceDistance(Place place, double meters) {}
+
+        List<PlaceDistance> within = inBox.stream()
+                .map(p -> new PlaceDistance(p, haversine(lat, lng, p.getLatitude(), p.getLongitude())))
+                .filter(pd -> pd.meters() <= r)
+                .sorted(Comparator.comparingDouble(PlaceDistance::meters)
+                        .thenComparingLong(pd -> pd.place().getId()))
                 .toList();
 
         // 빈 리스트로 IN () 쿼리를 날리면 일부 JPQL 구현체에서 오류가 발생하므로 단락 처리한다.
@@ -135,7 +139,7 @@ public class PlaceService {
         if (within.isEmpty()) {
             counts = Map.of();
         } else {
-            List<Long> placeIds = within.stream().map(Place::getId).toList();
+            List<Long> placeIds = within.stream().map(pd -> pd.place().getId()).toList();
             counts = checkInRepository.countActiveByPlaceIds(placeIds).stream()
                     .collect(Collectors.toMap(PlaceActiveCount::placeId, PlaceActiveCount::activeCount));
         }
@@ -145,11 +149,11 @@ public class PlaceService {
         int to = Math.min(from + clampedSize, within.size());
 
         List<PlaceNearbyResponse> content = within.subList(from, to).stream()
-                .map(p -> new PlaceNearbyResponse(
-                        p.getId(), p.getName(), p.getCategory(), p.getRoadAddress(),
-                        p.getLatitude(), p.getLongitude(),
-                        Math.round(haversine(lat, lng, p.getLatitude(), p.getLongitude())),
-                        counts.getOrDefault(p.getId(), 0L)))
+                .map(pd -> new PlaceNearbyResponse(
+                        pd.place().getId(), pd.place().getName(), pd.place().getCategory(), pd.place().getRoadAddress(),
+                        pd.place().getLatitude(), pd.place().getLongitude(),
+                        Math.round(pd.meters()),
+                        counts.getOrDefault(pd.place().getId(), 0L)))
                 .toList();
 
         return PageResponse.of(content, page, clampedSize, total);

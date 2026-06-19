@@ -34,6 +34,10 @@ public class PlaceIngestionService {
         int[] c = new int[4]; // [0]=read, [1]=upserted, [2]=skippedClosed, [3]=skippedNoCoord
         reader.read(csv, row -> {
             c[0]++;
+            if (row.managementId() == null || row.managementId().isBlank()) {
+                c[3]++;
+                return;
+            }
             if (!isOpen(row.businessStatusName())) {
                 c[2]++;
                 return;
