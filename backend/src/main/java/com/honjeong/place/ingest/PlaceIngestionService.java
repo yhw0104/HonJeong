@@ -58,11 +58,15 @@ public class PlaceIngestionService {
 
     private Optional<LatLng> parseCoord(PlaceCsvRow row) {
         try {
-            if (row.coordX().isBlank() || row.coordY().isBlank()) return Optional.empty();
+            if (isBlank(row.coordX()) || isBlank(row.coordY())) return Optional.empty();
             return converter.toWgs84(Double.parseDouble(row.coordX()), Double.parseDouble(row.coordY()));
         } catch (NumberFormatException e) {
             return Optional.empty();
         }
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 
     private static String blankToNull(String s) {
