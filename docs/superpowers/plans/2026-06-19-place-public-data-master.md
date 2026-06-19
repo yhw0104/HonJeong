@@ -40,11 +40,11 @@
 
 - [ ] **Step 2: V2 마이그레이션 작성**
 
-Create `src/main/resources/db/migration/V2__places_master.sql`:
+Create `src/main/resources/db/migration/V2__places_master.sql` — **컴파일 안전을 위해 ADD-only**(external_id는 nullable로만 완화, DROP은 Task 8의 V3에서):
 ```sql
--- places: 카카오 캐시 → 공공데이터 마스터 전환 (식당 데이터는 비어 있어 데이터 이관 없음)
-ALTER TABLE places DROP COLUMN external_id;
-ALTER TABLE places DROP COLUMN homepage_url;
+-- places: 공공데이터 마스터 컬럼 추가 (식당 데이터는 비어 있어 데이터 이관 없음).
+-- external_id/homepage_url 제거는 호출부 정리 후 Task 8(V3)에서 수행한다.
+ALTER TABLE places ALTER COLUMN external_id DROP NOT NULL;     -- 적재 행은 external_id 없음
 ALTER TABLE places ADD COLUMN source          VARCHAR(20)  NOT NULL DEFAULT 'PUBLIC_DATA';
 ALTER TABLE places ADD COLUMN source_id       VARCHAR(64);
 ALTER TABLE places ADD COLUMN road_address    VARCHAR(300);
@@ -97,7 +97,7 @@ public class Place extends BaseTimeEntity {
     // getLatitude, getLongitude, getPhone, getBusinessStatus 모두 추가
 }
 ```
-> 기존 `external_id` 기반 `Place.of(...)` 팩토리는 삭제(Task 7에서 호출부 제거 완료 후 컴파일 통과).
+> ⚠️ **컴파일 안전(공존 단계)**: 이 태스크에서는 기존 `externalId` 필드(매핑 유지)와 `Place.of(externalId, name, address, lat, lng, category)` 팩토리를 **그대로 남겨둔다**. `PlaceService.findOrCreateByExternalId`·`CheckInService`가 아직 쓰기 때문. 신규 필드(`source`/`sourceId`/`roadAddress`/`businessStatus`) + `ofPublicData`만 **추가**한다. `external_id` 컬럼/`Place.of` 제거는 호출부 정리 후 **Task 8(V3)** 에서 한다. (entity에 두 팩토리·`externalId` 필드가 잠시 공존)
 
 - [ ] **Step 4: 리포지토리 매핑 테스트 작성(실패 확인)**
 
@@ -594,7 +594,7 @@ public PageResponse<PlaceSearchResponse> search(String query, int page, int size
     return PageResponse.of(content, page, clampedSize, result.getTotalElements());
 }
 ```
-> `KakaoPlaceClient`·`findOrCreateByExternalId`·`PlaceUpsertCommand` 참조는 Task 7에서 제거. 생성자는 `(PlaceRepository placeRepository, CheckInRepository checkInRepository)`로 교체.
+> ⚠️ **컴파일 안전(공존 단계)**: 이 태스크에서 `PlaceService` 생성자를 `(PlaceRepository placeRepository, CheckInRepository checkInRepository)`로 교체하고 **`KakaoPlaceClient` 의존만 제거**(검색=DB). `findOrCreateByExternalId`는 `CheckInService`가 아직 쓰므로 **잔존시킨다**(내부 구현은 `placeRepository`+`Place.of` 그대로). `KakaoPlaceClient`/`MockKakaoPlaceClient` 빈은 아직 존재하나 미사용 — 삭제는 Task 8. `findOrCreateByExternalId`·`PlaceUpsertCommand` 제거도 Task 8.
 
 - [ ] **Step 6: 컨트롤러 시그니처 정리**
 
@@ -762,7 +762,9 @@ git commit -m "feat(place): GET /api/places/nearby 주변검색 + 혼밥러수 �
 **Files:**
 - Modify: `src/main/java/com/honjeong/checkin/dto/CheckInRequest.java` (`{placeId}`)
 - Modify: `src/main/java/com/honjeong/checkin/service/CheckInService.java` (placeService.getById)
-- Modify: `src/main/java/com/honjeong/place/service/PlaceService.java` (getById, KakaoClient 제거)
+- Modify: `src/main/java/com/honjeong/place/service/PlaceService.java` (getById 추가, findOrCreateByExternalId 제거)
+- Modify: `src/main/java/com/honjeong/place/domain/Place.java` (`externalId` 필드·`Place.of` 제거 — 공존 종료)
+- Create: `src/main/resources/db/migration/V3__drop_place_external_id.sql`
 - Modify: `src/main/java/com/honjeong/global/exception/ErrorCode.java` (PLACE_NOT_FOUND)
 - Delete: `KakaoPlaceClient.java`, `MockKakaoPlaceClient.java`, `PlaceSearchQuery.java`, `PlaceSearchPage.java`, `PlaceCandidate.java`, `PlaceUpsertCommand.java`
 - Modify: `src/main/resources/application.yml`·`application-prod.yml` (`place.mode` 제거)
@@ -781,9 +783,9 @@ PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "식당을 찾을 수 없습니다."),
 public record CheckInRequest(@NotNull Long placeId) {}
 ```
 
-- [ ] **Step 3: PlaceService 정리 (getById 추가, 카카오 의존 제거)**
+- [ ] **Step 3: PlaceService.getById 추가, findOrCreateByExternalId 제거**
 
-생성자를 `(PlaceRepository placeRepository, CheckInRepository checkInRepository)`로. 추가:
+(생성자는 Task 6에서 이미 `(PlaceRepository, CheckInRepository)`로 교체됨 — 카카오 의존 없음.) 추가:
 ```java
 @Transactional(readOnly = true)
 public Place getById(Long placeId) {
@@ -791,7 +793,7 @@ public Place getById(Long placeId) {
             .orElseThrow(() -> new BusinessException(ErrorCode.PLACE_NOT_FOUND));
 }
 ```
-`findOrCreateByExternalId`·`KakaoPlaceClient` 필드/import 삭제.
+`findOrCreateByExternalId` 메서드 삭제(이제 호출부 없음).
 
 - [ ] **Step 4: CheckInService.createCheckIn 수정**
 ```java
@@ -799,9 +801,17 @@ Place place = placeService.getById(request.placeId());
 ```
 (`request.toUpsertCommand()` 호출 제거. 이후 단일활성 로직 동일.)
 
-- [ ] **Step 5: 카카오/upsert 클래스 삭제 + 설정 정리**
+- [ ] **Step 5: 엔티티 공존 종료 + V3 마이그레이션 + 카카오/upsert 클래스 삭제 + 설정 정리**
 
-Delete 6개 파일(위 목록). `application.yml`·`application-prod.yml`에서 `place:` (`mode`) 블록 제거. (`oauth`/`sms` mode는 유지.) `MockKakaoPlaceClient` 삭제로 빈 부재 — 검색이 더는 외부호출 아님.
+  - `Place.java`에서 `externalId` 필드·게터·`Place.of(...)` 팩토리 삭제(이제 호출부 없음).
+  - Create `src/main/resources/db/migration/V3__drop_place_external_id.sql`:
+    ```sql
+    ALTER TABLE places DROP COLUMN external_id;
+    ALTER TABLE places DROP COLUMN homepage_url;
+    ```
+  - Delete 6개 파일(위 목록).
+  - `application.yml`·`application-prod.yml`에서 `place:`(`mode`) 블록 제거. (`oauth`/`sms` mode 유지.)
+  - `MockKakaoPlaceClient` 삭제로 검색이 더는 외부호출 아님.
 
 - [ ] **Step 6: 깨진 기존 테스트 갱신**
 
