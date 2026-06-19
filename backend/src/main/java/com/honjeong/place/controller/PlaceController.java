@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.honjeong.global.common.ApiResponse;
 import com.honjeong.global.common.PageResponse;
+import com.honjeong.place.dto.PlaceNearbyResponse;
 import com.honjeong.place.dto.PlaceSearchResponse;
 import com.honjeong.place.service.PlaceService;
 
@@ -47,5 +48,30 @@ public class PlaceController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.success(placeService.search(query, page, size));
+    }
+
+    /**
+     * 현재 위치 주변의 영업 중인 식당을 거리순으로 반환하고 ACTIVE 혼밥러 수를 오버레이한다.
+     *
+     * <p><b>요청:</b> {@code GET /api/places/nearby?lat=37.5&lng=127.0&radius=1000&page=0&size=20}.
+     * {@code lat}/{@code lng}는 필수 — 누락 시 400({@code INVALID_INPUT}).
+     *
+     * <p><b>응답:</b> {@code ApiResponse<PageResponse<PlaceNearbyResponse>>} — 거리순 장소 목록(혼밥러수 포함).
+     *
+     * @param lat    요청 위도(필수)
+     * @param lng    요청 경도(필수)
+     * @param radius 반경(m, 기본 1000, 최대 10000)
+     * @param page   0-base 페이지 번호(기본 0)
+     * @param size   페이지 크기(기본 20)
+     * @return 주변 식당 페이지 엔벨로프
+     */
+    @GetMapping("/nearby")
+    public ApiResponse<PageResponse<PlaceNearbyResponse>> nearby(
+            @RequestParam(required = false) Double lat,
+            @RequestParam(required = false) Double lng,
+            @RequestParam(defaultValue = "1000") int radius,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(placeService.nearby(lat, lng, radius, page, size));
     }
 }

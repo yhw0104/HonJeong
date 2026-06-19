@@ -1,6 +1,7 @@
 package com.honjeong.place.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -22,6 +23,7 @@ import com.honjeong.global.common.PageResponse;
 import com.honjeong.global.config.SecurityConfig;
 import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.security.JwtProvider;
+import com.honjeong.place.dto.PlaceNearbyResponse;
 import com.honjeong.place.dto.PlaceSearchResponse;
 import com.honjeong.place.service.PlaceService;
 
@@ -100,5 +102,48 @@ class PlaceControllerTest {
         mockMvc.perform(get("/api/places/search").param("query", "김밥")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden());
+    }
+
+    // ─── nearby ──────────────────────────────────────────────────────────────
+
+    private PageResponse<PlaceNearbyResponse> sampleNearbyPage() {
+        List<PlaceNearbyResponse> content = List.of(
+                new PlaceNearbyResponse(10L, "혼밥집", "한식", "서울 도로명", 37.5001, 127.0001, 15L, 3L),
+                new PlaceNearbyResponse(11L, "먼집", "분식", "서울 도로명", 37.5050, 127.0050, 680L, 0L));
+        return PageResponse.of(content, 0, 20, 2L);
+    }
+
+    @Test
+    @DisplayName("GET /nearby: USER 토큰 + lat/lng 있으면 200 + 페이지 엔벨로프(혼밥러수 포함)")
+    void nearby_ok() throws Exception {
+        when(placeService.nearby(anyDouble(), anyDouble(), anyInt(), anyInt(), anyInt()))
+                .thenReturn(sampleNearbyPage());
+        String token = jwtProvider.createAccessToken(1L);
+
+        mockMvc.perform(get("/api/places/nearby")
+                        .param("lat", "37.5").param("lng", "127.0").param("radius", "1000")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content.length()").value(2))
+                .andExpect(jsonPath("$.data.content[0].placeId").value(10))
+                .andExpect(jsonPath("$.data.content[0].activeCount").value(3))
+                .andExpect(jsonPath("$.data.content[1].activeCount").value(0))
+                .andExpect(jsonPath("$.data.totalElements").value(2));
+    }
+
+    @Test
+    @DisplayName("GET /nearby: lat/lng 누락이면 서비스가 INVALID_INPUT 예외를 던져 400")
+    void nearby_missingLatLng_400() throws Exception {
+        when(placeService.nearby(any(), any(), anyInt(), anyInt(), anyInt()))
+                .thenThrow(new com.honjeong.global.exception.BusinessException(
+                        com.honjeong.global.exception.ErrorCode.INVALID_INPUT, "lat/lng는 필수입니다."));
+        String token = jwtProvider.createAccessToken(1L);
+
+        mockMvc.perform(get("/api/places/nearby")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
     }
 }

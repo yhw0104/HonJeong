@@ -3,6 +3,8 @@ package com.honjeong.place.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -21,12 +23,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import com.honjeong.checkin.dto.PlaceActiveCount;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.common.PageResponse;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
+import com.honjeong.place.dto.PlaceNearbyResponse;
 import com.honjeong.place.dto.PlaceSearchResponse;
 import com.honjeong.place.repository.PlaceRepository;
 
@@ -159,5 +164,33 @@ class PlaceServiceTest {
         assertThat(result.getName()).isEqualTo("새식당");
         assertThat(result.getLatitude()).isEqualTo(37.7);
         assertThat(result.getCategory()).isEqualTo("분식");
+    }
+
+    @Test
+    @DisplayName("주변 식당을 거리순으로 반환하고 혼밥러수를 오버레이한다")
+    void nearby() {
+        Place a = Place.ofPublicData("A", "가까운집", "한식", "주소", "도로", 37.5000, 127.0000, "02", "영업");
+        Place b = Place.ofPublicData("B", "먼집", "분식", "주소", "도로", 37.5050, 127.0050, "02", "영업");
+        ReflectionTestUtils.setField(a, "id", 1L);
+        ReflectionTestUtils.setField(b, "id", 2L);
+        when(placeRepository.findOpenWithinBounds(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+                .thenReturn(List.of(b, a)); // 리포지토리는 b를 먼저 반환하지만
+        when(checkInRepository.countActiveByPlaceIds(anyList()))
+                .thenReturn(List.of(new PlaceActiveCount(1L, 3L)));
+
+        PageResponse<PlaceNearbyResponse> res = service.nearby(37.5000, 127.0000, 1000, 0, 20);
+
+        assertThat(res.content().get(0).placeId()).isEqualTo(1L);   // 가까운 a가 먼저
+        assertThat(res.content().get(0).activeCount()).isEqualTo(3); // 오버레이 확인
+        assertThat(res.content().get(1).activeCount()).isEqualTo(0); // 오버레이 없는 b는 0
+    }
+
+    @Test
+    @DisplayName("lat/lng 누락이면 INVALID_INPUT")
+    void nearbyMissingCoord() {
+        assertThatThrownBy(() -> service.nearby(null, 127.0, 1000, 0, 20))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
     }
 }
