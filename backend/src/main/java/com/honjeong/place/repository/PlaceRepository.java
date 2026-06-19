@@ -1,7 +1,6 @@
 package com.honjeong.place.repository;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,17 +12,9 @@ import org.springframework.data.repository.query.Param;
 import com.honjeong.place.domain.Place;
 
 /**
- * 장소 저장소. V1 카카오 캐시 + V2 공공데이터 마스터를 함께 관리한다.
+ * 장소 저장소. V3 이후 공공데이터 마스터만 관리한다.
  */
 public interface PlaceRepository extends JpaRepository<Place, Long> {
-
-    /**
-     * 카카오 place id(캐싱 키)로 캐시된 장소를 조회한다. upsert(있으면 재사용/없으면 생성)의 조회 단계에 쓰인다.
-     *
-     * @param externalId 카카오 place id
-     * @return 캐시된 장소(없으면 빈 Optional)
-     */
-    Optional<Place> findByExternalId(String externalId);
 
     /**
      * 영업 중인 장소를 이름 부분일치(대소문자 무시)로 페이지 조회한다. pg_trgm GIN 인덱스가 LIKE 검색을 가속한다.

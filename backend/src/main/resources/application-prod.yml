@@ -19,8 +19,6 @@ honjeong:
     mode: ${OAUTH_MODE:real}
   sms:
     mode: ${SMS_MODE:real}
-  place:
-    mode: ${PLACE_MODE:real}
 
 server:
   port: 8080

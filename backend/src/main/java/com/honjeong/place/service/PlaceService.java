@@ -22,13 +22,13 @@ import com.honjeong.place.dto.PlaceSearchResponse;
 import com.honjeong.place.repository.PlaceRepository;
 
 /**
- * 장소 도메인 서비스. 두 가지 책임을 가진다.
+ * 장소 도메인 서비스. 세 가지 책임을 가진다.
  *
  * <ul>
+ *   <li><b>단건 조회</b> — {@link #getById}로 placeId를 내부 엔티티로 변환한다(없으면 PLACE_NOT_FOUND).</li>
  *   <li><b>검색(Task 6~)</b> — 우리 DB({@link PlaceRepository#searchOpenByName})에서 영업 중인 장소를
  *       이름 부분일치로 조회해 페이지 엔벨로프로 반환한다.</li>
- *   <li><b>캐시 upsert</b> — {@code external_id}로 조회해 없으면 생성, 있으면 재사용한다.
- *       {@link com.honjeong.checkin.service.CheckInService}가 호출한다. Task 8에서 제거 예정.</li>
+ *   <li><b>주변 장소(Task 7~)</b> — 반경 내 영업 장소를 거리순으로 반환하고 혼밥러 수를 오버레이한다.</li>
  * </ul>
  */
 @Service
@@ -44,11 +44,24 @@ public class PlaceService {
     private static final double EARTH_RADIUS_M = 6_371_000.0;
 
     private final PlaceRepository placeRepository;
-    private final CheckInRepository checkInRepository; // Task 7 nearby용
+    private final CheckInRepository checkInRepository;
 
     public PlaceService(PlaceRepository placeRepository, CheckInRepository checkInRepository) {
         this.placeRepository = placeRepository;
         this.checkInRepository = checkInRepository;
+    }
+
+    /**
+     * 내부 placeId로 장소 엔티티를 조회한다. 없으면 {@link ErrorCode#PLACE_NOT_FOUND}(404)를 던진다.
+     *
+     * @param placeId 우리 DB의 장소 PK
+     * @return 해당 장소 엔티티
+     * @throws BusinessException 장소가 없으면 PLACE_NOT_FOUND
+     */
+    @Transactional(readOnly = true)
+    public Place getById(Long placeId) {
+        return placeRepository.findById(placeId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PLACE_NOT_FOUND));
     }
 
     /**
@@ -150,23 +163,5 @@ public class PlaceService {
                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
                         * Math.sin(dLng / 2) * Math.sin(dLng / 2);
         return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-
-    /**
-     * external_id로 캐시된 장소를 찾고, 없으면 command 값으로 새로 생성·저장한다(upsert). 캐싱 규칙상
-     * <b>이미 있으면 그대로 재사용</b>하며 기존 값을 덮어쓰지 않는다 — 멱등하게 동작한다.
-     *
-     * <p><b>Note:</b> Task 8에서 체크인이 placeId 기반으로 전환되면 이 메서드와 {@link PlaceUpsertCommand}는
-     * 제거된다.
-     *
-     * @param command 선택한 가게 정보(external_id가 캐싱 키)
-     * @return 캐시된(또는 새로 만든) 장소 엔티티
-     */
-    @Transactional
-    public Place findOrCreateByExternalId(PlaceUpsertCommand command) {
-        return placeRepository.findByExternalId(command.externalId())
-                .orElseGet(() -> placeRepository.save(Place.of(
-                        command.externalId(), command.name(), command.address(),
-                        command.latitude(), command.longitude(), command.category())));
     }
 }

@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -17,10 +16,10 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -38,12 +37,12 @@ import com.honjeong.place.repository.PlaceRepository;
 /**
  * PlaceService 단위 테스트(순수 Mockito).
  *
- * <p>Task 6: 검색이 Kakao 클라이언트에서 우리 DB(PlaceRepository)로 재작성됐다.
- * 검증 목적:
+ * <p>검증 목적:
  * <ul>
+ *   <li>getById: 존재하면 반환, 없으면 PLACE_NOT_FOUND(404).</li>
  *   <li>빈 검색어는 INVALID_INPUT으로 거부된다.</li>
  *   <li>searchOpenByName 결과가 PlaceSearchResponse 페이지 엔벨로프로 올바르게 매핑된다.</li>
- *   <li>upsert(findOrCreateByExternalId)는 external_id 존재 시 재사용, 없으면 생성한다(Task 8까지 잔존).</li>
+ *   <li>nearby: 반경 내 영업 장소를 거리순으로 반환하고 혼밥러 수를 오버레이한다.</li>
  * </ul>
  */
 @ExtendWith(MockitoExtension.class)
@@ -53,10 +52,33 @@ class PlaceServiceTest {
     PlaceRepository placeRepository;
 
     @Mock
-    CheckInRepository checkInRepository;   // Task 7 nearby용 — 이 태스크에서는 미사용
+    CheckInRepository checkInRepository;
 
     @InjectMocks
     PlaceService service;
+
+    @Test
+    @DisplayName("getById: 존재하는 placeId면 장소 엔티티를 반환한다")
+    void getById_found() {
+        Place p = Place.ofPublicData("M1", "혼밥식당", "한식", "서울", "서울 도로명", 37.5, 127.0, null, "영업");
+        ReflectionTestUtils.setField(p, "id", 1L);
+        when(placeRepository.findById(1L)).thenReturn(Optional.of(p));
+
+        Place result = service.getById(1L);
+
+        assertThat(result).isSameAs(p);
+    }
+
+    @Test
+    @DisplayName("getById: 존재하지 않는 placeId면 PLACE_NOT_FOUND(404)")
+    void getById_notFound() {
+        when(placeRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getById(999L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PLACE_NOT_FOUND);
+    }
 
     @Test
     @DisplayName("빈 검색어는 INVALID_INPUT")
@@ -135,35 +157,6 @@ class PlaceServiceTest {
         service.search("  김밥  ", 0, 20);
 
         verify(placeRepository).searchOpenByName(eq("김밥"), any());
-    }
-
-    @Test
-    @DisplayName("findOrCreateByExternalId: external_id가 이미 있으면 기존 장소를 반환하고 저장하지 않는다")
-    void upsertReturnsExistingWhenFound() {
-        Place existing = Place.of("kakao-1", "기존식당", "주소", 37.5, 127.0, "한식");
-        when(placeRepository.findByExternalId("kakao-1")).thenReturn(Optional.of(existing));
-
-        Place result = service.findOrCreateByExternalId(
-                new PlaceUpsertCommand("kakao-1", "다른이름", "다른주소", 37.6, 127.1, "일식"));
-
-        assertThat(result).isSameAs(existing);
-        verify(placeRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("findOrCreateByExternalId: external_id가 없으면 command 값으로 새 장소를 생성·저장한다")
-    void upsertCreatesWhenAbsent() {
-        when(placeRepository.findByExternalId("kakao-2")).thenReturn(Optional.empty());
-        when(placeRepository.save(any(Place.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        Place result = service.findOrCreateByExternalId(
-                new PlaceUpsertCommand("kakao-2", "새식당", "새주소", 37.7, 127.2, "분식"));
-
-        verify(placeRepository).save(any(Place.class));
-        assertThat(result.getExternalId()).isEqualTo("kakao-2");
-        assertThat(result.getName()).isEqualTo("새식당");
-        assertThat(result.getLatitude()).isEqualTo(37.7);
-        assertThat(result.getCategory()).isEqualTo("분식");
     }
 
     @Test
