@@ -9,12 +9,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -50,6 +52,15 @@ class CheckInMealHappyPathE2eTest extends AbstractPostgresTest {
 
     @Autowired
     private PlaceRepository placeRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /** 이 테스트가 커밋한 행(check_ins·places·meal_requests 등)이 다른 테스트를 오염시키지 않도록 정리한다. */
+    @AfterEach
+    void cleanUp() {
+        jdbcTemplate.execute("TRUNCATE meal_requests, check_ins, places RESTART IDENTITY");
+    }
 
     // Boot 4는 Jackson 3(tools.jackson)을 빈으로 등록하므로 Jackson 2 ObjectMapper 빈은 없다.
     // 이 테스트는 요청 본문 직렬화·응답 파싱에만 매퍼가 필요하므로, 빈 주입 대신 직접 인스턴스화해 버전 의존을 끊는다.
