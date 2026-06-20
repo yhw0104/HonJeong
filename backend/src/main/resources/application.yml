@@ -3,6 +3,11 @@ spring:
     name: honjeong-api
   profiles:
     active: local
+  servlet:
+    multipart:
+      # 업로드 이미지 크기 상한(기본 1MB는 사진엔 작다).
+      max-file-size: 5MB
+      max-request-size: 5MB
 
 # 애플리케이션 고유 설정 (모든 프로파일 공통 — prod에서 일부 override)
 honjeong:
@@ -11,6 +16,11 @@ honjeong:
     mode: mock
   sms:
     mode: mock
+  files:
+    # 파일 저장 모드: mock(로컬 디렉터리) | real(S3 등). real은 후속 구현.
+    mode: mock
+    local-dir: ./uploads                  # mock 저장 위치
+    base-url: http://localhost:8080/files # mock 반환 URL 접두사(WebConfig 정적 서빙과 일치)
   jwt:
     # HS256용 시크릿(>= 256bit). 운영은 환경변수 JWT_SECRET으로 주입(NFR-02).
     secret: ${JWT_SECRET:honjeong-local-dev-secret-please-change-in-production-0123456789}
