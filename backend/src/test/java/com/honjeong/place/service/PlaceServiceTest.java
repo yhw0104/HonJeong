@@ -30,6 +30,7 @@ import com.honjeong.global.common.PageResponse;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
+import com.honjeong.place.dto.PlaceDetailResponse;
 import com.honjeong.place.dto.PlaceNearbyResponse;
 import com.honjeong.place.dto.PlaceSearchResponse;
 import com.honjeong.place.repository.PlaceRepository;
@@ -75,6 +76,37 @@ class PlaceServiceTest {
         when(placeRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getById(999L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PLACE_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("getDetail: 존재하는 placeId면 상세 응답으로 매핑한다")
+    void getDetail_found() {
+        Place p = Place.ofPublicData("M1", "혼밥식당", "한식", "서울 지번", "서울 도로명", 37.5, 127.0, "02-123", "영업");
+        ReflectionTestUtils.setField(p, "id", 7L);
+        when(placeRepository.findById(7L)).thenReturn(Optional.of(p));
+
+        PlaceDetailResponse res = service.getDetail(7L);
+
+        assertThat(res.placeId()).isEqualTo(7L);
+        assertThat(res.name()).isEqualTo("혼밥식당");
+        assertThat(res.category()).isEqualTo("한식");
+        assertThat(res.address()).isEqualTo("서울 지번");
+        assertThat(res.roadAddress()).isEqualTo("서울 도로명");
+        assertThat(res.latitude()).isEqualTo(37.5);
+        assertThat(res.longitude()).isEqualTo(127.0);
+        assertThat(res.phone()).isEqualTo("02-123");
+        assertThat(res.businessStatus()).isEqualTo("영업");
+    }
+
+    @Test
+    @DisplayName("getDetail: 존재하지 않는 placeId면 PLACE_NOT_FOUND(404)")
+    void getDetail_notFound() {
+        when(placeRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getDetail(999L))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.PLACE_NOT_FOUND);

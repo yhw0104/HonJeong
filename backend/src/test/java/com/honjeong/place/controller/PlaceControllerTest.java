@@ -22,7 +22,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.honjeong.global.common.PageResponse;
 import com.honjeong.global.config.SecurityConfig;
 import com.honjeong.global.config.WebConfig;
+import com.honjeong.global.exception.BusinessException;
+import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.global.security.JwtProvider;
+import com.honjeong.place.dto.PlaceDetailResponse;
 import com.honjeong.place.dto.PlaceNearbyResponse;
 import com.honjeong.place.dto.PlaceSearchResponse;
 import com.honjeong.place.service.PlaceService;
@@ -145,5 +148,45 @@ class PlaceControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+    }
+
+    // ─── detail ──────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("GET /{placeId}: USER 토큰이면 200 + 식당 상세")
+    void detail_ok() throws Exception {
+        when(placeService.getDetail(7L)).thenReturn(new PlaceDetailResponse(
+                7L, "혼밥식당", "한식", "서울 지번", "서울 도로명", 37.5, 127.0, "02-123", "영업"));
+        String token = jwtProvider.createAccessToken(1L);
+
+        mockMvc.perform(get("/api/places/{placeId}", 7L)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.placeId").value(7))
+                .andExpect(jsonPath("$.data.name").value("혼밥식당"))
+                .andExpect(jsonPath("$.data.category").value("한식"))
+                .andExpect(jsonPath("$.data.roadAddress").value("서울 도로명"))
+                .andExpect(jsonPath("$.data.businessStatus").value("영업"));
+    }
+
+    @Test
+    @DisplayName("GET /{placeId}: 없는 식당이면 404 PLACE_NOT_FOUND")
+    void detail_notFound_404() throws Exception {
+        when(placeService.getDetail(999L)).thenThrow(new BusinessException(ErrorCode.PLACE_NOT_FOUND));
+        String token = jwtProvider.createAccessToken(1L);
+
+        mockMvc.perform(get("/api/places/{placeId}", 999L)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("PLACE_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("GET /{placeId}: 토큰이 없으면 401")
+    void detail_noToken_401() throws Exception {
+        mockMvc.perform(get("/api/places/{placeId}", 7L))
+                .andExpect(status().isUnauthorized());
     }
 }

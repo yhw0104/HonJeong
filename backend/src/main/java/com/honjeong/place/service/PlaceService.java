@@ -17,6 +17,7 @@ import com.honjeong.global.common.PageResponse;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
+import com.honjeong.place.dto.PlaceDetailResponse;
 import com.honjeong.place.dto.PlaceNearbyResponse;
 import com.honjeong.place.dto.PlaceSearchResponse;
 import com.honjeong.place.repository.PlaceRepository;
@@ -62,6 +63,18 @@ public class PlaceService {
     public Place getById(Long placeId) {
         return placeRepository.findById(placeId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLACE_NOT_FOUND));
+    }
+
+    /**
+     * 내부 placeId로 장소 상세(기본 정보)를 조회해 응답 DTO로 반환한다.
+     *
+     * @param placeId 우리 DB의 장소 PK
+     * @return 식당 상세 응답 DTO
+     * @throws BusinessException 장소가 없으면 PLACE_NOT_FOUND
+     */
+    @Transactional(readOnly = true)
+    public PlaceDetailResponse getDetail(Long placeId) {
+        return PlaceDetailResponse.from(getById(placeId));
     }
 
     /**

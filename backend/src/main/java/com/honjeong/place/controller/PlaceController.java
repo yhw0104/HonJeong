@@ -1,12 +1,14 @@
 package com.honjeong.place.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.honjeong.global.common.ApiResponse;
 import com.honjeong.global.common.PageResponse;
+import com.honjeong.place.dto.PlaceDetailResponse;
 import com.honjeong.place.dto.PlaceNearbyResponse;
 import com.honjeong.place.dto.PlaceSearchResponse;
 import com.honjeong.place.service.PlaceService;
@@ -73,5 +75,23 @@ public class PlaceController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.success(placeService.nearby(lat, lng, radius, page, size));
+    }
+
+    /**
+     * 식당 상세(기본 정보) 단건 조회.
+     *
+     * <p><b>요청:</b> {@code GET /api/places/{placeId}}. {@code placeId}는 우리 DB의 장소 PK.
+     *
+     * <p><b>응답:</b> {@code ApiResponse<PlaceDetailResponse>} — 식별·위치·영업상태 등 기본 정보.
+     * 해당 장소가 없으면 {@code PLACE_NOT_FOUND}(404).
+     *
+     * <p><b>인가:</b> 검색·주변과 동일하게 정식 회원(USER)만 호출할 수 있다.
+     *
+     * @param placeId 우리 DB의 장소 PK
+     * @return 식당 상세 응답
+     */
+    @GetMapping("/{placeId}")
+    public ApiResponse<PlaceDetailResponse> detail(@PathVariable Long placeId) {
+        return ApiResponse.success(placeService.getDetail(placeId));
     }
 }
