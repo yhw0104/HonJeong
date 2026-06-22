@@ -1,5 +1,7 @@
 package com.honjeong.user.dto;
 
+import java.util.List;
+
 import com.honjeong.user.domain.DiningStyle;
 import com.honjeong.user.domain.Gender;
 import com.honjeong.user.domain.User;
@@ -25,24 +27,29 @@ import com.honjeong.user.domain.UserStatus;
  * @param ageGroup         연령대 문자열
  * @param allowMealRequest 같이먹기 신청 수신 허용 여부
  * @param status           회원 상태({@link UserStatus})
+ * @param favoriteFoods    선호 음식 목록(0~3개, 없으면 빈 목록)
  */
 public record UserProfileResponse(
         Long id, String phone, String email, String nickname, String profileImageUrl,
         String introduction, String region, Double regionLat, Double regionLng,
         DiningStyle diningStyle, Gender gender, String ageGroup,
-        boolean allowMealRequest, UserStatus status) {
+        boolean allowMealRequest, UserStatus status,
+        List<String> favoriteFoods) {
 
     /**
-     * {@link User} 엔티티를 프로필 응답 DTO로 변환한다. 엔티티의 게터 값을 1:1로 옮겨 담을 뿐 가공은 없다.
+     * {@link User} 엔티티 + 선호 음식 목록을 프로필 응답 DTO로 변환한다. 엔티티 게터 값을 1:1로 옮겨 담고,
+     * 선호 음식은 별도 조회 결과를 함께 싣는다(별도 테이블이라 엔티티에 포함되지 않음).
      *
-     * @param user 변환할 회원 엔티티
-     * @return 엔티티의 필드 값을 담은 새 {@link UserProfileResponse}
+     * @param user          변환할 회원 엔티티
+     * @param favoriteFoods 선호 음식 목록(0~3개)
+     * @return 엔티티의 필드 값 + 선호 음식을 담은 새 {@link UserProfileResponse}
      */
-    public static UserProfileResponse from(User user) {
+    public static UserProfileResponse from(User user, List<String> favoriteFoods) {
         return new UserProfileResponse(
                 user.getId(), user.getPhone(), user.getEmail(), user.getNickname(), user.getProfileImageUrl(),
                 user.getIntroduction(), user.getRegion(), user.getRegionLat(), user.getRegionLng(),
                 user.getDiningStyle(), user.getGender(), user.getAgeGroup(),
-                user.isAllowMealRequest(), user.getStatus());
+                user.isAllowMealRequest(), user.getStatus(),
+                favoriteFoods);
     }
 }

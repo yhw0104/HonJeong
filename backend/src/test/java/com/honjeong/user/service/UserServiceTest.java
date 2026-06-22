@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -33,7 +34,8 @@ import com.honjeong.user.repository.UserRepository;
 class UserServiceTest {
 
     private final UserRepository userRepository = mock(UserRepository.class);
-    private final UserService userService = new UserService(userRepository);
+    private final UserFoodPreferenceService foodPreferenceService = mock(UserFoodPreferenceService.class);
+    private final UserService userService = new UserService(userRepository, foodPreferenceService);
 
     /** 프로필이 채워진 ACTIVE 회원을 만들고, 자동 생성되는 id를 리플렉션으로 강제 주입한다(모킹 반환값으로 쓰려고). */
     private User userWithId(long id) {
@@ -58,6 +60,20 @@ class UserServiceTest {
         assertThat(res.id()).isEqualTo(1L);
         assertThat(res.nickname()).isEqualTo("기존닉");
         assertThat(res.phone()).isEqualTo("01012345678"); // 원문 반환(마스킹 없음)
+    }
+
+    /**
+     * given: id 1L 회원 + 선호 음식 스텁.
+     * when: 내 프로필 조회.
+     * then: 응답에 선호 음식이 포함된다.
+     */
+    @Test
+    @DisplayName("getMyProfile: 응답에 선호 음식이 포함된다")
+    void getMyProfileIncludesFoods() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(userWithId(1L)));
+        when(foodPreferenceService.getFoods(1L)).thenReturn(List.of("한식", "일식"));
+
+        assertThat(userService.getMyProfile(1L).favoriteFoods()).containsExactly("한식", "일식");
     }
 
     /**

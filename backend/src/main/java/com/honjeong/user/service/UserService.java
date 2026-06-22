@@ -18,14 +18,17 @@ import com.honjeong.user.repository.UserRepository;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final UserFoodPreferenceService foodPreferenceService;
 
     /**
      * 의존성을 주입받아 서비스를 구성한다(생성자 주입 + {@code final}).
      *
-     * @param userRepository 회원 조회·닉네임 중복확인용 저장소
+     * @param userRepository        회원 조회·닉네임 중복확인용 저장소
+     * @param foodPreferenceService 선호 음식 upsert·조회 서비스
      */
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, UserFoodPreferenceService foodPreferenceService) {
         this.userRepository = userRepository;
+        this.foodPreferenceService = foodPreferenceService;
     }
 
     /**
@@ -37,7 +40,7 @@ public class UserService {
      */
     @Transactional(readOnly = true)
     public UserProfileResponse getMyProfile(long userId) {
-        return UserProfileResponse.from(findUser(userId));
+        return UserProfileResponse.from(findUser(userId), foodPreferenceService.getFoods(userId));
     }
 
     /**
@@ -62,7 +65,7 @@ public class UserService {
         user.updateProfile(command.nickname(), command.profileImageUrl(), command.introduction(),
                 command.region(), command.regionLat(), command.regionLng(),
                 command.diningStyle(), command.allowMealRequest());
-        return UserProfileResponse.from(user);
+        return UserProfileResponse.from(user, foodPreferenceService.getFoods(userId));
     }
 
     /**

@@ -57,7 +57,8 @@ class UserControllerTest {
 
     private UserProfileResponse sampleProfile() {
         return new UserProfileResponse(1L, "01012345678", null, "혼밥러", null,
-                null, null, null, null, null, null, null, true, UserStatus.ACTIVE);
+                null, null, null, null, null, null, null, true, UserStatus.ACTIVE,
+                java.util.List.of("한식"));
     }
 
     /**
