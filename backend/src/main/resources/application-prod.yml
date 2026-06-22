@@ -19,6 +19,9 @@ honjeong:
     mode: ${OAUTH_MODE:real}
   sms:
     mode: ${SMS_MODE:real}
+  geo:
+    # real 역지오코더는 후속 구현. 미구현 동안에는 GEO_MODE=mock으로 띄운다.
+    mode: ${GEO_MODE:real}
 
 server:
   port: 8080

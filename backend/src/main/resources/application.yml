@@ -21,6 +21,9 @@ honjeong:
     mode: mock
     local-dir: ./uploads                  # mock 저장 위치
     base-url: http://localhost:8080/files # mock 반환 URL 접두사(WebConfig 정적 서빙과 일치)
+  geo:
+    # 역지오코딩 모드: mock(기본·결정론적 더미) | real(외부 역지오코딩 API). real은 후속 구현.
+    mode: mock
   jwt:
     # HS256용 시크릿(>= 256bit). 운영은 환경변수 JWT_SECRET으로 주입(NFR-02).
     secret: ${JWT_SECRET:honjeong-local-dev-secret-please-change-in-production-0123456789}
