@@ -44,7 +44,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
   const [nickname, setNickname] = useState('');
   const [intro, setIntro] = useState('조용히 먹는 것도, 도란도란 얘기하는 것도 좋아요.');
   const [gender, setGender] = useState<'female' | 'male'>('female');
-  const [foods, setFoods] = useState<string[]>(['한식', '일식', '면 요리']);
+  const [foods, setFoods] = useState<string[]>([]);
   const [style, setStyle] = useState('talk');
   const [terms, setTerms] = useState<Record<string, boolean>>({
     service: false,
