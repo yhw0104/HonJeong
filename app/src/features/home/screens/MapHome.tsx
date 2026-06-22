@@ -1,98 +1,83 @@
-// MapHome — 지도/홈 (원본: screens/MapHome.jsx)
-// 실제 카카오맵(HonjeongMap) 위에 핀/검색바/라이브카운터/하단시트를 오버레이.
+// MapHome — 지도/홈. 실제 카카오맵 위에 실데이터(마커·주변 리스트·혼밥 시작/종료·전체 카운트)를 올린다.
 // 하단 탭바는 MainTabs 네비게이터가 렌더하므로 여기서는 그리지 않는다.
-import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Pressable, StyleSheet, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { HonjeongMap, MiniPin, Icon, HonbabStatusBar } from '@/shared/components';
+import { HonjeongMap, Icon, HonbabStatusBar } from '@/shared/components';
 import { T2 } from '@/shared/theme';
-import { apiGet } from '@/shared/api/client';
+import { useLocation } from '@/shared/location/useLocation';
+import { useNearby } from '@/features/place/queries';
+import { useMap, useMyCheckIn, useStats, useStartCheckIn, useEndCheckIn } from '@/features/checkin/queries';
+import { formatDistance } from '@/shared/format';
 import type { MainTabScreenProps } from '@/navigation/types';
-
-const PINS = [
-  { x: 120, y: 200, label: '큰순두부', mate: true },
-  { x: 250, y: 160, active: true },
-  { x: 180, y: 300 },
-  { x: 290, y: 360, label: '혼밥하우스 · 메이트 1', mate: true },
-  { x: 90, y: 380 },
-  { x: 320, y: 460 },
-];
-
-type ListItem = { n: string; d: string; tag?: string; tagOn?: boolean };
-
-const LIST: ListItem[] = [
-  { n: '큰순두부 연남점', d: '한식 · 120m', tag: '메이트 2명', tagOn: true },
-  { n: '혼밥의자', d: '일식 · 180m' },
-  { n: '옥상국밥', d: '한식 · 240m' },
-];
-
-// 혼밥 시작 시트의 근처 식당 목록
-const NEARBY: ListItem[] = [
-  { n: '큰순두부 연남점', d: '한식 · 120m', tag: '메이트 2명' },
-  { n: '혼밥의자', d: '일식 · 180m' },
-  { n: '옥상국밥', d: '한식 · 240m' },
-  { n: '연남 파스타바', d: '양식 · 300m' },
-];
 
 export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const insets = useSafeAreaInsets();
-  const [honbabOn, setHonbabOn] = useState(false);
   const [picking, setPicking] = useState(false);
-  const [placeName, setPlaceName] = useState('큰순두부 연남점');
 
-  // 현재 혼밥 중인 사람 수(실시간). 백엔드 통계 API에서 받아 채운다. 실패/로딩 시 null → '–' 표시.
-  const [activeCount, setActiveCount] = useState<number | null>(null);
+  const { coord, permission } = useLocation();
+  const stats = useStats();
+  const markers = useMap(coord);
+  const nearby = useNearby(coord);
+  const myCheckIn = useMyCheckIn();
+  const startMut = useStartCheckIn();
+  const endMut = useEndCheckIn();
 
-  useEffect(() => {
-    let alive = true;
-    apiGet<{ todayCount: number; activeCount: number }>('/check-ins/stats')
-      .then((stats) => { if (alive) setActiveCount(stats.activeCount); })
-      .catch(() => { /* 연결 실패 시 폴백('–') 유지 */ });
-    return () => { alive = false; };
-  }, []);
+  const honbabOn = myCheckIn.data?.status === 'ACTIVE';
+  const nearbyList = nearby.data?.content ?? [];
+  const myPlaceName =
+    markers.data?.find((m) => m.placeId === myCheckIn.data?.placeId)?.name ??
+    nearbyList.find((p) => p.placeId === myCheckIn.data?.placeId)?.name ??
+    '혼밥 중';
 
-  const startHonbab = (name: string) => {
-    setPlaceName(name);
+  const goDetail = (placeId: number, name?: string) =>
+    navigation.navigate('RestaurantDetail', { placeId, name });
+
+  const startHonbab = (placeId: number) => {
     setPicking(false);
-    setHonbabOn(true);
+    startMut.mutate(placeId);
+  };
+  const endHonbab = () => {
+    if (myCheckIn.data) endMut.mutate(myCheckIn.data.checkInId);
   };
 
   return (
     <View style={styles.root}>
-      <HonjeongMap />
+      <HonjeongMap
+        center={coord}
+        markers={(markers.data ?? []).map((m) => ({
+          placeId: m.placeId,
+          latitude: m.latitude,
+          longitude: m.longitude,
+          activeCount: m.activeCount,
+        }))}
+        onMarkerPress={(placeId) => goDetail(placeId)}
+      />
 
-      {/* 핀 — 아직 화면 절대좌표 기반 목업 오버레이(지도와 함께 움직이지 않음).
-          다음 단계에서 place 검색 API + geo 좌표 마커로 교체한다. */}
-      {PINS.map((p, i) => (
-        <MiniPin key={i} {...p} />
-      ))}
-
-      {/* 내 위치(목업) — expo-location 연동 시 실제 GPS로 교체 */}
-      <View style={styles.myLocation} />
-
-      {/* 상단 검색 + 길찾기 + (혼밥 중 상태 카드) + 라이브 카운터 */}
+      {/* 상단 검색 + (위치 안내) + (혼밥 중 상태 카드) */}
       <View style={[styles.topWrap, { top: insets.top + 8 }]}>
         <View style={styles.searchRow}>
-          <View style={styles.search}>
+          <Pressable style={styles.search} onPress={() => navigation.navigate('PlaceSearch')}>
             <Icon name="search" size={16} color={T2.text} />
             <Text style={styles.searchPlaceholder}>장소, 음식, 메이트</Text>
-          </View>
+          </Pressable>
           <View style={styles.navBtn}>
             <Icon name="navigate" size={20} color="#fff" />
           </View>
         </View>
 
-        {/* 혼밥 중 상태 카드 — 검색창 바로 아래 */}
+        {permission === 'denied' && (
+          <Pressable style={styles.locBanner} onPress={() => Linking.openSettings()}>
+            <Text style={styles.locBannerText}>위치를 못 받아 연남동 기준으로 표시 중 · 위치 켜기</Text>
+          </Pressable>
+        )}
+
         {honbabOn && (
-          <HonbabStatusBar
-            place={placeName}
-            onEnd={() => setHonbabOn(false)}
-            style={{ marginTop: 10 }}
-          />
+          <HonbabStatusBar place={myPlaceName} onEnd={endHonbab} style={{ marginTop: 10 }} />
         )}
       </View>
 
-      {/* 줌 컨트롤 */}
+      {/* 줌 컨트롤 (장식) */}
       <View style={styles.zoom}>
         {['+', '−', '◎'].map((s, i, a) => (
           <View key={s} style={[styles.zoomBtn, i < a.length - 1 && styles.zoomDivider]}>
@@ -114,16 +99,14 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
               <Text style={styles.liveTag}>지금 · 실시간</Text>
             </View>
             <Text style={styles.sheetTitle}>
-              연남동에서 <Text style={{ color: T2.brand }}>{activeCount ?? '–'}명</Text>이{'\n'}혼자 식사 중
+              지금 <Text style={{ color: T2.brand }}>{stats.data?.activeCount ?? '–'}명</Text>이{'\n'}혼자 식사 중
             </Text>
-            <Text style={styles.sheetSub}>
-              메이트 모집 중 <Text style={{ color: T2.text, fontWeight: '700' }}>3명</Text> · 가게 8곳
-            </Text>
+            <Text style={styles.sheetSub}>내 주변 가게 {nearbyList.length}곳</Text>
           </View>
 
           {/* 혼밥 시작 → 식당 선택 시트 / 혼밥 중이면 종료 토글 */}
           {honbabOn ? (
-            <Pressable style={styles.honbabBtnOn} onPress={() => setHonbabOn(false)}>
+            <Pressable style={styles.honbabBtnOn} onPress={endHonbab}>
               <View style={styles.honbabPulse}>
                 <View style={styles.honbabHalo} />
                 <View style={styles.honbabDot} />
@@ -138,23 +121,22 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           )}
         </View>
 
-        {LIST.map((r, i) => (
+        {nearbyList.map((r, i) => (
           <Pressable
-            key={i}
+            key={r.placeId}
             style={[styles.listRow, i === 0 && styles.listRowFirst]}
-            onPress={() => navigation.navigate('RestaurantDetail', { name: r.n })}
+            onPress={() => goDetail(r.placeId, r.name)}
           >
             <View style={{ flex: 1 }}>
-              <Text style={styles.listName}>{r.n}</Text>
+              <Text style={styles.listName}>{r.name}</Text>
               <View style={styles.listMetaRow}>
-                <Text style={styles.listMeta}>{r.d}</Text>
-                {r.tag && (
+                <Text style={styles.listMeta}>
+                  {[r.category, formatDistance(r.distanceMeters)].filter(Boolean).join(' · ')}
+                </Text>
+                {r.activeCount > 0 && (
                   <>
                     <Text style={styles.dot}>·</Text>
-                    <Text style={[styles.listTag, { color: r.tagOn ? T2.brand : T2.textSub, fontWeight: r.tagOn ? '700' : '500' }]}>
-                      {r.tagOn ? '● ' : ''}
-                      {r.tag}
-                    </Text>
+                    <Text style={[styles.listTag, { color: T2.brand, fontWeight: '700' }]}>● 혼밥 {r.activeCount}</Text>
                   </>
                 )}
               </View>
@@ -174,26 +156,32 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
               <Text style={styles.pickSub}>선택한 식당에 ‘혼밥 중’으로 표시돼요</Text>
             </View>
             <View style={{ marginTop: 14 }}>
-              {NEARBY.map((p, i) => (
+              {nearbyList.map((p, i) => (
                 <Pressable
-                  key={p.n}
+                  key={p.placeId}
                   style={[styles.pickRow, i === 0 && styles.pickRowFirst]}
-                  onPress={() => startHonbab(p.n)}
+                  onPress={() => startHonbab(p.placeId)}
                 >
                   <View style={styles.pickIcon}>
                     <Text style={styles.pickIconEmoji}>🍽</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.pickName}>{p.n}</Text>
-                    <Text style={styles.pickMeta}>{p.d}{p.tag ? ` · ${p.tag}` : ''}</Text>
+                    <Text style={styles.pickName}>{p.name}</Text>
+                    <Text style={styles.pickMeta}>{[p.category, formatDistance(p.distanceMeters)].filter(Boolean).join(' · ')}</Text>
                   </View>
                   <Icon name="chevronRight" size={18} color={T2.textMute} />
                 </Pressable>
               ))}
             </View>
-            <View style={styles.pickSearch}>
+            <Pressable
+              style={styles.pickSearch}
+              onPress={() => {
+                setPicking(false);
+                navigation.navigate('PlaceSearch');
+              }}
+            >
               <Text style={styles.pickSearchText}>직접 검색해서 찾기</Text>
-            </View>
+            </Pressable>
           </View>
         </>
       )}
@@ -211,18 +199,6 @@ const shadow = {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: T2.mapBg },
-
-  myLocation: {
-    position: 'absolute',
-    left: '50%',
-    top: '45%',
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#171717',
-    borderWidth: 3,
-    borderColor: '#fff',
-  },
 
   topWrap: { position: 'absolute', left: 16, right: 16 },
   searchRow: { flexDirection: 'row', gap: 8 },
@@ -251,6 +227,14 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
+  locBanner: {
+    marginTop: 10,
+    backgroundColor: '#FFF1ED',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  locBannerText: { fontSize: 12, color: T2.brand, fontWeight: '700', letterSpacing: -0.2 },
 
   zoom: {
     position: 'absolute',
