@@ -47,7 +47,7 @@ export function RootNavigator() {
           <Stack.Screen name="MainTabs" component={MainTabs} />
           <Stack.Screen name="NewGroup" component={NewGroupScreen} options={{ presentation: 'modal' }} />
           <Stack.Screen name="RestaurantDetail" component={RestaurantDetailScreen} />
-          <Stack.Screen name="PlaceSearch" component={PlaceSearchScreen} options={{ headerShown: true, title: '식당 검색' }} />
+          <Stack.Screen name="PlaceSearch" component={PlaceSearchScreen} />
           <Stack.Screen name="MealRequest" component={MealRequestScreen} options={{ presentation: 'modal' }} />
           <Stack.Screen name="Mates" component={MatesScreen} />
           <Stack.Screen name="MateProfile" component={MateProfileScreen} />
