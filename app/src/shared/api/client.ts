@@ -65,7 +65,9 @@ async function request<T>(method: Method, path: string, body?: unknown, options?
     const message = envelope?.error?.message ?? `요청 실패 (HTTP ${res.status})`;
     throw new ApiError(res.status, code, message);
   }
-  return envelope.data as T;
+  // data가 생략된 성공 응답(백엔드 @JsonInclude(NON_NULL)으로 null이면 키째 빠짐)은 null로 통일한다.
+  // React Query는 쿼리 함수가 undefined를 반환하면 에러를 내므로, undefined가 새 나가지 않게 막는다.
+  return (envelope.data ?? null) as T;
 }
 
 /** GET 요청(쿼리스트링은 path에 직접 포함). */
