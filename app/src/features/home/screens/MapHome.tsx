@@ -1,7 +1,7 @@
 // MapHome — 지도/홈. 실제 카카오맵 위에 실데이터(마커·주변 리스트·혼밥 시작/종료·전체 카운트)를 올린다.
 // 하단 탭바는 MainTabs 네비게이터가 렌더하므로 여기서는 그리지 않는다.
-import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Linking } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Animated, PanResponder, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HonjeongMap, Icon, HonbabStatusBar } from '@/shared/components';
 import { T2 } from '@/shared/theme';
@@ -10,6 +10,10 @@ import { useNearby } from '@/features/place/queries';
 import { useMap, useMyCheckIn, useStats, useStartCheckIn, useEndCheckIn } from '@/features/checkin/queries';
 import { formatDistance } from '@/shared/format';
 import type { MainTabScreenProps } from '@/navigation/types';
+
+// 하단 시트 스냅 높이(접힘/펼침). 펼치면 화면의 82%까지 올라와 전체 리스트가 보인다.
+const SHEET_COLLAPSED = 300;
+const SHEET_EXPANDED = Math.round(Dimensions.get('window').height * 0.82);
 
 export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const insets = useSafeAreaInsets();
@@ -40,6 +44,34 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const endHonbab = () => {
     if (myCheckIn.data) endMut.mutate(myCheckIn.data.checkInId);
   };
+
+  // 드래그로 펼치는 하단 시트: 핸들/헤더를 위로 끌면 펼침, 아래로 끌면 접힘.
+  const sheetH = useRef(new Animated.Value(SHEET_COLLAPSED)).current;
+  const expandedRef = useRef(false);
+  const snapSheet = (expand: boolean) => {
+    expandedRef.current = expand;
+    Animated.spring(sheetH, {
+      toValue: expand ? SHEET_EXPANDED : SHEET_COLLAPSED,
+      useNativeDriver: false,
+      bounciness: 2,
+    }).start();
+  };
+  const sheetPan = useRef(
+    PanResponder.create({
+      // 탭은 통과시키고(버튼 동작), 세로 드래그일 때만 시트를 잡는다.
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 4,
+      onPanResponderMove: (_, g) => {
+        const base = expandedRef.current ? SHEET_EXPANDED : SHEET_COLLAPSED;
+        sheetH.setValue(Math.min(SHEET_EXPANDED, Math.max(SHEET_COLLAPSED, base - g.dy)));
+      },
+      onPanResponderRelease: (_, g) => {
+        if (g.dy < -50) snapSheet(true);
+        else if (g.dy > 50) snapSheet(false);
+        else snapSheet(expandedRef.current);
+      },
+    }),
+  ).current;
 
   return (
     <View style={styles.root}>
@@ -86,10 +118,11 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         ))}
       </View>
 
-      {/* 하단 시트 */}
-      <View style={styles.sheet}>
-        <View style={styles.handle} />
-        <View style={[styles.sheetHead, styles.sheetHeadRow]}>
+      {/* 하단 시트 (핸들·헤더를 위로 드래그하면 펼쳐져 전체 리스트가 보임) */}
+      <Animated.View style={[styles.sheet, { height: sheetH }]}>
+        <View {...sheetPan.panHandlers}>
+          <View style={styles.handle} />
+          <View style={[styles.sheetHead, styles.sheetHeadRow]}>
           <View style={{ flex: 1 }}>
             <View style={styles.liveRow}>
               <View style={styles.pulseSm}>
@@ -119,6 +152,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
               <Text style={styles.honbabBtnText}>혼밥 시작</Text>
             </Pressable>
           )}
+          </View>
         </View>
 
         <ScrollView style={styles.sheetList} showsVerticalScrollIndicator={false}>
@@ -145,7 +179,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
             </Pressable>
           ))}
         </ScrollView>
-      </View>
+      </Animated.View>
 
       {/* 식당 선택 시트 — 혼밥 시작 전 어디서 먹는지 선택 */}
       {picking && (
@@ -157,7 +191,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
               <Text style={styles.pickTitle}>어디서 혼밥 중이세요?</Text>
               <Text style={styles.pickSub}>선택한 식당에 ‘혼밥 중’으로 표시돼요</Text>
             </View>
-            <View style={{ marginTop: 14 }}>
+            <ScrollView style={styles.pickList} showsVerticalScrollIndicator={false}>
               {nearbyList.map((p, i) => (
                 <Pressable
                   key={p.placeId}
@@ -174,7 +208,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                   <Icon name="chevronRight" size={18} color={T2.textMute} />
                 </Pressable>
               ))}
-            </View>
+            </ScrollView>
             <Pressable
               style={styles.pickSearch}
               onPress={() => {
@@ -268,7 +302,8 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E5E5', alignSelf: 'center', marginBottom: 16 },
-  sheetList: { maxHeight: 240 },
+  sheetList: { flex: 1 },
+  pickList: { marginTop: 14, maxHeight: 340 },
   sheetHead: { paddingHorizontal: 20, paddingBottom: 12 },
   liveRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pulseSm: { width: 7, height: 7, alignItems: 'center', justifyContent: 'center' },
