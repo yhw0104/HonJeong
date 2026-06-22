@@ -4,9 +4,9 @@ import React from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Screen, Avatar, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
+import { useMyProfile } from '@/features/users/queries';
 import type { RootStackScreenProps } from '@/navigation/types';
 
-const FOODS = ['한식', '일식', '면 요리'];
 const STATS = [
   { n: '32', l: '혼밥' },
   { n: '7', l: '메이트' },
@@ -15,6 +15,13 @@ const STATS = [
 const RECENT_BADGES = ['🌱', '🍚', '🔥', '🤝'];
 
 export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'>) {
+  const { data: profile } = useMyProfile();
+  const foods = profile?.favoriteFoods ?? [];
+  const styleLabel =
+    profile?.diningStyle === 'QUIET'
+      ? { title: '조용히 각자', sub: '편하게, 말 없이 먹어도 좋아요' }
+      : { title: '도란도란 대화하며', sub: '가볍게 이야기 나누는 게 좋아요' };
+
   return (
     <Screen bg={T2.bg} edges={['top']}>
       {/* 헤더 */}
@@ -31,9 +38,9 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
         {/* 프로필 헤더 */}
         <View style={styles.profile}>
           <Avatar name="혼" bg={T2.text} size={84} />
-          <Text style={styles.name}>조용한혼밥러</Text>
-          <Text style={styles.sub}>연남동 · 혼밥 입문 6개월차</Text>
-          <Text style={styles.bio}>"혼자 먹는 시간이 좋아졌어요.{'\n'}가끔은 같이 먹는 것도요 :)"</Text>
+          <Text style={styles.name}>{profile?.nickname ?? '혼밥러'}</Text>
+          <Text style={styles.sub}>{profile?.region ?? '동네 미설정'}</Text>
+          {!!profile?.introduction && <Text style={styles.bio}>"{profile.introduction}"</Text>}
         </View>
 
         {/* 통계 */}
@@ -49,13 +56,17 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
         {/* 좋아하는 음식 */}
         <View style={{ marginTop: 28 }}>
           <Text style={styles.sectionLabel}>좋아하는 음식</Text>
-          <View style={styles.chipWrap}>
-            {FOODS.map((f) => (
-              <View key={f} style={styles.foodChip}>
-                <Text style={styles.foodText}>{f}</Text>
-              </View>
-            ))}
-          </View>
+          {foods.length === 0 ? (
+            <Text style={styles.foodEmpty}>아직 선택한 음식이 없어요</Text>
+          ) : (
+            <View style={styles.chipWrap}>
+              {foods.map((f) => (
+                <View key={f} style={styles.foodChip}>
+                  <Text style={styles.foodText}>{f}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* 같이 먹을 때 */}
@@ -64,8 +75,8 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
           <View style={styles.styleCard}>
             <Text style={{ fontSize: 22 }}>💬</Text>
             <View>
-              <Text style={styles.styleTitle}>도란도란 대화하며</Text>
-              <Text style={styles.styleSub}>가볍게 이야기 나누는 게 좋아요</Text>
+              <Text style={styles.styleTitle}>{styleLabel.title}</Text>
+              <Text style={styles.styleSub}>{styleLabel.sub}</Text>
             </View>
           </View>
         </View>
@@ -113,6 +124,7 @@ const styles = StyleSheet.create({
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   foodChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.borderStrong },
   foodText: { fontSize: 13, fontWeight: '600', color: T2.text, letterSpacing: -0.2 },
+  foodEmpty: { fontSize: 13, color: T2.textMute, letterSpacing: -0.2 },
 
   styleCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 14, backgroundColor: T2.text },
   styleTitle: { fontSize: 15, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
