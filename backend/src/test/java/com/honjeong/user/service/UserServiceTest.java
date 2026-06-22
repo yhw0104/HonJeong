@@ -133,7 +133,7 @@ class UserServiceTest {
     void updateProfile_sameNickname_skipsDupCheck() {
         User user = userWithId(1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        UpdateProfileCommand cmd = new UpdateProfileCommand("기존닉", null, "새소개", null, null, null, null, null);
+        UpdateProfileCommand cmd = new UpdateProfileCommand("기존닉", null, "새소개", null, null, null, null, null, null);
 
         UserProfileResponse res = userService.updateProfile(1L, cmd);
 
@@ -152,7 +152,7 @@ class UserServiceTest {
         User user = userWithId(1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(userRepository.existsByNickname("중복닉")).thenReturn(true);
-        UpdateProfileCommand cmd = new UpdateProfileCommand("중복닉", null, null, null, null, null, null, null);
+        UpdateProfileCommand cmd = new UpdateProfileCommand("중복닉", null, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> userService.updateProfile(1L, cmd))
                 .isInstanceOf(BusinessException.class)
@@ -170,10 +170,28 @@ class UserServiceTest {
     void updateProfile_toggle() {
         User user = userWithId(1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        UpdateProfileCommand cmd = new UpdateProfileCommand(null, null, null, null, null, null, null, Boolean.FALSE);
+        UpdateProfileCommand cmd = new UpdateProfileCommand(null, null, null, null, null, null, null, Boolean.FALSE, null);
 
         UserProfileResponse res = userService.updateProfile(1L, cmd);
 
         assertThat(res.allowMealRequest()).isFalse();
+    }
+
+    /**
+     * given: 회원이 조회되고, 선호 음식 교체가 ["양식"]을 돌려주도록 모킹.
+     * when: favoriteFoods=["양식"]만 담아 부분수정.
+     * then: 응답의 favoriteFoods가 교체 결과를 반영한다.
+     */
+    @Test
+    @DisplayName("updateProfile: favoriteFoods를 보내면 교체되고 응답에 반영된다")
+    void updateProfileReplacesFoods() {
+        User user = userWithId(1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(foodPreferenceService.replaceFoods(1L, List.of("양식"))).thenReturn(List.of("양식"));
+
+        UpdateProfileCommand cmd =
+                new UpdateProfileCommand(null, null, null, null, null, null, null, null, List.of("양식"));
+
+        assertThat(userService.updateProfile(1L, cmd).favoriteFoods()).containsExactly("양식");
     }
 }

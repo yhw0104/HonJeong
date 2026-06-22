@@ -1,5 +1,7 @@
 package com.honjeong.user.service;
 
+import java.util.List;
+
 import com.honjeong.user.domain.DiningStyle;
 
 /**
@@ -14,6 +16,7 @@ import com.honjeong.user.domain.DiningStyle;
  * @param regionLng        새 지역 경도(선택)
  * @param diningStyle      새 식사 성향(선택)
  * @param allowMealRequest 같이먹기 수신 허용 토글(선택)
+ * @param favoriteFoods    선호 음식 목록(선택). null=미변경, 목록이면 통째로 교체(빈 목록=비움)
  */
 public record UpdateProfileCommand(
         String nickname,
@@ -23,5 +26,6 @@ public record UpdateProfileCommand(
         Double regionLat,
         Double regionLng,
         DiningStyle diningStyle,
-        Boolean allowMealRequest) {
+        Boolean allowMealRequest,
+        List<String> favoriteFoods) {
 }

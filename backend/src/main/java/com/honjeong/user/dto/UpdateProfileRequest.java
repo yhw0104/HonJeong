@@ -1,8 +1,11 @@
 package com.honjeong.user.dto;
 
+import java.util.List;
+
 import com.honjeong.user.domain.DiningStyle;
 import com.honjeong.user.service.UpdateProfileCommand;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -19,6 +22,7 @@ import jakarta.validation.constraints.Size;
  * @param regionLng        활동 지역 경도(선택, 미전송 시 미변경).
  * @param diningStyle      식사 성향({@link DiningStyle} enum, 선택, 미전송 시 미변경).
  * @param allowMealRequest 같이먹기 신청 수신 동의 여부(선택, 미전송 시 미변경).
+ * @param favoriteFoods    선호 음식 목록(선택, 미전송 시 미변경). 최대 3개, 각 항목 공백 불가·50자 이내.
  */
 public record UpdateProfileRequest(
         @Size(max = 20) String nickname,
@@ -28,7 +32,8 @@ public record UpdateProfileRequest(
         Double regionLat,
         Double regionLng,
         DiningStyle diningStyle,
-        Boolean allowMealRequest) {
+        Boolean allowMealRequest,
+        @Size(max = 3) List<@NotBlank @Size(max = 50) String> favoriteFoods) {
 
     /**
      * 컨트롤러용 요청 DTO를 서비스 계층 입력인 {@link UpdateProfileCommand}로 변환한다.
@@ -40,6 +45,6 @@ public record UpdateProfileRequest(
      */
     public UpdateProfileCommand toCommand() {
         return new UpdateProfileCommand(nickname, profileImageUrl, introduction,
-                region, regionLat, regionLng, diningStyle, allowMealRequest);
+                region, regionLat, regionLng, diningStyle, allowMealRequest, favoriteFoods);
     }
 }

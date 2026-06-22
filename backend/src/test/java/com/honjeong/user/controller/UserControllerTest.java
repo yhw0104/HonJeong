@@ -134,6 +134,24 @@ class UserControllerTest {
     }
 
     /**
+     * given: favoriteFoods가 4개(최대 3개 초과)인 수정 요청 + 유효한 access 토큰.
+     * when: PATCH /me 호출.
+     * then: @Size(max=3) @Valid 검증에 걸려 400 + INVALID_INPUT으로 응답한다(서비스까지 가지 않는다).
+     */
+    @Test
+    @DisplayName("PATCH /me: favoriteFoods가 4개면 400")
+    void patchMe_tooManyFoods_400() throws Exception {
+        String token = jwtProvider.createAccessToken(1L);
+
+        mockMvc.perform(patch("/api/users/me")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"favoriteFoods\":[\"한식\",\"일식\",\"양식\",\"중식\"]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+    }
+
+    /**
      * given: userId 1L의 정식 access 토큰 발급 + 서비스가 NicknameCheckResponse("새닉", true)를 돌려주도록 스텁.
      * when: {@code nickname=새닉} 파라미터로 {@code GET /api/users/nickname-check} 호출.
      * then: 200 + {@code data.available=true}로 응답한다.
