@@ -1,9 +1,10 @@
 // ProfileEdit — 프로필 편집 (원본: screens/ProfileEdit.jsx)
 // MyProfile '편집'에서 모달로 진입. 닉네임/소개/동네/음식/성향 편집.
-import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
 import { Screen, FieldLabel, Avatar, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
+import { useMyProfile, useUpdateMyProfile } from '@/features/users/queries';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 const FOODS = ['한식', '일식', '양식', '중식', '면 요리', '매운맛', '디저트'];
@@ -13,10 +14,22 @@ const STYLES_OPT = [
 ];
 
 export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileEdit'>) {
-  const [nickname, setNickname] = useState('조용한혼밥러');
-  const [bio, setBio] = useState('혼자 먹는 시간이 좋아졌어요. 가끔은 같이 먹는 것도요 :)');
-  const [foods, setFoods] = useState<string[]>(['한식', '일식', '면 요리']);
+  const { data: profile } = useMyProfile();
+  const update = useUpdateMyProfile();
+
+  const [nickname, setNickname] = useState('');
+  const [bio, setBio] = useState('');
+  const [foods, setFoods] = useState<string[]>([]);
   const [style, setStyle] = useState('talk');
+
+  // 서버 프로필이 도착하면 폼 초깃값을 채운다(최초 동기화).
+  useEffect(() => {
+    if (!profile) return;
+    setNickname(profile.nickname ?? '');
+    setBio(profile.introduction ?? '');
+    setFoods(profile.favoriteFoods ?? []);
+    setStyle(profile.diningStyle === 'QUIET' ? 'quiet' : 'talk');
+  }, [profile]);
 
   const toggleFood = (f: string) => {
     setFoods((prev) => {
@@ -24,6 +37,21 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
       if (prev.length >= 3) return prev;
       return [...prev, f];
     });
+  };
+
+  const onSave = () => {
+    update.mutate(
+      {
+        nickname: nickname.trim(),
+        introduction: bio,
+        diningStyle: style === 'quiet' ? 'QUIET' : 'TALK',
+        favoriteFoods: foods,
+      },
+      {
+        onSuccess: () => navigation.goBack(),
+        onError: () => Alert.alert('저장 실패', '잠시 후 다시 시도해주세요.'),
+      },
+    );
   };
 
   return (
@@ -34,8 +62,8 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
           <Text style={styles.cancel}>취소</Text>
         </Pressable>
         <Text style={styles.title}>프로필 편집</Text>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={10}>
-          <Text style={styles.save}>저장</Text>
+        <Pressable onPress={onSave} disabled={update.isPending} hitSlop={10}>
+          <Text style={[styles.save, update.isPending && { opacity: 0.4 }]}>저장</Text>
         </Pressable>
       </View>
 
