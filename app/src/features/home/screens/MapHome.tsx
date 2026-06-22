@@ -1,7 +1,7 @@
 // MapHome — 지도/홈. 실제 카카오맵 위에 실데이터(마커·주변 리스트·혼밥 시작/종료·전체 카운트)를 올린다.
 // 하단 탭바는 MainTabs 네비게이터가 렌더하므로 여기서는 그리지 않는다.
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Linking } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HonjeongMap, Icon, HonbabStatusBar } from '@/shared/components';
 import { T2 } from '@/shared/theme';
@@ -121,28 +121,30 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           )}
         </View>
 
-        {nearbyList.map((r, i) => (
-          <Pressable
-            key={r.placeId}
-            style={[styles.listRow, i === 0 && styles.listRowFirst]}
-            onPress={() => goDetail(r.placeId, r.name)}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.listName}>{r.name}</Text>
-              <View style={styles.listMetaRow}>
-                <Text style={styles.listMeta}>
-                  {[r.category, formatDistance(r.distanceMeters)].filter(Boolean).join(' · ')}
-                </Text>
-                {r.activeCount > 0 && (
-                  <>
-                    <Text style={styles.dot}>·</Text>
-                    <Text style={[styles.listTag, { color: T2.brand, fontWeight: '700' }]}>● 혼밥 {r.activeCount}</Text>
-                  </>
-                )}
+        <ScrollView style={styles.sheetList} showsVerticalScrollIndicator={false}>
+          {nearbyList.map((r, i) => (
+            <Pressable
+              key={r.placeId}
+              style={[styles.listRow, i === 0 && styles.listRowFirst]}
+              onPress={() => goDetail(r.placeId, r.name)}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.listName}>{r.name}</Text>
+                <View style={styles.listMetaRow}>
+                  <Text style={styles.listMeta}>
+                    {[r.category, formatDistance(r.distanceMeters)].filter(Boolean).join(' · ')}
+                  </Text>
+                  {r.activeCount > 0 && (
+                    <>
+                      <Text style={styles.dot}>·</Text>
+                      <Text style={[styles.listTag, { color: T2.brand, fontWeight: '700' }]}>● 혼밥 {r.activeCount}</Text>
+                    </>
+                  )}
+                </View>
               </View>
-            </View>
-          </Pressable>
-        ))}
+            </Pressable>
+          ))}
+        </ScrollView>
       </View>
 
       {/* 식당 선택 시트 — 혼밥 시작 전 어디서 먹는지 선택 */}
@@ -266,6 +268,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E5E5', alignSelf: 'center', marginBottom: 16 },
+  sheetList: { maxHeight: 240 },
   sheetHead: { paddingHorizontal: 20, paddingBottom: 12 },
   liveRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pulseSm: { width: 7, height: 7, alignItems: 'center', justifyContent: 'center' },
