@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Animated, PanResponder, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HonjeongMap, Icon, HonbabStatusBar } from '@/shared/components';
+import type { HonjeongMapHandle } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useLocation } from '@/shared/location/useLocation';
 import { useNearby } from '@/features/place/queries';
@@ -18,6 +19,7 @@ const SHEET_EXPANDED = Math.round(Dimensions.get('window').height * 0.82);
 export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const insets = useSafeAreaInsets();
   const [picking, setPicking] = useState(false);
+  const mapRef = useRef<HonjeongMapHandle>(null);
 
   const { coord, permission } = useLocation();
   const stats = useStats();
@@ -76,7 +78,9 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   return (
     <View style={styles.root}>
       <HonjeongMap
+        ref={mapRef}
         center={coord}
+        myLocation={coord}
         markers={(markers.data ?? []).map((m) => ({
           placeId: m.placeId,
           latitude: m.latitude,
@@ -109,13 +113,17 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         )}
       </View>
 
-      {/* 줌 컨트롤 (장식) */}
+      {/* 줌 +/− · 내 위치로 이동 */}
       <View style={styles.zoom}>
-        {['+', '−', '◎'].map((s, i, a) => (
-          <View key={s} style={[styles.zoomBtn, i < a.length - 1 && styles.zoomDivider]}>
-            <Text style={styles.zoomText}>{s}</Text>
-          </View>
-        ))}
+        <Pressable style={[styles.zoomBtn, styles.zoomDivider]} onPress={() => mapRef.current?.zoomIn()}>
+          <Text style={styles.zoomText}>+</Text>
+        </Pressable>
+        <Pressable style={[styles.zoomBtn, styles.zoomDivider]} onPress={() => mapRef.current?.zoomOut()}>
+          <Text style={styles.zoomText}>−</Text>
+        </Pressable>
+        <Pressable style={styles.zoomBtn} onPress={() => mapRef.current?.recenter()}>
+          <Text style={styles.zoomText}>◎</Text>
+        </Pressable>
       </View>
 
       {/* 하단 시트 (핸들·헤더를 위로 드래그하면 펼쳐져 전체 리스트가 보임) */}

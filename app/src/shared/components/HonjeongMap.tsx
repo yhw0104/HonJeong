@@ -8,7 +8,7 @@
 // 화면과 Metro 터미널([HonjeongMap] 로그)에 그대로 보여준다. 카카오 도메인 오류는 여기에 원문이 찍힌다.
 //
 // 전제: 카카오 콘솔에 KAKAO_MAP_BASE_URL 도메인을 등록하고 카카오맵 사용을 켜야 한다(config/kakao.ts 참고).
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { T2 } from '@/shared/theme';
@@ -26,6 +26,13 @@ export type MapMarkerInput = {
   placeId: number; latitude: number; longitude: number; activeCount: number;
 };
 
+/** 부모가 ref로 호출하는 명령형 핸들(줌 인/아웃·내 위치로 이동). */
+export type HonjeongMapHandle = {
+  zoomIn: () => void;
+  zoomOut: () => void;
+  recenter: () => void;
+};
+
 type Props = {
   /** 지도 중심. 기본은 연남동 부근. */
   center?: LatLng;
@@ -37,6 +44,8 @@ type Props = {
   markers?: MapMarkerInput[];
   /** 마커 탭 시 호출(식당 상세 이동 등). */
   onMarkerPress?: (placeId: number) => void;
+  /** 내 위치(파란 점). null/미지정이면 표시 안 함. */
+  myLocation?: LatLng | null;
 };
 
 /** 카카오 JS SDK를 로드해 지도를 그리는 HTML 문서를 만든다. */
@@ -73,6 +82,19 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
             center: new kakao.maps.LatLng(${center.lat}, ${center.lng}),
             level: ${level}
           });
+          window.__map = map;
+          // 내 위치(파란 점) 렌더 함수. lat/lng가 null이면 점을 제거한다.
+          window.__myLoc = null;
+          window.__renderMyLocation = function(lat, lng){
+            if (window.__myLoc) { window.__myLoc.setMap(null); window.__myLoc = null; }
+            if (lat == null || lng == null) return;
+            window.__myLoc = new kakao.maps.CustomOverlay({
+              position: new kakao.maps.LatLng(lat, lng),
+              content: '<div style="width:16px;height:16px;border-radius:8px;background:#2D7DF6;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.25);"></div>',
+              zIndex: 10
+            });
+            window.__myLoc.setMap(map);
+          };
           // RN에서 주입할 마커 렌더 함수. 기존 마커를 지우고 새 목록으로 다시 그린다.
           window.__markers = [];
           window.__renderMarkers = function(list){
@@ -103,24 +125,43 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
 </html>`;
 }
 
-export function HonjeongMap({
+export const HonjeongMap = forwardRef<HonjeongMapHandle, Props>(function HonjeongMap({
   center = DEFAULT_MAP_CENTER,
   level = DEFAULT_MAP_LEVEL,
   style,
   markers,
   onMarkerPress,
-}: Props) {
+  myLocation,
+}: Props, ref) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [detail, setDetail] = useState<string>('');
   const html = useMemo(() => buildHtml(KAKAO_JS_KEY, center, level), [center, level]);
   const webRef = useRef<WebView>(null);
+  const run = (js: string) => webRef.current?.injectJavaScript(js + ' true;');
 
-  // 지도가 준비되거나 markers가 바뀌면 WebView에 마커 목록을 주입한다.
+  // 부모가 ref로 호출하는 줌/내위치 명령(WebView에 JS 주입).
+  useImperativeHandle(ref, () => ({
+    zoomIn: () => run('window.__map && window.__map.setLevel(window.__map.getLevel() - 1);'),
+    zoomOut: () => run('window.__map && window.__map.setLevel(window.__map.getLevel() + 1);'),
+    recenter: () => {
+      if (myLocation) {
+        run(`window.__map && window.__map.setCenter(new kakao.maps.LatLng(${myLocation.lat}, ${myLocation.lng}));`);
+      }
+    },
+  }));
+
+  // 지도가 준비되거나 markers가 바뀌면 마커 목록을 주입한다.
   useEffect(() => {
     if (status !== 'ready') return;
-    const js = `window.__renderMarkers && window.__renderMarkers(${JSON.stringify(markers ?? [])}); true;`;
-    webRef.current?.injectJavaScript(js);
+    run(`window.__renderMarkers && window.__renderMarkers(${JSON.stringify(markers ?? [])});`);
   }, [markers, status]);
+
+  // 내 위치(파란 점) 주입. 좌표가 없으면 점 제거.
+  useEffect(() => {
+    if (status !== 'ready') return;
+    if (myLocation) run(`window.__renderMyLocation && window.__renderMyLocation(${myLocation.lat}, ${myLocation.lng});`);
+    else run('window.__renderMyLocation && window.__renderMyLocation(null, null);');
+  }, [myLocation, status]);
 
   // 키 미설정: WebView를 띄우지 않고 안내 화면을 보여준다.
   if (!KAKAO_JS_KEY) {
@@ -190,7 +231,7 @@ export function HonjeongMap({
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
