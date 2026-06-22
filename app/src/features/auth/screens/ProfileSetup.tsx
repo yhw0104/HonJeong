@@ -96,7 +96,6 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
   };
 
   // 약관 제출 → 프로필 제출(가입 확정 + 정식 토큰) → 로그인(네비게이터가 메인으로 전환).
-  // 좋아하는 음식은 백엔드 P1에 저장 필드가 없어 전송하지 않는다(UI 전용, P2 예정).
   const onComplete = async () => {
     if (!requiredOk) {
       Alert.alert('약관 동의 필요', '필수 약관에 모두 동의해주세요.');
@@ -117,6 +116,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
           diningStyle: style === 'talk' ? 'TALK' : 'QUIET',
           introduction: intro,
           region: '마포구 연남동',
+          favoriteFoods: foods,
         },
         { token: onboardingToken },
       );
