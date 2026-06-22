@@ -11,7 +11,7 @@ export type RootStackParamList = {
   MainTabs: undefined;
   NewGroup: undefined;
   PlaceSearch: undefined;
-  RestaurantDetail: { placeId?: number; name?: string };
+  RestaurantDetail: { placeId: number; name?: string };
   MealRequest: { name?: string } | undefined;
   Mates: undefined;
   MateProfile: { name?: string } | undefined;

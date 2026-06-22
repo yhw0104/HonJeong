@@ -6,6 +6,10 @@ import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions } from 'react
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H } from '@/shared/components';
 import { T2 } from '@/shared/theme';
+import { usePlaceDetail } from '@/features/place/queries';
+import { useActiveDiners, useMyCheckIn, useStartCheckIn, useEndCheckIn } from '@/features/checkin/queries';
+import type { ActiveDiner } from '@/features/checkin/api';
+import { formatElapsed } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 type Tab = 'home' | 'menu' | 'review' | 'photo' | 'mate' | 'nearby';
@@ -98,14 +102,24 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const insets = useSafeAreaInsets();
   const [stab, setStab] = useState<Tab>('home');
   const [copied, setCopied] = useState(false);
-  const [honbabOn, setHonbabOn] = useState(false);
-  const name = route.params?.name ?? '큰순두부 연남점';
+  const placeId = route.params.placeId;
+  const detail = usePlaceDetail(placeId);
+  const diners = useActiveDiners(placeId);
+  const myCheckIn = useMyCheckIn();
+  const startMut = useStartCheckIn();
+  const endMut = useEndCheckIn();
+  const name = detail.data?.name ?? route.params.name ?? '식당';
+  const honbabOn = myCheckIn.data?.status === 'ACTIVE' && myCheckIn.data.placeId === placeId;
 
   const copy = () => {
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
   const goMealRequest = () => navigation.navigate('MealRequest', { name });
+  const toggleHonbab = () => {
+    if (honbabOn && myCheckIn.data) endMut.mutate(myCheckIn.data.checkInId);
+    else startMut.mutate(placeId);
+  };
 
   return (
     <View style={styles.root}>
@@ -116,10 +130,12 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
         <View style={styles.content}>
           {/* 카테고리 + 영업 */}
           <View style={{ marginBottom: 10 }}>
-            <Text style={styles.eyebrow}>한식 · 순두부</Text>
-            <View style={styles.openBadge}>
-              <Text style={styles.openText}>영업중 · 21시까지</Text>
-            </View>
+            <Text style={styles.eyebrow}>{detail.data?.category ?? '식당'}</Text>
+            {detail.data?.businessStatus ? (
+              <View style={styles.openBadge}>
+                <Text style={styles.openText}>{detail.data.businessStatus}</Text>
+              </View>
+            ) : null}
           </View>
 
           <Text style={styles.title}>{name}</Text>
@@ -127,7 +143,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
           {/* 주소 + 복사 */}
           <View style={styles.addrRow}>
             <Icon name="pin" size={15} color={T2.textMute} />
-            <Text style={styles.addr}>서울 마포구 연남로 23길 14, 1층</Text>
+            <Text style={styles.addr}>{detail.data?.roadAddress ?? detail.data?.address ?? '주소 정보 없음'}</Text>
             <Pressable style={styles.copyBtn} onPress={copy}>
               <Icon name="copy" size={13} color={copied ? T2.brand : T2.textSub} />
               <Text style={[styles.copyText, { color: copied ? T2.brand : T2.textSub }]}>{copied ? '복사됨' : '복사'}</Text>
@@ -162,7 +178,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
             })}
           </View>
 
-          {stab === 'home' && <HomeTab onMeal={goMealRequest} />}
+          {stab === 'home' && <HomeTab diners={diners.data ?? []} />}
           {stab === 'menu' && <MenuTab />}
           {stab === 'review' && <ReviewTab />}
           {stab === 'photo' && <PhotoTab />}
@@ -197,7 +213,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
           <Text style={styles.ctaMateText}>같이 먹기</Text>
         </Pressable>
         {honbabOn ? (
-          <Pressable style={styles.ctaHonbabOn} onPress={() => setHonbabOn(false)}>
+          <Pressable style={styles.ctaHonbabOn} onPress={toggleHonbab}>
             <View style={styles.ctaPulse}>
               <View style={styles.ctaHalo} />
               <View style={styles.ctaDot} />
@@ -205,7 +221,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
             <Text style={styles.ctaHonbabOnText}>혼밥 중</Text>
           </Pressable>
         ) : (
-          <Pressable style={styles.ctaHonbab} onPress={() => setHonbabOn(true)}>
+          <Pressable style={styles.ctaHonbab} onPress={toggleHonbab}>
             <Text style={styles.ctaHonbabText}>혼밥 시작</Text>
           </Pressable>
         )}
@@ -214,7 +230,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
       {/* 혼밥 중 상태 카드 — 켜져 있으면 최상단에 띄움 */}
       {honbabOn && (
         <View style={[styles.honbabFloat, { top: insets.top + 8 }]}>
-          <HonbabStatusBar place={name} onEnd={() => setHonbabOn(false)} />
+          <HonbabStatusBar place={name} onEnd={toggleHonbab} />
         </View>
       )}
     </View>
@@ -222,7 +238,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
 }
 
 /* ── 홈 탭 ───────────────────────────────────────── */
-function HomeTab({ onMeal }: { onMeal: () => void }) {
+function HomeTab({ diners }: { diners: ActiveDiner[] }) {
   return (
     <View>
       {/* 혼밥 친화도 카드 */}
@@ -279,27 +295,25 @@ function HomeTab({ onMeal }: { onMeal: () => void }) {
         </View>
       </View>
 
-      {/* 지금 혼자 식사 중 */}
+      {/* 지금 여기서 혼밥 중 (실데이터: 닉네임·경과만) */}
       <View style={styles.mealCard}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <View style={styles.liveDot} />
-          <Text style={styles.liveLabel}>지금 혼자 식사 중</Text>
+          <Text style={styles.liveLabel}>지금 여기서 혼밥 중 · {diners.length}명</Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 }}>
-          <View style={{ flexDirection: 'row' }}>
-            <Avatar name="민" bg="#171717" size={36} ring={T2.brandSoft} />
-            <View style={{ marginLeft: -8 }}>
-              <Avatar name="지" bg="#525252" size={36} ring={T2.brandSoft} />
-            </View>
+        {diners.length === 0 ? (
+          <Text style={[styles.mealText, { marginTop: 12 }]}>아직 혼밥 중인 사람이 없어요.</Text>
+        ) : (
+          <View style={{ marginTop: 12, gap: 10 }}>
+            {diners.map((d) => (
+              <View key={d.checkInId} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Avatar name={d.nickname[0] ?? '?'} bg="#525252" size={32} />
+                <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: T2.text }}>{d.nickname}</Text>
+                <Text style={{ fontSize: 12, color: T2.textMute }}>{formatElapsed(d.elapsedMinutes)}</Text>
+              </View>
+            ))}
           </View>
-          <Text style={styles.mealText}>
-            <Text style={{ fontWeight: '800' }}>2명</Text>이 같은 자리에서 식사 중이에요.{'\n'}
-            <Text style={{ color: T2.textSub }}>같이 먹기 신청을 보내볼까요?</Text>
-          </Text>
-          <Pressable style={styles.mealMini} onPress={onMeal}>
-            <Text style={styles.mealMiniText}>같이 먹기 →</Text>
-          </Pressable>
-        </View>
+        )}
       </View>
 
       {/* 정보 */}
