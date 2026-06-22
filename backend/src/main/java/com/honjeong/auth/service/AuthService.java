@@ -20,6 +20,7 @@ import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.global.security.JwtProvider;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
+import com.honjeong.user.service.UserFoodPreferenceService;
 
 /**
  * 인증 흐름 전체를 지휘(오케스트레이션)하는 핵심 서비스. 휴대폰 인증·소셜(OAuth) 로그인이라는
@@ -54,6 +55,7 @@ public class AuthService {
     private final TokenService tokenService;                                 // 정식 토큰(access+refresh) 발급
     private final JwtProvider jwtProvider;                                   // 온보딩 토큰 발급
     private final Clock clock;                                               // 현재 시각 공급자(테스트 시 고정 주입)
+    private final UserFoodPreferenceService foodPreferenceService;           // 선호 음식 upsert(가입 시 저장)
 
     /**
      * 인증에 필요한 저장소·외부 연동·토큰 발급기를 모두 주입받아 서비스를 구성한다.
@@ -63,7 +65,8 @@ public class AuthService {
             PhoneVerificationRepository phoneVerificationRepository, PhoneAttemptRecorder phoneAttemptRecorder,
             TermsAgreementRepository termsAgreementRepository,
             OAuthVerifier oAuthVerifier, SmsSender smsSender, VerificationCodeGenerator codeGenerator,
-            TokenService tokenService, JwtProvider jwtProvider, Clock clock) {
+            TokenService tokenService, JwtProvider jwtProvider, Clock clock,
+            UserFoodPreferenceService foodPreferenceService) {
         this.userRepository = userRepository;
         this.socialAccountRepository = socialAccountRepository;
         this.phoneVerificationRepository = phoneVerificationRepository;
@@ -75,6 +78,7 @@ public class AuthService {
         this.tokenService = tokenService;
         this.jwtProvider = jwtProvider;
         this.clock = clock;
+        this.foodPreferenceService = foodPreferenceService;
     }
 
     /**
@@ -260,6 +264,7 @@ public class AuthService {
         user.completeProfile(command.nickname(), command.gender(), command.ageGroup(), command.introduction(),
                 command.region(), command.regionLat(), command.regionLng(), command.diningStyle(),
                 command.profileImageUrl());
+        foodPreferenceService.replaceFoods(userId, command.favoriteFoods()); // 선호 음식 저장(null이면 미변경)
         return tokenService.issue(userId); // 정식 토큰 발급
     }
 

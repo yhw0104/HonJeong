@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +29,7 @@ import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.security.JwtProvider;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
+import com.honjeong.user.service.UserFoodPreferenceService;
 
 /**
  * {@link AuthService}의 단위 테스트. 인증 진입(휴대폰·소셜)과 온보딩(약관·프로필 완료)의 핵심 분기·검증을
@@ -52,11 +54,12 @@ class AuthServiceTest {
     private final VerificationCodeGenerator codeGenerator = mock(VerificationCodeGenerator.class);
     private final TokenService tokenService = mock(TokenService.class);
     private final JwtProvider jwtProvider = mock(JwtProvider.class);
+    private final UserFoodPreferenceService userFoodPreferenceService = mock(UserFoodPreferenceService.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-12T00:00:00Z"), ZoneOffset.UTC);
 
     private final AuthService authService = new AuthService(userRepository, socialAccountRepository,
             phoneVerificationRepository, phoneAttemptRecorder, termsAgreementRepository, oAuthVerifier, smsSender,
-            codeGenerator, tokenService, jwtProvider, clock);
+            codeGenerator, tokenService, jwtProvider, clock, userFoodPreferenceService);
 
     /**
      * 테스트용 User를 만든다. active=true면 프로필을 채워 ACTIVE 상태로 만들고, 엔티티에는 보통 자동
@@ -78,7 +81,7 @@ class AuthServiceTest {
 
     /** 닉네임만 지정하고 나머지 프로필 항목은 null인 프로필 완료 명령을 만든다. */
     private CompleteProfileCommand command(String nickname) {
-        return new CompleteProfileCommand(nickname, null, null, null, null, null, null, null, null);
+        return new CompleteProfileCommand(nickname, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -250,5 +253,26 @@ class AuthServiceTest {
 
         assertThat(user.isActive()).isTrue();
         assertThat(result).isEqualTo(pair);
+    }
+
+    /**
+     * complete 선호 음식 저장 검증.
+     * given: PENDING 회원이 조회되고 닉네임 미사용 + 토큰 발급 모킹.
+     * when: favoriteFoods=["한식","일식"]을 담아 프로필 완료.
+     * then: 선호 음식 저장(replaceFoods)에 그 목록이 위임된다.
+     */
+    @Test
+    @DisplayName("complete: favoriteFoods를 받으면 선호 음식 저장에 위임한다")
+    void complete_savesFoods() {
+        User user = userWithId(1L, PHONE, false);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.existsByNickname("닉네임")).thenReturn(false);
+        when(tokenService.issue(1L)).thenReturn(new TokenPair("a", "r", 3600));
+
+        CompleteProfileCommand cmd = new CompleteProfileCommand(
+                "닉네임", null, null, null, null, null, null, null, null, List.of("한식", "일식"));
+        authService.complete(1L, cmd);
+
+        verify(userFoodPreferenceService).replaceFoods(1L, List.of("한식", "일식"));
     }
 }

@@ -1,5 +1,7 @@
 package com.honjeong.auth.service;
 
+import java.util.List;
+
 import com.honjeong.user.domain.DiningStyle;
 import com.honjeong.user.domain.Gender;
 
@@ -17,6 +19,7 @@ import com.honjeong.user.domain.Gender;
  * @param regionLng       지역 경도(좌표)
  * @param diningStyle     식사 스타일(취향)
  * @param profileImageUrl 프로필 이미지 URL
+ * @param favoriteFoods   선호 음식 목록(선택, 최대 3개). 비어있지 않으면 저장한다.
  */
 public record CompleteProfileCommand(
         String nickname,
@@ -27,5 +30,6 @@ public record CompleteProfileCommand(
         Double regionLat,
         Double regionLng,
         DiningStyle diningStyle,
-        String profileImageUrl) {
+        String profileImageUrl,
+        List<String> favoriteFoods) {
 }

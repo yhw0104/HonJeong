@@ -1,10 +1,13 @@
 package com.honjeong.auth.dto;
 
+import java.util.List;
+
 import com.honjeong.auth.service.CompleteProfileCommand;
 import com.honjeong.user.domain.DiningStyle;
 import com.honjeong.user.domain.Gender;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /**
  * 온보딩 프로필 완료 요청 본문. {@code POST /api/auth/complete}에서 받는다.
@@ -21,6 +24,7 @@ import jakarta.validation.constraints.NotBlank;
  * @param regionLng       활동 지역 경도(선택).
  * @param diningStyle     식사 성향({@link DiningStyle} enum, 선택).
  * @param profileImageUrl 프로필 이미지 URL(선택).
+ * @param favoriteFoods   선호 음식 목록(선택). 최대 3개, 각 항목 공백 불가·50자 이내.
  */
 public record CompleteProfileRequest(
         @NotBlank String nickname,
@@ -31,7 +35,8 @@ public record CompleteProfileRequest(
         Double regionLat,
         Double regionLng,
         DiningStyle diningStyle,
-        String profileImageUrl) {
+        String profileImageUrl,
+        @Size(max = 3) List<@NotBlank @Size(max = 50) String> favoriteFoods) {
 
     /**
      * 컨트롤러용 요청 DTO를 서비스 계층 입력인 {@link CompleteProfileCommand}로 변환한다.
@@ -41,6 +46,6 @@ public record CompleteProfileRequest(
      */
     public CompleteProfileCommand toCommand() {
         return new CompleteProfileCommand(nickname, gender, ageGroup, introduction, region, regionLat, regionLng,
-                diningStyle, profileImageUrl);
+                diningStyle, profileImageUrl, favoriteFoods);
     }
 }
