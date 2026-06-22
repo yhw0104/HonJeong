@@ -14,3 +14,6 @@ backend/data/
 
 # Office 임시/잠금 파일 (예: ~$문서.xlsx)
 ~$*
+
+# 설계 문서 — git 추적 제외(로컬 source-of-truth로만 유지)
+docs/
