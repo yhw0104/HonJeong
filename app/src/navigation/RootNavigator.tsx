@@ -10,6 +10,7 @@ import { VerifyCodeScreen } from '@/features/auth/screens/VerifyCode';
 import { ProfileSetupScreen } from '@/features/auth/screens/ProfileSetup';
 import { NewGroupScreen } from '@/features/favorites/screens/NewGroup';
 import { RestaurantDetailScreen } from '@/features/place/screens/RestaurantDetail';
+import { PlaceSearchScreen } from '@/features/place/screens/PlaceSearch';
 import { MealRequestScreen } from '@/features/mate/screens/MealRequest';
 import { MatesScreen } from '@/features/mate/screens/Mates';
 import { MateProfileScreen } from '@/features/mate/screens/MateProfile';
@@ -46,6 +47,7 @@ export function RootNavigator() {
           <Stack.Screen name="MainTabs" component={MainTabs} />
           <Stack.Screen name="NewGroup" component={NewGroupScreen} options={{ presentation: 'modal' }} />
           <Stack.Screen name="RestaurantDetail" component={RestaurantDetailScreen} />
+          <Stack.Screen name="PlaceSearch" component={PlaceSearchScreen} options={{ headerShown: true, title: '식당 검색' }} />
           <Stack.Screen name="MealRequest" component={MealRequestScreen} options={{ presentation: 'modal' }} />
           <Stack.Screen name="Mates" component={MatesScreen} />
           <Stack.Screen name="MateProfile" component={MateProfileScreen} />

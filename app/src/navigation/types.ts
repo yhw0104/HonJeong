@@ -10,7 +10,8 @@ export type RootStackParamList = {
   ProfileSetup: { onboardingToken: string };
   MainTabs: undefined;
   NewGroup: undefined;
-  RestaurantDetail: { name?: string } | undefined;
+  PlaceSearch: undefined;
+  RestaurantDetail: { placeId?: number; name?: string };
   MealRequest: { name?: string } | undefined;
   Mates: undefined;
   MateProfile: { name?: string } | undefined;
