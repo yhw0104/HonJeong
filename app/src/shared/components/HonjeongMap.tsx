@@ -8,7 +8,7 @@
 // 화면과 Metro 터미널([HonjeongMap] 로그)에 그대로 보여준다. 카카오 도메인 오류는 여기에 원문이 찍힌다.
 //
 // 전제: 카카오 콘솔에 KAKAO_MAP_BASE_URL 도메인을 등록하고 카카오맵 사용을 켜야 한다(config/kakao.ts 참고).
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { T2 } from '@/shared/theme';
@@ -21,6 +21,11 @@ import {
 
 type LatLng = { lat: number; lng: number };
 
+/** 지도에 그릴 마커 1개: 식당 위치 + 현재 혼밥러 수. */
+export type MapMarkerInput = {
+  placeId: number; latitude: number; longitude: number; activeCount: number;
+};
+
 type Props = {
   /** 지도 중심. 기본은 연남동 부근. */
   center?: LatLng;
@@ -28,6 +33,10 @@ type Props = {
   level?: number;
   /** 컨테이너 스타일. 미지정 시 화면을 꽉 채운다(MapBackground 드롭인). */
   style?: StyleProp<ViewStyle>;
+  /** 지도에 표시할 마커 목록(실좌표 핀 + 혼밥러수 라벨). */
+  markers?: MapMarkerInput[];
+  /** 마커 탭 시 호출(식당 상세 이동 등). */
+  onMarkerPress?: (placeId: number) => void;
 };
 
 /** 카카오 JS SDK를 로드해 지도를 그리는 HTML 문서를 만든다. */
@@ -60,10 +69,28 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
     } else {
       try {
         kakao.maps.load(function () {
-          new kakao.maps.Map(document.getElementById('map'), {
+          var map = new kakao.maps.Map(document.getElementById('map'), {
             center: new kakao.maps.LatLng(${center.lat}, ${center.lng}),
             level: ${level}
           });
+          // RN에서 주입할 마커 렌더 함수. 기존 마커를 지우고 새 목록으로 다시 그린다.
+          window.__markers = [];
+          window.__renderMarkers = function(list){
+            (window.__markers || []).forEach(function(m){ m.setMap(null); });
+            window.__markers = [];
+            (list || []).forEach(function(it){
+              var pos = new kakao.maps.LatLng(it.latitude, it.longitude);
+              var marker = new kakao.maps.Marker({ position: pos, map: map });
+              var label = new kakao.maps.CustomOverlay({
+                position: pos, yAnchor: 2.2,
+                content: '<div style="background:#FF5A36;color:#fff;border-radius:10px;padding:2px 7px;font-size:11px;font-weight:700;">' + it.activeCount + '</div>'
+              });
+              label.setMap(map);
+              kakao.maps.event.addListener(marker, 'click', function(){ post('marker:' + it.placeId); });
+              window.__markers.push(marker, label);
+            });
+          };
+          window.__renderMarkers([]);
           done = true;
           post('ready');
         });
@@ -76,10 +103,24 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
 </html>`;
 }
 
-export function HonjeongMap({ center = DEFAULT_MAP_CENTER, level = DEFAULT_MAP_LEVEL, style }: Props) {
+export function HonjeongMap({
+  center = DEFAULT_MAP_CENTER,
+  level = DEFAULT_MAP_LEVEL,
+  style,
+  markers,
+  onMarkerPress,
+}: Props) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [detail, setDetail] = useState<string>('');
   const html = useMemo(() => buildHtml(KAKAO_JS_KEY, center, level), [center, level]);
+  const webRef = useRef<WebView>(null);
+
+  // 지도가 준비되거나 markers가 바뀌면 WebView에 마커 목록을 주입한다.
+  useEffect(() => {
+    if (status !== 'ready') return;
+    const js = `window.__renderMarkers && window.__renderMarkers(${JSON.stringify(markers ?? [])}); true;`;
+    webRef.current?.injectJavaScript(js);
+  }, [markers, status]);
 
   // 키 미설정: WebView를 띄우지 않고 안내 화면을 보여준다.
   if (!KAKAO_JS_KEY) {
@@ -101,6 +142,9 @@ export function HonjeongMap({ center = DEFAULT_MAP_CENTER, level = DEFAULT_MAP_L
     } else if (msg.startsWith('error')) {
       setStatus('error');
       setDetail((d) => d || msg);
+    } else if (msg.startsWith('marker:')) {
+      const placeId = Number(msg.slice('marker:'.length));
+      if (!Number.isNaN(placeId)) onMarkerPress?.(placeId);
     } else if (msg.startsWith('console:') || msg.startsWith('jserr:')) {
       // 카카오가 도메인/키 오류를 console.error로 찍는다 → 가장 마지막 원문을 보존.
       setDetail(msg);
@@ -110,6 +154,7 @@ export function HonjeongMap({ center = DEFAULT_MAP_CENTER, level = DEFAULT_MAP_L
   return (
     <View style={[styles.fill, style]}>
       <WebView
+        ref={webRef}
         style={styles.fill}
         originWhitelist={['*']}
         source={{ html, baseUrl: KAKAO_MAP_BASE_URL }}
