@@ -90,7 +90,7 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
             if (lat == null || lng == null) return;
             window.__myLoc = new kakao.maps.CustomOverlay({
               position: new kakao.maps.LatLng(lat, lng),
-              content: '<div style="width:18px;height:18px;border-radius:9px;background:#2D7DF6;border:3px solid #fff;box-shadow:0 0 0 4px rgba(45,125,246,0.25);"></div>',
+              content: '<div style="width:18px;height:18px;border-radius:50%;background:#2D7DF6;border:3px solid #fff;box-shadow:0 0 0 4px rgba(45,125,246,0.25);"></div>',
               zIndex: 10
             });
             window.__myLoc.setMap(map);
@@ -105,7 +105,7 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
               // 알약(타원) 마커: 동그라미 + 옆에 혼밥러 수. 클릭하면 식당 상세로.
               var el = document.createElement('div');
               el.style.cssText = 'display:flex;align-items:center;gap:5px;background:#fff;border:2px solid #FF5A36;border-radius:999px;padding:3px 9px 3px 5px;box-shadow:0 2px 6px rgba(0,0,0,0.25);cursor:pointer;';
-              el.innerHTML = '<div style="width:14px;height:14px;border-radius:7px;background:#FF5A36;"></div>'
+              el.innerHTML = '<div style="width:14px;height:14px;border-radius:50%;background:#FF5A36;"></div>'
                 + '<span style="color:#FF5A36;font-weight:800;font-size:12px;line-height:1;">' + it.activeCount + '</span>';
               el.addEventListener('click', function(){ post('marker:' + it.placeId); });
               var overlay = new kakao.maps.CustomOverlay({ position: pos, content: el, clickable: true });
