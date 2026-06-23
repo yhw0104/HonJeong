@@ -1,58 +1,50 @@
-// TogetherFeed — 같이 먹기 (하단바 신규 탭, 원본: screens/TogetherFeed.jsx)
-// 핵심 액션 화면: 받은/보낸 신청 + 지금 같이 먹을 수 있는 사람.
-// 하단 탭바는 MainTabs 네비게이터가 렌더하므로 여기서는 그리지 않는다.
-import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+// TogetherFeed — 같이 먹기 탭(하단바). 주변 혼밥 식당 + 받은/보낸 신청.
+import React, { useCallback, useState } from 'react';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Screen, EmojiCircle, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { MainTabScreenProps } from '@/navigation/types';
+import { useLocation } from '@/shared/location/useLocation';
+import { useNearby } from '@/features/place/queries';
+import { formatDistance } from '@/shared/format';
+import {
+  useReceivedRequests, useSentRequests, useAcceptMealRequest, useDeclineMealRequest,
+} from '@/features/meal/queries';
+import { mealStatusLabel, mealErrorMessage } from '@/features/meal/mealCopy';
 
-const RECEIVED = [
-  { name: '점심혼밥러', emo: '🍙', place: '큰순두부 연남점', time: '방금', meta: '혼밥 32회 · 같이 먹은 적 2회', msg: '저도 순두부 좋아해요! 같이 조용히 먹어요 :)', mate: true },
-  { name: '연남책방지기', emo: '📚', place: '혼밥의자', time: '12분 전', meta: '혼밥 12회 · 첫 매칭', msg: '바테이블 옆자리 어떠세요?', mate: false },
-];
-
-const SENT = [
-  { name: '조용한미식가', emo: '🍜', place: '옥상국밥', time: '오늘 12:10', state: 'accepted' as const },
-  { name: '국밥러버', emo: '🍲', place: '큰순두부 연남점', time: '어제', state: 'pending' as const },
-  { name: '면식수행', emo: '🍝', place: '연남 파스타바', time: '2일 전', state: 'declined' as const },
-];
-
-const LIVE_NOW = [
-  { name: '혼밥부장', emo: '🍱', place: '큰순두부 연남점', dist: '120m', since: '8분째', mood: '대화 환영', mate: true },
-  { name: '도시락주의', emo: '🥡', place: '옥상국밥', dist: '480m', since: '3분째', mood: '조용히', mate: false },
-  { name: '연남또일이', emo: '🍳', place: '혼밥의자', dist: '650m', since: '15분째', mood: '대화 환영', mate: false },
-];
-
-type SentState = 'accepted' | 'pending' | 'declined';
-const STATE_MAP: Record<SentState, { label: string; color: string; bg: string; strong: boolean }> = {
-  accepted: { label: '수락됨 · 약속 잡기', color: T2.brand, bg: T2.brandSoft, strong: true },
-  pending: { label: '응답 대기 중', color: T2.textMute, bg: T2.bg, strong: false },
-  declined: { label: '거절됨', color: T2.textMute, bg: T2.bg, strong: false },
-};
-
-export function TogetherFeedScreen(_props: MainTabScreenProps<'TogetherFeed'>) {
+export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherFeed'>) {
   const [tab, setTab] = useState<'received' | 'sent'>('received');
+  const { coord } = useLocation();
+  const nearby = useNearby(coord);
+  const received = useReceivedRequests();
+  const sent = useSentRequests();
+  const accept = useAcceptMealRequest();
+  const decline = useDeclineMealRequest();
 
-  const SEGMENTS: { key: 'received' | 'sent'; label: string; count: number | null }[] = [
-    { key: 'received', label: '받은 신청', count: RECEIVED.length },
-    { key: 'sent', label: '보낸 신청', count: null },
-  ];
+  useFocusEffect(useCallback(() => { received.refetch(); sent.refetch(); }, [received.refetch, sent.refetch]));
+
+  const livePlaces = (nearby.data?.content ?? []).filter((p) => p.activeCount > 0);
+  const receivedList = received.data ?? [];
+  const sentList = sent.data ?? [];
+
+  const respond = (mut: typeof accept, id: number) =>
+    mut.mutate(id, { onError: (e) => Alert.alert('처리 실패', mealErrorMessage(e)) });
 
   return (
     <Screen bg={T2.bg} edges={['top']}>
-      {/* 헤더 */}
       <View style={styles.header}>
         <Text style={styles.h1}>같이 먹기</Text>
         <View style={styles.segRow}>
-          {SEGMENTS.map((s) => {
+          {([
+            { key: 'received' as const, label: '받은 신청', count: receivedList.length },
+            { key: 'sent' as const, label: '보낸 신청', count: sentList.length },
+          ]).map((s) => {
             const on = tab === s.key;
             return (
-              <Pressable key={s.key} style={styles.seg} onPress={() => setTab(s.key)}>
+              <Pressable key={s.key} style={styles.seg} onPress={() => setTab(s.key)} accessibilityRole="button">
                 <Text style={[styles.segLabel, { color: on ? T2.text : T2.textMute }]}>{s.label}</Text>
-                {s.count != null && (
-                  <Text style={[styles.segCount, { color: on ? T2.brand : T2.textMute }]}>{s.count}</Text>
-                )}
+                <Text style={[styles.segCount, { color: on ? T2.brand : T2.textMute }]}>{s.count}</Text>
                 {on && <View style={styles.segUnderline} />}
               </Pressable>
             );
@@ -61,112 +53,91 @@ export function TogetherFeedScreen(_props: MainTabScreenProps<'TogetherFeed'>) {
       </View>
       <View style={styles.divider} />
 
-      {/* 본문 */}
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* 지금 같이 먹을 수 있어요 — 항상 상단 노출 */}
+        {/* 주변 혼밥 식당 — nearby 재사용 */}
         <View style={styles.liveHead}>
           <View style={styles.liveHeadLeft}>
             <View style={styles.liveDot} />
-            <Text style={styles.liveLabel}>지금 같이 먹을 수 있어요</Text>
+            <Text style={styles.liveLabel}>지금 주변에 혼밥러가 있어요</Text>
           </View>
-          <Text style={styles.liveCount}>내 주변 {LIVE_NOW.length}</Text>
+          <Text style={styles.liveCount}>내 주변 {livePlaces.length}</Text>
         </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.liveScroll}
-          contentContainerStyle={styles.liveScrollContent}
-        >
-          {LIVE_NOW.map((p, i) => (
-            <View key={i} style={styles.liveCard}>
-              <View style={styles.liveAvatar}>
-                <Text style={styles.liveAvatarEmoji}>{p.emo}</Text>
-                <View style={styles.liveAvatarDot} />
-              </View>
-              <View style={styles.liveNameRow}>
-                <Text style={styles.liveName} numberOfLines={1}>{p.name}</Text>
-                {p.mate && <Text style={styles.liveMate}>메이트</Text>}
-              </View>
-              <Text style={styles.livePlace} numberOfLines={1}>{p.place}</Text>
-              <Text style={styles.liveMeta}>{p.dist} · {p.since}</Text>
-              <Pressable style={styles.liveBtn}>
-                <Text style={styles.liveBtnText}>같이 먹기</Text>
+        {livePlaces.length === 0 ? (
+          <Text style={styles.emptyInline}>주변에 혼밥 중인 식당이 아직 없어요.</Text>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.liveScroll} contentContainerStyle={styles.liveScrollContent}>
+            {livePlaces.map((p) => (
+              <Pressable key={p.placeId} style={styles.liveCard}
+                onPress={() => navigation.navigate('RestaurantDetail', { placeId: p.placeId, name: p.name })}
+                accessibilityRole="button">
+                <Text style={styles.livePlace} numberOfLines={1}>{p.name}</Text>
+                <Text style={styles.liveMeta}>{formatDistance(p.distanceMeters)}</Text>
+                <View style={styles.liveBadge}><Text style={styles.liveBadgeText}>{p.activeCount}명 혼밥 중</Text></View>
               </Pressable>
-            </View>
-          ))}
-        </ScrollView>
+            ))}
+          </ScrollView>
+        )}
 
         <View style={styles.sectionDivider} />
 
         {/* 받은 신청 */}
         {tab === 'received' && (
-          <View style={{ gap: 12 }}>
-            {RECEIVED.map((r, i) => (
-              <View key={i} style={styles.recvCard}>
-                <View style={styles.recvTop}>
-                  <EmojiCircle emoji={r.emo} size={46} />
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <View style={styles.recvNameRow}>
-                      <Text style={styles.recvName}>{r.name}</Text>
-                      {r.mate && (
-                        <View style={styles.recvMateBadge}>
-                          <Text style={styles.recvMateText}>메이트</Text>
-                        </View>
-                      )}
+          received.isLoading ? <ActivityIndicator color={T2.brand} /> :
+          received.isError ? <Text style={styles.emptyInline}>신청을 불러오지 못했어요.</Text> :
+          receivedList.length === 0 ? <Text style={styles.emptyInline}>받은 신청이 없어요.</Text> : (
+            <View style={{ gap: 12 }}>
+              {receivedList.map((r) => (
+                <View key={r.mealRequestId} style={styles.recvCard}>
+                  <View style={styles.recvTop}>
+                    <EmojiCircle emoji={r.fromUser.nickname[0] ?? '?'} size={46} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.recvName}>{r.fromUser.nickname}</Text>
+                      <Text style={styles.recvMeta}>{r.status === 'PENDING' ? '새 신청' : mealStatusLabel(r.status)}</Text>
                     </View>
-                    <Text style={styles.recvMeta}>{r.meta}</Text>
                   </View>
-                  <Text style={styles.recvTime}>{r.time}</Text>
+                  <View style={styles.recvPlace}>
+                    <Icon name="pin" size={14} color={T2.brand} />
+                    <Text style={styles.recvPlaceText}>{r.placeName}</Text>
+                  </View>
+                  {r.message ? <Text style={styles.recvMsg}>"{r.message}"</Text> : null}
+                  {r.status === 'PENDING' && (
+                    <View style={styles.recvBtns}>
+                      <Pressable style={[styles.recvBtn, styles.recvBtnReject]} disabled={decline.isPending}
+                        onPress={() => respond(decline, r.mealRequestId)} accessibilityRole="button">
+                        <Text style={styles.recvBtnRejectText}>거절</Text>
+                      </Pressable>
+                      <Pressable style={[styles.recvBtn, styles.recvBtnAccept]} disabled={accept.isPending}
+                        onPress={() => respond(accept, r.mealRequestId)} accessibilityRole="button">
+                        <Text style={styles.recvBtnAcceptText}>수락하기</Text>
+                      </Pressable>
+                    </View>
+                  )}
                 </View>
-
-                <View style={styles.recvPlace}>
-                  <Icon name="pin" size={14} color={T2.brand} />
-                  <Text style={styles.recvPlaceText}>{r.place}</Text>
-                </View>
-                <Text style={styles.recvMsg}>“{r.msg}”</Text>
-
-                <View style={styles.recvBtns}>
-                  <Pressable style={[styles.recvBtn, styles.recvBtnReject]}>
-                    <Text style={styles.recvBtnRejectText}>거절</Text>
-                  </Pressable>
-                  <Pressable style={[styles.recvBtn, styles.recvBtnAccept]}>
-                    <Text style={styles.recvBtnAcceptText}>수락하기</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          )
         )}
 
         {/* 보낸 신청 */}
         {tab === 'sent' && (
-          <View>
-            {SENT.map((s, i) => {
-              const st = STATE_MAP[s.state];
-              const declined = s.state === 'declined';
-              return (
-                <View
-                  key={i}
-                  style={[styles.sentRow, i < SENT.length - 1 && styles.sentRowBorder]}
-                >
-                  <EmojiCircle emoji={s.emo} size={44} dimmed={declined} />
+          sent.isLoading ? <ActivityIndicator color={T2.brand} /> :
+          sent.isError ? <Text style={styles.emptyInline}>신청을 불러오지 못했어요.</Text> :
+          sentList.length === 0 ? <Text style={styles.emptyInline}>보낸 신청이 없어요.</Text> : (
+            <View>
+              {sentList.map((s, i) => (
+                <View key={s.mealRequestId} style={[styles.sentRow, i < sentList.length - 1 && styles.sentRowBorder]}>
+                  <EmojiCircle emoji={s.toUser.nickname[0] ?? '?'} size={44} dimmed={s.status === 'DECLINED'} />
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.sentName, { color: declined ? T2.textMute : T2.text }]}>{s.name}</Text>
-                    <Text style={styles.sentMeta} numberOfLines={1}>{s.place} · {s.time}</Text>
+                    <Text style={[styles.sentName, { color: s.status === 'DECLINED' ? T2.textMute : T2.text }]}>{s.toUser.nickname}</Text>
+                    <Text style={styles.sentMeta} numberOfLines={1}>{s.placeName}</Text>
                   </View>
-                  <View
-                    style={[
-                      styles.sentPill,
-                      { backgroundColor: st.bg, borderColor: st.strong ? 'rgba(255,90,31,0.2)' : T2.border },
-                    ]}
-                  >
-                    <Text style={[styles.sentPillText, { color: st.color }]}>{st.label}</Text>
+                  <View style={[styles.sentPill, { backgroundColor: s.status === 'ACCEPTED' ? T2.brandSoft : T2.bg, borderColor: s.status === 'ACCEPTED' ? 'rgba(255,90,31,0.2)' : T2.border }]}>
+                    <Text style={[styles.sentPillText, { color: s.status === 'ACCEPTED' ? T2.brand : T2.textMute }]}>{mealStatusLabel(s.status)}</Text>
                   </View>
                 </View>
-              );
-            })}
-          </View>
+              ))}
+            </View>
+          )
         )}
       </ScrollView>
     </Screen>
@@ -174,7 +145,6 @@ export function TogetherFeedScreen(_props: MainTabScreenProps<'TogetherFeed'>) {
 }
 
 const styles = StyleSheet.create({
-  // 헤더
   header: { paddingHorizontal: 20, paddingTop: 12 },
   h1: { fontSize: 28, fontWeight: '800', color: T2.text, letterSpacing: -1 },
   segRow: { flexDirection: 'row', gap: 22, marginTop: 16 },
@@ -183,77 +153,26 @@ const styles = StyleSheet.create({
   segCount: { fontSize: 12, fontWeight: '700' },
   segUnderline: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, backgroundColor: T2.brand },
   divider: { height: 1, backgroundColor: T2.border },
-
   scroll: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 },
-
-  // 지금 같이 먹을 수 있어요
   liveHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   liveHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: T2.brand },
   liveLabel: { fontSize: 11, fontWeight: '700', color: T2.text, letterSpacing: 0.6 },
   liveCount: { fontSize: 12, fontWeight: '700', color: T2.textMute },
-
+  emptyInline: { fontSize: 13, color: T2.textMute, paddingVertical: 10 },
   liveScroll: { marginHorizontal: -20 },
   liveScrollContent: { paddingHorizontal: 20, paddingBottom: 4, gap: 10 },
-  liveCard: {
-    width: 156,
-    padding: 14,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: T2.border,
-  },
-  liveAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: T2.bg,
-    borderWidth: 1,
-    borderColor: T2.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  liveAvatarEmoji: { fontSize: 21 },
-  liveAvatarDot: {
-    position: 'absolute',
-    right: -1,
-    bottom: -1,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: T2.brand,
-    borderWidth: 2.5,
-    borderColor: '#fff',
-  },
-  liveNameRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 11 },
-  liveName: { flexShrink: 1, fontSize: 14, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
-  liveMate: { fontSize: 9, fontWeight: '800', color: T2.brand },
-  livePlace: { fontSize: 11.5, color: T2.textSub, marginTop: 4, letterSpacing: -0.2 },
-  liveMeta: { fontSize: 11, color: T2.textMute, marginTop: 2 },
-  liveBtn: { marginTop: 11, paddingVertical: 8, borderRadius: 9, backgroundColor: T2.brand, alignItems: 'center' },
-  liveBtnText: { fontSize: 12.5, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
-
+  liveCard: { width: 156, padding: 14, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: T2.border },
+  livePlace: { fontSize: 14, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
+  liveMeta: { fontSize: 11.5, color: T2.textMute, marginTop: 6 },
+  liveBadge: { alignSelf: 'flex-start', marginTop: 10, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 9, backgroundColor: T2.brandSoft },
+  liveBadgeText: { fontSize: 12, fontWeight: '700', color: T2.brand, letterSpacing: -0.3 },
   sectionDivider: { height: 1, backgroundColor: T2.border, marginTop: 22, marginBottom: 18 },
-
-  // 받은 신청
   recvCard: { padding: 18, backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: T2.border },
   recvTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  recvNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   recvName: { fontSize: 15, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
-  recvMateBadge: { backgroundColor: T2.brandSoft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
-  recvMateText: { fontSize: 10, fontWeight: '700', color: T2.brand },
   recvMeta: { fontSize: 11, color: T2.textMute, marginTop: 3 },
-  recvTime: { fontSize: 11, color: T2.textMute },
-  recvPlace: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    marginTop: 14,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: T2.brandSoft,
-  },
+  recvPlace: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 14, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: T2.brandSoft, alignSelf: 'flex-start' },
   recvPlaceText: { fontSize: 12, fontWeight: '700', color: T2.brand, letterSpacing: -0.2 },
   recvMsg: { fontSize: 13, color: T2.textSub, lineHeight: 21, marginTop: 12, letterSpacing: -0.3 },
   recvBtns: { flexDirection: 'row', gap: 8, marginTop: 16 },
@@ -262,8 +181,6 @@ const styles = StyleSheet.create({
   recvBtnRejectText: { fontSize: 14, fontWeight: '700', color: T2.textSub, letterSpacing: -0.3 },
   recvBtnAccept: { flex: 2, backgroundColor: T2.brand },
   recvBtnAcceptText: { fontSize: 14, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
-
-  // 보낸 신청
   sentRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15 },
   sentRowBorder: { borderBottomWidth: 1, borderBottomColor: T2.border },
   sentName: { fontSize: 14.5, fontWeight: '700', letterSpacing: -0.3 },
