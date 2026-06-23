@@ -133,7 +133,7 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
           <Text style={{ color: T2.brand, fontSize: 16 }}>✓</Text>
           <Text style={styles.mateBtnText}>메이트</Text>
         </Pressable>
-        <Pressable style={styles.mealBtn} onPress={() => navigation.navigate('MealRequest', { name })}>
+        <Pressable style={styles.mealBtn} onPress={() => {}} accessibilityRole="button">
           <Text style={styles.mealBtnText}>같이 먹기 신청</Text>
         </Pressable>
       </View>

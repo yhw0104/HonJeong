@@ -12,7 +12,7 @@ export type RootStackParamList = {
   NewGroup: undefined;
   PlaceSearch: undefined;
   RestaurantDetail: { placeId: number; name?: string };
-  MealRequest: { name?: string } | undefined;
+  MealRequest: { placeId: number; placeName: string };
   Mates: undefined;
   MateProfile: { name?: string } | undefined;
   ReceivedRequests: undefined;

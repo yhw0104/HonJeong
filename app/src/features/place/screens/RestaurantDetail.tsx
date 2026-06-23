@@ -115,7 +115,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
-  const goMealRequest = () => navigation.navigate('MealRequest', { name });
+  const goMealRequest = () => navigation.navigate('MealRequest', { placeId, placeName: name });
   const toggleHonbab = () => {
     if (honbabOn && myCheckIn.data) endMut.mutate(myCheckIn.data.checkInId);
     else startMut.mutate(placeId);
@@ -178,7 +178,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
             })}
           </View>
 
-          {stab === 'home' && <HomeTab diners={diners.data ?? []} />}
+          {stab === 'home' && <HomeTab diners={diners.data ?? []} onMeal={goMealRequest} />}
           {stab === 'menu' && <MenuTab />}
           {stab === 'review' && <ReviewTab />}
           {stab === 'photo' && <PhotoTab />}
@@ -238,7 +238,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
 }
 
 /* ── 홈 탭 ───────────────────────────────────────── */
-function HomeTab({ diners }: { diners: ActiveDiner[] }) {
+function HomeTab({ diners, onMeal }: { diners: ActiveDiner[]; onMeal: () => void }) {
   return (
     <View>
       {/* 혼밥 친화도 카드 */}
@@ -299,7 +299,10 @@ function HomeTab({ diners }: { diners: ActiveDiner[] }) {
       <View style={styles.mealCard}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <View style={styles.liveDot} />
-          <Text style={styles.liveLabel}>지금 여기서 혼밥 중 · {diners.length}명</Text>
+          <Text style={[styles.liveLabel, { flex: 1 }]}>지금 여기서 혼밥 중 · {diners.length}명</Text>
+          <Pressable style={styles.mealCardBtn} onPress={onMeal} accessibilityRole="button">
+            <Text style={styles.mealCardBtnText}>같이 먹기</Text>
+          </Pressable>
         </View>
         {diners.length === 0 ? (
           <Text style={[styles.mealText, { marginTop: 12 }]}>아직 혼밥 중인 사람이 없어요.</Text>
@@ -716,6 +719,8 @@ const styles = StyleSheet.create({
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: T2.brand },
   liveLabel: { fontSize: 12, fontWeight: '700', color: T2.brand, letterSpacing: 0.4 },
   mealText: { flex: 1, fontSize: 13, color: T2.text, lineHeight: 18, fontWeight: '500' },
+  mealCardBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: T2.brand },
+  mealCardBtnText: { fontSize: 12.5, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
   mealMini: {
     alignSelf: 'center',
     flexDirection: 'row',
