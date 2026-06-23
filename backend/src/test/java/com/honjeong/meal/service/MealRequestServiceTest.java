@@ -245,13 +245,18 @@ class MealRequestServiceTest {
     }
 
     @Test
-    @DisplayName("getMealRequests: 엔티티를 목록 DTO로 매핑한다(닉네임·placeId·message·status·createdAt)")
+    @DisplayName("getMealRequests: 엔티티를 목록 DTO로 매핑한다(fromUser·toUser·placeId·placeName·message·status·createdAt)")
     void list_mapsToDto() {
         User from = mock(User.class);
         when(from.getNickname()).thenReturn("옆자리");
+        User to = mock(User.class);
+        when(to.getNickname()).thenReturn("수신자");
+        CheckIn ci = mock(CheckIn.class);
+        when(ci.getUser()).thenReturn(to);
         Place place = mock(Place.class);
         when(place.getId()).thenReturn(3L);
-        MealRequest mr = MealRequest.create(from, mock(CheckIn.class), place, "같이 드실래요?", nowKst);
+        when(place.getName()).thenReturn("큰순두부");
+        MealRequest mr = MealRequest.create(from, ci, place, "같이 드실래요?", nowKst);
         when(mealRequestRepository.findReceived(1L, null)).thenReturn(List.of(mr));
 
         List<MealRequestListItemResponse> result = service.getMealRequests(1L, "received", null);
@@ -259,7 +264,9 @@ class MealRequestServiceTest {
         assertThat(result).hasSize(1);
         MealRequestListItemResponse item = result.get(0);
         assertThat(item.fromUser().nickname()).isEqualTo("옆자리");
+        assertThat(item.toUser().nickname()).isEqualTo("수신자");
         assertThat(item.placeId()).isEqualTo(3L);
+        assertThat(item.placeName()).isEqualTo("큰순두부");
         assertThat(item.message()).isEqualTo("같이 드실래요?");
         assertThat(item.status()).isEqualTo("PENDING");
         assertThat(item.createdAt()).isEqualTo(nowKst);

@@ -125,15 +125,20 @@ class MealRequestControllerTest {
     void list_200() throws Exception {
         when(mealRequestService.getMealRequests(eq(1L), eq("received"), any()))
                 .thenReturn(List.of(new MealRequestListItemResponse(
-                        7L, new MealRequestListItemResponse.FromUser("옆자리"), 3L, "같이 드실래요?", "PENDING",
-                        LocalDateTime.of(2026, 6, 18, 12, 5))));
+                        7L,
+                        new MealRequestListItemResponse.FromUser("옆자리"),
+                        new MealRequestListItemResponse.ToUser("수신자"),
+                        3L, "큰순두부", "같이 드실래요?", "PENDING",
+                        java.time.LocalDateTime.of(2026, 6, 18, 12, 0))));
 
         mockMvc.perform(get("/api/meal-requests").header("Authorization", userToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].mealRequestId").value(7))
                 .andExpect(jsonPath("$.data[0].fromUser.nickname").value("옆자리"))
                 .andExpect(jsonPath("$.data[0].placeId").value(3))
-                .andExpect(jsonPath("$.data[0].status").value("PENDING"));
+                .andExpect(jsonPath("$.data[0].status").value("PENDING"))
+                .andExpect(jsonPath("$.data[0].toUser.nickname").value("수신자"))
+                .andExpect(jsonPath("$.data[0].placeName").value("큰순두부"));
     }
 
     @Test

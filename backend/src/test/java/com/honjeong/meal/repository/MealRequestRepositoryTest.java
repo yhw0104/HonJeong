@@ -90,6 +90,8 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
         assertThat(received.get(0).getFromUser().getNickname()).isEqualTo("신청자");
         assertThat(received.get(0).getMessage()).isEqualTo("받은신청");
         assertThat(received.get(0).getPlace().getId()).isEqualTo(place.getId());
+        assertThat(received.get(0).getPlace().getName()).isEqualTo("ext-1식당");
+        assertThat(received.get(0).getToCheckIn().getUser().getNickname()).isEqualTo("나");
     }
 
     @Test
@@ -130,6 +132,8 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
         assertThat(sent).hasSize(1);
         assertThat(sent.get(0).getFromUser().getNickname()).isEqualTo("나");
         assertThat(sent.get(0).getMessage()).isEqualTo("보낸신청");
+        assertThat(sent.get(0).getPlace().getName()).isEqualTo("ext-1식당");
+        assertThat(sent.get(0).getToCheckIn().getUser().getNickname()).isEqualTo("수신자");
     }
 
     @Test
