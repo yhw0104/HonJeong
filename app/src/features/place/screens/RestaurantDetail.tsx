@@ -2,7 +2,7 @@
 // 풀블리드 히어로 + 플로팅 헤더 + 6탭(홈/메뉴/리뷰/사진/메이트/주변) + 하단 고정 CTA.
 // 원본의 하단 MinTabBar는 제거(상세는 탭 위로 push되는 풀스크린이라 뒤로가기로 복귀).
 import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H } from '@/shared/components';
 import { T2 } from '@/shared/theme';
@@ -11,6 +11,8 @@ import { useActiveDiners, useMyCheckIn, useStartCheckIn, useEndCheckIn } from '@
 import type { ActiveDiner } from '@/features/checkin/api';
 import { formatElapsed } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
+import { usePlaceReviews, usePlaceReviewSummary } from '@/features/review/queries';
+import type { PlaceReview, PlaceReviewSummary } from '@/features/review/api';
 
 type Tab = 'home' | 'menu' | 'review' | 'photo' | 'mate' | 'nearby';
 const TABS: { key: Tab; label: string }[] = [
@@ -22,13 +24,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'nearby', label: '주변' },
 ];
 
-const FRIENDLY = [
-  { l: '1인석', on: true },
-  { l: '바테이블', on: true },
-  { l: '칸막이', on: true },
-  { l: '눈치 없음', on: true },
-  { l: '오래 OK', on: false },
-];
 const INFO: { k: string; v: string; tel?: boolean; link?: boolean }[] = [
   { k: '전화', v: '02-322-1014', tel: true },
   { k: '영업시간', v: '매일 10:00 – 21:00 · 브레이크 15–17시' },
@@ -48,11 +43,6 @@ const MENU = [
   { n: '버섯들깨순두부', d: '담백한 맛', p: '9,500', best: false },
   { n: '순두부 정식', d: '+제육 1인', p: '12,000', best: false },
   { n: '공기밥 추가', d: '', p: '1,000', best: false },
-];
-const REVIEWS = [
-  { u: '혼밥3년차', t: '바테이블이 벽 보고 앉는 구조라 진짜 편했어요. 눈치 안 보여서 자주 옵니다 🍲', taste: '5.0', honbab: '5.0', likes: 42, comments: 6, ago: '2일 전', hasPhoto: true },
-  { u: '연남주민', t: '점심에 회전 빠르고 1인석 많아요. 순두부 간이 딱 좋음.', taste: '4.0', honbab: '4.5', likes: 18, comments: 2, ago: '5일 전', hasPhoto: true },
-  { u: '국밥러버', t: '맛은 좋은데 저녁엔 사람이 많아서 혼밥은 조금 붐벼요.', taste: '4.0', honbab: '3.0', likes: 9, comments: 1, ago: '1주 전', hasPhoto: false },
 ];
 
 // ── 메이트 탭 데이터 ──
@@ -110,6 +100,8 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const endMut = useEndCheckIn();
   const name = detail.data?.name ?? route.params.name ?? '식당';
   const honbabOn = myCheckIn.data?.status === 'ACTIVE' && myCheckIn.data.placeId === placeId;
+  const reviews = usePlaceReviews(placeId);
+  const summary = usePlaceReviewSummary(placeId);
 
   const copy = () => {
     setCopied(true);
@@ -153,12 +145,12 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
           {/* 평점 */}
           <View style={styles.ratingRow}>
             <View>
-              <Text style={styles.ratingNum}>4.3</Text>
-              <Text style={styles.ratingLabel}>리뷰 218</Text>
+              <Text style={styles.ratingNum}>{summary.data?.avgTasteRating?.toFixed(1) ?? '-'}</Text>
+              <Text style={styles.ratingLabel}>리뷰 {summary.data?.reviewCount ?? 0}</Text>
             </View>
             <View style={styles.ratingDivider} />
             <View>
-              <Text style={[styles.ratingNum, { color: T2.brand }]}>4.6</Text>
+              <Text style={[styles.ratingNum, { color: T2.brand }]}>{summary.data?.avgSoloFriendlyRating?.toFixed(1) ?? '-'}</Text>
               <Text style={styles.ratingLabel}>혼밥 친화도</Text>
             </View>
           </View>
@@ -178,9 +170,16 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
             })}
           </View>
 
-          {stab === 'home' && <HomeTab diners={diners.data ?? []} onMeal={goMealRequest} />}
+          {stab === 'home' && <HomeTab diners={diners.data ?? []} onMeal={goMealRequest} summary={summary.data} />}
           {stab === 'menu' && <MenuTab />}
-          {stab === 'review' && <ReviewTab />}
+          {stab === 'review' && (
+            <ReviewTab
+              reviews={reviews.data ?? []}
+              isLoading={reviews.isLoading}
+              isError={reviews.isError}
+              onWrite={() => navigation.navigate('DiningLogWrite', { placeId, placeName: name, checkInId: myCheckIn.data?.checkInId })}
+            />
+          )}
           {stab === 'photo' && <PhotoTab />}
           {stab === 'mate' && <MateTab onMeal={goMealRequest} />}
           {stab === 'nearby' && <NearbyTab />}
@@ -238,7 +237,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
 }
 
 /* ── 홈 탭 ───────────────────────────────────────── */
-function HomeTab({ diners, onMeal }: { diners: ActiveDiner[]; onMeal: () => void }) {
+function HomeTab({ diners, onMeal, summary }: { diners: ActiveDiner[]; onMeal: () => void; summary: PlaceReviewSummary | undefined }) {
   return (
     <View>
       {/* 혼밥 친화도 카드 */}
@@ -247,7 +246,7 @@ function HomeTab({ diners, onMeal }: { diners: ActiveDiner[]; onMeal: () => void
           <View>
             <Text style={styles.sectionTitle}>혼밥 친화도</Text>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 7 }}>
-              <Text style={styles.scoreBig}>4.6</Text>
+              <Text style={styles.scoreBig}>{summary?.avgSoloFriendlyRating?.toFixed(1) ?? '-'}</Text>
               <Text style={styles.scoreOutOf}>/ 5</Text>
             </View>
           </View>
@@ -256,14 +255,14 @@ function HomeTab({ diners, onMeal }: { diners: ActiveDiner[]; onMeal: () => void
             <View style={styles.scorePill}>
               <Text style={styles.scorePillText}>혼밥하기 아주 좋아요</Text>
             </View>
-            <Text style={styles.scoreNote}>혼밥러 88명 평가</Text>
+            <Text style={styles.scoreNote}>혼밥러 {summary?.reviewCount ?? 0}명 평가</Text>
           </View>
         </View>
 
         {/* 점수 바 */}
         <View style={{ flexDirection: 'row', gap: 5, marginTop: 16 }}>
           {[0, 1, 2, 3, 4].map((i) => {
-            const fill = Math.max(0, Math.min(1, 4.6 - i));
+            const fill = Math.max(0, Math.min(1, (summary?.avgSoloFriendlyRating ?? 0) - i));
             return (
               <View key={i} style={styles.barTrack}>
                 <View style={[styles.barFill, { width: `${fill * 100}%` }]} />
@@ -275,24 +274,25 @@ function HomeTab({ diners, onMeal }: { diners: ActiveDiner[]; onMeal: () => void
         <View style={styles.cardHr} />
 
         {/* 친화 요소 칩 */}
-        <View style={styles.chipWrap}>
-          {FRIENDLY.map((b) => (
-            <View
-              key={b.l}
-              style={[
-                styles.friendlyChip,
-                {
-                  backgroundColor: b.on ? T2.brandSoft : T2.bg,
-                  borderColor: b.on ? 'rgba(255,90,31,0.2)' : T2.border,
-                  opacity: b.on ? 1 : 0.7,
-                },
-              ]}
-            >
-              <Text style={{ fontSize: 12, fontWeight: '800', color: b.on ? T2.brand : T2.textMute }}>{b.on ? '✓' : '–'}</Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: b.on ? T2.brand : T2.textMute, letterSpacing: -0.3 }}>{b.l}</Text>
-            </View>
-          ))}
-        </View>
+        {(summary?.topTags ?? []).length > 0 ? (
+          <View style={styles.chipWrap}>
+            {(summary?.topTags ?? []).map((t) => (
+              <View
+                key={t.tag}
+                style={[
+                  styles.friendlyChip,
+                  {
+                    backgroundColor: T2.brandSoft,
+                    borderColor: 'rgba(255,90,31,0.2)',
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '800', color: T2.brand }}>✓</Text>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: T2.brand, letterSpacing: -0.3 }}>{t.tag}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
       </View>
 
       {/* 지금 여기서 혼밥 중 (실데이터: 닉네임·경과만) */}
@@ -387,79 +387,49 @@ function MenuTab() {
 }
 
 /* ── 리뷰 탭 ─────────────────────────────────────── */
-function ReviewTab() {
+function ReviewTab({ reviews, isLoading, isError, onWrite }: {
+  reviews: PlaceReview[];
+  isLoading: boolean; isError: boolean; onWrite: () => void;
+}) {
   return (
     <View style={{ marginTop: 4 }}>
       <View style={styles.reviewHead}>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'baseline' }}>
           <Text style={styles.reviewHeadTitle}>리뷰</Text>
-          <Text style={styles.reviewHeadCount}> 218개</Text>
+          <Text style={styles.reviewHeadCount}> {reviews.length}개</Text>
         </View>
-        <Pressable style={styles.writeBtn}>
+        <Pressable style={styles.writeBtn} onPress={onWrite} accessibilityRole="button">
           <Icon name="pencil" size={14} color="#fff" />
           <Text style={styles.writeText}>리뷰 쓰기</Text>
         </Pressable>
       </View>
 
-      {REVIEWS.map((r, i, arr) => (
-        <View key={r.u} style={[styles.reviewCard, i < arr.length - 1 && styles.reviewDivider]}>
-          {/* 헤더 */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={styles.avatarRing}>
-              <Avatar name={r.u[0]} bg="#525252" size={30} />
+      {isLoading ? (
+        <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator color={T2.brand} /></View>
+      ) : isError ? (
+        <Text style={{ padding: 24, color: T2.textMute }}>리뷰를 불러오지 못했어요.</Text>
+      ) : reviews.length === 0 ? (
+        <Text style={{ padding: 24, color: T2.textMute }}>아직 리뷰가 없어요. 첫 리뷰를 남겨보세요.</Text>
+      ) : (
+        reviews.map((r, i, arr) => (
+          <View key={r.reviewId} style={[styles.reviewCard, i < arr.length - 1 && styles.reviewDivider]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: T2.text }}>{r.user.nickname}</Text>
+              {r.authenticated ? <Text style={{ fontSize: 11, color: T2.brand }}>✔ 인증</Text> : null}
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.reviewUser}>{r.u}</Text>
-              <Text style={styles.reviewPlace}>큰순두부 연남점</Text>
+            {r.content ? <Text style={{ marginTop: 6, color: T2.textSub, lineHeight: 20 }}>{r.content}</Text> : null}
+            <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+              <View style={styles.tasteChip}><Text style={styles.tasteText}>맛 ★ {r.tasteRating.toFixed(1)}</Text></View>
+              <View style={styles.honbabChip}><Text style={styles.honbabText}>혼밥 ★ {r.soloFriendlyRating.toFixed(1)}</Text></View>
             </View>
-            <View style={{ flexDirection: 'row', gap: 3 }}>
-              {[0, 1, 2].map((d) => (
-                <View key={d} style={styles.menuDots} />
-              ))}
-            </View>
+            {r.tags.length > 0 ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {r.tags.map((t) => (<View key={t} style={styles.tagChip}><Text style={styles.tagChipText}>{t}</Text></View>))}
+              </View>
+            ) : null}
           </View>
-
-          {/* 사진 또는 평점 칩 */}
-          {r.hasPhoto ? (
-            <View style={{ marginTop: 12 }}>
-              <ImagePlaceholder w="100%" h={300} radius={14} />
-              <View style={styles.photoTags}>
-                <View style={styles.tagDark}>
-                  <Text style={styles.tagText}>맛 ★ {r.taste}</Text>
-                </View>
-                <View style={styles.tagBrand}>
-                  <Text style={styles.tagText}>혼밥 친화 ★ {r.honbab}</Text>
-                </View>
-              </View>
-            </View>
-          ) : (
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-              <View style={styles.chipTaste}>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: T2.text }}>맛 ★ {r.taste}</Text>
-              </View>
-              <View style={styles.chipHonbab}>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: T2.brand }}>혼밥 친화 ★ {r.honbab}</Text>
-              </View>
-            </View>
-          )}
-
-          {/* 액션 바 */}
-          <View style={styles.actionBar}>
-            <Icon name="heart" size={24} color={i === 0 ? T2.brand : T2.text} />
-            <Icon name="comment" size={24} color={T2.text} />
-            <Icon name="share" size={24} color={T2.text} />
-            <View style={{ flex: 1 }} />
-            <Icon name="bookmark" size={24} color={T2.text} />
-          </View>
-
-          <Text style={styles.likes}>좋아요 {r.likes}개</Text>
-          <Text style={styles.caption}>
-            <Text style={{ fontWeight: '800' }}>{r.u}</Text> {r.t}
-          </Text>
-          <Text style={styles.commentsLink}>댓글 {r.comments}개 모두 보기</Text>
-          <Text style={styles.ago}>{r.ago}</Text>
-        </View>
-      ))}
+        ))
+      )}
     </View>
   );
 }
@@ -721,20 +691,6 @@ const styles = StyleSheet.create({
   mealText: { flex: 1, fontSize: 13, color: T2.text, lineHeight: 18, fontWeight: '500' },
   mealCardBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: T2.brand },
   mealCardBtnText: { fontSize: 12.5, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
-  mealMini: {
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 13,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: '#fff',
-    borderWidth: 1.5,
-    borderColor: T2.brand,
-  },
-  mealMiniText: { fontSize: 13, fontWeight: '700', color: T2.brand, letterSpacing: -0.3 },
-
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 12 },
   infoDivider: { borderBottomWidth: 1, borderBottomColor: T2.border },
   infoKey: { width: 56, fontSize: 13, fontWeight: '700', color: T2.textMute, letterSpacing: -0.2 },
@@ -759,23 +715,6 @@ const styles = StyleSheet.create({
 
   reviewCard: { paddingBottom: 18, marginBottom: 18 },
   reviewDivider: { borderBottomWidth: 1, borderBottomColor: T2.border },
-  avatarRing: { padding: 2, borderRadius: 18, borderWidth: 2, borderColor: T2.brand },
-  reviewUser: { fontSize: 13, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
-  reviewPlace: { fontSize: 11, color: T2.textMute, marginTop: 1 },
-  menuDots: { width: 4, height: 4, borderRadius: 2, backgroundColor: T2.textMute },
-
-  photoTags: { position: 'absolute', left: 12, bottom: 12, flexDirection: 'row', gap: 6 },
-  tagDark: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(10,10,10,0.62)' },
-  tagBrand: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(255,90,31,0.88)' },
-  tagText: { fontSize: 11, fontWeight: '700', color: '#fff', letterSpacing: -0.2 },
-  chipTaste: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: T2.bg, borderWidth: 1, borderColor: T2.border },
-  chipHonbab: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: T2.brandSoft, borderWidth: 1, borderColor: 'rgba(255,90,31,0.18)' },
-
-  actionBar: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 12 },
-  likes: { fontSize: 13, fontWeight: '800', color: T2.text, marginTop: 10, letterSpacing: -0.3 },
-  caption: { fontSize: 13, color: T2.text, lineHeight: 21, marginTop: 5, letterSpacing: -0.3 },
-  commentsLink: { fontSize: 12, color: T2.textMute, marginTop: 6, letterSpacing: -0.2 },
-  ago: { fontSize: 11, color: T2.textMute, marginTop: 5, letterSpacing: 0.2 },
 
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
 
@@ -822,6 +761,14 @@ const styles = StyleSheet.create({
   nearbyScoreLabel: { fontSize: 10, color: T2.textMute, marginTop: 1 },
   mapBtn: { marginTop: 18, paddingVertical: 14, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   mapBtnText: { fontSize: 13.5, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
+
+  // 리뷰탭 칩
+  tasteChip: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: T2.bg, borderWidth: 1, borderColor: T2.border },
+  tasteText: { fontSize: 12, fontWeight: '800', color: T2.text },
+  honbabChip: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: T2.brandSoft, borderWidth: 1, borderColor: 'rgba(255,90,31,0.18)' },
+  honbabText: { fontSize: 12, fontWeight: '800', color: T2.brand },
+  tagChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: T2.bg, borderWidth: 1, borderColor: T2.border },
+  tagChipText: { fontSize: 11, fontWeight: '600', color: T2.textMute },
 
   ctaBar: {
     position: 'absolute',
