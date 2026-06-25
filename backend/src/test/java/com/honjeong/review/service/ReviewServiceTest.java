@@ -170,5 +170,46 @@ class ReviewServiceTest {
         assertThat(res.topTags().get(0).tag()).isEqualTo("1인석 많음");
     }
 
+    @Test
+    @DisplayName("타임라인: 체크인 이력에 리뷰를 매칭, 리뷰 없는 체크인은 review=null")
+    void diningHistory_joinsReviewsToCheckIns() {
+        com.honjeong.place.domain.Place p3 = place(3L);
+        CheckIn c1 = mock(CheckIn.class);
+        when(c1.getId()).thenReturn(10L);
+        when(c1.getPlace()).thenReturn(p3);
+        when(c1.getStartedAt()).thenReturn(LocalDateTime.of(2026, 6, 25, 11, 0));
+        when(c1.getStatus()).thenReturn(com.honjeong.checkin.domain.CheckInStatus.ENDED);
+        when(p3.getName()).thenReturn("큰순두부");
+        CheckIn c2 = mock(CheckIn.class);
+        when(c2.getId()).thenReturn(8L);
+        when(c2.getPlace()).thenReturn(p3);
+        when(c2.getStartedAt()).thenReturn(LocalDateTime.of(2026, 6, 24, 11, 0));
+        when(c2.getStatus()).thenReturn(com.honjeong.checkin.domain.CheckInStatus.ENDED);
+
+        Review r1 = mock(Review.class);
+        when(r1.getId()).thenReturn(42L);
+        CheckIn c1ref = c1;
+        when(r1.getCheckIn()).thenReturn(c1ref);
+        when(r1.getContent()).thenReturn("편히");
+        when(r1.getTasteRating()).thenReturn(5);
+        when(r1.getSoloFriendlyRating()).thenReturn(4);
+        when(r1.getTags()).thenReturn(java.util.List.of());
+
+        when(checkInRepository.findHistoryWithPlaceByUser(1L)).thenReturn(java.util.List.of(c1, c2));
+        when(reviewRepository.findByUserWithCheckIn(1L)).thenReturn(java.util.List.of(r1));
+        when(checkInRepository.countByUser_Id(1L)).thenReturn(2L);
+        when(reviewRepository.countByUser_Id(1L)).thenReturn(1L);
+        when(checkInRepository.countDistinctPlacesByUser(1L)).thenReturn(1L);
+        when(checkInRepository.countByUserSince(org.mockito.ArgumentMatchers.eq(1L), any())).thenReturn(2L);
+
+        var res = service.getDiningHistory(1L);
+
+        assertThat(res.summary().totalCheckIns()).isEqualTo(2L);
+        assertThat(res.summary().totalReviews()).isEqualTo(1L);
+        assertThat(res.entries()).hasSize(2);
+        assertThat(res.entries().get(0).review().reviewId()).isEqualTo(42L); // c1 has review
+        assertThat(res.entries().get(1).review()).isNull();                  // c2 none
+    }
+
     private static Long eqL(long v) { return org.mockito.ArgumentMatchers.eq(v); }
 }

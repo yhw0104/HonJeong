@@ -130,4 +130,40 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             WHERE c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE AND c.startedAt < :threshold
             """)
     int endActiveStartedBefore(@Param("threshold") LocalDateTime threshold, @Param("now") LocalDateTime now);
+
+    /**
+     * 사용자의 전체 체크인 이력을 place와 함께 startedAt 내림차순으로 조회한다(타임라인용).
+     *
+     * @param userId 회원 id
+     * @return 체크인 이력(place fetch join 포함, 최신순)
+     */
+    @Query("SELECT c FROM CheckIn c JOIN FETCH c.place WHERE c.user.id = :userId ORDER BY c.startedAt DESC")
+    List<CheckIn> findHistoryWithPlaceByUser(@Param("userId") Long userId);
+
+    /**
+     * 사용자의 전체 체크인 수.
+     *
+     * @param userId 회원 id
+     * @return 총 체크인 건수
+     */
+    long countByUser_Id(Long userId);
+
+    /**
+     * 사용자가 방문한 식당 수(중복 제거).
+     *
+     * @param userId 회원 id
+     * @return 고유 식당 수
+     */
+    @Query("SELECT COUNT(DISTINCT c.place.id) FROM CheckIn c WHERE c.user.id = :userId")
+    long countDistinctPlacesByUser(@Param("userId") Long userId);
+
+    /**
+     * 기준 시각 이후 사용자의 체크인 수(이번 달 체크인 수용).
+     *
+     * @param userId     회원 id
+     * @param monthStart 집계 시작 경계
+     * @return 해당 기간 체크인 건수
+     */
+    @Query("SELECT COUNT(c) FROM CheckIn c WHERE c.user.id = :userId AND c.startedAt >= :monthStart")
+    long countByUserSince(@Param("userId") Long userId, @Param("monthStart") LocalDateTime monthStart);
 }

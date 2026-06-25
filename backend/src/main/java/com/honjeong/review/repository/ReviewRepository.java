@@ -32,4 +32,26 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             ORDER BY COUNT(rt) DESC
             """)
     List<Object[]> countTagsByPlace(@Param("placeId") Long placeId);
+
+    /**
+     * 사용자의 체크인 연결 리뷰 목록. checkIn IS NOT NULL인 리뷰만 태그와 함께 createdAt DESC로 조회한다.
+     *
+     * @param userId 회원 id
+     * @return 체크인 연결 리뷰 목록(tags LEFT JOIN FETCH, 최신순)
+     */
+    @Query("""
+            SELECT DISTINCT r FROM Review r
+            LEFT JOIN FETCH r.tags
+            WHERE r.user.id = :userId AND r.checkIn IS NOT NULL
+            ORDER BY r.createdAt DESC
+            """)
+    List<Review> findByUserWithCheckIn(@Param("userId") Long userId);
+
+    /**
+     * 사용자의 전체 리뷰 수.
+     *
+     * @param userId 회원 id
+     * @return 총 리뷰 건수
+     */
+    long countByUser_Id(Long userId);
 }
