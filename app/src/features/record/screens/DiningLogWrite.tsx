@@ -1,12 +1,13 @@
 // DiningLogWrite — 혼밥 인증 작성(저널) (원본: screens/DiningLogWrite.jsx)
-// 내 혼밥 기록의 '일기 쓰기'에서 모달로 진입. 사진/기분/별점/친화태그/한 줄 기록.
+// 내 혼밥 기록의 '일기 쓰기'에서 모달로 진입. 별점/친화태그/본문 기록.
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { Screen, ImagePlaceholder } from '@/shared/components';
+import { Alert, View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Screen } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
+import { useCreateReview } from '@/features/review/queries';
+import { reviewErrorMessage } from '@/features/review/reviewCopy';
 
-const MOODS = ['편안', '행복', '맛있음', '집중', '조금 어색', '쓸쓸'];
 const FRIENDLY = ['1인석 많음', '바테이블', '칸막이', '눈치 없음', '오래 OK'];
 
 function Stars({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -21,16 +22,29 @@ function Stars({ value, onChange }: { value: number; onChange: (v: number) => vo
   );
 }
 
-export function DiningLogWriteScreen({ navigation }: RootStackScreenProps<'DiningLogWrite'>) {
-  const [mood, setMood] = useState('편안');
-  const [taste, setTaste] = useState(4);
-  const [honbab, setHonbab] = useState(5);
-  const [tags, setTags] = useState<string[]>(['1인석 많음', '바테이블', '눈치 없음']);
-  const [body, setBody] = useState(
-    '창가 바테이블에서 순두부 한 그릇.\n점심에 1인석이 절반이나 비어있어서 눈치 볼 일이 없었다.\n다음엔 비빔밥도 시켜봐야지.'
-  );
+export function DiningLogWriteScreen({ navigation, route }: RootStackScreenProps<'DiningLogWrite'>) {
+  const { placeId, placeName, checkInId } = route.params;
+  const createMut = useCreateReview();
+  const [taste, setTaste] = useState(0);
+  const [honbab, setHonbab] = useState(0);
+  const [tags, setTags] = useState<string[]>([]);
+  const [body, setBody] = useState('');
+
+  const canSave = taste >= 1 && honbab >= 1 && !createMut.isPending;
 
   const toggleTag = (t: string) => setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
+
+  const onSave = () => {
+    if (!canSave) return;
+    createMut.mutate(
+      { placeId, checkInId, tasteRating: taste, soloFriendlyRating: honbab,
+        content: body.trim() || undefined, tags },
+      {
+        onSuccess: () => navigation.goBack(),
+        onError: (e) => Alert.alert('저장 실패', reviewErrorMessage(e)),
+      },
+    );
+  };
 
   return (
     <Screen bg={T2.bg}>
@@ -39,56 +53,19 @@ export function DiningLogWriteScreen({ navigation }: RootStackScreenProps<'Dinin
         <Pressable onPress={() => navigation.goBack()} hitSlop={10}>
           <Text style={styles.close}>닫기</Text>
         </Pressable>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={10}>
-          <Text style={styles.saveBtn}>저장</Text>
+        <Pressable onPress={onSave} hitSlop={10} disabled={!canSave}>
+          <Text style={[styles.saveBtn, !canSave && { opacity: 0.4 }]}>저장</Text>
         </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {/* 날짜/메타 + 타이틀 */}
-        <Text style={styles.meta}>2026.05.22 · FRI · 12:34</Text>
-        <Text style={styles.h1}>
-          오늘의{'\n'}
-          <Text style={{ color: T2.brand }}>32번째</Text> 혼밥
-        </Text>
+        {/* 타이틀 */}
+        <Text style={styles.h1}>오늘의 혼밥 기록</Text>
 
         {/* 장소 */}
         <View style={styles.placeRow}>
           <View style={styles.placeDot} />
-          <Text style={styles.placeName}>큰순두부 연남점</Text>
-          <Text style={styles.placeMeta}>마포구 · 한식</Text>
-        </View>
-
-        {/* 사진 */}
-        <View style={styles.photoRow}>
-          <View style={{ flex: 2 }}>
-            <ImagePlaceholder w="100%" h={232} radius={10} tag="순두부 한 그릇" />
-          </View>
-          <View style={{ flex: 1, gap: 6 }}>
-            <ImagePlaceholder w="100%" h={113} radius={10} tag="2" />
-            <View style={styles.addPhoto}>
-              <Text style={styles.addPhotoText}>+</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 기분 */}
-        <View style={{ marginTop: 28 }}>
-          <Text style={styles.label}>오늘의 기분</Text>
-          <View style={styles.chipWrap}>
-            {MOODS.map((m) => {
-              const on = mood === m;
-              return (
-                <Pressable
-                  key={m}
-                  onPress={() => setMood(m)}
-                  style={[styles.moodChip, { backgroundColor: on ? T2.text : '#fff', borderColor: on ? T2.text : T2.border }]}
-                >
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: on ? '#fff' : T2.text }}>{m}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <Text style={styles.placeName}>{placeName}</Text>
         </View>
 
         {/* 별점 카드 */}
@@ -152,15 +129,13 @@ const styles = StyleSheet.create({
 
   scroll: { paddingHorizontal: 20, paddingBottom: 40 },
 
-  meta: { fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: 1 },
-  h1: { fontSize: 36, fontWeight: '800', color: T2.text, letterSpacing: -1.2, marginTop: 4, lineHeight: 40 },
+  h1: { fontSize: 28, fontWeight: '800', color: T2.text, letterSpacing: -1, marginTop: 8, marginBottom: 16 },
 
   placeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingVertical: 14,
-    marginTop: 20,
     borderTopWidth: 1,
     borderTopColor: T2.border,
     borderBottomWidth: 1,
@@ -168,23 +143,9 @@ const styles = StyleSheet.create({
   },
   placeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: T2.brand },
   placeName: { flex: 1, fontSize: 14, fontWeight: '600', color: T2.text, letterSpacing: -0.3 },
-  placeMeta: { fontSize: 12, color: T2.textMute },
-
-  photoRow: { flexDirection: 'row', gap: 6, marginTop: 20 },
-  addPhoto: {
-    height: 113,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: T2.borderStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addPhotoText: { fontSize: 22, color: T2.textMute },
 
   label: { fontSize: 12, fontWeight: '700', color: T2.textMute, letterSpacing: 0.5 },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  moodChip: { paddingVertical: 9, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1 },
 
   ratingCard: { marginTop: 28, padding: 18, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

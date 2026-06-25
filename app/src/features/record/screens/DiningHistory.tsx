@@ -75,7 +75,7 @@ export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'Dining
                       <Text style={styles.emptyPlace}>{e.place}</Text>
                       <Text style={styles.emptyMeta}>혼밥 기록 · 일기 없음</Text>
                     </View>
-                    <Pressable style={styles.writeChip} onPress={() => navigation.navigate('DiningLogWrite')}>
+                    <Pressable style={styles.writeChip} onPress={() => navigation.navigate('DiningLogWrite', { placeId: 0, placeName: e.place })}>
                       <Icon name="pencil" size={13} color={T2.brand} />
                       <Text style={styles.writeChipText}>일기 쓰기</Text>
                     </Pressable>
