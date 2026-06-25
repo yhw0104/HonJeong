@@ -197,15 +197,17 @@ class ReviewServiceTest {
 
         when(checkInRepository.findHistoryWithPlaceByUser(1L)).thenReturn(java.util.List.of(c1, c2));
         when(reviewRepository.findByUserWithCheckIn(1L)).thenReturn(java.util.List.of(r1));
-        when(checkInRepository.countByUser_Id(1L)).thenReturn(2L);
-        when(reviewRepository.countByUser_Id(1L)).thenReturn(1L);
-        when(checkInRepository.countDistinctPlacesByUser(1L)).thenReturn(1L);
-        when(checkInRepository.countByUserSince(org.mockito.ArgumentMatchers.eq(1L), any())).thenReturn(2L);
+        when(checkInRepository.countByUser_Id(1L)).thenReturn(5L);
+        when(reviewRepository.countByUser_Id(1L)).thenReturn(3L);
+        when(checkInRepository.countDistinctPlacesByUser(1L)).thenReturn(2L);
+        when(checkInRepository.countByUserSince(org.mockito.ArgumentMatchers.eq(1L), any())).thenReturn(4L);
 
         var res = service.getDiningHistory(1L);
 
-        assertThat(res.summary().totalCheckIns()).isEqualTo(2L);
-        assertThat(res.summary().totalReviews()).isEqualTo(1L);
+        assertThat(res.summary().totalCheckIns()).isEqualTo(5L);
+        assertThat(res.summary().totalReviews()).isEqualTo(3L);
+        assertThat(res.summary().distinctPlaces()).isEqualTo(2L);
+        assertThat(res.summary().thisMonthCheckIns()).isEqualTo(4L);
         assertThat(res.entries()).hasSize(2);
         assertThat(res.entries().get(0).review().reviewId()).isEqualTo(42L); // c1 has review
         assertThat(res.entries().get(1).review()).isNull();                  // c2 none

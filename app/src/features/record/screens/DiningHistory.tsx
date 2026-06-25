@@ -57,6 +57,11 @@ export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'Dining
           ))}
         </View>
 
+        {/* 빈 상태 */}
+        {groups.length === 0 && (
+          <Text style={{ padding: 24, color: T2.textMute, textAlign: 'center' }}>아직 혼밥 기록이 없어요.</Text>
+        )}
+
         {/* 월별 기록 */}
         {groups.map((group) => (
           <View key={group.m} style={{ marginTop: 24 }}>

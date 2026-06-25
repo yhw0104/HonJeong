@@ -113,6 +113,7 @@ export function DiningLogWriteScreen({ navigation, route }: RootStackScreenProps
             value={body}
             onChangeText={setBody}
             multiline
+            maxLength={1000}
             placeholder="오늘의 혼밥을 기록해보세요"
             placeholderTextColor={T2.textMute}
           />

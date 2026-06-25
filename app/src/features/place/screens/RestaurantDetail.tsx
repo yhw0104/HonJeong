@@ -177,7 +177,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
               reviews={reviews.data ?? []}
               isLoading={reviews.isLoading}
               isError={reviews.isError}
-              onWrite={() => navigation.navigate('DiningLogWrite', { placeId, placeName: name, checkInId: myCheckIn.data?.checkInId })}
+              onWrite={() => navigation.navigate('DiningLogWrite', { placeId, placeName: name })}
             />
           )}
           {stab === 'photo' && <PhotoTab />}
