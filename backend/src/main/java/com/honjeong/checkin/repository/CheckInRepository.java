@@ -99,6 +99,25 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     List<PlaceActiveCount> countActiveByPlaceIds(@Param("placeIds") List<Long> placeIds);
 
     /**
+     * place에 대한 user의 최근 체크인(ACTIVE 또는 since 이후 ENDED). 리뷰 인증 자동연결용.
+     *
+     * @param userId  회원 id
+     * @param placeId 식당 id
+     * @param since   ENDED 체크인의 최소 종료 시각(24h 창)
+     * @return 가장 최근 체크인(없으면 빈 Optional)
+     */
+    @Query("""
+            SELECT c FROM CheckIn c
+            WHERE c.user.id = :userId AND c.place.id = :placeId
+              AND (c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE
+                   OR (c.status = com.honjeong.checkin.domain.CheckInStatus.ENDED AND c.endedAt >= :since))
+            ORDER BY c.startedAt DESC
+            LIMIT 1
+            """)
+    Optional<CheckIn> findRecentForReview(@Param("userId") Long userId,
+            @Param("placeId") Long placeId, @Param("since") LocalDateTime since);
+
+    /**
      * 기준 시각 이전 시작된 ACTIVE를 일괄 ENDED 처리하고 만료 건수를 반환한다(TTL 자동 만료).
      *
      * @param threshold 이 시각 이전 시작된 ACTIVE가 만료 대상
