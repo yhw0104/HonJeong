@@ -1,49 +1,47 @@
 // DiningHistory — 내 혼밥 기록 (원본: screens/DiningHistory.jsx)
 // 더보기 '내 혼밥 기록'에서 진입. 요약 통계 + 월별 기록(일기 없는 방문은 '일기 쓰기'→DiningLogWrite).
 import React from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { Screen, MoreHeader, ImagePlaceholder, Icon } from '@/shared/components';
+import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { Screen, MoreHeader, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
-
-type Entry = {
-  d: string;
-  day: string;
-  place: string;
-  note?: string;
-  taste?: string;
-  honbab?: string;
-  photo?: boolean;
-  empty?: boolean;
-};
-
-const SUMMARY = [
-  { n: '32', l: '총 혼밥' },
-  { n: '28', l: '일기' },
-  { n: '12', l: '식당' },
-  { n: '5', l: '이번달' },
-];
-const MONTHS: { m: string; entries: Entry[] }[] = [
-  {
-    m: '2026년 5월',
-    entries: [
-      { d: '22', day: 'FRI', place: '큰순두부 연남점', note: '벽 보고 앉아서 마음 편히 먹었다.', taste: '5.0', honbab: '5.0', photo: true },
-      { d: '20', day: 'WED', place: '연남 김밥', empty: true },
-      { d: '18', day: 'MON', place: '혼밥의자', note: '바테이블 끝자리. 책 읽으며 30분.', taste: '4.5', honbab: '4.5', photo: true },
-      { d: '11', day: 'MON', place: '옥상국밥', note: '점심 빠르게. 1인석 바로 앉음.', taste: '4.0', honbab: '4.0', photo: false },
-    ],
-  },
-  {
-    m: '2026년 4월',
-    entries: [
-      { d: '29', day: 'TUE', place: '연남 파스타바', note: '큰맘 먹고 양식집 혼밥 첫 도전!', taste: '4.5', honbab: '4.0', photo: true },
-      { d: '25', day: 'FRI', place: '망원 우동집', empty: true },
-      { d: '20', day: 'SUN', place: '큰순두부 연남점', note: '주말 브런치. 한산해서 좋았음.', taste: '5.0', honbab: '5.0', photo: false },
-    ],
-  },
-];
+import { useDiningHistory } from '@/features/review/queries';
 
 export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'DiningHistory'>) {
+  const { data, isLoading, isError } = useDiningHistory();
+
+  const groups = groupByMonth(data?.entries ?? []);
+  const summary = data?.summary;
+
+  const SUMMARY = summary
+    ? [
+        { n: String(summary.totalCheckIns), l: '총 혼밥' },
+        { n: String(summary.totalReviews), l: '일기' },
+        { n: String(summary.distinctPlaces), l: '식당' },
+        { n: String(summary.thisMonthCheckIns), l: '이번달' },
+      ]
+    : [];
+
+  if (isLoading)
+    return (
+      <Screen bg={T2.bg} edges={['top']}>
+        <MoreHeader title="내 혼밥 기록" onBack={() => navigation.goBack()} />
+        <View style={{ padding: 40, alignItems: 'center' }}>
+          <ActivityIndicator color={T2.brand} />
+        </View>
+      </Screen>
+    );
+
+  if (isError)
+    return (
+      <Screen bg={T2.bg} edges={['top']}>
+        <MoreHeader title="내 혼밥 기록" onBack={() => navigation.goBack()} />
+        <View style={{ padding: 40 }}>
+          <Text style={{ color: T2.textMute }}>기록을 불러오지 못했어요.</Text>
+        </View>
+      </Screen>
+    );
+
   return (
     <Screen bg={T2.bg} edges={['top']}>
       <MoreHeader title="내 혼밥 기록" onBack={() => navigation.goBack()} />
@@ -60,48 +58,59 @@ export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'Dining
         </View>
 
         {/* 월별 기록 */}
-        {MONTHS.map((mo) => (
-          <View key={mo.m} style={{ marginTop: 24 }}>
-            <Text style={styles.monthTitle}>{mo.m}</Text>
+        {groups.map((group) => (
+          <View key={group.m} style={{ marginTop: 24 }}>
+            <Text style={styles.monthTitle}>{group.m}</Text>
             <View style={{ gap: 10 }}>
-              {mo.entries.map((e, ei) =>
-                e.empty ? (
-                  <View key={ei} style={styles.emptyCard}>
+              {group.items.map((e) => {
+                const { d, day } = dayParts(e.visitedAt);
+                return e.review == null ? (
+                  <View key={e.checkInId} style={styles.emptyCard}>
                     <View style={styles.dateCellDim}>
-                      <Text style={styles.dateDimNum}>{e.d}</Text>
-                      <Text style={styles.dateDay}>{e.day}</Text>
+                      <Text style={styles.dateDimNum}>{d}</Text>
+                      <Text style={styles.dateDay}>{day}</Text>
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.emptyPlace}>{e.place}</Text>
+                      <Text style={styles.emptyPlace}>{e.placeName}</Text>
                       <Text style={styles.emptyMeta}>혼밥 기록 · 일기 없음</Text>
                     </View>
-                    <Pressable style={styles.writeChip} onPress={() => navigation.navigate('DiningLogWrite', { placeId: 0, placeName: e.place })}>
+                    <Pressable
+                      style={styles.writeChip}
+                      onPress={() =>
+                        navigation.navigate('DiningLogWrite', {
+                          placeId: e.placeId,
+                          placeName: e.placeName,
+                          checkInId: e.checkInId,
+                        })
+                      }
+                    >
                       <Icon name="pencil" size={13} color={T2.brand} />
                       <Text style={styles.writeChipText}>일기 쓰기</Text>
                     </Pressable>
                   </View>
                 ) : (
-                  <View key={ei} style={styles.card}>
+                  <View key={e.checkInId} style={styles.card}>
                     <View style={styles.dateCell}>
-                      <Text style={styles.dateNum}>{e.d}</Text>
-                      <Text style={styles.dateDay}>{e.day}</Text>
+                      <Text style={styles.dateNum}>{d}</Text>
+                      <Text style={styles.dateDay}>{day}</Text>
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.place}>{e.place}</Text>
-                      <Text style={styles.note}>{e.note}</Text>
+                      <Text style={styles.place}>{e.placeName}</Text>
+                      {e.review.content ? (
+                        <Text style={styles.note}>{e.review.content}</Text>
+                      ) : null}
                       <View style={styles.ratingRow}>
                         <View style={styles.tasteChip}>
-                          <Text style={styles.tasteText}>맛 ★ {e.taste}</Text>
+                          <Text style={styles.tasteText}>맛 ★ {e.review.tasteRating.toFixed(1)}</Text>
                         </View>
                         <View style={styles.honbabChip}>
-                          <Text style={styles.honbabText}>혼밥 ★ {e.honbab}</Text>
+                          <Text style={styles.honbabText}>혼밥 ★ {e.review.soloFriendlyRating.toFixed(1)}</Text>
                         </View>
                       </View>
                     </View>
-                    {e.photo ? <ImagePlaceholder w={56} h={56} radius={12} /> : null}
                   </View>
-                )
-              )}
+                );
+              })}
             </View>
           </View>
         ))}
@@ -109,6 +118,27 @@ export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'Dining
     </Screen>
   );
 }
+
+// ── 헬퍼 ──────────────────────────────────────────────────────────────────────
+
+function groupByMonth(entries: { visitedAt: string }[] & any[]) {
+  const map = new Map<string, any[]>();
+  for (const e of entries) {
+    const d = new Date(e.visitedAt);
+    const key = `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(e);
+  }
+  return Array.from(map, ([m, items]) => ({ m, items }));
+}
+
+function dayParts(visitedAt: string) {
+  const d = new Date(visitedAt);
+  const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  return { d: String(d.getDate()), day: days[d.getDay()] };
+}
+
+// ── 스타일 ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
