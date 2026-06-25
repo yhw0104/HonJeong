@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -88,6 +89,9 @@ public class ReviewService {
 
         LocalDateTime now = now();
         CheckIn linked = resolveCheckIn(userId, req.placeId(), req.checkInId(), now);
+        if (linked != null && reviewRepository.existsByCheckIn_Id(linked.getId())) {
+            linked = null;   // 그 방문엔 이미 인증 리뷰가 있음 → 차단하지 않고 인증 없는 일반 리뷰로 저장
+        }
         LocalDateTime visitedAt = linked != null ? linked.getStartedAt() : now;
 
         User userRef = userRepository.getReferenceById(userId);
@@ -96,7 +100,11 @@ public class ReviewService {
         if (req.tags() != null) {
             req.tags().forEach(tag -> review.addTag(place, tag));
         }
-        return ReviewResponse.from(reviewRepository.save(review));
+        try {
+            return ReviewResponse.from(reviewRepository.saveAndFlush(review));
+        } catch (DataIntegrityViolationException e) {   // 동시 작성 경쟁 → 부분 유니크 위반
+            throw new BusinessException(ErrorCode.REVIEW_DUPLICATE_CHECKIN);
+        }
     }
 
     private void validateTags(List<String> tags) {

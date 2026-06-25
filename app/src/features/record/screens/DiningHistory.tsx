@@ -69,8 +69,10 @@ export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'Dining
             <View style={{ gap: 10 }}>
               {group.items.map((e) => {
                 const { d, day } = dayParts(e.visitedAt);
+                const openPlace = () =>
+                  navigation.navigate('RestaurantDetail', { placeId: e.placeId, name: e.placeName });
                 return e.review == null ? (
-                  <View key={e.checkInId} style={styles.emptyCard}>
+                  <Pressable key={e.checkInId} style={styles.emptyCard} onPress={openPlace}>
                     <View style={styles.dateCellDim}>
                       <Text style={styles.dateDimNum}>{d}</Text>
                       <Text style={styles.dateDay}>{day}</Text>
@@ -92,9 +94,9 @@ export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'Dining
                       <Icon name="pencil" size={13} color={T2.brand} />
                       <Text style={styles.writeChipText}>일기 쓰기</Text>
                     </Pressable>
-                  </View>
+                  </Pressable>
                 ) : (
-                  <View key={e.checkInId} style={styles.card}>
+                  <Pressable key={e.checkInId} style={styles.card} onPress={openPlace}>
                     <View style={styles.dateCell}>
                       <Text style={styles.dateNum}>{d}</Text>
                       <Text style={styles.dateDay}>{day}</Text>
@@ -113,7 +115,7 @@ export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'Dining
                         </View>
                       </View>
                     </View>
-                  </View>
+                  </Pressable>
                 );
               })}
             </View>

@@ -40,6 +40,9 @@ public enum ErrorCode {
     MEALREQUEST_DUPLICATE(HttpStatus.CONFLICT, "이미 신청한 대상입니다."),
     MEALREQUEST_ALREADY_RESPONDED(HttpStatus.CONFLICT, "이미 응답한 신청입니다."),
 
+    // 리뷰 — 한 방문(체크인)에 리뷰 1건만 허용(중복 작성 차단)
+    REVIEW_DUPLICATE_CHECKIN(HttpStatus.CONFLICT, "이미 이 방문에 리뷰를 남겼어요."),
+
     // 예기치 못한 서버 내부 오류(처리되지 않은 예외 → 500)
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
 

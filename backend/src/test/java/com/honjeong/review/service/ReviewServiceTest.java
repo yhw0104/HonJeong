@@ -60,7 +60,8 @@ class ReviewServiceTest {
         when(recent.getId()).thenReturn(7L);
         when(recent.getStartedAt()).thenReturn(LocalDateTime.of(2026, 6, 25, 11, 0));
         when(checkInRepository.findRecentForReview(eqL(1L), eqL(3L), any())).thenReturn(Optional.of(recent));
-        when(reviewRepository.save(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(reviewRepository.existsByCheckIn_Id(7L)).thenReturn(false);
+        when(reviewRepository.saveAndFlush(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ReviewResponse res = service.createReview(1L, req(null, List.of("1인석 많음")));
 
@@ -100,7 +101,7 @@ class ReviewServiceTest {
         Place p = place(3L);
         when(placeService.getById(3L)).thenReturn(p);
         when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
-        when(reviewRepository.save(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(reviewRepository.saveAndFlush(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Place otherPlace = mock(Place.class);
         when(otherPlace.getId()).thenReturn(999L);
@@ -121,12 +122,30 @@ class ReviewServiceTest {
         Place p = place(3L);
         when(placeService.getById(3L)).thenReturn(p);
         when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
-        when(reviewRepository.save(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(reviewRepository.saveAndFlush(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
         when(checkInRepository.findById(99L)).thenReturn(Optional.empty());
 
         ReviewResponse res = service.createReview(1L, req(99L, List.of()));
 
         assertThat(res.authenticated()).isFalse();
+        assertThat(res.checkInId()).isNull();
+    }
+
+    @Test
+    @DisplayName("그 체크인에 이미 인증 리뷰가 있으면 차단 않고 인증 없는 일반 리뷰로 저장")
+    void create_degradesToGeneralWhenCheckInAlreadyReviewed() {
+        Place p = place(3L);
+        when(placeService.getById(3L)).thenReturn(p);
+        when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
+        CheckIn recent = mock(CheckIn.class);
+        when(recent.getId()).thenReturn(7L);
+        when(checkInRepository.findRecentForReview(eqL(1L), eqL(3L), any())).thenReturn(Optional.of(recent));
+        when(reviewRepository.existsByCheckIn_Id(7L)).thenReturn(true);
+        when(reviewRepository.saveAndFlush(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ReviewResponse res = service.createReview(1L, req(null, List.of()));
+
+        assertThat(res.authenticated()).isFalse();   // 인증 강등
         assertThat(res.checkInId()).isNull();
     }
 
