@@ -16,13 +16,14 @@ import com.honjeong.place.domain.Place;
 import com.honjeong.place.service.PlaceService;
 import com.honjeong.review.domain.Review;
 import com.honjeong.review.domain.SoloFriendlyTags;
+import com.honjeong.review.dto.PlaceReviewResponse;
 import com.honjeong.review.dto.ReviewCreateRequest;
 import com.honjeong.review.dto.ReviewResponse;
 import com.honjeong.review.repository.ReviewRepository;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
-/** 리뷰 도메인 서비스. 작성(인증 자동연결·태그 검증) 담당. 조회·집계는 후속 태스크에서 추가. */
+/** 리뷰 도메인 서비스. 작성(인증 자동연결·태그 검증)과 식당 리뷰 조회를 담당한다. */
 @Service
 public class ReviewService {
 
@@ -42,6 +43,13 @@ public class ReviewService {
         this.placeService = placeService;
         this.userRepository = userRepository;
         this.clock = clock;
+    }
+
+    @Transactional(readOnly = true)
+    public List<PlaceReviewResponse> getPlaceReviews(Long placeId) {
+        return reviewRepository.findByPlaceWithUserAndTags(placeId).stream()
+                .map(PlaceReviewResponse::from)
+                .toList();
     }
 
     /**
