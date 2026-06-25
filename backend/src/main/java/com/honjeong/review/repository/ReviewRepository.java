@@ -18,4 +18,18 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             ORDER BY r.createdAt DESC
             """)
     List<Review> findByPlaceWithUserAndTags(@Param("placeId") Long placeId);
+
+    @Query("""
+            SELECT AVG(r.tasteRating), AVG(r.soloFriendlyRating), COUNT(r)
+            FROM Review r WHERE r.place.id = :placeId
+            """)
+    List<Object[]> summarizeByPlace(@Param("placeId") Long placeId);
+
+    @Query("""
+            SELECT rt.tag, COUNT(rt) FROM ReviewTag rt
+            WHERE rt.place.id = :placeId
+            GROUP BY rt.tag
+            ORDER BY COUNT(rt) DESC
+            """)
+    List<Object[]> countTagsByPlace(@Param("placeId") Long placeId);
 }

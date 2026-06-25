@@ -70,6 +70,46 @@ class ReviewRepositoryTest extends AbstractPostgresTest {
         assertThat(found.get(0).isAuthenticated()).isFalse();
     }
 
+    @Test
+    @DisplayName("식당 집계: 평균 별점·태그 빈도, 리뷰 0건 경계")
+    void summarize_and_tagCounts() {
+        User u1 = persistUser("01000000003", "a");
+        User u2 = persistUser("01000000004", "b");
+        Place place = persistPlace("ext-agg");
+
+        Review r1 = Review.create(u1, null, place, NOW, 5, 5, "x");
+        r1.addTag(place, "1인석 많음");
+        Review r2 = Review.create(u2, null, place, NOW, 3, 4, "y");
+        r2.addTag(place, "1인석 많음");
+        r2.addTag(place, "바테이블");
+        em.persist(r1); em.persist(r2); em.flush(); em.clear();
+
+        java.util.List<Object[]> agg = reviewRepository.summarizeByPlace(place.getId());
+        assertThat(((Number) agg.get(0)[2]).longValue()).isEqualTo(2L);
+        assertThat(((Number) agg.get(0)[0]).doubleValue()).isEqualTo(4.0); // (5+3)/2
+
+        assertThat(((Number) agg.get(0)[1]).doubleValue()).isEqualTo(4.5); // avgSoloFriendly: (5+4)/2
+
+        java.util.List<Object[]> tags = reviewRepository.countTagsByPlace(place.getId());
+        assertThat(tags.get(0)[0]).isEqualTo("1인석 많음");        // 최빈
+        assertThat(((Number) tags.get(0)[1]).longValue()).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("리뷰 0건인 새 place에 대해 summarizeByPlace는 1행(count=0, AVG=null) 반환, countTagsByPlace는 빈 리스트")
+    void summarize_emptyPlace() {
+        Place emptyPlace = persistPlace("ext-empty");
+        em.flush(); em.clear();
+
+        java.util.List<Object[]> emptyAgg = reviewRepository.summarizeByPlace(emptyPlace.getId());
+        assertThat(emptyAgg).hasSize(1);                                              // 스칼라 집계는 0건이어도 한 행
+        assertThat(((Number) emptyAgg.get(0)[2]).longValue()).isEqualTo(0L);          // count = 0
+        assertThat(emptyAgg.get(0)[0]).isNull();                                      // AVG(tasteRating) = NULL
+        assertThat(emptyAgg.get(0)[1]).isNull();                                      // AVG(soloFriendlyRating) = NULL
+
+        assertThat(reviewRepository.countTagsByPlace(emptyPlace.getId())).isEmpty();
+    }
+
     // --- helpers (MealRequestRepositoryTest와 동일 도메인 팩토리 사용) ---
     private User persistUser(String phone, String nickname) {
         User u = User.pending(phone, null);

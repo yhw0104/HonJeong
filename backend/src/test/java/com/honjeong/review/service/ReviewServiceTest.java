@@ -23,6 +23,7 @@ import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.service.PlaceService;
 import com.honjeong.review.domain.Review;
+import com.honjeong.review.dto.PlaceReviewSummaryResponse;
 import com.honjeong.review.dto.ReviewCreateRequest;
 import com.honjeong.review.dto.ReviewResponse;
 import com.honjeong.review.repository.ReviewRepository;
@@ -127,6 +128,46 @@ class ReviewServiceTest {
 
         assertThat(res.authenticated()).isFalse();
         assertThat(res.checkInId()).isNull();
+    }
+
+    @Test
+    @DisplayName("getPlaceReviewSummary — 리뷰 0건이면 count=0, 평균=null, topTags 비어있음")
+    void getPlaceReviewSummary_empty() {
+        when(reviewRepository.summarizeByPlace(3L))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{null, null, 0L}));
+        when(reviewRepository.countTagsByPlace(3L))
+                .thenReturn(java.util.Collections.emptyList());
+
+        PlaceReviewSummaryResponse res = service.getPlaceReviewSummary(3L);
+
+        assertThat(res.reviewCount()).isEqualTo(0L);
+        assertThat(res.avgTasteRating()).isNull();
+        assertThat(res.avgSoloFriendlyRating()).isNull();
+        assertThat(res.topTags()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("getPlaceReviewSummary — 비0건: 평균 반올림, topTags 상위 5개 제한, 첫 태그 순서 확인")
+    void getPlaceReviewSummary_nonEmpty() {
+        when(reviewRepository.summarizeByPlace(3L))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{4.25, 4.6, 4L}));
+        when(reviewRepository.countTagsByPlace(3L))
+                .thenReturn(java.util.Arrays.asList(
+                        new Object[]{"1인석 많음", 3L},
+                        new Object[]{"바테이블", 2L},
+                        new Object[]{"눈치 없음", 2L},
+                        new Object[]{"조용함", 1L},
+                        new Object[]{"금연", 1L},
+                        new Object[]{"주차 가능", 1L}
+                ));
+
+        PlaceReviewSummaryResponse res = service.getPlaceReviewSummary(3L);
+
+        assertThat(res.reviewCount()).isEqualTo(4L);
+        assertThat(res.avgTasteRating()).isCloseTo(4.3, org.assertj.core.data.Offset.offset(0.001));
+        assertThat(res.avgSoloFriendlyRating()).isEqualTo(4.6);
+        assertThat(res.topTags()).hasSize(5);
+        assertThat(res.topTags().get(0).tag()).isEqualTo("1인석 많음");
     }
 
     private static Long eqL(long v) { return org.mockito.ArgumentMatchers.eq(v); }

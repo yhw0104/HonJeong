@@ -17,6 +17,7 @@ import com.honjeong.place.service.PlaceService;
 import com.honjeong.review.domain.Review;
 import com.honjeong.review.domain.SoloFriendlyTags;
 import com.honjeong.review.dto.PlaceReviewResponse;
+import com.honjeong.review.dto.PlaceReviewSummaryResponse;
 import com.honjeong.review.dto.ReviewCreateRequest;
 import com.honjeong.review.dto.ReviewResponse;
 import com.honjeong.review.repository.ReviewRepository;
@@ -29,6 +30,7 @@ public class ReviewService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final int AUTH_WINDOW_HOURS = 24;
+    private static final int TOP_TAGS_LIMIT = 5;
 
     private final ReviewRepository reviewRepository;
     private final CheckInRepository checkInRepository;
@@ -43,6 +45,25 @@ public class ReviewService {
         this.placeService = placeService;
         this.userRepository = userRepository;
         this.clock = clock;
+    }
+
+    @Transactional(readOnly = true)
+    public PlaceReviewSummaryResponse getPlaceReviewSummary(Long placeId) {
+        Object[] agg = reviewRepository.summarizeByPlace(placeId).get(0);
+        long count = ((Number) agg[2]).longValue();
+        Double avgTaste = count == 0 ? null : round1(((Number) agg[0]).doubleValue());
+        Double avgSolo = count == 0 ? null : round1(((Number) agg[1]).doubleValue());
+
+        List<PlaceReviewSummaryResponse.TagCount> topTags = reviewRepository.countTagsByPlace(placeId).stream()
+                .limit(TOP_TAGS_LIMIT)
+                .map(row -> new PlaceReviewSummaryResponse.TagCount((String) row[0], ((Number) row[1]).longValue()))
+                .toList();
+
+        return new PlaceReviewSummaryResponse(placeId, count, avgTaste, avgSolo, topTags);
+    }
+
+    private static Double round1(double v) {
+        return Math.round(v * 10.0) / 10.0;
     }
 
     @Transactional(readOnly = true)
