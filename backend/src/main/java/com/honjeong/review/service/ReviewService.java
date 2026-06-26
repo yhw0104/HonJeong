@@ -125,6 +125,17 @@ public class ReviewService {
         return ReviewResponse.from(review);
     }
 
+    /** 리뷰를 완전 삭제한다(태그 cascade). 본인만(아니면 403), 없으면 404. */
+    @Transactional
+    public void deleteReview(Long userId, Long reviewId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REVIEW_NOT_FOUND));
+        if (!review.isOwnedBy(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        reviewRepository.delete(review);
+    }
+
     private void validateTags(List<String> tags) {
         if (tags == null) {
             return;

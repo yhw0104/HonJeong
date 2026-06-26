@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -289,6 +291,43 @@ class ReviewServiceTest {
                 new com.honjeong.review.dto.ReviewUpdateRequest(4, 4, null, List.of("우주최고"))))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT));
+    }
+
+    @Test
+    @DisplayName("삭제: 소유자면 repository.delete 호출")
+    void delete_byOwner() {
+        User owner = mock(User.class);
+        when(owner.getId()).thenReturn(1L);
+        Review review = Review.create(owner, null, place(3L), LocalDateTime.of(2026, 6, 25, 12, 0), 5, 5, "x");
+        when(reviewRepository.findById(42L)).thenReturn(Optional.of(review));
+
+        service.deleteReview(1L, 42L);
+
+        verify(reviewRepository).delete(review);
+    }
+
+    @Test
+    @DisplayName("삭제: 타인 리뷰면 FORBIDDEN, delete 미호출")
+    void delete_byNonOwner_forbidden() {
+        User owner = mock(User.class);
+        when(owner.getId()).thenReturn(99L);
+        Review review = Review.create(owner, null, place(3L), LocalDateTime.of(2026, 6, 25, 12, 0), 5, 5, "x");
+        when(reviewRepository.findById(42L)).thenReturn(Optional.of(review));
+
+        assertThatThrownBy(() -> service.deleteReview(1L, 42L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+        verify(reviewRepository, never()).delete(any(Review.class));
+    }
+
+    @Test
+    @DisplayName("삭제: 리뷰 없으면 REVIEW_NOT_FOUND")
+    void delete_notFound() {
+        when(reviewRepository.findById(42L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.deleteReview(1L, 42L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.REVIEW_NOT_FOUND));
     }
 
     private static Long eqL(long v) { return org.mockito.ArgumentMatchers.eq(v); }
