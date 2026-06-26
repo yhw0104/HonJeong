@@ -23,7 +23,7 @@ export class ApiError extends Error {
   }
 }
 
-type Method = 'GET' | 'POST' | 'PATCH';
+type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 /**
  * 호출 옵션. token을 명시하면 그 값으로 Authorization을 정한다:
@@ -78,3 +78,6 @@ export const apiPost = <T>(path: string, body?: unknown, options?: RequestOption
 /** PATCH 요청(JSON 본문). */
 export const apiPatch = <T>(path: string, body?: unknown, options?: RequestOptions) =>
   request<T>('PATCH', path, body, options);
+/** DELETE 요청(본문 없음). 응답은 200+엔벨로프(서버가 204 대신 {success:true} 반환). */
+export const apiDelete = <T>(path: string, options?: RequestOptions) =>
+  request<T>('DELETE', path, undefined, options);

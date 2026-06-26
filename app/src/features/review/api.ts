@@ -1,8 +1,15 @@
-import { apiGet, apiPost } from '@/shared/api/client';
+import { apiGet, apiPost, apiPatch, apiDelete } from '@/shared/api/client';
 
 export type CreateReviewBody = {
   placeId: number;
   checkInId?: number;
+  tasteRating: number;
+  soloFriendlyRating: number;
+  content?: string;
+  tags?: string[];
+};
+
+export type UpdateReviewBody = {
   tasteRating: number;
   soloFriendlyRating: number;
   content?: string;
@@ -25,6 +32,7 @@ export type PlaceReview = {
   soloFriendlyRating: number;
   tags: string[];
   authenticated: boolean;
+  mine: boolean;
 };
 
 export type PlaceReviewSummary = {
@@ -54,6 +62,11 @@ export type DiningHistory = {
 };
 
 export const createReview = (body: CreateReviewBody) => apiPost<CreateReviewResult>('/reviews', body);
+
+export const updateReview = (reviewId: number, body: UpdateReviewBody) =>
+  apiPatch<CreateReviewResult>(`/reviews/${reviewId}`, body);
+
+export const deleteReview = (reviewId: number) => apiDelete<null>(`/reviews/${reviewId}`);
 
 export const listPlaceReviews = (placeId: number) =>
   apiGet<PlaceReview[]>(`/places/${placeId}/reviews`);
