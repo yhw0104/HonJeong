@@ -2,7 +2,7 @@
 // 풀블리드 히어로 + 플로팅 헤더 + 6탭(홈/메뉴/리뷰/사진/메이트/주변) + 하단 고정 CTA.
 // 원본의 하단 MinTabBar는 제거(상세는 탭 위로 push되는 풀스크린이라 뒤로가기로 복귀).
 import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H } from '@/shared/components';
 import { T2 } from '@/shared/theme';
@@ -11,7 +11,7 @@ import { useActiveDiners, useMyCheckIn, useStartCheckIn, useEndCheckIn } from '@
 import type { ActiveDiner } from '@/features/checkin/api';
 import { formatElapsed } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
-import { usePlaceReviews, usePlaceReviewSummary } from '@/features/review/queries';
+import { usePlaceReviews, usePlaceReviewSummary, useDeleteReview } from '@/features/review/queries';
 import type { PlaceReview, PlaceReviewSummary } from '@/features/review/api';
 
 type Tab = 'home' | 'menu' | 'review' | 'photo' | 'mate' | 'nearby';
@@ -103,6 +103,20 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const reviews = usePlaceReviews(placeId);
   const summary = usePlaceReviewSummary(placeId);
 
+  const delMut = useDeleteReview();
+  const confirmDelete = (reviewId: number) =>
+    Alert.alert('리뷰 삭제', '이 리뷰를 삭제할까요? 되돌릴 수 없어요.', [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: () => delMut.mutate(reviewId) },
+    ]);
+  const editReview = (r: PlaceReview) =>
+    navigation.navigate('DiningLogWrite', {
+      placeId,
+      placeName: name,
+      reviewId: r.reviewId,
+      initial: { taste: r.tasteRating, honbab: r.soloFriendlyRating, tags: r.tags, content: r.content ?? '' },
+    });
+
   const copy = () => {
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
@@ -178,6 +192,8 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
               isLoading={reviews.isLoading}
               isError={reviews.isError}
               onWrite={() => navigation.navigate('DiningLogWrite', { placeId, placeName: name })}
+              onEdit={editReview}
+              onDelete={confirmDelete}
             />
           )}
           {stab === 'photo' && <PhotoTab />}
@@ -387,9 +403,10 @@ function MenuTab() {
 }
 
 /* ── 리뷰 탭 ─────────────────────────────────────── */
-function ReviewTab({ reviews, isLoading, isError, onWrite }: {
+function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete }: {
   reviews: PlaceReview[];
   isLoading: boolean; isError: boolean; onWrite: () => void;
+  onEdit: (r: PlaceReview) => void; onDelete: (reviewId: number) => void;
 }) {
   return (
     <View style={{ marginTop: 4 }}>
@@ -425,6 +442,16 @@ function ReviewTab({ reviews, isLoading, isError, onWrite }: {
             {r.tags.length > 0 ? (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                 {r.tags.map((t) => (<View key={t} style={styles.tagChip}><Text style={styles.tagChipText}>{t}</Text></View>))}
+              </View>
+            ) : null}
+            {r.mine ? (
+              <View style={{ flexDirection: 'row', gap: 16, marginTop: 10 }}>
+                <Pressable hitSlop={6} onPress={() => onEdit(r)}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: T2.textSub }}>수정</Text>
+                </Pressable>
+                <Pressable hitSlop={6} onPress={() => onDelete(r.reviewId)}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#d11' }}>삭제</Text>
+                </Pressable>
               </View>
             ) : null}
           </View>
