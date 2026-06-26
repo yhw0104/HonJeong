@@ -110,6 +110,53 @@ class ReviewRepositoryTest extends AbstractPostgresTest {
         assertThat(reviewRepository.countTagsByPlace(emptyPlace.getId())).isEmpty();
     }
 
+    @Test
+    @DisplayName("update + replaceTags: 별점·본문 갱신과 태그 전량 교체가 영속화(기존 태그 orphan 삭제)")
+    void update_and_replaceTags_persist() {
+        User u = persistUser("01000000010", "수정러");
+        Place p = persistPlace("ext-upd");
+        Review r = Review.create(u, null, p, NOW, 5, 5, "old");
+        r.addTag(p, "1인석 많음");
+        em.persist(r);
+        em.flush();
+        em.clear();
+
+        Review loaded = reviewRepository.findById(r.getId()).orElseThrow();
+        loaded.update(3, 2, "new");
+        loaded.replaceTags(java.util.List.of("바테이블"));
+        reviewRepository.saveAndFlush(loaded);
+        em.clear();
+
+        Review after = reviewRepository.findByPlaceWithUserAndTags(p.getId()).get(0);
+        assertThat(after.getTasteRating()).isEqualTo(3);
+        assertThat(after.getSoloFriendlyRating()).isEqualTo(2);
+        assertThat(after.getContent()).isEqualTo("new");
+        assertThat(after.getTags()).extracting("tag").containsExactly("바테이블");
+    }
+
+    @Test
+    @DisplayName("delete: 리뷰 삭제 시 태그 cascade 삭제 + 체크인 슬롯 해제(existsByCheckIn=false)")
+    void delete_cascadesTags_freesCheckInSlot() {
+        User u = persistUser("01000000011", "삭제러");
+        Place p = persistPlace("ext-del");
+        CheckIn ci = persistCheckIn(u, p);
+        Review r = Review.create(u, ci, p, NOW, 5, 5, "x");
+        r.addTag(p, "1인석 많음");
+        em.persist(r);
+        em.flush();
+        em.clear();
+        Long ciId = ci.getId();
+        assertThat(reviewRepository.existsByCheckIn_Id(ciId)).isTrue();
+
+        Review loaded = reviewRepository.findById(r.getId()).orElseThrow();
+        reviewRepository.delete(loaded);
+        em.flush();
+        em.clear();
+
+        assertThat(reviewRepository.findByPlaceWithUserAndTags(p.getId())).isEmpty();
+        assertThat(reviewRepository.existsByCheckIn_Id(ciId)).isFalse();
+    }
+
     // --- helpers (MealRequestRepositoryTest와 동일 도메인 팩토리 사용) ---
     private User persistUser(String phone, String nickname) {
         User u = User.pending(phone, null);

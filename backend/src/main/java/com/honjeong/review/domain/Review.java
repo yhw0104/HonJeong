@@ -87,4 +87,19 @@ public class Review extends BaseTimeEntity {
     public List<ReviewTag> getTags() { return Collections.unmodifiableList(tags); }
     /** 인증 여부(연계 체크인 존재). */
     public boolean isAuthenticated() { return checkIn != null; }
+
+    /** 별점·본문 수정(태그는 {@link #replaceTags}로 별도 교체). place·checkIn·visitedAt은 불변. */
+    public void update(int tasteRating, int soloFriendlyRating, String content) {
+        this.tasteRating = (short) tasteRating;
+        this.soloFriendlyRating = (short) soloFriendlyRating;
+        this.content = content;
+    }
+
+    /** 친화 태그 전량 교체(기존 태그는 orphanRemoval로 삭제). null이면 빈 목록. */
+    public void replaceTags(List<String> tags) {
+        this.tags.clear();
+        if (tags != null) {
+            tags.forEach(tag -> this.tags.add(new ReviewTag(this, this.place, tag)));
+        }
+    }
 }
