@@ -5,7 +5,8 @@ import { Alert, View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 
 import { Screen } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
-import { useCreateReview } from '@/features/review/queries';
+import { useCreateReview, useUpdateReview } from '@/features/review/queries';
+import { buildReviewBody } from '@/features/review/reviewEdit';
 import { reviewErrorMessage } from '@/features/review/reviewCopy';
 
 const FRIENDLY = ['1인석 많음', '바테이블', '칸막이', '눈치 없음', '오래 OK'];
@@ -23,27 +24,29 @@ function Stars({ value, onChange }: { value: number; onChange: (v: number) => vo
 }
 
 export function DiningLogWriteScreen({ navigation, route }: RootStackScreenProps<'DiningLogWrite'>) {
-  const { placeId, placeName, checkInId } = route.params;
+  const { placeId, placeName, checkInId, reviewId, initial } = route.params;
+  const isEdit = reviewId != null;
   const createMut = useCreateReview();
-  const [taste, setTaste] = useState(0);
-  const [honbab, setHonbab] = useState(0);
-  const [tags, setTags] = useState<string[]>([]);
-  const [body, setBody] = useState('');
+  const updateMut = useUpdateReview();
+  const [taste, setTaste] = useState(initial?.taste ?? 0);
+  const [honbab, setHonbab] = useState(initial?.honbab ?? 0);
+  const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
+  const [body, setBody] = useState(initial?.content ?? '');
 
-  const canSave = taste >= 1 && honbab >= 1 && !createMut.isPending;
+  const canSave = taste >= 1 && honbab >= 1 && !createMut.isPending && !updateMut.isPending;
 
   const toggleTag = (t: string) => setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
 
   const onSave = () => {
     if (!canSave) return;
-    createMut.mutate(
-      { placeId, checkInId, tasteRating: taste, soloFriendlyRating: honbab,
-        content: body.trim() || undefined, tags },
-      {
-        onSuccess: () => navigation.goBack(),
-        onError: (e) => Alert.alert('저장 실패', reviewErrorMessage(e)),
-      },
-    );
+    const reviewBody = buildReviewBody({ taste, honbab, tags, body });
+    const onSuccess = () => navigation.goBack();
+    const onError = (e: unknown) => Alert.alert('저장 실패', reviewErrorMessage(e));
+    if (isEdit) {
+      updateMut.mutate({ reviewId: reviewId!, body: reviewBody }, { onSuccess, onError });
+    } else {
+      createMut.mutate({ placeId, checkInId, ...reviewBody }, { onSuccess, onError });
+    }
   };
 
   return (
@@ -60,7 +63,7 @@ export function DiningLogWriteScreen({ navigation, route }: RootStackScreenProps
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {/* 타이틀 */}
-        <Text style={styles.h1}>오늘의 혼밥 기록</Text>
+        <Text style={styles.h1}>{isEdit ? '리뷰 수정' : '오늘의 혼밥 기록'}</Text>
 
         {/* 장소 */}
         <View style={styles.placeRow}>

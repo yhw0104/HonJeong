@@ -17,7 +17,13 @@ export type RootStackParamList = {
   MateProfile: { name?: string } | undefined;
   ReceivedRequests: undefined;
   DiningHistory: undefined;
-  DiningLogWrite: { placeId: number; placeName: string; checkInId?: number };
+  DiningLogWrite: {
+    placeId: number;
+    placeName: string;
+    checkInId?: number;
+    reviewId?: number;
+    initial?: { taste: number; honbab: number; tags: string[]; content: string };
+  };
   ChallengeBadges: undefined;
   MyProfile: undefined;
   ProfileEdit: undefined;
