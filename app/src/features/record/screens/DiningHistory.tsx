@@ -1,14 +1,21 @@
 // DiningHistory — 내 혼밥 기록 (원본: screens/DiningHistory.jsx)
 // 더보기 '내 혼밥 기록'에서 진입. 요약 통계 + 월별 기록(일기 없는 방문은 '일기 쓰기'→DiningLogWrite).
 import React from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { Screen, MoreHeader, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
-import { useDiningHistory } from '@/features/review/queries';
+import { useDiningHistory, useDeleteReview } from '@/features/review/queries';
 
 export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'DiningHistory'>) {
   const { data, isLoading, isError } = useDiningHistory();
+  const delMut = useDeleteReview();
+
+  const confirmDelete = (reviewId: number) =>
+    Alert.alert('리뷰 삭제', '이 리뷰를 삭제할까요? 되돌릴 수 없어요.', [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: () => delMut.mutate(reviewId) },
+    ]);
 
   const groups = groupByMonth(data?.entries ?? []);
   const summary = data?.summary;
@@ -114,6 +121,30 @@ export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'Dining
                           <Text style={styles.honbabText}>혼밥 ★ {e.review.soloFriendlyRating.toFixed(1)}</Text>
                         </View>
                       </View>
+                      <View style={styles.actionRow}>
+                        <Pressable
+                          hitSlop={6}
+                          onPress={() =>
+                            navigation.navigate('DiningLogWrite', {
+                              placeId: e.placeId,
+                              placeName: e.placeName,
+                              checkInId: e.checkInId,
+                              reviewId: e.review!.reviewId,
+                              initial: {
+                                taste: e.review!.tasteRating,
+                                honbab: e.review!.soloFriendlyRating,
+                                tags: e.review!.tags,
+                                content: e.review!.content ?? '',
+                              },
+                            })
+                          }
+                        >
+                          <Text style={styles.actionEdit}>수정</Text>
+                        </Pressable>
+                        <Pressable hitSlop={6} onPress={() => confirmDelete(e.review!.reviewId)}>
+                          <Text style={styles.actionDelete}>삭제</Text>
+                        </Pressable>
+                      </View>
                     </View>
                   </Pressable>
                 );
@@ -187,4 +218,8 @@ const styles = StyleSheet.create({
   emptyMeta: { fontSize: 12, color: T2.textMute, marginTop: 4, letterSpacing: -0.2 },
   writeChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: T2.brandSoft },
   writeChipText: { fontSize: 12, fontWeight: '700', color: T2.brand, letterSpacing: -0.2 },
+
+  actionRow: { flexDirection: 'row', gap: 16, marginTop: 10 },
+  actionEdit: { fontSize: 12, fontWeight: '700', color: T2.textSub },
+  actionDelete: { fontSize: 12, fontWeight: '700', color: '#d11' },
 });
