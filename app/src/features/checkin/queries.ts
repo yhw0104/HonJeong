@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Coord } from '@/shared/location/pickLocation';
+import { LIVE_REFETCH_MS } from '@/shared/realtime';
 import {
   fetchMyCheckIn, startCheckIn, endCheckIn, fetchStats, fetchMap, fetchActiveDiners,
 } from './api';
@@ -8,19 +9,22 @@ import { startCheckInWithRecovery } from './recovery';
 export function useMyCheckIn() {
   return useQuery({ queryKey: ['checkin', 'me'], queryFn: fetchMyCheckIn });
 }
+// 아래 3개는 다른 사용자의 실시간 혼밥 현황 → refetchInterval로 주기 폴링한다.
 export function useStats() {
-  return useQuery({ queryKey: ['checkin', 'stats'], queryFn: fetchStats });
+  return useQuery({ queryKey: ['checkin', 'stats'], queryFn: fetchStats, refetchInterval: LIVE_REFETCH_MS });
 }
 export function useMap(coord: Coord, radius = 1000) {
   return useQuery({
     queryKey: ['map', { lat: coord.lat, lng: coord.lng, radius }],
     queryFn: () => fetchMap(coord.lat, coord.lng, radius),
+    refetchInterval: LIVE_REFETCH_MS,
   });
 }
 export function useActiveDiners(placeId: number) {
   return useQuery({
     queryKey: ['place', placeId, 'diners'],
     queryFn: () => fetchActiveDiners(placeId),
+    refetchInterval: LIVE_REFETCH_MS,
   });
 }
 
