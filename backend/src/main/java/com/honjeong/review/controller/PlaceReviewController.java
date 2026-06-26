@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.web.bind.annotation.*;
 
 import com.honjeong.global.common.ApiResponse;
+import com.honjeong.global.security.CurrentUserId;
 import com.honjeong.review.dto.PlaceReviewResponse;
 import com.honjeong.review.dto.PlaceReviewSummaryResponse;
 import com.honjeong.review.service.ReviewService;
@@ -20,8 +21,8 @@ public class PlaceReviewController {
     }
 
     @GetMapping("/{placeId}/reviews")
-    public ApiResponse<List<PlaceReviewResponse>> reviews(@PathVariable Long placeId) {
-        return ApiResponse.success(reviewService.getPlaceReviews(placeId));
+    public ApiResponse<List<PlaceReviewResponse>> reviews(@CurrentUserId Long userId, @PathVariable Long placeId) {
+        return ApiResponse.success(reviewService.getPlaceReviews(placeId, userId));
     }
 
     @GetMapping("/{placeId}/review-summary")

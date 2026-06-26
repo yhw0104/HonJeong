@@ -73,9 +73,9 @@ public class ReviewService {
     }
 
     @Transactional(readOnly = true)
-    public List<PlaceReviewResponse> getPlaceReviews(Long placeId) {
+    public List<PlaceReviewResponse> getPlaceReviews(Long placeId, Long currentUserId) {
         return reviewRepository.findByPlaceWithUserAndTags(placeId).stream()
-                .map(PlaceReviewResponse::from)
+                .map(r -> PlaceReviewResponse.from(r, currentUserId))
                 .toList();
     }
 

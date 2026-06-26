@@ -30,18 +30,18 @@ class PlaceReviewControllerTest {
     @MockitoBean private ReviewService reviewService;
 
     @Test
-    @DisplayName("GET /api/places/{id}/reviews: 200 + 목록")
+    @DisplayName("GET /api/places/{id}/reviews: 200 + 목록 + mine")
     void list_200() throws Exception {
-        when(reviewService.getPlaceReviews(3L)).thenReturn(List.of(
+        when(reviewService.getPlaceReviews(3L, 1L)).thenReturn(List.of(
                 new PlaceReviewResponse(42L, new PlaceReviewResponse.Author("연남러"),
-                        LocalDateTime.of(2026, 6, 25, 12, 0), "편히", 5, 4, List.of("1인석 많음"), true)));
+                        LocalDateTime.of(2026, 6, 25, 12, 0), "편히", 5, 4, List.of("1인석 많음"), true, true)));
 
         mockMvc.perform(get("/api/places/3/reviews")
                         .header("Authorization", "Bearer " + jwtProvider.createAccessToken(1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].reviewId").value(42))
                 .andExpect(jsonPath("$.data[0].user.nickname").value("연남러"))
-                .andExpect(jsonPath("$.data[0].tags[0]").value("1인석 많음"))
-                .andExpect(jsonPath("$.data[0].authenticated").value(true));
+                .andExpect(jsonPath("$.data[0].authenticated").value(true))
+                .andExpect(jsonPath("$.data[0].mine").value(true));
     }
 }
