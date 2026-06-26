@@ -232,5 +232,64 @@ class ReviewServiceTest {
         assertThat(res.entries().get(1).review()).isNull();                  // c2 none
     }
 
+    @Test
+    @DisplayName("수정: 소유자면 별점·본문·태그 전량 교체")
+    void update_byOwner() {
+        User owner = mock(User.class);
+        when(owner.getId()).thenReturn(1L);
+        Place p = place(3L);
+        Review review = Review.create(owner, null, p, LocalDateTime.of(2026, 6, 25, 12, 0), 5, 5, "old");
+        review.addTag(p, "1인석 많음");
+        when(reviewRepository.findById(42L)).thenReturn(Optional.of(review));
+
+        ReviewResponse res = service.updateReview(1L, 42L,
+                new com.honjeong.review.dto.ReviewUpdateRequest(4, 3, "new", List.of("바테이블", "오래 OK")));
+
+        assertThat(review.getTasteRating()).isEqualTo(4);
+        assertThat(review.getSoloFriendlyRating()).isEqualTo(3);
+        assertThat(review.getContent()).isEqualTo("new");
+        assertThat(review.getTags()).extracting("tag").containsExactly("바테이블", "오래 OK");
+        assertThat(res.authenticated()).isFalse();
+    }
+
+    @Test
+    @DisplayName("수정: 타인 리뷰면 FORBIDDEN")
+    void update_byNonOwner_forbidden() {
+        User owner = mock(User.class);
+        when(owner.getId()).thenReturn(99L);
+        Review review = Review.create(owner, null, place(3L), LocalDateTime.of(2026, 6, 25, 12, 0), 5, 5, "x");
+        when(reviewRepository.findById(42L)).thenReturn(Optional.of(review));
+
+        assertThatThrownBy(() -> service.updateReview(1L, 42L,
+                new com.honjeong.review.dto.ReviewUpdateRequest(4, 4, null, List.of())))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    @DisplayName("수정: 리뷰 없으면 REVIEW_NOT_FOUND")
+    void update_notFound() {
+        when(reviewRepository.findById(42L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.updateReview(1L, 42L,
+                new com.honjeong.review.dto.ReviewUpdateRequest(4, 4, null, List.of())))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.REVIEW_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("수정: 미허용 태그면 INVALID_INPUT")
+    void update_invalidTag() {
+        User owner = mock(User.class);
+        when(owner.getId()).thenReturn(1L);
+        Review review = Review.create(owner, null, place(3L), LocalDateTime.of(2026, 6, 25, 12, 0), 5, 5, "x");
+        when(reviewRepository.findById(42L)).thenReturn(Optional.of(review));
+
+        assertThatThrownBy(() -> service.updateReview(1L, 42L,
+                new com.honjeong.review.dto.ReviewUpdateRequest(4, 4, null, List.of("우주최고"))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT));
+    }
+
     private static Long eqL(long v) { return org.mockito.ArgumentMatchers.eq(v); }
 }

@@ -25,6 +25,7 @@ import com.honjeong.review.dto.PlaceReviewResponse;
 import com.honjeong.review.dto.PlaceReviewSummaryResponse;
 import com.honjeong.review.dto.ReviewCreateRequest;
 import com.honjeong.review.dto.ReviewResponse;
+import com.honjeong.review.dto.ReviewUpdateRequest;
 import com.honjeong.review.repository.ReviewRepository;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
@@ -105,6 +106,23 @@ public class ReviewService {
         } catch (DataIntegrityViolationException e) {   // 동시 작성 경쟁 → 부분 유니크 위반
             throw new BusinessException(ErrorCode.REVIEW_DUPLICATE_CHECKIN);
         }
+    }
+
+    /**
+     * 리뷰를 수정한다. 본인만(아니면 403), 없으면 404. 별점·본문 갱신 + 태그 전량 교체.
+     * place·checkIn·visitedAt은 불변(인증 무결성 유지).
+     */
+    @Transactional
+    public ReviewResponse updateReview(Long userId, Long reviewId, ReviewUpdateRequest req) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REVIEW_NOT_FOUND));
+        if (!review.isOwnedBy(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        validateTags(req.tags());
+        review.update(req.tasteRating(), req.soloFriendlyRating(), req.content());
+        review.replaceTags(req.tags());
+        return ReviewResponse.from(review);
     }
 
     private void validateTags(List<String> tags) {

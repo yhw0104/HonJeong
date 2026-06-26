@@ -88,6 +88,11 @@ public class Review extends BaseTimeEntity {
     /** 인증 여부(연계 체크인 존재). */
     public boolean isAuthenticated() { return checkIn != null; }
 
+    /** 이 리뷰가 주어진 사용자 소유인지. */
+    public boolean isOwnedBy(Long userId) {
+        return user.getId().equals(userId);
+    }
+
     /** 별점·본문 수정(태그는 {@link #replaceTags}로 별도 교체). place·checkIn·visitedAt은 불변. */
     public void update(int tasteRating, int soloFriendlyRating, String content) {
         this.tasteRating = (short) tasteRating;
