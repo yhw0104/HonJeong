@@ -4,6 +4,7 @@ import java.util.List;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -15,5 +16,5 @@ public record ReviewCreateRequest(
         @NotNull @Min(1) @Max(5) Integer soloFriendlyRating,
         @Size(max = 1000) String content,
         List<String> tags,
-        @Size(max = 5) List<String> imageUrls) {
+        @Size(max = 5) List<@NotBlank String> imageUrls) {
 }
