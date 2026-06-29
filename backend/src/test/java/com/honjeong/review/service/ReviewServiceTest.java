@@ -18,6 +18,8 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import org.mockito.ArgumentCaptor;
+
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.exception.BusinessException;
@@ -25,6 +27,7 @@ import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.service.PlaceService;
 import com.honjeong.review.domain.Review;
+import com.honjeong.review.domain.ReviewPhoto;
 import com.honjeong.review.dto.PlaceReviewSummaryResponse;
 import com.honjeong.review.dto.ReviewCreateRequest;
 import com.honjeong.review.dto.ReviewResponse;
@@ -49,7 +52,7 @@ class ReviewServiceTest {
     }
 
     private ReviewCreateRequest req(Long checkInId, List<String> tags) {
-        return new ReviewCreateRequest(3L, checkInId, 5, 4, "편히 먹었다", tags);
+        return new ReviewCreateRequest(3L, checkInId, 5, 4, "편히 먹었다", tags, null);
     }
 
     @Test
@@ -245,7 +248,7 @@ class ReviewServiceTest {
         when(reviewRepository.findById(42L)).thenReturn(Optional.of(review));
 
         ReviewResponse res = service.updateReview(1L, 42L,
-                new com.honjeong.review.dto.ReviewUpdateRequest(4, 3, "new", List.of("바테이블", "오래 OK")));
+                new com.honjeong.review.dto.ReviewUpdateRequest(4, 3, "new", List.of("바테이블", "오래 OK"), null));
 
         assertThat(review.getTasteRating()).isEqualTo(4);
         assertThat(review.getSoloFriendlyRating()).isEqualTo(3);
@@ -263,7 +266,7 @@ class ReviewServiceTest {
         when(reviewRepository.findById(42L)).thenReturn(Optional.of(review));
 
         assertThatThrownBy(() -> service.updateReview(1L, 42L,
-                new com.honjeong.review.dto.ReviewUpdateRequest(4, 4, null, List.of())))
+                new com.honjeong.review.dto.ReviewUpdateRequest(4, 4, null, List.of(), null)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
     }
@@ -274,7 +277,7 @@ class ReviewServiceTest {
         when(reviewRepository.findById(42L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.updateReview(1L, 42L,
-                new com.honjeong.review.dto.ReviewUpdateRequest(4, 4, null, List.of())))
+                new com.honjeong.review.dto.ReviewUpdateRequest(4, 4, null, List.of(), null)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.REVIEW_NOT_FOUND));
     }
@@ -288,7 +291,7 @@ class ReviewServiceTest {
         when(reviewRepository.findById(42L)).thenReturn(Optional.of(review));
 
         assertThatThrownBy(() -> service.updateReview(1L, 42L,
-                new com.honjeong.review.dto.ReviewUpdateRequest(4, 4, null, List.of("우주최고"))))
+                new com.honjeong.review.dto.ReviewUpdateRequest(4, 4, null, List.of("우주최고"), null)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT));
     }
@@ -328,6 +331,27 @@ class ReviewServiceTest {
         assertThatThrownBy(() -> service.deleteReview(1L, 42L))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.REVIEW_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("createReview: imageUrls를 리뷰 사진으로 저장한다")
+    void createReview_savesPhotos() {
+        // given: 기존 createReview happy-path 테스트와 동일 셋업(place·user·checkIn mock)
+        Place p = place(3L);
+        when(placeService.getById(3L)).thenReturn(p);
+        when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
+        when(checkInRepository.findRecentForReview(eqL(1L), eqL(3L), any())).thenReturn(Optional.empty());
+        when(reviewRepository.saveAndFlush(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ReviewCreateRequest req = new ReviewCreateRequest(
+                3L, null, 5, 4, "좋아요", List.of(), List.of("url1", "url2"));
+
+        service.createReview(1L, req);
+
+        ArgumentCaptor<Review> captor = ArgumentCaptor.forClass(Review.class);
+        verify(reviewRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getPhotos()).extracting(ReviewPhoto::getImageUrl)
+                .containsExactly("url1", "url2");
     }
 
     private static Long eqL(long v) { return org.mockito.ArgumentMatchers.eq(v); }

@@ -101,6 +101,7 @@ public class ReviewService {
         if (req.tags() != null) {
             req.tags().forEach(tag -> review.addTag(place, tag));
         }
+        review.replacePhotos(req.imageUrls());
         try {
             return ReviewResponse.from(reviewRepository.saveAndFlush(review));
         } catch (DataIntegrityViolationException e) {   // 동시 작성 경쟁 → 부분 유니크 위반
@@ -122,6 +123,7 @@ public class ReviewService {
         validateTags(req.tags());
         review.update(req.tasteRating(), req.soloFriendlyRating(), req.content());
         review.replaceTags(req.tags());
+        review.replacePhotos(req.imageUrls());
         return ReviewResponse.from(review);
     }
 

@@ -146,4 +146,16 @@ class ReviewControllerTest {
         mockMvc.perform(delete("/api/reviews/42"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    @DisplayName("POST /api/reviews: imageUrls 6장이면 400")
+    void createReview_tooManyPhotos_400() throws Exception {
+        String body = """
+            {"placeId":1,"tasteRating":5,"soloFriendlyRating":4,
+             "imageUrls":["a","b","c","d","e","f"]}
+            """;
+        mockMvc.perform(post("/api/reviews").header("Authorization", userToken())
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isBadRequest());
+    }
 }
