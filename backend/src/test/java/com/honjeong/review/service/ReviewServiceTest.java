@@ -429,5 +429,62 @@ class ReviewServiceTest {
         return r;
     }
 
+    @Test
+    @DisplayName("수정: imageUrls를 기존과 동일하게 전달하면 사진이 보존된다(replacePhotos echo)")
+    void updateReview_preservesPhotos() {
+        User owner = mock(User.class);
+        when(owner.getId()).thenReturn(1L);
+        Place p = place(3L);
+        Review review = Review.create(owner, null, p, LocalDateTime.of(2026, 6, 25, 12, 0), 5, 5, "old");
+        review.replacePhotos(List.of("url1", "url2"));
+        when(reviewRepository.findById(42L)).thenReturn(Optional.of(review));
+
+        service.updateReview(1L, 42L,
+                new com.honjeong.review.dto.ReviewUpdateRequest(4, 3, "new", List.of(), List.of("url1", "url2")));
+
+        assertThat(review.getPhotos()).extracting(ReviewPhoto::getImageUrl)
+                .containsExactly("url1", "url2");
+    }
+
+    @Test
+    @DisplayName("타임라인: 사진 있는 리뷰의 imageUrls가 ReviewBrief에 포함된다")
+    void getDiningHistory_returnsImageUrls() {
+        // given: helpers built before when() to avoid Mockito nested-stubbing pitfall
+        Place p3 = place(3L);
+        when(p3.getName()).thenReturn("큰순두부");
+
+        CheckIn c1 = mock(CheckIn.class);
+        when(c1.getId()).thenReturn(10L);
+        when(c1.getPlace()).thenReturn(p3);
+        when(c1.getStartedAt()).thenReturn(LocalDateTime.of(2026, 6, 25, 11, 0));
+        when(c1.getStatus()).thenReturn(com.honjeong.checkin.domain.CheckInStatus.ENDED);
+
+        ReviewPhoto photo = mock(ReviewPhoto.class);
+        when(photo.getImageUrl()).thenReturn("https://example.com/photo.jpg");
+
+        Review r1 = mock(Review.class);
+        when(r1.getId()).thenReturn(42L);
+        when(r1.getCheckIn()).thenReturn(c1);
+        when(r1.getContent()).thenReturn("편히");
+        when(r1.getTasteRating()).thenReturn(5);
+        when(r1.getSoloFriendlyRating()).thenReturn(4);
+        when(r1.getTags()).thenReturn(List.of());
+        when(r1.getPhotos()).thenReturn(List.of(photo));
+
+        when(checkInRepository.findHistoryWithPlaceByUser(1L)).thenReturn(List.of(c1));
+        when(reviewRepository.findByUserWithCheckIn(1L)).thenReturn(List.of(r1));
+        when(checkInRepository.countByUser_Id(1L)).thenReturn(1L);
+        when(reviewRepository.countByUser_Id(1L)).thenReturn(1L);
+        when(checkInRepository.countDistinctPlacesByUser(1L)).thenReturn(1L);
+        when(checkInRepository.countByUserSince(org.mockito.ArgumentMatchers.eq(1L), any())).thenReturn(1L);
+
+        // when
+        var res = service.getDiningHistory(1L);
+
+        // then
+        assertThat(res.entries().get(0).review().imageUrls())
+                .containsExactly("https://example.com/photo.jpg");
+    }
+
     private static Long eqL(long v) { return org.mockito.ArgumentMatchers.eq(v); }
 }

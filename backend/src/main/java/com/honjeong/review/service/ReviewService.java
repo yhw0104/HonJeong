@@ -20,6 +20,7 @@ import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.service.PlaceService;
 import com.honjeong.review.domain.Review;
+import com.honjeong.review.domain.ReviewPhoto;
 import com.honjeong.review.domain.SoloFriendlyTags;
 import com.honjeong.review.dto.DiningHistoryResponse;
 import com.honjeong.review.dto.PlacePhotoResponse;
@@ -200,7 +201,8 @@ public class ReviewService {
                     DiningHistoryResponse.ReviewBrief brief = r == null ? null
                             : new DiningHistoryResponse.ReviewBrief(r.getId(), r.getContent(),
                                     r.getTasteRating(), r.getSoloFriendlyRating(),
-                                    r.getTags().stream().map(t -> t.getTag()).toList());
+                                    r.getTags().stream().map(t -> t.getTag()).toList(),
+                                    r.getPhotos().stream().map(ReviewPhoto::getImageUrl).toList());
                     return new DiningHistoryResponse.Entry(c.getId(), c.getPlace().getId(),
                             c.getPlace().getName(), c.getStartedAt(), c.getStatus().name(), brief);
                 })

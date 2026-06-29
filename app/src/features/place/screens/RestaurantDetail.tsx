@@ -114,7 +114,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
       placeId,
       placeName: name,
       reviewId: r.reviewId,
-      initial: { taste: r.tasteRating, honbab: r.soloFriendlyRating, tags: r.tags, content: r.content ?? '' },
+      initial: { taste: r.tasteRating, honbab: r.soloFriendlyRating, tags: r.tags, content: r.content ?? '', photos: r.imageUrls },
     });
 
   const copy = () => {

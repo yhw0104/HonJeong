@@ -60,6 +60,7 @@ export type DiningHistory = {
       tasteRating: number;
       soloFriendlyRating: number;
       tags: string[];
+      imageUrls: string[];
     } | null;
   }[];
 };

@@ -11,5 +11,5 @@ public record DiningHistoryResponse(Summary summary, List<Entry> entries) {
             String status, ReviewBrief review) {}
 
     public record ReviewBrief(Long reviewId, String content, int tasteRating, int soloFriendlyRating,
-            List<String> tags) {}
+            List<String> tags, List<String> imageUrls) {}
 }

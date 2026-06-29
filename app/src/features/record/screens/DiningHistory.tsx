@@ -135,6 +135,7 @@ export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'Dining
                                 honbab: e.review!.soloFriendlyRating,
                                 tags: e.review!.tags,
                                 content: e.review!.content ?? '',
+                                photos: e.review!.imageUrls,
                               },
                             })
                           }
