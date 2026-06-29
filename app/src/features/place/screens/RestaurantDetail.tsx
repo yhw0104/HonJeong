@@ -2,7 +2,7 @@
 // 풀블리드 히어로 + 플로팅 헤더 + 6탭(홈/메뉴/리뷰/사진/메이트/주변) + 하단 고정 CTA.
 // 원본의 하단 MinTabBar는 제거(상세는 탭 위로 push되는 풀스크린이라 뒤로가기로 복귀).
 import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Alert, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H } from '@/shared/components';
 import { T2 } from '@/shared/theme';
@@ -11,7 +11,7 @@ import { useActiveDiners, useMyCheckIn, useStartCheckIn, useEndCheckIn } from '@
 import type { ActiveDiner } from '@/features/checkin/api';
 import { formatElapsed } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
-import { usePlaceReviews, usePlaceReviewSummary, useDeleteReview } from '@/features/review/queries';
+import { usePlaceReviews, usePlaceReviewSummary, useDeleteReview, usePlacePhotos } from '@/features/review/queries';
 import type { PlaceReview, PlaceReviewSummary } from '@/features/review/api';
 
 type Tab = 'home' | 'menu' | 'review' | 'photo' | 'mate' | 'nearby';
@@ -196,7 +196,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
               onDelete={confirmDelete}
             />
           )}
-          {stab === 'photo' && <PhotoTab />}
+          {stab === 'photo' && <PhotoTab placeId={placeId} />}
           {stab === 'mate' && <MateTab onMeal={goMealRequest} />}
           {stab === 'nearby' && <NearbyTab />}
         </View>
@@ -435,6 +435,13 @@ function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete }: {
               {r.authenticated ? <Text style={{ fontSize: 11, color: T2.brand }}>✔ 인증</Text> : null}
             </View>
             {r.content ? <Text style={{ marginTop: 6, color: T2.textSub, lineHeight: 20 }}>{r.content}</Text> : null}
+            {(r.imageUrls?.length ?? 0) > 0 && (
+              <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                {r.imageUrls!.slice(0, 5).map((uri, i) => (
+                  <Image key={`${uri}-${i}`} source={{ uri }} style={{ width: 64, height: 64, borderRadius: 8 }} />
+                ))}
+              </View>
+            )}
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
               <View style={styles.tasteChip}><Text style={styles.tasteText}>맛 ★ {r.tasteRating.toFixed(1)}</Text></View>
               <View style={styles.honbabChip}><Text style={styles.honbabText}>혼밥 ★ {r.soloFriendlyRating.toFixed(1)}</Text></View>
@@ -462,11 +469,15 @@ function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete }: {
 }
 
 /* ── 사진 탭 ─────────────────────────────────────── */
-function PhotoTab() {
+function PhotoTab({ placeId }: { placeId: number }) {
+  const photos = usePlacePhotos(placeId);
+  if (photos.isLoading) return <Text style={styles.tabEmpty}>불러오는 중…</Text>;
+  const items = photos.data ?? [];
+  if (items.length === 0) return <Text style={styles.tabEmpty}>아직 사진이 없어요</Text>;
   return (
     <View style={styles.photoGrid}>
-      {Array.from({ length: 9 }).map((_, i) => (
-        <ImagePlaceholder key={i} w={GRID_W} h={GRID_W} radius={10} />
+      {items.map((p, i) => (
+        <Image key={`${p.photoUrl}-${i}`} source={{ uri: p.photoUrl }} style={{ width: GRID_W, height: GRID_W, borderRadius: 10 }} />
       ))}
     </View>
   );
@@ -744,6 +755,7 @@ const styles = StyleSheet.create({
   reviewDivider: { borderBottomWidth: 1, borderBottomColor: T2.border },
 
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  tabEmpty: { textAlign: 'center', color: T2.textMute, fontSize: 13, paddingVertical: 32 },
 
   // 메이트 탭
   mateSummary: { marginTop: 18, padding: 16, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border, flexDirection: 'row', alignItems: 'center', gap: 13 },
