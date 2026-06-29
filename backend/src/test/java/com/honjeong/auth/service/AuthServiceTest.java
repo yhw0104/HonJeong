@@ -25,6 +25,7 @@ import com.honjeong.auth.domain.TermsAgreement;
 import com.honjeong.auth.repository.PhoneVerificationRepository;
 import com.honjeong.auth.repository.SocialAccountRepository;
 import com.honjeong.auth.repository.TermsAgreementRepository;
+import com.honjeong.favorite.service.FavoriteGroupService;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.security.JwtProvider;
 import com.honjeong.user.domain.User;
@@ -55,11 +56,12 @@ class AuthServiceTest {
     private final TokenService tokenService = mock(TokenService.class);
     private final JwtProvider jwtProvider = mock(JwtProvider.class);
     private final UserFoodPreferenceService userFoodPreferenceService = mock(UserFoodPreferenceService.class);
+    private final FavoriteGroupService favoriteGroupService = mock(FavoriteGroupService.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-12T00:00:00Z"), ZoneOffset.UTC);
 
     private final AuthService authService = new AuthService(userRepository, socialAccountRepository,
             phoneVerificationRepository, phoneAttemptRecorder, termsAgreementRepository, oAuthVerifier, smsSender,
-            codeGenerator, tokenService, jwtProvider, clock, userFoodPreferenceService);
+            codeGenerator, tokenService, jwtProvider, clock, userFoodPreferenceService, favoriteGroupService);
 
     /**
      * 테스트용 User를 만든다. active=true면 프로필을 채워 ACTIVE 상태로 만들고, 엔티티에는 보통 자동
@@ -274,5 +276,24 @@ class AuthServiceTest {
         authService.complete(1L, cmd);
 
         verify(userFoodPreferenceService).replaceFoods(1L, List.of("한식", "일식"));
+    }
+
+    /**
+     * complete 기본 즐겨찾기 그룹 생성 검증.
+     * given: PENDING 회원(id 1)이 조회되고, 닉네임 미사용 + 토큰 발급 모킹.
+     * when: 프로필 완료.
+     * then: favoriteGroupService.createDefaultGroup(1L)이 호출된다.
+     */
+    @Test
+    @DisplayName("complete: 프로필 확정 시 기본 즐겨찾기 그룹 생성")
+    void complete_createsDefaultFavoriteGroup() {
+        User user = userWithId(1L, PHONE, false);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.existsByNickname("닉네임")).thenReturn(false);
+        when(tokenService.issue(1L)).thenReturn(new TokenPair("a", "r", 3600));
+
+        authService.complete(1L, command("닉네임"));
+
+        verify(favoriteGroupService).createDefaultGroup(1L);
     }
 }

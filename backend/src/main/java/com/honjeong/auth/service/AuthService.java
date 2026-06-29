@@ -18,6 +18,7 @@ import com.honjeong.auth.repository.TermsAgreementRepository;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.global.security.JwtProvider;
+import com.honjeong.favorite.service.FavoriteGroupService;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 import com.honjeong.user.service.UserFoodPreferenceService;
@@ -56,6 +57,7 @@ public class AuthService {
     private final JwtProvider jwtProvider;                                   // 온보딩 토큰 발급
     private final Clock clock;                                               // 현재 시각 공급자(테스트 시 고정 주입)
     private final UserFoodPreferenceService foodPreferenceService;           // 선호 음식 upsert(가입 시 저장)
+    private final FavoriteGroupService favoriteGroupService;                 // 기본 즐겨찾기 그룹 생성
 
     /**
      * 인증에 필요한 저장소·외부 연동·토큰 발급기를 모두 주입받아 서비스를 구성한다.
@@ -66,7 +68,7 @@ public class AuthService {
             TermsAgreementRepository termsAgreementRepository,
             OAuthVerifier oAuthVerifier, SmsSender smsSender, VerificationCodeGenerator codeGenerator,
             TokenService tokenService, JwtProvider jwtProvider, Clock clock,
-            UserFoodPreferenceService foodPreferenceService) {
+            UserFoodPreferenceService foodPreferenceService, FavoriteGroupService favoriteGroupService) {
         this.userRepository = userRepository;
         this.socialAccountRepository = socialAccountRepository;
         this.phoneVerificationRepository = phoneVerificationRepository;
@@ -79,6 +81,7 @@ public class AuthService {
         this.jwtProvider = jwtProvider;
         this.clock = clock;
         this.foodPreferenceService = foodPreferenceService;
+        this.favoriteGroupService = favoriteGroupService;
     }
 
     /**
@@ -265,6 +268,7 @@ public class AuthService {
                 command.region(), command.regionLat(), command.regionLng(), command.diningStyle(),
                 command.profileImageUrl());
         foodPreferenceService.replaceFoods(userId, command.favoriteFoods()); // 선호 음식 저장(null이면 미변경)
+        favoriteGroupService.createDefaultGroup(userId); // 기본 즐겨찾기 그룹 생성(멱등)
         return tokenService.issue(userId); // 정식 토큰 발급
     }
 
