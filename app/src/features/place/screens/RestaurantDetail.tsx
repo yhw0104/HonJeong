@@ -11,7 +11,7 @@ import { usePlaceDetail, useNearby } from '@/features/place/queries';
 import { formatDistance, walkingMinutes } from '@/shared/location/distance';
 import { useActiveDiners, useMyCheckIn, useStartCheckIn, useEndCheckIn } from '@/features/checkin/queries';
 import type { ActiveDiner } from '@/features/checkin/api';
-import { formatElapsed } from '@/shared/format';
+import { formatElapsed, shortAddress } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { usePlaceReviews, usePlaceReviewSummary, useDeleteReview, usePlacePhotos } from '@/features/review/queries';
 import type { PlaceReview, PlaceReviewSummary } from '@/features/review/api';
@@ -81,6 +81,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const startMut = useStartCheckIn();
   const endMut = useEndCheckIn();
   const name = detail.data?.name ?? route.params.name ?? '식당';
+  const fullAddr = detail.data?.roadAddress ?? detail.data?.address ?? '주소 정보 없음';
   const honbabOn = myCheckIn.data?.status === 'ACTIVE' && myCheckIn.data.placeId === placeId;
   const reviews = usePlaceReviews(placeId);
   const summary = usePlaceReviewSummary(placeId);
@@ -137,8 +138,9 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
             <Icon name="pin" size={15} color={T2.textMute} />
             <Pressable style={styles.addrTap} onPress={() => setAddrExpanded((v) => !v)} hitSlop={4}>
               <Text style={styles.addr} numberOfLines={addrExpanded ? undefined : 1}>
-                {detail.data?.roadAddress ?? detail.data?.address ?? '주소 정보 없음'}
+                {addrExpanded ? fullAddr : shortAddress(fullAddr)}
               </Text>
+              <Icon name={addrExpanded ? 'chevronUp' : 'chevronDown'} size={14} color={T2.textMute} />
             </Pressable>
             <Pressable style={styles.copyBtn} onPress={copy}>
               <Icon name="copy" size={13} color={copied ? T2.brand : T2.textSub} />
@@ -717,8 +719,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 26, fontWeight: '800', color: T2.text, letterSpacing: -0.8, lineHeight: 30 },
 
   addrRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
-  addrTap: { flex: 1 },
-  addr: { fontSize: 13, color: T2.textSub, letterSpacing: -0.3, lineHeight: 18 },
+  addrTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  addr: { flexShrink: 1, fontSize: 13, color: T2.textSub, letterSpacing: -0.3, lineHeight: 18 },
   copyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
