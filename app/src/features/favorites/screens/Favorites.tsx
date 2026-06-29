@@ -115,10 +115,10 @@ export function FavoritesScreen({ navigation }: MainTabScreenProps<'Favorites'>)
 }
 
 function FavoritePlaceRow({ place, groupId }: { place: FavoritePlace; groupId: number }) {
-  const { coord } = useLocation();
+  const { coord, source } = useLocation();
   const remove = useRemovePlaceFromGroup(place.placeId);
   const dist =
-    coord != null
+    source !== 'default'
       ? formatDistance(distanceMeters({ lat: coord.lat, lng: coord.lng }, { lat: place.latitude, lng: place.longitude }))
       : null;
   return (
