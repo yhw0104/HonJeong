@@ -13,4 +13,9 @@ describe('buildReviewBody — 작성/수정 폼 상태를 요청 바디로', () 
   it('빈 본문은 content undefined', () => {
     expect(buildReviewBody({ taste: 4, honbab: 5, tags: [], body: '   ' }).content).toBeUndefined();
   });
+
+  it('photos를 imageUrls로 전달한다', () => {
+    const body = buildReviewBody({ taste: 5, honbab: 4, tags: [], body: '', photos: ['u1', 'u2'] });
+    expect(body.imageUrls).toEqual(['u1', 'u2']);
+  });
 });

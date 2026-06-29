@@ -39,7 +39,8 @@ export function DiningLogWriteScreen({ navigation, route }: RootStackScreenProps
 
   const onSave = () => {
     if (!canSave) return;
-    const reviewBody = buildReviewBody({ taste, honbab, tags, body });
+    // TODO(Task 8): photos: [] → 실제 업로드된 URL 상태로 교체
+    const reviewBody = buildReviewBody({ taste, honbab, tags, body, photos: [] });
     const onSuccess = () => navigation.goBack();
     const onError = (e: unknown) => Alert.alert('저장 실패', reviewErrorMessage(e));
     if (isEdit) {

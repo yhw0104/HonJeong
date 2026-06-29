@@ -7,6 +7,7 @@ export type CreateReviewBody = {
   soloFriendlyRating: number;
   content?: string;
   tags?: string[];
+  imageUrls?: string[];
 };
 
 export type UpdateReviewBody = {
@@ -14,6 +15,7 @@ export type UpdateReviewBody = {
   soloFriendlyRating: number;
   content?: string;
   tags?: string[];
+  imageUrls?: string[];
 };
 
 export type CreateReviewResult = {
@@ -33,6 +35,7 @@ export type PlaceReview = {
   tags: string[];
   authenticated: boolean;
   mine: boolean;
+  imageUrls: string[];
 };
 
 export type PlaceReviewSummary = {
@@ -75,3 +78,8 @@ export const fetchPlaceReviewSummary = (placeId: number) =>
   apiGet<PlaceReviewSummary>(`/places/${placeId}/review-summary`);
 
 export const fetchDiningHistory = () => apiGet<DiningHistory>('/users/me/dining-history');
+
+export type PlacePhoto = { photoUrl: string; reviewId: number };
+
+export const fetchPlacePhotos = (placeId: number) =>
+  apiGet<PlacePhoto[]>(`/places/${placeId}/photos`);

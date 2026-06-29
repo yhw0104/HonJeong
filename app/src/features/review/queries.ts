@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { createReview, updateReview, deleteReview, listPlaceReviews, fetchPlaceReviewSummary, fetchDiningHistory, type CreateReviewBody, type UpdateReviewBody } from './api';
+import { createReview, updateReview, deleteReview, listPlaceReviews, fetchPlaceReviewSummary, fetchDiningHistory, fetchPlacePhotos, type CreateReviewBody, type UpdateReviewBody } from './api';
 
 export function usePlaceReviews(placeId: number) {
   return useQuery({
@@ -52,5 +52,12 @@ export function useDeleteReview() {
       qc.invalidateQueries({ queryKey: ['place'] });
       qc.invalidateQueries({ queryKey: ['review', 'diningHistory'] });
     },
+  });
+}
+
+export function usePlacePhotos(placeId: number) {
+  return useQuery({
+    queryKey: ['place', placeId, 'photos'],
+    queryFn: () => fetchPlacePhotos(placeId),
   });
 }
