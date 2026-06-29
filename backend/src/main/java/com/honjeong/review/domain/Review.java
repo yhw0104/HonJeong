@@ -52,6 +52,10 @@ public class Review extends BaseTimeEntity {
     @OneToMany(mappedBy = "review", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ReviewTag> tags = new ArrayList<>();
 
+    @OneToMany(mappedBy = "review", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("sortOrder ASC")
+    private List<ReviewPhoto> photos = new ArrayList<>();
+
     protected Review() {}
 
     private Review(User user, CheckIn checkIn, Place place, LocalDateTime visitedAt,
@@ -106,5 +110,19 @@ public class Review extends BaseTimeEntity {
         if (tags != null) {
             tags.forEach(tag -> this.tags.add(new ReviewTag(this, this.place, tag)));
         }
+    }
+
+    /** 사진 전량 교체(기존 사진은 orphanRemoval로 삭제). null이면 빈 목록. sortOrder는 리스트 순서. */
+    public void replacePhotos(List<String> urls) {
+        this.photos.clear();
+        if (urls != null) {
+            for (int i = 0; i < urls.size(); i++) {
+                this.photos.add(new ReviewPhoto(this, urls.get(i), i));
+            }
+        }
+    }
+
+    public List<ReviewPhoto> getPhotos() {
+        return Collections.unmodifiableList(photos);
     }
 }

@@ -17,6 +17,7 @@ import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.global.config.JpaConfig;
 import com.honjeong.place.domain.Place;
 import com.honjeong.review.domain.Review;
+import com.honjeong.review.domain.ReviewPhoto;
 import com.honjeong.support.AbstractPostgresTest;
 import com.honjeong.user.domain.User;
 
@@ -155,6 +156,29 @@ class ReviewRepositoryTest extends AbstractPostgresTest {
 
         assertThat(reviewRepository.findByPlaceWithUserAndTags(p.getId())).isEmpty();
         assertThat(reviewRepository.existsByCheckIn_Id(ciId)).isFalse();
+    }
+
+    @Test
+    @DisplayName("replacePhotos: url 목록을 sortOrder 순서대로 저장하고, 재호출 시 전량 교체된다")
+    void replacePhotos_replacesAllInOrder() {
+        User user = persistUser("01000000020", "사진러");
+        Place place = persistPlace("ext-photo");
+        Review review = Review.create(user, null, place, NOW, 4, 4, "사진 테스트");
+        review.replacePhotos(List.of("u1", "u2", "u3"));
+        Review saved = reviewRepository.saveAndFlush(review);
+        em.clear();
+
+        Review reloaded = reviewRepository.findById(saved.getId()).orElseThrow();
+        assertThat(reloaded.getPhotos()).extracting(ReviewPhoto::getImageUrl)
+                .containsExactly("u1", "u2", "u3");
+        assertThat(reloaded.getPhotos()).extracting(ReviewPhoto::getSortOrder)
+                .containsExactly(0, 1, 2);
+
+        reloaded.replacePhotos(List.of("only"));
+        reviewRepository.saveAndFlush(reloaded);
+        em.clear();
+        Review again = reviewRepository.findById(saved.getId()).orElseThrow();
+        assertThat(again.getPhotos()).extracting(ReviewPhoto::getImageUrl).containsExactly("only");
     }
 
     // --- helpers (MealRequestRepositoryTest와 동일 도메인 팩토리 사용) ---

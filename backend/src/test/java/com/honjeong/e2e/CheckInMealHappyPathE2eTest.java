@@ -59,7 +59,7 @@ class CheckInMealHappyPathE2eTest extends AbstractPostgresTest {
     /** 이 테스트가 커밋한 행(check_ins·places·meal_requests 등)이 다른 테스트를 오염시키지 않도록 정리한다. */
     @AfterEach
     void cleanUp() {
-        jdbcTemplate.execute("TRUNCATE meal_requests, review_tags, reviews, check_ins, places RESTART IDENTITY");
+        jdbcTemplate.execute("TRUNCATE meal_requests, review_tags, review_photos, reviews, check_ins, places RESTART IDENTITY");
     }
 
     // Boot 4는 Jackson 3(tools.jackson)을 빈으로 등록하므로 Jackson 2 ObjectMapper 빈은 없다.
