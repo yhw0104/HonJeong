@@ -131,7 +131,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
     <View style={styles.root}>
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
         {/* 히어로 */}
-        <ImagePlaceholder w="100%" h={320} radius={0} tag="대표 사진 · 1/24" />
+        <HeroPhotos placeId={placeId} />
 
         <View style={styles.content}>
           {/* 카테고리 + 영업 */}
@@ -436,11 +436,16 @@ function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete }: {
             </View>
             {r.content ? <Text style={{ marginTop: 6, color: T2.textSub, lineHeight: 20 }}>{r.content}</Text> : null}
             {(r.imageUrls?.length ?? 0) > 0 && (
-              <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
-                {r.imageUrls!.slice(0, 5).map((uri, i) => (
-                  <Image key={`${uri}-${i}`} source={{ uri }} style={{ width: 64, height: 64, borderRadius: 8 }} />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={{ marginTop: 10, marginHorizontal: -2 }}
+                contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}
+              >
+                {r.imageUrls!.map((uri, idx) => (
+                  <Image key={`${uri}-${idx}`} source={{ uri }} style={{ width: 220, height: 220, borderRadius: 12 }} />
                 ))}
-              </View>
+              </ScrollView>
             )}
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
               <View style={styles.tasteChip}><Text style={styles.tasteText}>맛 ★ {r.tasteRating.toFixed(1)}</Text></View>
@@ -464,6 +469,36 @@ function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete }: {
           </View>
         ))
       )}
+    </View>
+  );
+}
+
+/* ── 히어로 대표사진 (리뷰 사진 캐러셀) ──────────────── */
+function HeroPhotos({ placeId }: { placeId: number }) {
+  const photos = usePlacePhotos(placeId);
+  const items = photos.data ?? [];
+  const [idx, setIdx] = useState(0);
+  const W = Dimensions.get('window').width;
+  if (items.length === 0) {
+    return <ImagePlaceholder w="100%" h={320} radius={0} tag="대표 사진" />;
+  }
+  return (
+    <View>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={(e) => setIdx(Math.round(e.nativeEvent.contentOffset.x / W))}
+      >
+        {items.map((p, i) => (
+          <Image key={`${p.photoUrl}-${i}`} source={{ uri: p.photoUrl }} style={{ width: W, height: 320 }} />
+        ))}
+      </ScrollView>
+      {items.length > 1 ? (
+        <View style={styles.heroCounter}>
+          <Text style={styles.heroCounterText}>{idx + 1} / {items.length}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -751,8 +786,10 @@ const styles = StyleSheet.create({
   writeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: T2.brand },
   writeText: { fontSize: 13, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
 
-  reviewCard: { paddingBottom: 18, marginBottom: 18 },
+  reviewCard: { paddingBottom: 22, marginBottom: 22 },
   reviewDivider: { borderBottomWidth: 1, borderBottomColor: T2.border },
+  heroCounter: { position: 'absolute', right: 12, bottom: 12, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  heroCounterText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   tabEmpty: { textAlign: 'center', color: T2.textMute, fontSize: 13, paddingVertical: 32 },

@@ -15,8 +15,11 @@ export function extractUploadedUrl(envelope: { success: boolean; data?: { url?: 
   return url;
 }
 
-/** 갤러리에서 최대 remaining장 선택. 권한 거부/취소 시 빈 배열. 반환은 로컬 uri 목록. */
-export async function pickImages(remaining: number): Promise<string[]> {
+/** 선택된 사진 한 장. assetId는 같은 사진 중복 추가를 막는 데 쓴다(기기에 따라 null일 수 있음). */
+export type PickedAsset = { uri: string; assetId: string | null };
+
+/** 갤러리에서 최대 remaining장 선택. 권한 거부/취소 시 빈 배열. 반환은 (uri, assetId) 목록. */
+export async function pickImages(remaining: number): Promise<PickedAsset[]> {
   if (remaining <= 0) return [];
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!perm.granted) return [];
@@ -27,7 +30,7 @@ export async function pickImages(remaining: number): Promise<string[]> {
     quality: 0.7,
   });
   if (result.canceled) return [];
-  return result.assets.map((a) => a.uri);
+  return result.assets.map((a) => ({ uri: a.uri, assetId: a.assetId ?? null }));
 }
 
 /**
