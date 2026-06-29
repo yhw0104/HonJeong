@@ -44,6 +44,10 @@ public enum ErrorCode {
     REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "리뷰를 찾을 수 없습니다."),
     REVIEW_DUPLICATE_CHECKIN(HttpStatus.CONFLICT, "이미 이 방문에 리뷰를 남겼어요."),
 
+    // 즐겨찾기
+    FAVORITE_GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "즐겨찾기 그룹을 찾을 수 없습니다."),
+    DEFAULT_GROUP_NOT_DELETABLE(HttpStatus.BAD_REQUEST, "기본 그룹은 삭제할 수 없습니다."),
+
     // 예기치 못한 서버 내부 오류(처리되지 않은 예외 → 500)
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
 
