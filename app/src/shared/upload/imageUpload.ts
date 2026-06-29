@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { API_BASE_URL } from '@/shared/config/api';
 import { getAccessToken } from '@/shared/auth/session';
 
@@ -29,24 +30,36 @@ export async function pickImages(remaining: number): Promise<string[]> {
   return result.assets.map((a) => a.uri);
 }
 
-/** 로컬 uri들을 POST /api/files(multipart)로 올려 접근 url 목록을 반환(순서 보존). */
+/**
+ * 로컬 uri들을 POST /api/files(multipart)로 올려 접근 url 목록을 반환(순서 보존).
+ *
+ * RN 0.85/Expo SDK 56의 fetch는 레거시 FormData 파일 파트({uri,name,type})를 지원하지 않으므로
+ * (ERR:unsupported FormData part implementation), expo-file-system의 uploadAsync(MULTIPART)로 올린다.
+ * fieldName='file'은 백엔드 @RequestParam("file")와 일치한다.
+ */
 export async function uploadImages(uris: string[]): Promise<string[]> {
   const token = getAccessToken();
   const urls: string[] = [];
   for (const uri of uris) {
-    const form = new FormData();
-    const name = uri.split('/').pop() ?? 'photo.jpg';
-    // RN FormData 파일 파트
-    form.append('file', { uri, name, type: 'image/jpeg' } as any);
-    const res = await fetch(`${API_BASE_URL}/api/files`, {
-      method: 'POST',
+    const res = await FileSystem.uploadAsync(`${API_BASE_URL}/api/files`, uri, {
+      httpMethod: 'POST',
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: 'file',
+      mimeType: 'image/jpeg',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: form,
     }).catch(() => {
       throw new Error('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
     });
-    const envelope = await res.json();
-    if (!res.ok || !envelope?.success) throw new Error('사진 업로드에 실패했어요.');
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
+    }
+    let envelope: { success: boolean; data?: { url?: string } };
+    try {
+      envelope = JSON.parse(res.body);
+    } catch {
+      throw new Error('사진 업로드 응답을 해석하지 못했어요.');
+    }
+    if (!envelope?.success) throw new Error('사진 업로드에 실패했어요.');
     urls.push(extractUploadedUrl(envelope));
   }
   return urls;
