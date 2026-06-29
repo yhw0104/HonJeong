@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.honjeong.checkin.repository.CheckInRepository;
+import com.honjeong.favorite.domain.Favorite;
 import com.honjeong.favorite.domain.FavoriteGroup;
 import com.honjeong.favorite.dto.CreateGroupRequest;
 import com.honjeong.favorite.dto.UpdateGroupRequest;
@@ -27,7 +28,7 @@ import com.honjeong.favorite.repository.FavoriteGroupRepository;
 import com.honjeong.favorite.repository.FavoriteRepository;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
-import com.honjeong.place.service.PlaceService;
+import com.honjeong.place.domain.Place;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
@@ -37,7 +38,6 @@ class FavoriteGroupServiceTest {
     @Mock private FavoriteGroupRepository groupRepository;
     @Mock private FavoriteRepository favoriteRepository;
     @Mock private CheckInRepository checkInRepository;
-    @Mock private PlaceService placeService;
     @Mock private UserRepository userRepository;
     @InjectMocks private FavoriteGroupService service;
 
@@ -64,6 +64,7 @@ class FavoriteGroupServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.DEFAULT_GROUP_NOT_DELETABLE);
         verify(favoriteRepository, never()).deleteByGroup_Id(anyLong());
+        verify(groupRepository, never()).delete(any(FavoriteGroup.class));
     }
 
     @Test
@@ -111,13 +112,38 @@ class FavoriteGroupServiceTest {
     }
 
     @Test
-    @DisplayName("getGroupDetail: 체크인 보유 식당은 visited=true")
-    void getGroupDetail_visited() {
+    @DisplayName("getGroupDetail: 체크인 보유 식당은 visited=true, 아니면 false")
+    void getGroupDetail_visitedMapping() {
+        Place p1 = mock(Place.class);
+        Place p2 = mock(Place.class);
+        when(p1.getId()).thenReturn(10L);
+        when(p2.getId()).thenReturn(20L);
+        Favorite f1 = mock(Favorite.class);
+        Favorite f2 = mock(Favorite.class);
+        when(f1.getPlace()).thenReturn(p1);
+        when(f2.getPlace()).thenReturn(p2);
+        FavoriteGroup mine = FavoriteGroup.create(userWithId(1L), "내그룹", null, "#FF5A1F", false);
+        when(groupRepository.findById(5L)).thenReturn(Optional.of(mine));
+        when(favoriteRepository.findWithPlaceByGroupId(5L)).thenReturn(List.of(f1, f2));
+        when(checkInRepository.findVisitedPlaceIds(1L, List.of(10L, 20L))).thenReturn(List.of(10L));
+
+        var res = service.getGroupDetail(1L, 5L);
+
+        assertThat(res.places()).hasSize(2);
+        assertThat(res.places().get(0).visited()).isTrue();
+        assertThat(res.places().get(1).visited()).isFalse();
+    }
+
+    @Test
+    @DisplayName("getGroupDetail: favorites가 비면 checkIn 쿼리를 호출하지 않는다")
+    void getGroupDetail_emptyFavorites_skipsCheckInQuery() {
         FavoriteGroup mine = FavoriteGroup.create(userWithId(1L), "내그룹", null, "#FF5A1F", false);
         when(groupRepository.findById(5L)).thenReturn(Optional.of(mine));
         when(favoriteRepository.findWithPlaceByGroupId(5L)).thenReturn(List.of());
-        var res = service.getGroupDetail(1L, 5L);
-        assertThat(res.places()).isEmpty();
+
+        service.getGroupDetail(1L, 5L);
+
+        verify(checkInRepository, never()).findVisitedPlaceIds(anyLong(), any());
     }
 
     private User userWithId(long id) {
