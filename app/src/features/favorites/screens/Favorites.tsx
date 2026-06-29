@@ -104,7 +104,12 @@ export function FavoritesScreen({ navigation }: MainTabScreenProps<'Favorites'>)
               <Text style={styles.empty}>아직 담은 곳이 없어요</Text>
             ) : (
               (detail?.places ?? []).map((p) => (
-                <FavoritePlaceRow key={p.placeId} place={p} groupId={openGroupId} />
+                <FavoritePlaceRow
+                  key={p.placeId}
+                  place={p}
+                  groupId={openGroupId}
+                  onOpen={() => navigation.navigate('RestaurantDetail', { placeId: p.placeId, name: p.name })}
+                />
               ))
             )}
           </View>
@@ -114,7 +119,15 @@ export function FavoritesScreen({ navigation }: MainTabScreenProps<'Favorites'>)
   );
 }
 
-function FavoritePlaceRow({ place, groupId }: { place: FavoritePlace; groupId: number }) {
+function FavoritePlaceRow({
+  place,
+  groupId,
+  onOpen,
+}: {
+  place: FavoritePlace;
+  groupId: number;
+  onOpen: () => void;
+}) {
   const { coord, source } = useLocation();
   const remove = useRemovePlaceFromGroup(place.placeId);
   const dist =
@@ -123,10 +136,11 @@ function FavoritePlaceRow({ place, groupId }: { place: FavoritePlace; groupId: n
       : null;
   return (
     <View style={styles.placeRow}>
-      <View style={styles.placeThumb}>
-        <Text style={{ fontSize: 20 }}>🍽</Text>
-      </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
+      <Pressable style={styles.placeTap} onPress={onOpen}>
+        <View style={styles.placeThumb}>
+          <Text style={{ fontSize: 20 }}>🍽</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
         <View style={styles.placeNameRow}>
           <Text style={styles.placeName} numberOfLines={1}>
             {place.name}
@@ -148,6 +162,7 @@ function FavoritePlaceRow({ place, groupId }: { place: FavoritePlace; groupId: n
           </Text>
         ) : null}
       </View>
+      </Pressable>
       <Pressable hitSlop={8} onPress={() => remove.mutate(groupId)} style={styles.removeBtn}>
         <Text style={styles.removeX}>×</Text>
       </Pressable>
@@ -187,6 +202,7 @@ const styles = StyleSheet.create({
   empty: { textAlign: 'center', color: T2.textMute, fontSize: 13, paddingVertical: 40 },
 
   placeRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: T2.border },
+  placeTap: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 14 },
   placeThumb: { width: 52, height: 52, borderRadius: 12, backgroundColor: T2.mapBg, borderWidth: 1, borderColor: T2.border, alignItems: 'center', justifyContent: 'center' },
   placeNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   placeName: { flexShrink: 1, fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
