@@ -1,5 +1,6 @@
 // RestaurantDetail — 식당 상세 (원본: screens/RestaurantDetail.jsx)
-// 풀블리드 히어로 + 플로팅 헤더 + 6탭(홈/메뉴/리뷰/사진/메이트/주변) + 하단 고정 CTA.
+// 풀블리드 히어로 + 플로팅 헤더 + 탭(홈/리뷰/사진/메이트/주변) + 하단 고정 CTA.
+// 메뉴 탭은 보류(데이터 출처 미정) — TABS에서 임시 숨김. MenuTab 컴포넌트/렌더는 복원 위해 보존.
 // 원본의 하단 MinTabBar는 제거(상세는 탭 위로 push되는 풀스크린이라 뒤로가기로 복귀).
 import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Alert, Image } from 'react-native';
@@ -20,7 +21,7 @@ import { useFavoriteStatus } from '@/features/favorites/queries';
 type Tab = 'home' | 'menu' | 'review' | 'photo' | 'mate' | 'nearby';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'home', label: '홈' },
-  { key: 'menu', label: '메뉴' },
+  // { key: 'menu', label: '메뉴' }, // 보류 — 데이터 출처 미정(점주 등록 P2). 복원 시 주석 해제.
   { key: 'review', label: '리뷰' },
   { key: 'photo', label: '사진' },
   { key: 'mate', label: '메이트' },
