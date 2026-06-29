@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Alert, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
 import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { usePlaceDetail, useNearby } from '@/features/place/queries';
@@ -106,7 +107,8 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
       initial: { taste: r.tasteRating, honbab: r.soloFriendlyRating, tags: r.tags, content: r.content ?? '', photos: r.imageUrls },
     });
 
-  const copy = () => {
+  const copy = async () => {
+    await Clipboard.setStringAsync(fullAddr); // 전체 주소(시·도 포함)를 복사
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
