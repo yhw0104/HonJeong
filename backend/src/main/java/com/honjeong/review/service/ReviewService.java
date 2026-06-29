@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -26,6 +27,7 @@ import com.honjeong.review.dto.PlaceReviewSummaryResponse;
 import com.honjeong.review.dto.ReviewCreateRequest;
 import com.honjeong.review.dto.ReviewResponse;
 import com.honjeong.review.dto.ReviewUpdateRequest;
+import com.honjeong.review.repository.ReviewPhotoRepository;
 import com.honjeong.review.repository.ReviewRepository;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
@@ -43,14 +45,17 @@ public class ReviewService {
     private final PlaceService placeService;
     private final UserRepository userRepository;
     private final Clock clock;
+    private final ReviewPhotoRepository reviewPhotoRepository;
 
     public ReviewService(ReviewRepository reviewRepository, CheckInRepository checkInRepository,
-            PlaceService placeService, UserRepository userRepository, Clock clock) {
+            PlaceService placeService, UserRepository userRepository, Clock clock,
+            ReviewPhotoRepository reviewPhotoRepository) {
         this.reviewRepository = reviewRepository;
         this.checkInRepository = checkInRepository;
         this.placeService = placeService;
         this.userRepository = userRepository;
         this.clock = clock;
+        this.reviewPhotoRepository = reviewPhotoRepository;
     }
 
     @Transactional(readOnly = true)
@@ -74,8 +79,14 @@ public class ReviewService {
 
     @Transactional(readOnly = true)
     public List<PlaceReviewResponse> getPlaceReviews(Long placeId, Long currentUserId) {
+        Map<Long, List<String>> photosByReview = reviewPhotoRepository.findByPlaceFlattened(placeId).stream()
+                .collect(Collectors.groupingBy(
+                        ReviewPhotoRepository.ReviewPhotoRow::getReviewId,
+                        LinkedHashMap::new,
+                        Collectors.mapping(ReviewPhotoRepository.ReviewPhotoRow::getImageUrl, Collectors.toList())));
         return reviewRepository.findByPlaceWithUserAndTags(placeId).stream()
-                .map(r -> PlaceReviewResponse.from(r, currentUserId))
+                .map(r -> PlaceReviewResponse.from(r, currentUserId,
+                        photosByReview.getOrDefault(r.getId(), List.of())))
                 .toList();
     }
 

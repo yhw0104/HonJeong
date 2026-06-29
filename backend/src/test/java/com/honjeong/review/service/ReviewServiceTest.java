@@ -28,22 +28,29 @@ import com.honjeong.place.domain.Place;
 import com.honjeong.place.service.PlaceService;
 import com.honjeong.review.domain.Review;
 import com.honjeong.review.domain.ReviewPhoto;
+import com.honjeong.review.dto.PlaceReviewResponse;
 import com.honjeong.review.dto.PlaceReviewSummaryResponse;
 import com.honjeong.review.dto.ReviewCreateRequest;
 import com.honjeong.review.dto.ReviewResponse;
+import com.honjeong.review.repository.ReviewPhotoRepository;
 import com.honjeong.review.repository.ReviewRepository;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
 class ReviewServiceTest {
 
+    private static final Long PLACE_ID = 3L;
+    private static final Long USER_ID = 1L;
+
     private final ReviewRepository reviewRepository = mock(ReviewRepository.class);
     private final CheckInRepository checkInRepository = mock(CheckInRepository.class);
     private final PlaceService placeService = mock(PlaceService.class);
     private final UserRepository userRepository = mock(UserRepository.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-25T03:00:00Z"), ZoneOffset.UTC);
+    private final ReviewPhotoRepository reviewPhotoRepository = mock(ReviewPhotoRepository.class);
     private final ReviewService service =
-            new ReviewService(reviewRepository, checkInRepository, placeService, userRepository, clock);
+            new ReviewService(reviewRepository, checkInRepository, placeService, userRepository, clock,
+                    reviewPhotoRepository);
 
     private Place place(long id) {
         Place p = mock(Place.class);
@@ -352,6 +359,59 @@ class ReviewServiceTest {
         verify(reviewRepository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getPhotos()).extracting(ReviewPhoto::getImageUrl)
                 .containsExactly("url1", "url2");
+    }
+
+    @Test
+    @DisplayName("getPlaceReviews: 리뷰별 사진 url이 응답에 매핑된다")
+    void getPlaceReviews_mapsPhotos() {
+        // given: 헬퍼를 when() 밖에서 미리 생성 — Mockito 중첩 stubbing 오류 방지
+        ReviewPhotoRepository.ReviewPhotoRow row = rowOf(10L, "p1");
+        Review review = reviewWithId(10L);
+        when(reviewPhotoRepository.findByPlaceFlattened(PLACE_ID)).thenReturn(List.of(row));
+        when(reviewRepository.findByPlaceWithUserAndTags(PLACE_ID)).thenReturn(List.of(review));
+
+        // when
+        List<PlaceReviewResponse> result = service.getPlaceReviews(PLACE_ID, USER_ID);
+
+        // then
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).imageUrls()).containsExactly("p1");
+    }
+
+    @Test
+    @DisplayName("getPlaceReviews: 사진 없는 리뷰는 imageUrls가 빈 목록")
+    void getPlaceReviews_emptyImagesWhenNoPhotos() {
+        // given: 사진 없음 — 리뷰는 미리 생성
+        Review review = reviewWithId(10L);
+        when(reviewPhotoRepository.findByPlaceFlattened(PLACE_ID)).thenReturn(List.of());
+        when(reviewRepository.findByPlaceWithUserAndTags(PLACE_ID)).thenReturn(List.of(review));
+
+        List<PlaceReviewResponse> result = service.getPlaceReviews(PLACE_ID, USER_ID);
+
+        assertThat(result.get(0).imageUrls()).isEmpty();
+    }
+
+    private static ReviewPhotoRepository.ReviewPhotoRow rowOf(Long reviewId, String url) {
+        ReviewPhotoRepository.ReviewPhotoRow row = mock(ReviewPhotoRepository.ReviewPhotoRow.class);
+        when(row.getReviewId()).thenReturn(reviewId);
+        when(row.getImageUrl()).thenReturn(url);
+        return row;
+    }
+
+    private static Review reviewWithId(Long id) {
+        Review r = mock(Review.class);
+        when(r.getId()).thenReturn(id);
+        User user = mock(User.class);
+        when(user.getNickname()).thenReturn("닉네임");
+        when(user.getId()).thenReturn(USER_ID);
+        when(r.getUser()).thenReturn(user);
+        when(r.getVisitedAt()).thenReturn(LocalDateTime.of(2026, 6, 25, 12, 0));
+        when(r.getContent()).thenReturn("테스트");
+        when(r.getTasteRating()).thenReturn(5);
+        when(r.getSoloFriendlyRating()).thenReturn(4);
+        when(r.getTags()).thenReturn(java.util.List.of());
+        when(r.isAuthenticated()).thenReturn(false);
+        return r;
     }
 
     private static Long eqL(long v) { return org.mockito.ArgumentMatchers.eq(v); }
