@@ -1,7 +1,8 @@
 // DiningLogWrite — 혼밥 인증 작성(저널) (원본: screens/DiningLogWrite.jsx)
 // 내 혼밥 기록의 '일기 쓰기'에서 모달로 진입. 별점/친화태그/본문 기록.
 import React, { useState } from 'react';
-import { Alert, View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Alert, Image, View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { pickImages, uploadImages, remainingSlots } from '@/shared/upload/imageUpload';
 import { Screen } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
@@ -32,15 +33,32 @@ export function DiningLogWriteScreen({ navigation, route }: RootStackScreenProps
   const [honbab, setHonbab] = useState(initial?.honbab ?? 0);
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [body, setBody] = useState(initial?.content ?? '');
+  const [photos, setPhotos] = useState<string[]>(initial?.photos ?? []);
+  const [uploading, setUploading] = useState(false);
+  const MAX_PHOTOS = 5;
 
-  const canSave = taste >= 1 && honbab >= 1 && !createMut.isPending && !updateMut.isPending;
+  const canSave = taste >= 1 && honbab >= 1 && !createMut.isPending && !updateMut.isPending && !uploading;
 
   const toggleTag = (t: string) => setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
 
+  const onAddPhotos = async () => {
+    const uris = await pickImages(remainingSlots(photos.length, MAX_PHOTOS));
+    if (uris.length === 0) return;
+    setUploading(true);
+    try {
+      const urls = await uploadImages(uris);
+      setPhotos((prev) => [...prev, ...urls].slice(0, MAX_PHOTOS));
+    } catch (e) {
+      Alert.alert('사진 업로드 실패', e instanceof Error ? e.message : '다시 시도해주세요.');
+    } finally {
+      setUploading(false);
+    }
+  };
+  const removePhoto = (idx: number) => setPhotos((prev) => prev.filter((_, i) => i !== idx));
+
   const onSave = () => {
     if (!canSave) return;
-    // TODO(Task 8): photos: [] → 실제 업로드된 URL 상태로 교체
-    const reviewBody = buildReviewBody({ taste, honbab, tags, body, photos: [] });
+    const reviewBody = buildReviewBody({ taste, honbab, tags, body, photos });
     const onSuccess = () => navigation.goBack();
     const onError = (e: unknown) => Alert.alert('저장 실패', reviewErrorMessage(e));
     if (isEdit) {
@@ -122,6 +140,26 @@ export function DiningLogWriteScreen({ navigation, route }: RootStackScreenProps
             placeholderTextColor={T2.textMute}
           />
         </View>
+
+        {/* 사진 */}
+        <View style={{ marginTop: 28 }}>
+          <Text style={styles.label}>사진 ({photos.length}/{MAX_PHOTOS})</Text>
+          <View style={styles.photoRow}>
+            {photos.map((uri, i) => (
+              <View key={`${uri}-${i}`} style={styles.photoThumb}>
+                <Image source={{ uri }} style={styles.photoImg} />
+                <Pressable onPress={() => removePhoto(i)} hitSlop={6} style={styles.photoRemove}>
+                  <Text style={styles.photoRemoveX}>×</Text>
+                </Pressable>
+              </View>
+            ))}
+            {photos.length < MAX_PHOTOS && (
+              <Pressable onPress={onAddPhotos} disabled={uploading} style={styles.photoAdd}>
+                <Text style={styles.photoAddPlus}>{uploading ? '…' : '+'}</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
       </ScrollView>
     </Screen>
   );
@@ -169,4 +207,12 @@ const styles = StyleSheet.create({
     minHeight: 120,
     padding: 0,
   },
+
+  photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  photoThumb: { width: 72, height: 72, borderRadius: 10, overflow: 'hidden' },
+  photoImg: { width: '100%', height: '100%' },
+  photoRemove: { position: 'absolute', top: 2, right: 2, width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  photoRemoveX: { color: '#fff', fontSize: 12, lineHeight: 14 },
+  photoAdd: { width: 72, height: 72, borderRadius: 10, borderWidth: 1, borderColor: T2.border, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  photoAddPlus: { fontSize: 28, color: T2.textMute },
 });

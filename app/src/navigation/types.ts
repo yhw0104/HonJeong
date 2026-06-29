@@ -22,7 +22,7 @@ export type RootStackParamList = {
     placeName: string;
     checkInId?: number;
     reviewId?: number;
-    initial?: { taste: number; honbab: number; tags: string[]; content: string };
+    initial?: { taste: number; honbab: number; tags: string[]; content: string; photos?: string[] };
   };
   ChallengeBadges: undefined;
   MyProfile: undefined;
