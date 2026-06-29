@@ -166,4 +166,14 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
      */
     @Query("SELECT COUNT(c) FROM CheckIn c WHERE c.user.id = :userId AND c.startedAt >= :monthStart")
     long countByUserSince(@Param("userId") Long userId, @Param("monthStart") LocalDateTime monthStart);
+
+    /**
+     * 주어진 장소 id 목록 중 사용자가 체크인한 적 있는 장소 id들을 반환한다(즐겨찾기 visited 판정용).
+     *
+     * @param userId   회원 id
+     * @param placeIds 판정할 장소 pk 목록
+     * @return 체크인 이력이 있는 장소 id 목록(중복 제거)
+     */
+    @Query("SELECT DISTINCT c.place.id FROM CheckIn c WHERE c.user.id = :userId AND c.place.id IN :placeIds")
+    List<Long> findVisitedPlaceIds(@Param("userId") Long userId, @Param("placeIds") List<Long> placeIds);
 }
