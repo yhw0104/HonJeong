@@ -11,7 +11,7 @@ import { usePlaceDetail, useNearby } from '@/features/place/queries';
 import { formatDistance, walkingMinutes } from '@/shared/location/distance';
 import { useActiveDiners, useMyCheckIn, useStartCheckIn, useEndCheckIn } from '@/features/checkin/queries';
 import type { ActiveDiner } from '@/features/checkin/api';
-import { formatElapsed, shortAddress } from '@/shared/format';
+import { formatElapsed, addressHead } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { usePlaceReviews, usePlaceReviewSummary, useDeleteReview, usePlacePhotos } from '@/features/review/queries';
 import type { PlaceReview, PlaceReviewSummary } from '@/features/review/api';
@@ -82,6 +82,8 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const endMut = useEndCheckIn();
   const name = detail.data?.name ?? route.params.name ?? '식당';
   const fullAddr = detail.data?.roadAddress ?? detail.data?.address ?? '주소 정보 없음';
+  const addrHead = addressHead(fullAddr); // 시·도~구·군까지(기본 표시)
+  const addrRest = fullAddr.trim() === addrHead ? '' : fullAddr.trim().slice(addrHead.length).trimStart(); // 나머지(펼침)
   const honbabOn = myCheckIn.data?.status === 'ACTIVE' && myCheckIn.data.placeId === placeId;
   const reviews = usePlaceReviews(placeId);
   const summary = usePlaceReviewSummary(placeId);
@@ -133,20 +135,26 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
 
           <Text style={styles.title}>{name}</Text>
 
-          {/* 주소 + 복사 */}
+          {/* 주소 + 복사 — 기본은 시·도~구·군, 화살표 누르면 나머지(도로명·번지)를 아래에 펼침 */}
           <View style={styles.addrRow}>
             <Icon name="pin" size={15} color={T2.textMute} />
-            <Pressable style={styles.addrTap} onPress={() => setAddrExpanded((v) => !v)} hitSlop={4}>
-              <Text style={styles.addr} numberOfLines={addrExpanded ? undefined : 1}>
-                {addrExpanded ? fullAddr : shortAddress(fullAddr)}
-              </Text>
-              <Icon name={addrExpanded ? 'chevronUp' : 'chevronDown'} size={14} color={T2.textMute} />
+            <Pressable
+              style={styles.addrTap}
+              onPress={() => setAddrExpanded((v) => !v)}
+              hitSlop={4}
+              disabled={!addrRest}
+            >
+              <Text style={styles.addr} numberOfLines={1}>{addrHead}</Text>
+              {addrRest ? (
+                <Icon name={addrExpanded ? 'chevronUp' : 'chevronDown'} size={14} color={T2.textMute} />
+              ) : null}
             </Pressable>
             <Pressable style={styles.copyBtn} onPress={copy}>
               <Icon name="copy" size={13} color={copied ? T2.brand : T2.textSub} />
               <Text style={[styles.copyText, { color: copied ? T2.brand : T2.textSub }]}>{copied ? '복사됨' : '복사'}</Text>
             </Pressable>
           </View>
+          {addrExpanded && addrRest ? <Text style={styles.addrRest}>{addrRest}</Text> : null}
 
           {/* 평점 */}
           <View style={styles.ratingRow}>
@@ -721,6 +729,7 @@ const styles = StyleSheet.create({
   addrRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
   addrTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
   addr: { flexShrink: 1, fontSize: 13, color: T2.textSub, letterSpacing: -0.3, lineHeight: 18 },
+  addrRest: { marginLeft: 25, marginTop: 3, fontSize: 13, color: T2.text, letterSpacing: -0.3, lineHeight: 18 },
   copyBtn: {
     flexDirection: 'row',
     alignItems: 'center',

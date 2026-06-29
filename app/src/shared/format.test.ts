@@ -1,4 +1,4 @@
-import { formatDistance, formatElapsed, shortAddress } from './format';
+import { formatDistance, formatElapsed, addressHead } from './format';
 
 describe('formatDistance', () => {
   it('1000m 미만은 m', () => expect(formatDistance(120)).toBe('120m'));
@@ -11,15 +11,19 @@ describe('formatElapsed', () => {
   it('60분 이상은 시간', () => expect(formatElapsed(90)).toBe('1시간째'));
 });
 
-describe('shortAddress', () => {
-  it('시·도 접두사를 떼어 토큰 경계로 줄인다', () => {
-    expect(shortAddress('서울특별시 마포구 성미산로 161-4')).toBe('마포구 성미산로 161-4');
-    expect(shortAddress('경기도 성남시 분당구 판교로 230')).toBe('성남시 분당구 판교로 230');
-    expect(shortAddress('제주특별자치도 제주시 첨단로 242')).toBe('제주시 첨단로 242');
+describe('addressHead', () => {
+  it('도로명 앞(시·도~시·군·구)까지만 반환', () => {
+    expect(addressHead('서울특별시 마포구 성미산로 161-4')).toBe('서울특별시 마포구');
+    expect(addressHead('경기도 성남시 분당구 판교로 230')).toBe('경기도 성남시 분당구');
+    expect(addressHead('제주특별자치도 제주시 첨단로 242')).toBe('제주특별자치도 제주시');
   });
-  it('시·도가 없으면 원문 그대로', () => {
-    expect(shortAddress('마포구 동교로 38-12')).toBe('마포구 동교로 38-12');
-    expect(shortAddress('주소 정보 없음')).toBe('주소 정보 없음');
+  it('시·도 없이 구로 시작해도 도로명 앞까지', () => {
+    expect(addressHead('마포구 동교로 38-12')).toBe('마포구');
   });
-  it('공백 정리', () => expect(shortAddress('  서울 마포구 성미산로  ')).toBe('마포구 성미산로'));
+  it('지번(번지)은 숫자 토큰 앞까지(동 포함)', () => {
+    expect(addressHead('서울특별시 마포구 연남동 567-1')).toBe('서울특별시 마포구 연남동');
+  });
+  it('뗄 게 없으면 원문 그대로', () => {
+    expect(addressHead('주소 정보 없음')).toBe('주소 정보 없음');
+  });
 });

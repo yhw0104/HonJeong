@@ -10,21 +10,13 @@ export function formatElapsed(minutes: number): string {
   return `${Math.floor(minutes / 60)}시간째`;
 }
 
-const ADDRESS_PROVINCES = [
-  '서울특별시', '부산광역시', '대구광역시', '인천광역시', '광주광역시', '대전광역시', '울산광역시', '세종특별자치시',
-  '경기도', '강원도', '강원특별자치도', '충청북도', '충청남도', '전라북도', '전라남도', '전북특별자치도',
-  '경상북도', '경상남도', '제주특별자치도', '제주도',
-  '서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종',
-  '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주',
-];
-
-/** 주소에서 맨 앞 시·도(광역) 토큰만 떼어 깔끔하게 줄인다. 토큰 경계로 자르므로 글자 중간이 끊기지 않는다.
- *  예: "서울특별시 마포구 성미산로 161-4" → "마포구 성미산로 161-4". 시·도가 없으면 원문 그대로. */
-export function shortAddress(full: string): string {
+/** 주소의 행정구역 머리(시·도 ~ 시·군·구, 지번이면 동까지)만 반환한다.
+ *  도로명(로/길로 끝) 또는 번지(숫자로 시작) 토큰 바로 앞까지 자른다 — 토큰 경계라 글자 중간이 안 끊긴다.
+ *  예: "서울특별시 마포구 성미산로 161-4" → "서울특별시 마포구". 뗄 게 없으면 원문 그대로. */
+export function addressHead(full: string): string {
   const trimmed = (full ?? '').trim();
   const tokens = trimmed.split(/\s+/);
-  if (tokens.length > 1 && ADDRESS_PROVINCES.includes(tokens[0])) {
-    return tokens.slice(1).join(' ');
-  }
-  return trimmed;
+  const idx = tokens.findIndex((t) => /[로길]$/.test(t) || /^\d/.test(t));
+  if (idx <= 0) return trimmed;
+  return tokens.slice(0, idx).join(' ');
 }
