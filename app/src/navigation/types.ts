@@ -9,7 +9,7 @@ export type RootStackParamList = {
   VerifyCode: { phone: string };
   ProfileSetup: { onboardingToken: string };
   MainTabs: undefined;
-  NewGroup: undefined;
+  NewGroup: { groupId?: number; initial?: { name: string; note: string; color: string } } | undefined;
   PlaceSearch: undefined;
   RestaurantDetail: { placeId: number; name?: string };
   MealRequest: { placeId: number; placeName: string };
