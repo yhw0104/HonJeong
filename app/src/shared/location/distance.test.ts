@@ -1,4 +1,4 @@
-import { distanceMeters, formatDistance } from './distance';
+import { distanceMeters, formatDistance, walkingMinutes } from './distance';
 
 describe('distance', () => {
   it('같은 좌표는 0m', () => {
@@ -14,5 +14,12 @@ describe('distance', () => {
   it('포맷: 1000m 미만은 m, 이상은 km', () => {
     expect(formatDistance(320)).toBe('320m');
     expect(formatDistance(1250)).toBe('1.3km');
+  });
+
+  it('도보 분: 약 67m/분, 최소 1분', () => {
+    expect(walkingMinutes(0)).toBe(1);
+    expect(walkingMinutes(30)).toBe(1);
+    expect(walkingMinutes(140)).toBe(2);
+    expect(walkingMinutes(670)).toBe(10);
   });
 });

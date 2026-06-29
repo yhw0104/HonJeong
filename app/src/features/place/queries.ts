@@ -13,12 +13,14 @@ export function usePlaceSearch(query: string) {
   });
 }
 
-/** 현재 좌표 주변 식당(거리순 + 혼밥러수). 혼밥러수는 실시간이라 주기 폴링한다. */
-export function useNearby(coord: Coord, radius = 1000) {
+/** 현재 좌표 주변 식당(거리순 + 혼밥러수). 혼밥러수는 실시간이라 주기 폴링한다.
+ *  enabled=false면 호출하지 않는다(중심 좌표가 아직 없을 때 등). */
+export function useNearby(coord: Coord, radius = 1000, enabled = true) {
   return useQuery({
     queryKey: ['nearby', { lat: coord.lat, lng: coord.lng, radius }],
     queryFn: () => fetchNearby(coord.lat, coord.lng, radius),
     refetchInterval: LIVE_REFETCH_MS,
+    enabled,
   });
 }
 

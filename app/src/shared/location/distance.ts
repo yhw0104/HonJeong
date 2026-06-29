@@ -17,3 +17,8 @@ export function formatDistance(meters: number): string {
   if (meters < 1000) return `${meters}m`;
   return `${(meters / 1000).toFixed(1)}km`;
 }
+
+/** 도보 소요(분) 추정 — 평균 보행 약 4km/h(≈67m/분), 최소 1분. */
+export function walkingMinutes(meters: number): number {
+  return Math.max(1, Math.round(meters / 67));
+}

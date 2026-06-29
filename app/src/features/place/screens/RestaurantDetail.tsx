@@ -6,7 +6,8 @@ import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H } from '@/shared/components';
 import { T2 } from '@/shared/theme';
-import { usePlaceDetail } from '@/features/place/queries';
+import { usePlaceDetail, useNearby } from '@/features/place/queries';
+import { formatDistance, walkingMinutes } from '@/shared/location/distance';
 import { useActiveDiners, useMyCheckIn, useStartCheckIn, useEndCheckIn } from '@/features/checkin/queries';
 import type { ActiveDiner } from '@/features/checkin/api';
 import { formatElapsed } from '@/shared/format';
@@ -63,30 +64,7 @@ const SAVED = [
   { init: '진', bg: '#A3A3A3' },
 ];
 
-// ── 주변 탭 데이터 ──
-type NearbyFilter = 'honbab' | 'cafe' | 'parking';
-const NEARBY_TABS: { key: NearbyFilter; label: string }[] = [
-  { key: 'honbab', label: '혼밥 맛집' },
-  { key: 'cafe', label: '카페' },
-  { key: 'parking', label: '주차' },
-];
-const NEARBY: Record<NearbyFilter, { n: string; cat: string; walk: string; dist: string; score: string; tag: string }[]> = {
-  honbab: [
-    { n: '연남 김밥상회', cat: '분식 · 김밥', walk: '도보 2분', dist: '140m', score: '4.7', tag: '1인석' },
-    { n: '혼밀라멘 연남', cat: '일식 · 라멘', walk: '도보 4분', dist: '260m', score: '4.6', tag: '바테이블' },
-    { n: '오늘의 덮밥', cat: '한식 · 덮밥', walk: '도보 5분', dist: '320m', score: '4.5', tag: '칸막이' },
-    { n: '연남 우동집', cat: '일식 · 우동', walk: '도보 6분', dist: '400m', score: '4.3', tag: '1인석' },
-  ],
-  cafe: [
-    { n: '연남 로스터스', cat: '카페 · 디저트', walk: '도보 1분', dist: '90m', score: '4.6', tag: '콘센트' },
-    { n: '책읽는 고양이', cat: '북카페', walk: '도보 3분', dist: '210m', score: '4.4', tag: '조용함' },
-    { n: '느린오후', cat: '카페', walk: '도보 5분', dist: '330m', score: '4.2', tag: '1인석' },
-  ],
-  parking: [
-    { n: '연남공영주차장', cat: '공영 · 시간당 1,200원', walk: '도보 3분', dist: '200m', score: '여유', tag: '32면' },
-    { n: '연남로 노상주차', cat: '노상 · 시간당 1,000원', walk: '도보 2분', dist: '150m', score: '혼잡', tag: '8면' },
-  ],
-};
+// 주변 탭은 실데이터(useNearby)로 렌더 — 상수 목업 제거
 
 const GRID_W = (Dimensions.get('window').width - 40 - 12) / 3;
 
@@ -204,7 +182,14 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
           )}
           {stab === 'photo' && <PhotoTab placeId={placeId} />}
           {stab === 'mate' && <MateTab onMeal={goMealRequest} />}
-          {stab === 'nearby' && <NearbyTab />}
+          {stab === 'nearby' && (
+            <NearbyTab
+              placeId={placeId}
+              placeName={name}
+              center={detail.data ? { lat: detail.data.latitude, lng: detail.data.longitude } : null}
+              onOpen={(id, n) => navigation.push('RestaurantDetail', { placeId: id, name: n })}
+            />
+          )}
         </View>
       </ScrollView>
 
@@ -635,69 +620,66 @@ function MateTab({ onMeal }: { onMeal: () => void }) {
 }
 
 /* ── 주변 탭 ─────────────────────────────────────── */
-function NearbyTab() {
-  const [filter, setFilter] = useState<NearbyFilter>('honbab');
-  const rows = NEARBY[filter];
+function NearbyTab({
+  placeId,
+  placeName,
+  center,
+  onOpen,
+}: {
+  placeId: number;
+  placeName: string;
+  center: { lat: number; lng: number } | null;
+  onOpen: (placeId: number, name: string) => void;
+}) {
+  // 중심 = 이 식당 좌표. 좌표가 아직 없으면(detail 로딩) 호출하지 않는다.
+  const q = useNearby(center ?? { lat: 0, lng: 0 }, 1000, center != null);
+  const rows = (q.data?.content ?? []).filter((r) => r.placeId !== placeId); // 자기 자신 제외
+
   return (
     <View style={{ marginTop: 12 }}>
-      {/* 안내 */}
       <View style={styles.nearbyNote}>
         <Icon name="pin" size={13} color={T2.textMute} />
-        <Text style={styles.nearbyNoteText}>큰순두부 연남점 주변 · 카카오맵 기준</Text>
+        <Text style={styles.nearbyNoteText}>{placeName} 주변 · 1km 이내</Text>
       </View>
 
-      {/* 필터 칩 */}
-      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
-        {NEARBY_TABS.map((t) => {
-          const on = filter === t.key;
-          return (
+      {center == null || q.isLoading ? (
+        <View style={styles.nearbyStateBox}>
+          <ActivityIndicator color={T2.brand} />
+        </View>
+      ) : q.isError ? (
+        <Text style={styles.nearbyStateText}>주변 정보를 불러오지 못했어요.</Text>
+      ) : rows.length === 0 ? (
+        <Text style={styles.nearbyStateText}>주변에 등록된 식당이 없어요.</Text>
+      ) : (
+        <View style={{ marginTop: 6 }}>
+          {rows.map((r, i, arr) => (
             <Pressable
-              key={t.key}
-              onPress={() => setFilter(t.key)}
-              style={[styles.filterChip, { backgroundColor: on ? T2.text : '#fff', borderColor: on ? T2.text : T2.border }]}
+              key={r.placeId}
+              onPress={() => onOpen(r.placeId, r.name)}
+              style={[styles.nearbyRow, i < arr.length - 1 && styles.infoDivider]}
             >
-              <Text style={[styles.filterChipText, { color: on ? '#fff' : T2.textSub }]}>{t.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {/* 리스트 */}
-      <View style={{ marginTop: 6 }}>
-        {rows.map((r, i, arr) => (
-          <View key={r.n} style={[styles.nearbyRow, i < arr.length - 1 && styles.infoDivider]}>
-            <ImagePlaceholder w={56} h={56} radius={12} tag="" />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.nearbyName}>{r.n}</Text>
-              <Text style={styles.nearbyCat}>{r.cat}</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 7 }}>
-                <Text style={styles.walkText}>{r.walk}</Text>
-                <View style={styles.dotSep} />
-                <Text style={styles.nearbyDist}>{r.dist}</Text>
-                <View style={styles.nearbyTag}>
-                  <Text style={styles.nearbyTagText}>{r.tag}</Text>
+              <ImagePlaceholder w={56} h={56} radius={12} tag="" />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.nearbyName} numberOfLines={1}>{r.name}</Text>
+                {r.category ? (
+                  <Text style={styles.nearbyCat} numberOfLines={1}>{r.category}</Text>
+                ) : null}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 7 }}>
+                  <Text style={styles.walkText}>도보 {walkingMinutes(r.distanceMeters)}분</Text>
+                  <View style={styles.dotSep} />
+                  <Text style={styles.nearbyDist}>{formatDistance(r.distanceMeters)}</Text>
                 </View>
               </View>
-            </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              {filter === 'parking' ? (
-                <Text style={[styles.parkingStatus, { color: r.score === '여유' ? '#1F8A5B' : T2.brand }]}>{r.score}</Text>
-              ) : (
-                <>
-                  <Text style={styles.nearbyScore}>{r.score}</Text>
-                  <Text style={styles.nearbyScoreLabel}>혼밥친화</Text>
-                </>
-              )}
-            </View>
-          </View>
-        ))}
-      </View>
-
-      {/* 지도에서 보기 */}
-      <Pressable style={styles.mapBtn}>
-        <Icon name="navigate" size={16} color={T2.text} />
-        <Text style={styles.mapBtnText}>지도에서 한눈에 보기</Text>
-      </Pressable>
+              {r.activeCount > 0 ? (
+                <View style={styles.nearbyActive}>
+                  <View style={styles.nearbyActiveDot} />
+                  <Text style={styles.nearbyActiveText}>혼밥 {r.activeCount}</Text>
+                </View>
+              ) : null}
+            </Pressable>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -830,21 +812,17 @@ const styles = StyleSheet.create({
   // 주변 탭
   nearbyNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
   nearbyNoteText: { fontSize: 12, color: T2.textMute, letterSpacing: -0.2 },
-  filterChip: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
-  filterChipText: { fontSize: 13, fontWeight: '700', letterSpacing: -0.3 },
   nearbyRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14 },
   nearbyName: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.4 },
   nearbyCat: { fontSize: 12, color: T2.textMute, marginTop: 3, letterSpacing: -0.2 },
   walkText: { fontSize: 12, fontWeight: '700', color: T2.text, letterSpacing: -0.2 },
   dotSep: { width: 2, height: 2, borderRadius: 1, backgroundColor: T2.textMute },
   nearbyDist: { fontSize: 12, color: T2.textMute },
-  nearbyTag: { marginLeft: 2, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: T2.brandSoft, borderWidth: 1, borderColor: 'rgba(255,90,31,0.18)' },
-  nearbyTagText: { fontSize: 11, fontWeight: '700', color: T2.brand, letterSpacing: -0.2 },
-  parkingStatus: { fontSize: 12, fontWeight: '800', letterSpacing: -0.2 },
-  nearbyScore: { fontSize: 16, fontWeight: '800', color: T2.text, letterSpacing: -0.4 },
-  nearbyScoreLabel: { fontSize: 10, color: T2.textMute, marginTop: 1 },
-  mapBtn: { marginTop: 18, paddingVertical: 14, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  mapBtnText: { fontSize: 13.5, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
+  nearbyStateBox: { paddingVertical: 40, alignItems: 'center', justifyContent: 'center' },
+  nearbyStateText: { paddingVertical: 36, textAlign: 'center', fontSize: 13, color: T2.textMute, letterSpacing: -0.2 },
+  nearbyActive: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: T2.brandSoft },
+  nearbyActiveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: T2.brand },
+  nearbyActiveText: { fontSize: 12, fontWeight: '800', color: T2.brand, letterSpacing: -0.2 },
 
   // 리뷰탭 칩
   tasteChip: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: T2.bg, borderWidth: 1, borderColor: T2.border },
