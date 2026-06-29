@@ -13,6 +13,8 @@ import { formatElapsed } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { usePlaceReviews, usePlaceReviewSummary, useDeleteReview, usePlacePhotos } from '@/features/review/queries';
 import type { PlaceReview, PlaceReviewSummary } from '@/features/review/api';
+import { FavoriteSheet } from '@/features/favorites/components/FavoriteSheet';
+import { useFavoriteStatus } from '@/features/favorites/queries';
 
 type Tab = 'home' | 'menu' | 'review' | 'photo' | 'mate' | 'nearby';
 const TABS: { key: Tab; label: string }[] = [
@@ -102,6 +104,10 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const honbabOn = myCheckIn.data?.status === 'ACTIVE' && myCheckIn.data.placeId === placeId;
   const reviews = usePlaceReviews(placeId);
   const summary = usePlaceReviewSummary(placeId);
+
+  const [favSheet, setFavSheet] = useState(false);
+  const favStatus = useFavoriteStatus(placeId);
+  const saved = favStatus.data?.saved ?? false;
 
   const delMut = useDeleteReview();
   const confirmDelete = (reviewId: number) =>
@@ -211,9 +217,9 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
           <View style={styles.circleBtn}>
             <Icon name="share" size={15} color={T2.text} />
           </View>
-          <View style={styles.circleBtn}>
-            <Icon name="heart" size={16} color={T2.text} />
-          </View>
+          <Pressable style={styles.circleBtn} onPress={() => setFavSheet(true)} hitSlop={4}>
+            <Icon name="heart" size={16} color={saved ? T2.brand : T2.text} />
+          </Pressable>
         </View>
       </View>
 
@@ -248,6 +254,8 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
           <HonbabStatusBar place={name} onEnd={toggleHonbab} />
         </View>
       )}
+
+      <FavoriteSheet placeId={placeId} visible={favSheet} onClose={() => setFavSheet(false)} />
     </View>
   );
 }
