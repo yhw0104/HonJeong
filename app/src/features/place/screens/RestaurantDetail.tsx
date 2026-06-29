@@ -73,6 +73,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const insets = useSafeAreaInsets();
   const [stab, setStab] = useState<Tab>('home');
   const [copied, setCopied] = useState(false);
+  const [addrExpanded, setAddrExpanded] = useState(false);
   const placeId = route.params.placeId;
   const detail = usePlaceDetail(placeId);
   const diners = useActiveDiners(placeId);
@@ -134,7 +135,11 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
           {/* 주소 + 복사 */}
           <View style={styles.addrRow}>
             <Icon name="pin" size={15} color={T2.textMute} />
-            <Text style={styles.addr}>{detail.data?.roadAddress ?? detail.data?.address ?? '주소 정보 없음'}</Text>
+            <Pressable style={styles.addrTap} onPress={() => setAddrExpanded((v) => !v)} hitSlop={4}>
+              <Text style={styles.addr} numberOfLines={addrExpanded ? undefined : 1}>
+                {detail.data?.roadAddress ?? detail.data?.address ?? '주소 정보 없음'}
+              </Text>
+            </Pressable>
             <Pressable style={styles.copyBtn} onPress={copy}>
               <Icon name="copy" size={13} color={copied ? T2.brand : T2.textSub} />
               <Text style={[styles.copyText, { color: copied ? T2.brand : T2.textSub }]}>{copied ? '복사됨' : '복사'}</Text>
@@ -712,7 +717,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 26, fontWeight: '800', color: T2.text, letterSpacing: -0.8, lineHeight: 30 },
 
   addrRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
-  addr: { flex: 1, fontSize: 13, color: T2.textSub, letterSpacing: -0.3, lineHeight: 18 },
+  addrTap: { flex: 1 },
+  addr: { fontSize: 13, color: T2.textSub, letterSpacing: -0.3, lineHeight: 18 },
   copyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
