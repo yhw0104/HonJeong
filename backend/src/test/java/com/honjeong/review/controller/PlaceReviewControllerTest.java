@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.honjeong.global.config.SecurityConfig;
 import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.security.JwtProvider;
+import com.honjeong.review.dto.PlacePhotoResponse;
 import com.honjeong.review.dto.PlaceReviewResponse;
 import com.honjeong.review.service.ReviewService;
 
@@ -43,5 +44,15 @@ class PlaceReviewControllerTest {
                 .andExpect(jsonPath("$.data[0].user.nickname").value("연남러"))
                 .andExpect(jsonPath("$.data[0].authenticated").value(true))
                 .andExpect(jsonPath("$.data[0].mine").value(true));
+    }
+
+    @Test
+    @DisplayName("GET /api/places/{id}/photos: 200, 평탄화 사진 목록")
+    void photos_200() throws Exception {
+        when(reviewService.getPlacePhotos(1L)).thenReturn(List.of(new PlacePhotoResponse("p1", 10L)));
+        mockMvc.perform(get("/api/places/1/photos")
+                        .header("Authorization", "Bearer " + jwtProvider.createAccessToken(1L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].photoUrl").value("p1"));
     }
 }

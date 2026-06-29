@@ -22,6 +22,7 @@ import com.honjeong.place.service.PlaceService;
 import com.honjeong.review.domain.Review;
 import com.honjeong.review.domain.SoloFriendlyTags;
 import com.honjeong.review.dto.DiningHistoryResponse;
+import com.honjeong.review.dto.PlacePhotoResponse;
 import com.honjeong.review.dto.PlaceReviewResponse;
 import com.honjeong.review.dto.PlaceReviewSummaryResponse;
 import com.honjeong.review.dto.ReviewCreateRequest;
@@ -87,6 +88,13 @@ public class ReviewService {
         return reviewRepository.findByPlaceWithUserAndTags(placeId).stream()
                 .map(r -> PlaceReviewResponse.from(r, currentUserId,
                         photosByReview.getOrDefault(r.getId(), List.of())))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PlacePhotoResponse> getPlacePhotos(Long placeId) {
+        return reviewPhotoRepository.findByPlaceFlattened(placeId).stream()
+                .map(row -> new PlacePhotoResponse(row.getImageUrl(), row.getReviewId()))
                 .toList();
     }
 

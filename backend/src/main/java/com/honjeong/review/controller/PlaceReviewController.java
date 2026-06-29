@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.honjeong.global.common.ApiResponse;
 import com.honjeong.global.security.CurrentUserId;
+import com.honjeong.review.dto.PlacePhotoResponse;
 import com.honjeong.review.dto.PlaceReviewResponse;
 import com.honjeong.review.dto.PlaceReviewSummaryResponse;
 import com.honjeong.review.service.ReviewService;
@@ -28,5 +29,10 @@ public class PlaceReviewController {
     @GetMapping("/{placeId}/review-summary")
     public ApiResponse<PlaceReviewSummaryResponse> summary(@PathVariable Long placeId) {
         return ApiResponse.success(reviewService.getPlaceReviewSummary(placeId));
+    }
+
+    @GetMapping("/{placeId}/photos")
+    public ApiResponse<List<PlacePhotoResponse>> photos(@PathVariable Long placeId) {
+        return ApiResponse.success(reviewService.getPlacePhotos(placeId));
     }
 }

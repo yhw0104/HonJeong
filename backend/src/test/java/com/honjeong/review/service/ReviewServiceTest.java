@@ -28,6 +28,7 @@ import com.honjeong.place.domain.Place;
 import com.honjeong.place.service.PlaceService;
 import com.honjeong.review.domain.Review;
 import com.honjeong.review.domain.ReviewPhoto;
+import com.honjeong.review.dto.PlacePhotoResponse;
 import com.honjeong.review.dto.PlaceReviewResponse;
 import com.honjeong.review.dto.PlaceReviewSummaryResponse;
 import com.honjeong.review.dto.ReviewCreateRequest;
@@ -338,6 +339,20 @@ class ReviewServiceTest {
         assertThatThrownBy(() -> service.deleteReview(1L, 42L))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.REVIEW_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("getPlacePhotos: 평탄화 사진 목록을 반환한다(0건이면 빈 목록)")
+    void getPlacePhotos_flattens() {
+        // given: 헬퍼를 when() 밖에서 미리 생성 — Mockito 중첩 stubbing 오류 방지
+        ReviewPhotoRepository.ReviewPhotoRow r1 = rowOf(10L, "p1");
+        ReviewPhotoRepository.ReviewPhotoRow r2 = rowOf(11L, "p2");
+        when(reviewPhotoRepository.findByPlaceFlattened(PLACE_ID)).thenReturn(List.of(r1, r2));
+        List<PlacePhotoResponse> result = service.getPlacePhotos(PLACE_ID);
+        assertThat(result).extracting(PlacePhotoResponse::photoUrl).containsExactly("p1", "p2");
+
+        when(reviewPhotoRepository.findByPlaceFlattened(99L)).thenReturn(List.of());
+        assertThat(service.getPlacePhotos(99L)).isEmpty();
     }
 
     @Test
