@@ -33,7 +33,8 @@ export type IconName =
   | 'camera'
   | 'mail'
   | 'pushpin'
-  | 'chevronUp';
+  | 'chevronUp'
+  | 'star';
 
 type Props = {
   name: IconName;
@@ -273,6 +274,18 @@ export function Icon({ name, size = 18, color = T2.text }: Props) {
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
           <Path d="M6 15l6-6 6 6" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+    case 'star':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.78L12 16.77l-5.2 2.73.99-5.78-4.21-4.1 5.82-.85L12 3.5z"
+            fill={color}
+            stroke={color}
+            strokeWidth={1.2}
+            strokeLinejoin="round"
+          />
         </Svg>
       );
     default:
