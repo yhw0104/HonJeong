@@ -1,7 +1,7 @@
 // ProfileSetup — 프로필 완성 03/03 (원본: screens/ProfileSetup.jsx)
 // 커스텀 폼 컨트롤을 Pressable 토글 + TextInput으로 구현. 음식은 최대 3개 다중선택.
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert, Modal } from 'react-native';
 import { Screen, StepProgress, CTAButton, FieldLabel, Icon, Avatar } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { apiGet, apiPost, ApiError } from '@/shared/api/client';
@@ -10,6 +10,7 @@ import { useAuth } from '@/shared/auth/AuthContext';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 const FOODS = ['한식', '일식', '양식', '중식', '면 요리', '매운맛', '디저트'];
+const AGE_GROUPS = ['10대', '20대', '30대', '40대', '50대', '60대 이상'];
 const STYLES_OPT = [
   { key: 'talk', label: '도란도란 대화하며', sub: '가볍게 이야기 나누는 게 좋아요' },
   { key: 'quiet', label: '조용히 각자', sub: '편하게, 말 없이 먹어도 좋아요' },
@@ -49,6 +50,8 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
   const [style, setStyle] = useState('talk');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [ageGroup, setAgeGroup] = useState<string | null>(null);
+  const [agePickerOpen, setAgePickerOpen] = useState(false);
   const [terms, setTerms] = useState<Record<string, boolean>>({
     service: false,
     privacy: false,
@@ -137,6 +140,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
           region: '마포구 연남동',
           favoriteFoods: foods,
           profileImageUrl: imageUrl ?? undefined,
+          ageGroup: ageGroup ?? undefined,
         },
         { token: onboardingToken },
       );
@@ -229,10 +233,12 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
           </View>
           <View style={{ flex: 1 }}>
             <FieldLabel>연령대</FieldLabel>
-            <View style={styles.dropdown}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: T2.text, letterSpacing: -0.3 }}>20대</Text>
+            <Pressable style={styles.dropdown} onPress={() => setAgePickerOpen(true)}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: ageGroup ? T2.text : T2.textMute, letterSpacing: -0.3 }}>
+                {ageGroup ?? '선택'}
+              </Text>
               <Icon name="chevronDown" size={11} color={T2.textMute} />
-            </View>
+            </Pressable>
           </View>
         </View>
 
@@ -363,6 +369,31 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
           onPress={onComplete}
         />
       </View>
+
+      {/* 연령대 선택 바텀시트 */}
+      <Modal visible={agePickerOpen} transparent animationType="fade" onRequestClose={() => setAgePickerOpen(false)}>
+        <Pressable style={styles.ageBackdrop} onPress={() => setAgePickerOpen(false)}>
+          <Pressable style={styles.ageSheet} onPress={() => {}}>
+            <Text style={styles.ageSheetTitle}>연령대 선택</Text>
+            {AGE_GROUPS.map((a) => {
+              const on = ageGroup === a;
+              return (
+                <Pressable
+                  key={a}
+                  style={styles.ageOption}
+                  onPress={() => {
+                    setAgeGroup(a);
+                    setAgePickerOpen(false);
+                  }}
+                >
+                  <Text style={[styles.ageOptionText, on && { color: T2.brand, fontWeight: '800' }]}>{a}</Text>
+                  {on ? <Text style={styles.ageCheck}>✓</Text> : null}
+                </Pressable>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 }
@@ -410,6 +441,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: T2.border,
   },
+
+  ageBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  ageSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 28 },
+  ageSheetTitle: { fontSize: 15, fontWeight: '800', color: T2.text, letterSpacing: -0.3, marginBottom: 8 },
+  ageOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: T2.border },
+  ageOptionText: { fontSize: 15, fontWeight: '600', color: T2.text, letterSpacing: -0.3 },
+  ageCheck: { fontSize: 15, fontWeight: '800', color: T2.brand },
 
   introInput: {
     paddingVertical: 14,
