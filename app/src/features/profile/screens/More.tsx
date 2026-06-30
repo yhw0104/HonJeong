@@ -7,6 +7,7 @@ import type { IconName } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useAuth } from '@/shared/auth/AuthContext';
 import type { MainTabScreenProps } from '@/navigation/types';
+import { useMyProfile, useActivitySummary } from '@/features/users/queries';
 
 type MenuRoute =
   | 'ReceivedRequests'
@@ -44,15 +45,17 @@ const SECTIONS: Section[] = [
   },
 ];
 
-type StatRoute = 'Mates' | 'DiningHistory' | 'ChallengeBadges';
-const STATS: { n: string; l: string; route?: StatRoute }[] = [
-  { n: '32', l: '혼밥', route: 'DiningHistory' },
-  { n: '7', l: '메이트', route: 'Mates' },
-  { n: '7', l: '뱃지', route: 'ChallengeBadges' },
-];
 
 export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
   const { signOut } = useAuth();
+  const { data: profile } = useMyProfile();
+  const { data: summary } = useActivitySummary();
+  const num = (n?: number) => (n === undefined ? '–' : String(n));
+  const stats: { n: string; l: string; route: 'DiningHistory' | 'Mates' | 'Favorites' }[] = [
+    { n: num(summary?.checkInCount), l: '혼밥', route: 'DiningHistory' },
+    { n: num(summary?.mateCount), l: '메이트', route: 'Mates' },
+    { n: num(summary?.favoriteCount), l: '즐겨찾기', route: 'Favorites' },
+  ];
 
   const onLogout = () => {
     Alert.alert('로그아웃', '로그아웃하시겠어요?', [
@@ -73,20 +76,20 @@ export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
         <View style={styles.cardWrap}>
           <View style={styles.card}>
             <Pressable style={styles.cardTop} onPress={() => navigation.navigate('MyProfile')}>
-              <Avatar name="혼" bg={T2.text} size={52} />
+              <Avatar uri={profile?.profileImageUrl} bg={T2.bg} size={52} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.profileName}>조용한혼밥러</Text>
-                <Text style={styles.profileMeta}>혼밥 32회 · 연남동</Text>
+                <Text style={styles.profileName}>{profile?.nickname ?? '혼밥러'}</Text>
+                <Text style={styles.profileMeta}>혼밥 {num(summary?.checkInCount)}회 · {profile?.region ?? '동네 미설정'}</Text>
               </View>
               <Icon name="chevronRight" size={18} color={T2.textMute} />
             </Pressable>
 
             <View style={styles.statsRow}>
-              {STATS.map((s, k) => (
+              {stats.map((s, k) => (
                 <Pressable
                   key={s.l}
                   style={[styles.statCell, k > 0 && styles.statDivider]}
-                  onPress={s.route ? () => navigation.navigate(s.route!) : undefined}
+                  onPress={() => navigation.navigate(s.route)}
                 >
                   <Text style={styles.statNum}>{s.n}</Text>
                   <Text style={styles.statLabel}>{s.l}</Text>
