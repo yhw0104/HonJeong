@@ -21,6 +21,9 @@ public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
     @Query("SELECT f FROM Favorite f JOIN FETCH f.place WHERE f.group.id = :groupId ORDER BY f.createdAt DESC")
     List<Favorite> findWithPlaceByGroupId(@Param("groupId") Long groupId);
 
+    @Query("SELECT COUNT(DISTINCT f.place.id) FROM Favorite f WHERE f.group.user.id = :userId")
+    long countDistinctPlaceByUserId(@Param("userId") Long userId);
+
     @Query("SELECT f.group.id FROM Favorite f WHERE f.group.user.id = :userId AND f.place.id = :placeId")
     List<Long> findGroupIdsContaining(@Param("userId") Long userId, @Param("placeId") Long placeId);
 }

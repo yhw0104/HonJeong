@@ -99,6 +99,20 @@ class FavoriteRepositoryTest extends AbstractPostgresTest {
         assertThat(favoriteRepository.countByGroup_Id(g2.getId())).isEqualTo(0L);
     }
 
+    @Test
+    @DisplayName("countDistinctPlaceByUserId: 한 식당이 여러 그룹에 있어도 1로 센다")
+    void countDistinctPlaceByUserId_distinct() {
+        User user = persistUser("01000000010", "집계러");
+        Place place = persistPlace("ext-count-1");
+        FavoriteGroup g1 = em.persist(FavoriteGroup.create(user, "그룹1", null, "#FF5A1F", false));
+        FavoriteGroup g2 = em.persist(FavoriteGroup.create(user, "그룹2", null, "#22A65A", false));
+        em.persist(Favorite.of(g1, place));
+        em.persist(Favorite.of(g2, place));
+        em.flush();
+
+        assertThat(favoriteRepository.countDistinctPlaceByUserId(user.getId())).isEqualTo(1);
+    }
+
     private User persistUser(String phone, String nickname) {
         User u = User.pending(phone, null);
         u.completeProfile(nickname, null, null, null, null, null, null, null, null);
