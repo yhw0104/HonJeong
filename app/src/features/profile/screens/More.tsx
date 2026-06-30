@@ -24,7 +24,7 @@ const SECTIONS: Section[] = [
   {
     title: '나의 혼밥',
     items: [
-      { l: '내 혼밥 기록', d: '32회 · 일기 28편', icon: 'book', route: 'DiningHistory' },
+      { l: '내 혼밥 기록', icon: 'book', route: 'DiningHistory' },
       { l: '혼밥 챌린지 · 뱃지', d: '획득 7 / 20', icon: 'badge', accent: true, route: 'ChallengeBadges' },
     ],
   },
@@ -56,6 +56,9 @@ export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
     { n: num(summary?.mateCount), l: '메이트', route: 'Mates' },
     { n: num(summary?.favoriteCount), l: '즐겨찾기', route: 'Favorites' },
   ];
+  // '내 혼밥 기록' detail은 실데이터(혼밥 횟수·일기 수), 나머지 메뉴는 정적 d 유지.
+  const menuDetail = (it: MenuItem) =>
+    it.route === 'DiningHistory' ? `${num(summary?.checkInCount)}회 · 일기 ${num(summary?.reviewCount)}편` : it.d;
 
   const onLogout = () => {
     Alert.alert('로그아웃', '로그아웃하시겠어요?', [
@@ -120,7 +123,7 @@ export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
                       <Text style={styles.menuBadgeText}>{it.badge}</Text>
                     </View>
                   ) : null}
-                  {it.d ? <Text style={styles.menuDetail}>{it.d}</Text> : null}
+                  {menuDetail(it) ? <Text style={styles.menuDetail}>{menuDetail(it)}</Text> : null}
                   <Icon name="chevronRight" size={16} color={T2.textMute} />
                 </Pressable>
               ))}

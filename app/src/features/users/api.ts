@@ -30,6 +30,7 @@ export const updateMyProfile = (body: UpdateProfileBody) => apiPatch<MyProfile>(
 // GET /users/me/activity-summary — 프로필 카드 통계(혼밥·즐겨찾기·메이트 카운트).
 export type ActivitySummary = {
   checkInCount: number;
+  reviewCount: number;
   favoriteCount: number;
   mateCount: number;
 };
