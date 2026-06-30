@@ -5,6 +5,7 @@ import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from 
 import { Screen, FieldLabel, Avatar, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useMyProfile, useUpdateMyProfile } from '@/features/users/queries';
+import { pickImages, uploadImages } from '@/shared/upload/imageUpload';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 const FOODS = ['한식', '일식', '양식', '중식', '면 요리', '매운맛', '디저트'];
@@ -21,6 +22,8 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
   const [bio, setBio] = useState('');
   const [foods, setFoods] = useState<string[]>([]);
   const [style, setStyle] = useState('talk');
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // 서버 프로필이 도착하면 폼 초깃값을 채운다(최초 동기화).
   useEffect(() => {
@@ -29,7 +32,24 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
     setBio(profile.introduction ?? '');
     setFoods(profile.favoriteFoods ?? []);
     setStyle(profile.diningStyle === 'QUIET' ? 'quiet' : 'talk');
+    setImageUrl(profile.profileImageUrl ?? null);
   }, [profile]);
+
+  // 사진 변경: 갤러리에서 1장 선택 → POST /api/files 업로드 → 미리보기 url 교체(저장 시 PATCH로 전송).
+  const onChangePhoto = async () => {
+    if (uploading) return;
+    const picked = await pickImages(1);
+    if (picked.length === 0) return;
+    setUploading(true);
+    try {
+      const [url] = await uploadImages([picked[0].uri]);
+      setImageUrl(url);
+    } catch {
+      Alert.alert('업로드 실패', '사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const toggleFood = (f: string) => {
     setFoods((prev) => {
@@ -46,6 +66,7 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
         introduction: bio,
         diningStyle: style === 'quiet' ? 'QUIET' : 'TALK',
         favoriteFoods: foods,
+        profileImageUrl: imageUrl ?? undefined,
       },
       {
         onSuccess: () => navigation.goBack(),
@@ -69,15 +90,15 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {/* 사진 변경 */}
-        <View style={styles.photoBlock}>
+        <Pressable style={styles.photoBlock} onPress={onChangePhoto} disabled={uploading}>
           <View>
-            <Avatar name="혼" bg={T2.text} size={84} />
+            <Avatar uri={imageUrl} bg={T2.bg} size={84} />
             <View style={styles.cameraBadge}>
               <Icon name="camera" size={15} color="#fff" />
             </View>
           </View>
-          <Text style={styles.photoChange}>사진 변경</Text>
-        </View>
+          <Text style={styles.photoChange}>{uploading ? '업로드 중…' : '사진 변경'}</Text>
+        </Pressable>
 
         {/* 닉네임 */}
         <View style={{ marginTop: 20 }}>

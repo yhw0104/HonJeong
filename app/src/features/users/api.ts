@@ -19,6 +19,7 @@ export const fetchMyProfile = () => apiGet<MyProfile>('/users/me');
 /** PATCH /users/me 본문(보낸 필드만 변경). favoriteFoods는 보내면 통째로 교체. */
 export type UpdateProfileBody = {
   nickname?: string;
+  profileImageUrl?: string;
   introduction?: string;
   diningStyle?: DiningStyle;
   favoriteFoods?: string[];
