@@ -4,18 +4,20 @@ import React from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Screen, Avatar, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
-import { useMyProfile } from '@/features/users/queries';
+import { useMyProfile, useActivitySummary } from '@/features/users/queries';
 import type { RootStackScreenProps } from '@/navigation/types';
 
-const STATS = [
-  { n: '32', l: '혼밥' },
-  { n: '7', l: '메이트' },
-  { n: '7', l: '뱃지' },
-];
 const RECENT_BADGES = ['🌱', '🍚', '🔥', '🤝'];
 
 export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'>) {
   const { data: profile } = useMyProfile();
+  const { data: summary } = useActivitySummary();
+  const num = (n?: number) => (n === undefined ? '–' : String(n));
+  const stats = [
+    { n: num(summary?.checkInCount), l: '혼밥' },
+    { n: num(summary?.mateCount), l: '메이트' },
+    { n: num(summary?.favoriteCount), l: '즐겨찾기' },
+  ];
   const foods = profile?.favoriteFoods ?? [];
   const styleLabel =
     profile?.diningStyle === 'QUIET'
@@ -37,7 +39,7 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* 프로필 헤더 */}
         <View style={styles.profile}>
-          <Avatar name="혼" bg={T2.text} size={84} />
+          <Avatar uri={profile?.profileImageUrl} bg={T2.bg} size={84} />
           <Text style={styles.name}>{profile?.nickname ?? '혼밥러'}</Text>
           <Text style={styles.sub}>{profile?.region ?? '동네 미설정'}</Text>
           {!!profile?.introduction && <Text style={styles.bio}>"{profile.introduction}"</Text>}
@@ -45,7 +47,7 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
 
         {/* 통계 */}
         <View style={styles.statsCard}>
-          {STATS.map((s, i) => (
+          {stats.map((s, i) => (
             <View key={s.l} style={[styles.statCell, i > 0 && styles.statDivider]}>
               <Text style={styles.statNum}>{s.n}</Text>
               <Text style={styles.statLabel}>{s.l}</Text>
