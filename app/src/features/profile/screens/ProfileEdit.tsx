@@ -51,6 +51,9 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
     }
   };
 
+  // 사진 삭제: 미리보기를 기본(👤)으로 되돌린다. 저장 시 빈 문자열을 보내 서버 사진을 비운다.
+  const onRemovePhoto = () => setImageUrl(null);
+
   const toggleFood = (f: string) => {
     setFoods((prev) => {
       if (prev.includes(f)) return prev.filter((x) => x !== f);
@@ -66,7 +69,8 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
         introduction: bio,
         diningStyle: style === 'quiet' ? 'QUIET' : 'TALK',
         favoriteFoods: foods,
-        profileImageUrl: imageUrl ?? undefined,
+        // 새 사진=url 전송, 비움=빈 문자열로 서버 사진 제거(기존 사진이 있을 때만), 변경없음=미전송.
+        profileImageUrl: imageUrl ?? (profile?.profileImageUrl ? '' : undefined),
       },
       {
         onSuccess: () => navigation.goBack(),
@@ -89,16 +93,28 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {/* 사진 변경 */}
-        <Pressable style={styles.photoBlock} onPress={onChangePhoto} disabled={uploading}>
-          <View>
+        {/* 사진 변경 / 기본 이미지로 */}
+        <View style={styles.photoBlock}>
+          <Pressable onPress={onChangePhoto} disabled={uploading}>
             <Avatar uri={imageUrl} bg={T2.bg} size={84} />
             <View style={styles.cameraBadge}>
               <Icon name="camera" size={15} color="#fff" />
             </View>
+          </Pressable>
+          <View style={styles.photoActions}>
+            <Pressable onPress={onChangePhoto} disabled={uploading} hitSlop={6}>
+              <Text style={styles.photoChange}>{uploading ? '업로드 중…' : '사진 변경'}</Text>
+            </Pressable>
+            {imageUrl ? (
+              <>
+                <Text style={styles.photoSep}>·</Text>
+                <Pressable onPress={onRemovePhoto} disabled={uploading} hitSlop={6}>
+                  <Text style={styles.photoRemove}>기본 이미지로</Text>
+                </Pressable>
+              </>
+            ) : null}
           </View>
-          <Text style={styles.photoChange}>{uploading ? '업로드 중…' : '사진 변경'}</Text>
-        </Pressable>
+        </View>
 
         {/* 닉네임 */}
         <View style={{ marginTop: 20 }}>
@@ -208,7 +224,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  photoChange: { fontSize: 13, fontWeight: '700', color: T2.brand, marginTop: 12, letterSpacing: -0.2 },
+  photoActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  photoChange: { fontSize: 13, fontWeight: '700', color: T2.brand, letterSpacing: -0.2 },
+  photoSep: { fontSize: 13, color: T2.textMute },
+  photoRemove: { fontSize: 13, fontWeight: '700', color: T2.textMute, letterSpacing: -0.2 },
 
   fieldBox: {
     flexDirection: 'row',
