@@ -40,8 +40,9 @@ export async function pickImages(remaining: number): Promise<PickedAsset[]> {
  * (ERR:unsupported FormData part implementation), expo-file-system의 uploadAsync(MULTIPART)로 올린다.
  * fieldName='file'은 백엔드 @RequestParam("file")와 일치한다.
  */
-export async function uploadImages(uris: string[]): Promise<string[]> {
-  const token = getAccessToken();
+export async function uploadImages(uris: string[], token?: string): Promise<string[]> {
+  // 기본은 세션 access 토큰. 온보딩(ProfileSetup)처럼 아직 로그인 전이면 온보딩 토큰을 넘긴다.
+  const authToken = token ?? getAccessToken();
   const urls: string[] = [];
   for (const uri of uris) {
     const res = await FileSystem.uploadAsync(`${API_BASE_URL}/api/files`, uri, {
@@ -49,7 +50,7 @@ export async function uploadImages(uris: string[]): Promise<string[]> {
       uploadType: FileSystem.FileSystemUploadType.MULTIPART,
       fieldName: 'file',
       mimeType: 'image/jpeg',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
     }).catch(() => {
       throw new Error('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
     });

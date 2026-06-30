@@ -2,9 +2,10 @@
 // 커스텀 폼 컨트롤을 Pressable 토글 + TextInput으로 구현. 음식은 최대 3개 다중선택.
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
-import { Screen, StepProgress, CTAButton, FieldLabel, Icon } from '@/shared/components';
+import { Screen, StepProgress, CTAButton, FieldLabel, Icon, Avatar } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { apiGet, apiPost, ApiError } from '@/shared/api/client';
+import { pickImages, uploadImages } from '@/shared/upload/imageUpload';
 import { useAuth } from '@/shared/auth/AuthContext';
 import type { RootStackScreenProps } from '@/navigation/types';
 
@@ -46,6 +47,8 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
   const [gender, setGender] = useState<'female' | 'male'>('female');
   const [foods, setFoods] = useState<string[]>([]);
   const [style, setStyle] = useState('talk');
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [terms, setTerms] = useState<Record<string, boolean>>({
     service: false,
     privacy: false,
@@ -95,6 +98,22 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
     });
   };
 
+  // 프로필 사진(선택): 갤러리 1장 선택 → POST /api/files(아직 로그인 전이라 온보딩 토큰) 업로드 → 미리보기.
+  const onPickPhoto = async () => {
+    if (uploadingPhoto) return;
+    const picked = await pickImages(1);
+    if (picked.length === 0) return;
+    setUploadingPhoto(true);
+    try {
+      const [url] = await uploadImages([picked[0].uri], onboardingToken);
+      setImageUrl(url);
+    } catch {
+      Alert.alert('업로드 실패', '사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   // 약관 제출 → 프로필 제출(가입 확정 + 정식 토큰) → 로그인(네비게이터가 메인으로 전환).
   const onComplete = async () => {
     if (!requiredOk) {
@@ -117,6 +136,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
           introduction: intro,
           region: '마포구 연남동',
           favoriteFoods: foods,
+          profileImageUrl: imageUrl ?? undefined,
         },
         { token: onboardingToken },
       );
@@ -145,21 +165,21 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
           <Text style={{ color: T2.text, fontWeight: '700' }}>같이 먹기</Text>를 신청하거나 받을 때, 상대에게 보여지는 정보예요.
         </Text>
 
-        {/* 프로필 사진 */}
-        <View style={styles.photoRow}>
+        {/* 프로필 사진 (선택) */}
+        <Pressable style={styles.photoRow} onPress={onPickPhoto} disabled={uploadingPhoto}>
           <View>
-            <View style={styles.photo}>
-              <Text style={styles.photoEmoji}>👤</Text>
-            </View>
+            <Avatar uri={imageUrl} size={72} bg={T2.border} />
             <View style={styles.cameraBadge}>
               <Text style={{ fontSize: 12 }}>📷</Text>
             </View>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.photoTitle}>프로필 사진 추가</Text>
+            <Text style={styles.photoTitle}>
+              {uploadingPhoto ? '업로드 중…' : imageUrl ? '프로필 사진 변경' : '프로필 사진 추가'}
+            </Text>
             <Text style={styles.photoSub}>상대에게 보여지는 정보예요.{'\n'}얼굴 사진이면 더 좋아요.</Text>
           </View>
-        </View>
+        </Pressable>
 
         {/* 닉네임 */}
         <View style={{ marginTop: 32 }}>
@@ -356,8 +376,6 @@ const styles = StyleSheet.create({
   lead: { fontSize: 14, color: T2.textSub, marginTop: 12, lineHeight: 21, letterSpacing: -0.3 },
 
   photoRow: { marginTop: 28, flexDirection: 'row', alignItems: 'center', gap: 16 },
-  photo: { width: 72, height: 72, borderRadius: 36, backgroundColor: T2.border, alignItems: 'center', justifyContent: 'center' },
-  photoEmoji: { fontSize: 34 },
   cameraBadge: {
     position: 'absolute',
     right: -2,
