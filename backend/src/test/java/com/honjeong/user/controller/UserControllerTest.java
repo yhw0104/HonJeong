@@ -22,8 +22,10 @@ import com.honjeong.global.config.SecurityConfig;
 import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.security.JwtProvider;
 import com.honjeong.user.domain.UserStatus;
+import com.honjeong.user.dto.ActivitySummaryResponse;
 import com.honjeong.user.dto.NicknameCheckResponse;
 import com.honjeong.user.dto.UserProfileResponse;
+import com.honjeong.user.service.UserActivityService;
 import com.honjeong.user.service.UserService;
 
 /**
@@ -54,6 +56,9 @@ class UserControllerTest {
 
     @MockitoBean
     private UserService userService;
+
+    @MockitoBean
+    private UserActivityService userActivityService;
 
     private UserProfileResponse sampleProfile() {
         return new UserProfileResponse(1L, "01012345678", null, "혼밥러", null,
@@ -213,5 +218,26 @@ class UserControllerTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.available").value(true));
+    }
+
+    @Test
+    @DisplayName("GET /me/activity-summary: access 토큰이면 200 + 카운트")
+    void getActivitySummary_ok() throws Exception {
+        when(userActivityService.getActivitySummary(1L))
+                .thenReturn(new ActivitySummaryResponse(12L, 5L, 0L));
+        String token = jwtProvider.createAccessToken(1L);
+
+        mockMvc.perform(get("/api/users/me/activity-summary").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.checkInCount").value(12))
+                .andExpect(jsonPath("$.data.favoriteCount").value(5))
+                .andExpect(jsonPath("$.data.mateCount").value(0));
+    }
+
+    @Test
+    @DisplayName("GET /me/activity-summary: 토큰 없으면 401")
+    void getActivitySummary_noToken_401() throws Exception {
+        mockMvc.perform(get("/api/users/me/activity-summary"))
+                .andExpect(status().isUnauthorized());
     }
 }

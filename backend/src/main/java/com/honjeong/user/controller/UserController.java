@@ -9,9 +9,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.honjeong.global.common.ApiResponse;
 import com.honjeong.global.security.CurrentUserId;
+import com.honjeong.user.dto.ActivitySummaryResponse;
 import com.honjeong.user.dto.NicknameCheckResponse;
 import com.honjeong.user.dto.UpdateProfileRequest;
 import com.honjeong.user.dto.UserProfileResponse;
+import com.honjeong.user.service.UserActivityService;
 import com.honjeong.user.service.UserService;
 
 import jakarta.validation.Valid;
@@ -36,9 +38,11 @@ import jakarta.validation.Valid;
 public class UserController {
 
     private final UserService userService;
+    private final UserActivityService userActivityService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, UserActivityService userActivityService) {
         this.userService = userService;
+        this.userActivityService = userActivityService;
     }
 
     /**
@@ -79,6 +83,18 @@ public class UserController {
     public ApiResponse<UserProfileResponse> updateMe(@CurrentUserId Long userId,
             @RequestBody @Valid UpdateProfileRequest request) {
         return ApiResponse.success(userService.updateProfile(userId, request.toCommand()));
+    }
+
+    /**
+     * 내 활동요약 조회(프로필 카드 통계: 혼밥·즐겨찾기·메이트 카운트).
+     *
+     * <p><b>요청:</b> {@code GET /api/users/me/activity-summary} — 정식 access 토큰 필요.
+     * <p><b>응답:</b> {@code ApiResponse<ActivitySummaryResponse>}.
+     * <p><b>인증:</b> ROLE_USER. {@code @CurrentUserId}로 본인 식별.
+     */
+    @GetMapping("/me/activity-summary")
+    public ApiResponse<ActivitySummaryResponse> getActivitySummary(@CurrentUserId Long userId) {
+        return ApiResponse.success(userActivityService.getActivitySummary(userId));
     }
 
     /**
