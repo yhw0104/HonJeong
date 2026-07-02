@@ -34,7 +34,11 @@ function useMateMutation<V>(fn: (v: V) => Promise<unknown>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['mate'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['mate'] });
+      // 메이트 수락/해제로 메이트 수가 바뀌므로 더보기·프로필 통계(activity-summary)도 갱신.
+      qc.invalidateQueries({ queryKey: ['users', 'me', 'activity-summary'] });
+    },
   });
 }
 
