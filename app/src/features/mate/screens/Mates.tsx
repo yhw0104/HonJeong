@@ -62,6 +62,8 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
             <Text style={styles.label}>검색 결과</Text>
             {search.isLoading ? (
               <ActivityIndicator color={T2.brand} style={{ marginTop: 24 }} />
+            ) : search.isError ? (
+              <Text style={styles.emptyText}>검색 중 오류가 발생했어요</Text>
             ) : (search.data ?? []).length === 0 ? (
               <Text style={styles.emptyText}>검색 결과가 없어요</Text>
             ) : (
@@ -72,7 +74,8 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
                     : item.requestStatus === 'PENDING_SENT'
                     ? '신청함'
                     : '+ 메이트 추가';
-                  const disabled = item.isMate || item.requestStatus === 'PENDING_SENT';
+                  const isRelated = item.isMate || item.requestStatus === 'PENDING_SENT';
+                  const disabled = isRelated || send.isPending;
                   return (
                     <Pressable
                       key={item.userId}
@@ -173,8 +176,10 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
               </>
             )}
 
-            {/* 받은 메이트 신청 */}
-            {(received.data ?? []).length > 0 ? (
+            {/* 받은 메이트 신청 (검색 중에는 숨김 — 의도적 UX) */}
+            {received.isError ? (
+              <Text style={[styles.emptyText, { marginTop: 24 }]}>신청을 불러오지 못했어요</Text>
+            ) : (received.data ?? []).length > 0 ? (
               <>
                 <Text style={[styles.label, { marginTop: 28 }]}>받은 메이트 신청</Text>
                 <View style={{ gap: 10 }}>
@@ -186,22 +191,30 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
                       </View>
                       <View style={{ flexDirection: 'row', gap: 8 }}>
                         <Pressable
+                          disabled={accept.isPending}
                           onPress={() =>
                             accept.mutate(req.mateRequestId, {
                               onError: (err) => Alert.alert('오류', mateErrorMessage(err)),
                             })
                           }
-                          style={[styles.addChip, { backgroundColor: T2.brand, borderColor: T2.brand }]}
+                          style={[
+                            styles.addChip,
+                            { backgroundColor: T2.brand, borderColor: T2.brand, opacity: accept.isPending ? 0.5 : 1 },
+                          ]}
                         >
                           <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff', letterSpacing: -0.2 }}>수락</Text>
                         </Pressable>
                         <Pressable
+                          disabled={decline.isPending}
                           onPress={() =>
                             decline.mutate(req.mateRequestId, {
                               onError: (err) => Alert.alert('오류', mateErrorMessage(err)),
                             })
                           }
-                          style={[styles.addChip, { backgroundColor: '#fff', borderColor: T2.border }]}
+                          style={[
+                            styles.addChip,
+                            { backgroundColor: '#fff', borderColor: T2.border, opacity: decline.isPending ? 0.5 : 1 },
+                          ]}
                         >
                           <Text style={{ fontSize: 12, fontWeight: '700', color: T2.textMute, letterSpacing: -0.2 }}>거절</Text>
                         </Pressable>
