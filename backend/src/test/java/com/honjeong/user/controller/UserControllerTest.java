@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.honjeong.global.config.SecurityConfig;
 import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.security.JwtProvider;
+import com.honjeong.mate.service.MateProfileService;
 import com.honjeong.user.domain.UserStatus;
 import com.honjeong.user.dto.ActivitySummaryResponse;
 import com.honjeong.user.dto.NicknameCheckResponse;
@@ -59,6 +60,9 @@ class UserControllerTest {
 
     @MockitoBean
     private UserActivityService userActivityService;
+
+    @MockitoBean
+    private MateProfileService mateProfileService;
 
     private UserProfileResponse sampleProfile() {
         return new UserProfileResponse(1L, "01012345678", null, "혼밥러", null,

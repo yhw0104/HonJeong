@@ -1,7 +1,10 @@
 package com.honjeong.user.controller;
 
+import java.util.List;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -9,6 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.honjeong.global.common.ApiResponse;
 import com.honjeong.global.security.CurrentUserId;
+import com.honjeong.mate.dto.PublicProfileResponse;
+import com.honjeong.mate.dto.UserSearchResponse;
+import com.honjeong.mate.service.MateProfileService;
 import com.honjeong.user.dto.ActivitySummaryResponse;
 import com.honjeong.user.dto.NicknameCheckResponse;
 import com.honjeong.user.dto.UpdateProfileRequest;
@@ -39,10 +45,13 @@ public class UserController {
 
     private final UserService userService;
     private final UserActivityService userActivityService;
+    private final MateProfileService mateProfileService;
 
-    public UserController(UserService userService, UserActivityService userActivityService) {
+    public UserController(UserService userService, UserActivityService userActivityService,
+            MateProfileService mateProfileService) {
         this.userService = userService;
         this.userActivityService = userActivityService;
+        this.mateProfileService = mateProfileService;
     }
 
     /**
@@ -116,5 +125,30 @@ public class UserController {
     @GetMapping("/nickname-check")
     public ApiResponse<NicknameCheckResponse> checkNickname(@RequestParam String nickname) {
         return ApiResponse.success(userService.checkNickname(nickname));
+    }
+
+    /**
+     * 닉네임 검색 — 활성 사용자 중 닉네임에 검색어가 포함된 최대 20명을 반환한다.
+     *
+     * <p><b>요청:</b> {@code GET /api/users/search?nickname=xxx} — 쿼리 파라미터 {@code nickname} 필수.
+     * <p><b>응답:</b> {@code ApiResponse<List<UserSearchResponse>>} — 본인 제외, 각 항목에 isMate·requestStatus 포함.
+     * <p><b>인증:</b> ROLE_USER 필요(기본 anyRequest() 규칙).
+     */
+    @GetMapping("/search")
+    public ApiResponse<List<UserSearchResponse>> search(@CurrentUserId Long userId,
+            @RequestParam("nickname") String nickname) {
+        return ApiResponse.success(mateProfileService.searchUsers(userId, nickname));
+    }
+
+    /**
+     * 타인 공개 프로필 조회 — 닉네임·소개·선호음식·관계상태를 포함한 공개 프로필을 반환한다.
+     *
+     * <p><b>요청:</b> {@code GET /api/users/{id}/profile} — path variable {@code id}는 조회 대상 사용자 PK.
+     * <p><b>응답:</b> {@code ApiResponse<PublicProfileResponse>} — 온라인 상태(currentPlaceName)는 메이트일 때만 노출.
+     * <p><b>인증:</b> ROLE_USER 필요(기본 anyRequest() 규칙).
+     */
+    @GetMapping("/{id}/profile")
+    public ApiResponse<PublicProfileResponse> profile(@CurrentUserId Long userId, @PathVariable Long id) {
+        return ApiResponse.success(mateProfileService.getPublicProfile(userId, id));
     }
 }
