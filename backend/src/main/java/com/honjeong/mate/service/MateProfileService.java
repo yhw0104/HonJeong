@@ -62,11 +62,13 @@ public class MateProfileService {
         // 온라인 상태는 메이트 관계일 때만 노출
         boolean online = false;
         String currentPlaceName = null;
+        Long currentPlaceId = null;
         if (isMate) {
             CheckIn active = checkInRepository.findByUser_IdAndStatus(targetId, CheckInStatus.ACTIVE).orElse(null);
             if (active != null) {
                 online = true;
                 currentPlaceName = active.getPlace().getName();
+                currentPlaceId = active.getPlace().getId();
             }
         }
         List<String> foods = foodRepository.findByUserId(targetId)
@@ -82,7 +84,7 @@ public class MateProfileService {
                 checkInRepository.countByUser_Id(targetId),
                 0L,  // mealsTogether — 범위 밖
                 0L,  // badgeCount — 뱃지 도메인 없음
-                online, currentPlaceName,
+                online, currentPlaceName, currentPlaceId,
                 isMate, requestStatus(viewerId, targetId));
     }
 

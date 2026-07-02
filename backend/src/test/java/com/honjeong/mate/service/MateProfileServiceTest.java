@@ -87,6 +87,7 @@ class MateProfileServiceTest {
 
         Place place = mock(Place.class);
         when(place.getName()).thenReturn("혼밥국밥집");
+        when(place.getId()).thenReturn(42L);
         CheckIn active = mock(CheckIn.class);
         when(active.getPlace()).thenReturn(place);
         when(checkInRepository.findByUser_IdAndStatus(2L, CheckInStatus.ACTIVE)).thenReturn(Optional.of(active));
@@ -106,6 +107,7 @@ class MateProfileServiceTest {
         assertThat(res.isMate()).isTrue();
         assertThat(res.isOnline()).isTrue();
         assertThat(res.currentPlaceName()).isEqualTo("혼밥국밥집");
+        assertThat(res.currentPlaceId()).isEqualTo(42L);
         assertThat(res.preferredFoods()).containsExactly("한식");
         assertThat(res.checkInCount()).isEqualTo(5L);
         assertThat(res.mealsTogether()).isZero();

@@ -7,6 +7,6 @@ public record PublicProfileResponse(
         String region, String gender, String ageGroup, String diningStyle,
         List<String> preferredFoods,
         long checkInCount, long mealsTogether, long badgeCount,
-        boolean isOnline, String currentPlaceName,
+        boolean isOnline, String currentPlaceName, Long currentPlaceId,
         boolean isMate, String requestStatus) {
 }

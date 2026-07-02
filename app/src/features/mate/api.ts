@@ -52,6 +52,7 @@ export type PublicProfile = {
   badgeCount: number;
   isOnline: boolean;
   currentPlaceName: string | null;
+  currentPlaceId: number | null;
   isMate: boolean;
   requestStatus: RelationStatus;
 };
