@@ -180,6 +180,7 @@ public class CheckInService {
         return checkInRepository.findActiveWithUserByPlace(placeId).stream()
                 .map(c -> new CheckInUserResponse(
                         c.getId(),
+                        c.getUser().getId(),
                         c.getUser().getNickname(),
                         c.getStartedAt(),
                         Duration.between(c.getStartedAt(), now).toMinutes()))

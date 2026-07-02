@@ -126,8 +126,8 @@ class MealRequestControllerTest {
         when(mealRequestService.getMealRequests(eq(1L), eq("received"), any()))
                 .thenReturn(List.of(new MealRequestListItemResponse(
                         7L,
-                        new MealRequestListItemResponse.FromUser("옆자리"),
-                        new MealRequestListItemResponse.ToUser("수신자"),
+                        new MealRequestListItemResponse.FromUser(20L, "옆자리"),
+                        new MealRequestListItemResponse.ToUser(30L, "수신자"),
                         3L, "큰순두부", "같이 드실래요?", "PENDING",
                         java.time.LocalDateTime.of(2026, 6, 18, 12, 0))));
 

@@ -240,6 +240,7 @@ class CheckInServiceTest {
     void diners_elapsed() {
         // clock now = 2026-06-15T12:00 KST. 11:45 시작 → 경과 15분
         User user = mock(User.class);
+        when(user.getId()).thenReturn(5L);
         when(user.getNickname()).thenReturn("혼밥러");
         CheckIn ci = CheckIn.start(user, place(3L), nowKst.minusMinutes(15));
         when(checkInRepository.findActiveWithUserByPlace(3L)).thenReturn(List.of(ci));

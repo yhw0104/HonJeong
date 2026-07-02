@@ -9,8 +9,8 @@ import com.honjeong.meal.domain.MealRequest;
  * 상대 닉네임은 해당 식당 혼밥러 목록에 이미 공개되므로 노출에 추가 프라이버시 누출이 없다.
  *
  * @param mealRequestId 신청 id
- * @param fromUser      신청자(닉네임만)
- * @param toUser        대상 수신자(닉네임만)
+ * @param fromUser      신청자(userId + 닉네임)
+ * @param toUser        대상 수신자(userId + 닉네임)
  * @param placeId       신청 발생 장소 id
  * @param placeName     장소 이름
  * @param message       인사 한마디(nullable)
@@ -27,19 +27,19 @@ public record MealRequestListItemResponse(
         String status,
         LocalDateTime createdAt) {
 
-    /** 신청자 요약(닉네임만). */
-    public record FromUser(String nickname) {
+    /** 신청자 요약(userId + 닉네임). */
+    public record FromUser(Long userId, String nickname) {
     }
 
-    /** 수신자 요약(닉네임만). */
-    public record ToUser(String nickname) {
+    /** 수신자 요약(userId + 닉네임). */
+    public record ToUser(Long userId, String nickname) {
     }
 
     public static MealRequestListItemResponse from(MealRequest mr) {
         return new MealRequestListItemResponse(
                 mr.getId(),
-                new FromUser(mr.getFromUser().getNickname()),
-                new ToUser(mr.getToCheckIn().getUser().getNickname()),
+                new FromUser(mr.getFromUser().getId(), mr.getFromUser().getNickname()),
+                new ToUser(mr.getToCheckIn().getUser().getId(), mr.getToCheckIn().getUser().getNickname()),
                 mr.getPlace().getId(),
                 mr.getPlace().getName(),
                 mr.getMessage(),

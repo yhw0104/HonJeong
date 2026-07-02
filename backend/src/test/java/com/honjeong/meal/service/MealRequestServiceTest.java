@@ -248,8 +248,10 @@ class MealRequestServiceTest {
     @DisplayName("getMealRequests: 엔티티를 목록 DTO로 매핑한다(fromUser·toUser·placeId·placeName·message·status·createdAt)")
     void list_mapsToDto() {
         User from = mock(User.class);
+        when(from.getId()).thenReturn(20L);
         when(from.getNickname()).thenReturn("옆자리");
         User to = mock(User.class);
+        when(to.getId()).thenReturn(30L);
         when(to.getNickname()).thenReturn("수신자");
         CheckIn ci = mock(CheckIn.class);
         when(ci.getUser()).thenReturn(to);
