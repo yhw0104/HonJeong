@@ -1,14 +1,16 @@
 // Mates — 메이트 목록 (원본: screens/Mates.jsx)
 // 더보기 프로필 '메이트' 스탯에서 진입. 내 메이트 + 받은 메이트 신청.
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { Screen, MoreHeader, EmojiCircle, Icon } from '@/shared/components';
 import { T2, C } from '@/shared/theme';
+import { useFocusEffect } from '@react-navigation/native';
 import type { RootStackScreenProps } from '@/navigation/types';
 import {
   useMates,
   useSearchUsers,
   useReceivedMateRequests,
+  useSentMateRequests,
   useSendMateRequest,
   useAcceptMateRequest,
   useDeclineMateRequest,
@@ -31,9 +33,12 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
   const mates = useMates();
   const search = useSearchUsers(query);
   const received = useReceivedMateRequests('PENDING');
+  const sent = useSentMateRequests();
   const send = useSendMateRequest();
   const accept = useAcceptMateRequest();
   const decline = useDeclineMateRequest();
+
+  useFocusEffect(useCallback(() => { received.refetch(); sent.refetch(); }, [received.refetch, sent.refetch]));
 
   const searching = query.trim().length > 0;
 
@@ -211,7 +216,6 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
                           disabled={decline.isPending}
                           onPress={() =>
                             decline.mutate(req.mateRequestId, {
-                              onSuccess: () => Alert.alert('메이트', '신청을 거절했어요'),
                               onError: (err) => Alert.alert('오류', mateErrorMessage(err)),
                             })
                           }
@@ -228,6 +232,46 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
                 </View>
               </>
             ) : null}
+
+            {/* 보낸 메이트 신청 (PENDING/DECLINED만, 검색 중에는 숨김) */}
+            {(() => {
+              const sentVisible = (sent.data ?? []).filter(
+                (r) => r.status === 'PENDING' || r.status === 'DECLINED',
+              );
+              if (sent.isError || sentVisible.length === 0) return null;
+              return (
+                <>
+                  <Text style={[styles.label, { marginTop: 28 }]}>보낸 메이트 신청</Text>
+                  <View style={{ gap: 10 }}>
+                    {sentVisible.map((req) => {
+                      const isPending = req.status === 'PENDING';
+                      return (
+                        <Pressable
+                          key={req.mateRequestId}
+                          style={styles.card}
+                          onPress={() => navigation.navigate('MateProfile', { userId: req.toUser.userId })}
+                        >
+                          <EmojiCircle emoji={emojiFor(req.toUser.nickname)} size={48} />
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={styles.name}>{req.toUser.nickname ?? '알 수 없음'}</Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.addChip,
+                              { backgroundColor: '#fff', borderColor: T2.border },
+                            ]}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: T2.textMute, letterSpacing: -0.2, opacity: isPending ? 1 : 0.5 }}>
+                              {isPending ? '대기 중' : '거절됨'}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              );
+            })()}
           </>
         )}
       </ScrollView>

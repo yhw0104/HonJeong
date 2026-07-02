@@ -15,6 +15,13 @@ export function useReceivedMateRequests(status?: string) {
   });
 }
 
+export function useSentMateRequests(status?: string) {
+  return useQuery({
+    queryKey: ['mate', 'requests', 'sent', status ?? 'all'],
+    queryFn: () => listMateRequests('sent', status),
+  });
+}
+
 export function useSearchUsers(nickname: string) {
   return useQuery({
     queryKey: ['mate', 'search', nickname],
