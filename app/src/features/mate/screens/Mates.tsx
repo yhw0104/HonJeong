@@ -1,23 +1,41 @@
 // Mates — 메이트 목록 (원본: screens/Mates.jsx)
-// 더보기 프로필 '메이트' 스탯에서 진입. 내 메이트 + 알 수도 있는 메이트.
+// 더보기 프로필 '메이트' 스탯에서 진입. 내 메이트 + 받은 메이트 신청.
 import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, TextInput, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { Screen, MoreHeader, EmojiCircle, Icon } from '@/shared/components';
 import { T2, C } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
+import {
+  useMates,
+  useSearchUsers,
+  useReceivedMateRequests,
+  useSendMateRequest,
+  useAcceptMateRequest,
+  useDeclineMateRequest,
+} from '@/features/mate/queries';
+import { mateErrorMessage } from '@/features/mate/mateCopy';
 
-const MY_MATES = [
-  { name: '점심혼밥러', emo: '🍙', meta: '연남동 · 혼밥 32회', tags: ['한식', '대화 OK'], together: 2, now: true, nowPlace: '큰순두부 연남점' },
-  { name: '조용한미식가', emo: '🍜', meta: '합정 · 혼밥 18회', tags: ['일식', '조용히'], together: 1, now: false, nowPlace: '' },
-  { name: '연남책방지기', emo: '📚', meta: '연남동 · 혼밥 12회', tags: ['면 요리', '대화 OK'], together: 0, now: true, nowPlace: '혼밥의자' },
-];
-const SUGGEST = [
-  { name: '국밥러버', emo: '🍲', meta: '망원 · 혼밥 41회', mutual: 3, sent: false },
-  { name: '디저트헌터', emo: '🍰', meta: '상수 · 혼밥 9회', mutual: 1, sent: true },
-];
+function emojiFor(nickname: string | null): string {
+  return nickname?.[0] ?? '?';
+}
+
+function diningStyleLabel(style: 'TALK' | 'QUIET' | null): string | null {
+  if (style === 'TALK') return '대화 OK';
+  if (style === 'QUIET') return '조용히';
+  return null;
+}
 
 export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
-  const [sent, setSent] = useState<string[]>(SUGGEST.filter((s) => s.sent).map((s) => s.name));
+  const [query, setQuery] = useState('');
+
+  const mates = useMates();
+  const search = useSearchUsers(query);
+  const received = useReceivedMateRequests('PENDING');
+  const send = useSendMateRequest();
+  const accept = useAcceptMateRequest();
+  const decline = useDeclineMateRequest();
+
+  const searching = query.trim().length > 0;
 
   return (
     <Screen bg={T2.bg} edges={['top']}>
@@ -27,83 +45,174 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
         {/* 검색 */}
         <View style={styles.search}>
           <Icon name="search" size={18} color={T2.textMute} />
-          <Text style={styles.searchText}>이름으로 메이트 찾기</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="이름으로 메이트 찾기"
+            placeholderTextColor={T2.textMute}
+            value={query}
+            onChangeText={setQuery}
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
         </View>
 
-        {/* 내 메이트 */}
-        <Text style={styles.label}>내 메이트 {MY_MATES.length}</Text>
-        <View style={{ gap: 10 }}>
-          {MY_MATES.map((m) => (
-            <Pressable
-              key={m.name}
-              style={styles.card}
-              onPress={() => navigation.navigate('MateProfile', { name: m.name })}
-            >
-              <EmojiCircle emoji={m.emo} size={48} online={m.now} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={styles.nameRow}>
-                  <Text style={styles.name}>{m.name}</Text>
-                  {m.together > 0 ? (
-                    <View style={styles.togetherBadge}>
-                      <Text style={styles.togetherText}>같이 {m.together}회</Text>
-                    </View>
-                  ) : null}
-                </View>
-                {m.now ? (
-                  <View style={styles.nowRow}>
-                    <View style={styles.nowDot} />
-                    <Text style={styles.nowText}>지금 혼밥 중</Text>
-                    <Text style={styles.nowPlace} numberOfLines={1}>
-                      · {m.nowPlace}
-                    </Text>
-                  </View>
+        {searching ? (
+          /* 검색 결과 */
+          <>
+            <Text style={styles.label}>검색 결과</Text>
+            {search.isLoading ? (
+              <ActivityIndicator color={T2.brand} style={{ marginTop: 24 }} />
+            ) : (search.data ?? []).length === 0 ? (
+              <Text style={styles.emptyText}>검색 결과가 없어요</Text>
+            ) : (
+              <View style={{ gap: 10 }}>
+                {(search.data ?? []).map((item) => {
+                  const label = item.isMate
+                    ? '메이트'
+                    : item.requestStatus === 'PENDING_SENT'
+                    ? '신청함'
+                    : '+ 메이트 추가';
+                  const disabled = item.isMate || item.requestStatus === 'PENDING_SENT';
+                  return (
+                    <Pressable
+                      key={item.userId}
+                      style={styles.card}
+                      onPress={() => navigation.navigate('MateProfile', { userId: item.userId })}
+                    >
+                      <EmojiCircle emoji={emojiFor(item.nickname)} size={48} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.name}>{item.nickname ?? '알 수 없음'}</Text>
+                        {item.region ? <Text style={styles.meta}>{item.region}</Text> : null}
+                      </View>
+                      <Pressable
+                        onPress={() => {
+                          if (disabled) return;
+                          send.mutate(item.userId, {
+                            onError: (err) => Alert.alert('오류', mateErrorMessage(err)),
+                          });
+                        }}
+                        style={[
+                          styles.addChip,
+                          { backgroundColor: disabled ? '#fff' : T2.brand, borderColor: disabled ? T2.border : T2.brand },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: disabled ? T2.textMute : '#fff', letterSpacing: -0.2 }}>
+                          {label}
+                        </Text>
+                      </Pressable>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        ) : (
+          /* 내 메이트 */
+          <>
+            {mates.isLoading ? (
+              <ActivityIndicator color={T2.brand} style={{ marginTop: 48 }} />
+            ) : mates.isError ? (
+              <Text style={styles.emptyText}>메이트 목록을 불러올 수 없어요</Text>
+            ) : (
+              <>
+                <Text style={styles.label}>내 메이트 {(mates.data ?? []).length}</Text>
+                {(mates.data ?? []).length === 0 ? (
+                  <Text style={styles.emptyText}>아직 메이트가 없어요</Text>
                 ) : (
-                  <Text style={styles.meta}>{m.meta}</Text>
+                  <View style={{ gap: 10 }}>
+                    {(mates.data ?? []).map((m) => {
+                      const styleTag = diningStyleLabel(m.diningStyle);
+                      return (
+                        <Pressable
+                          key={m.mateUserId}
+                          style={styles.card}
+                          onPress={() => navigation.navigate('MateProfile', { userId: m.mateUserId })}
+                        >
+                          <EmojiCircle emoji={emojiFor(m.nickname)} size={48} online={m.isOnline} />
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <View style={styles.nameRow}>
+                              <Text style={styles.name}>{m.nickname ?? '알 수 없음'}</Text>
+                              {m.mealsTogether > 0 ? (
+                                <View style={styles.togetherBadge}>
+                                  <Text style={styles.togetherText}>같이 {m.mealsTogether}회</Text>
+                                </View>
+                              ) : null}
+                            </View>
+                            {m.isOnline ? (
+                              <View style={styles.nowRow}>
+                                <View style={styles.nowDot} />
+                                <Text style={styles.nowText}>지금 혼밥 중</Text>
+                                {m.currentPlaceName ? (
+                                  <Text style={styles.nowPlace} numberOfLines={1}>
+                                    · {m.currentPlaceName}
+                                  </Text>
+                                ) : null}
+                              </View>
+                            ) : (
+                              <Text style={styles.meta}>
+                                {[m.region, `혼밥 ${m.checkInCount}회`].filter(Boolean).join(' · ')}
+                              </Text>
+                            )}
+                            {styleTag ? (
+                              <View style={styles.tagRow}>
+                                <View style={styles.tag}>
+                                  <Text style={styles.tagText}>{styleTag}</Text>
+                                </View>
+                              </View>
+                            ) : null}
+                          </View>
+                          <View style={styles.mateChip}>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: T2.textSub }}>✓</Text>
+                            <Text style={styles.mateChipText}>메이트</Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 )}
-                <View style={styles.tagRow}>
-                  {m.tags.map((t) => (
-                    <View key={t} style={styles.tag}>
-                      <Text style={styles.tagText}>{t}</Text>
+              </>
+            )}
+
+            {/* 받은 메이트 신청 */}
+            {(received.data ?? []).length > 0 ? (
+              <>
+                <Text style={[styles.label, { marginTop: 28 }]}>받은 메이트 신청</Text>
+                <View style={{ gap: 10 }}>
+                  {(received.data ?? []).map((req) => (
+                    <View key={req.mateRequestId} style={styles.card}>
+                      <EmojiCircle emoji={emojiFor(req.fromUser.nickname)} size={48} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.name}>{req.fromUser.nickname ?? '알 수 없음'}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <Pressable
+                          onPress={() =>
+                            accept.mutate(req.mateRequestId, {
+                              onError: (err) => Alert.alert('오류', mateErrorMessage(err)),
+                            })
+                          }
+                          style={[styles.addChip, { backgroundColor: T2.brand, borderColor: T2.brand }]}
+                        >
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff', letterSpacing: -0.2 }}>수락</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() =>
+                            decline.mutate(req.mateRequestId, {
+                              onError: (err) => Alert.alert('오류', mateErrorMessage(err)),
+                            })
+                          }
+                          style={[styles.addChip, { backgroundColor: '#fff', borderColor: T2.border }]}
+                        >
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: T2.textMute, letterSpacing: -0.2 }}>거절</Text>
+                        </Pressable>
+                      </View>
                     </View>
                   ))}
                 </View>
-              </View>
-              <View style={styles.mateChip}>
-                <Text style={{ fontSize: 11, fontWeight: '800', color: T2.textSub }}>✓</Text>
-                <Text style={styles.mateChipText}>메이트</Text>
-              </View>
-            </Pressable>
-          ))}
-        </View>
-
-        {/* 알 수도 있는 메이트 */}
-        <Text style={[styles.label, { marginTop: 28 }]}>알 수도 있는 메이트</Text>
-        <View style={{ gap: 10 }}>
-          {SUGGEST.map((m) => {
-            const isSent = sent.includes(m.name);
-            return (
-              <View key={m.name} style={styles.card}>
-                <EmojiCircle emoji={m.emo} size={48} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.name}>{m.name}</Text>
-                  <Text style={styles.meta}>{m.meta}</Text>
-                  <Text style={styles.mutual}>함께 아는 메이트 {m.mutual}명</Text>
-                </View>
-                <Pressable
-                  onPress={() => setSent((prev) => (prev.includes(m.name) ? prev : [...prev, m.name]))}
-                  style={[
-                    styles.addChip,
-                    { backgroundColor: isSent ? '#fff' : T2.brand, borderColor: isSent ? T2.border : T2.brand },
-                  ]}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: isSent ? T2.textMute : '#fff', letterSpacing: -0.2 }}>
-                    {isSent ? '신청함' : '+ 메이트 추가'}
-                  </Text>
-                </Pressable>
-              </View>
-            );
-          })}
-        </View>
+              </>
+            ) : null}
+          </>
+        )}
       </ScrollView>
     </Screen>
   );
@@ -123,7 +232,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: T2.border,
   },
-  searchText: { fontSize: 14, color: T2.textMute, letterSpacing: -0.2 },
+  searchInput: { flex: 1, fontSize: 14, color: T2.text, letterSpacing: -0.2, padding: 0 },
+  emptyText: { fontSize: 14, color: T2.textMute, textAlign: 'center', marginTop: 32 },
 
   label: { fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: 0.6, marginTop: 4, marginBottom: 12 },
 
@@ -142,7 +252,6 @@ const styles = StyleSheet.create({
   togetherBadge: { backgroundColor: T2.brandSoft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   togetherText: { fontSize: 10, fontWeight: '700', color: T2.brand },
   meta: { fontSize: 12, color: T2.textMute, marginTop: 4 },
-  mutual: { fontSize: 11, color: T2.brand, fontWeight: '600', marginTop: 6, letterSpacing: -0.2 },
 
   nowRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5 },
   nowDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.open },
