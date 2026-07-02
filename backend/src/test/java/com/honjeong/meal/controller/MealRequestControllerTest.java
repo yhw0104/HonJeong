@@ -134,9 +134,11 @@ class MealRequestControllerTest {
         mockMvc.perform(get("/api/meal-requests").header("Authorization", userToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].mealRequestId").value(7))
+                .andExpect(jsonPath("$.data[0].fromUser.userId").value(20))
                 .andExpect(jsonPath("$.data[0].fromUser.nickname").value("옆자리"))
                 .andExpect(jsonPath("$.data[0].placeId").value(3))
                 .andExpect(jsonPath("$.data[0].status").value("PENDING"))
+                .andExpect(jsonPath("$.data[0].toUser.userId").value(30))
                 .andExpect(jsonPath("$.data[0].toUser.nickname").value("수신자"))
                 .andExpect(jsonPath("$.data[0].placeName").value("큰순두부"));
     }

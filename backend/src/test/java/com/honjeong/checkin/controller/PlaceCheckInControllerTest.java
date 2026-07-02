@@ -47,6 +47,7 @@ class PlaceCheckInControllerTest {
         mockMvc.perform(get("/api/places/3/check-ins")
                         .header("Authorization", "Bearer " + jwtProvider.createAccessToken(1L)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].userId").value(5))
                 .andExpect(jsonPath("$.data[0].nickname").value("혼밥러"))
                 .andExpect(jsonPath("$.data[0].elapsedMinutes").value(15));
     }

@@ -265,7 +265,9 @@ class MealRequestServiceTest {
 
         assertThat(result).hasSize(1);
         MealRequestListItemResponse item = result.get(0);
+        assertThat(item.fromUser().userId()).isEqualTo(20L);
         assertThat(item.fromUser().nickname()).isEqualTo("옆자리");
+        assertThat(item.toUser().userId()).isEqualTo(30L);
         assertThat(item.toUser().nickname()).isEqualTo("수신자");
         assertThat(item.placeId()).isEqualTo(3L);
         assertThat(item.placeName()).isEqualTo("큰순두부");

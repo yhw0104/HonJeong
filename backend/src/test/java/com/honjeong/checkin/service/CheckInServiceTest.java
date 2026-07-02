@@ -248,6 +248,7 @@ class CheckInServiceTest {
         var diners = service.getActiveDiners(3L);
 
         assertThat(diners).hasSize(1);
+        assertThat(diners.get(0).userId()).isEqualTo(5L);
         assertThat(diners.get(0).nickname()).isEqualTo("혼밥러");
         assertThat(diners.get(0).elapsedMinutes()).isEqualTo(15L);
     }
