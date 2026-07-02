@@ -14,7 +14,7 @@ export type RootStackParamList = {
   RestaurantDetail: { placeId: number; name?: string };
   MealRequest: { placeId: number; placeName: string };
   Mates: undefined;
-  MateProfile: { name?: string } | undefined;
+  MateProfile: { userId: number };
   ReceivedRequests: undefined;
   DiningHistory: undefined;
   DiningLogWrite: {
