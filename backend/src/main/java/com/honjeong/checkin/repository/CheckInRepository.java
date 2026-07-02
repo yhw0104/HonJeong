@@ -191,4 +191,28 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             WHERE c.user.id IN :userIds AND c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE
             """)
     List<CheckIn> findActiveWithPlaceByUserIds(@Param("userIds") List<Long> userIds);
+
+    /**
+     * 주어진 사용자 id 목록의 전체 체크인 수를 사용자별로 배치 집계한다(메이트 목록 checkInCount N+1 방지).
+     * 체크인이 0건인 사용자는 결과에 포함되지 않는다(호출 측에서 기본값 0으로 처리).
+     *
+     * <p><b>주의:</b> userIds가 빈 리스트이면 JPQL {@code IN ()} 오류가 발생할 수 있으므로
+     * 호출 전 반드시 빈 리스트 여부를 확인하고 단락 처리해야 한다.
+     *
+     * @param userIds 조회할 사용자 PK 목록
+     * @return 사용자별 체크인 수 행(체크인이 있는 사용자만 포함)
+     */
+    @Query("""
+            SELECT c.user.id AS userId, COUNT(c) AS cnt FROM CheckIn c
+            WHERE c.user.id IN :userIds
+            GROUP BY c.user.id
+            """)
+    List<CheckInCountRow> countByUserIds(@Param("userIds") List<Long> userIds);
+
+    /** 사용자별 체크인 수 한 행(사용자 id + 건수). */
+    interface CheckInCountRow {
+        Long getUserId();
+
+        long getCnt();
+    }
 }

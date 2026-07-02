@@ -1,6 +1,5 @@
 package com.honjeong.mate.service;
 
-import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -9,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.repository.CheckInRepository;
+import com.honjeong.checkin.repository.CheckInRepository.CheckInCountRow;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.mate.domain.Mate;
@@ -21,12 +21,10 @@ public class MateService {
 
     private final MateRepository mateRepository;
     private final CheckInRepository checkInRepository;
-    private final Clock clock;
 
-    public MateService(MateRepository mateRepository, CheckInRepository checkInRepository, Clock clock) {
+    public MateService(MateRepository mateRepository, CheckInRepository checkInRepository) {
         this.mateRepository = mateRepository;
         this.checkInRepository = checkInRepository;
-        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -38,11 +36,13 @@ public class MateService {
         List<Long> mateIds = mates.stream().map(m -> m.getMateUser().getId()).toList();
         Map<Long, CheckIn> activeByUser = checkInRepository.findActiveWithPlaceByUserIds(mateIds).stream()
                 .collect(Collectors.toMap(c -> c.getUser().getId(), Function.identity(), (a, b) -> a));
+        Map<Long, Long> countByUser = checkInRepository.countByUserIds(mateIds).stream()
+                .collect(Collectors.toMap(CheckInCountRow::getUserId, CheckInCountRow::getCnt));
 
         return mates.stream().map(m -> {
             User mate = m.getMateUser();
             CheckIn active = activeByUser.get(mate.getId());
-            long checkInCount = checkInRepository.countByUser_Id(mate.getId());
+            long checkInCount = countByUser.getOrDefault(mate.getId(), 0L);
             return new MateResponse(
                     mate.getId(),
                     mate.getNickname(),
