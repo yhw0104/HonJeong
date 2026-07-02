@@ -176,4 +176,19 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
      */
     @Query("SELECT DISTINCT c.place.id FROM CheckIn c WHERE c.user.id = :userId AND c.place.id IN :placeIds")
     List<Long> findVisitedPlaceIds(@Param("userId") Long userId, @Param("placeIds") List<Long> placeIds);
+
+    /**
+     * 주어진 사용자 id 목록의 현재 ACTIVE 체크인을 place와 함께 배치 조회한다(메이트 온라인 상태 N+1 방지).
+     *
+     * <p><b>주의:</b> userIds가 빈 리스트이면 JPQL {@code IN ()} 오류가 발생할 수 있으므로
+     * 호출 전 반드시 빈 리스트 여부를 확인하고 단락 처리해야 한다.
+     *
+     * @param userIds 조회할 사용자 PK 목록
+     * @return 해당 사용자들의 ACTIVE 체크인(place fetch join 포함)
+     */
+    @Query("""
+            SELECT c FROM CheckIn c JOIN FETCH c.place
+            WHERE c.user.id IN :userIds AND c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE
+            """)
+    List<CheckIn> findActiveWithPlaceByUserIds(@Param("userIds") List<Long> userIds);
 }
