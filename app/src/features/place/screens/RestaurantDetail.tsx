@@ -113,6 +113,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
     setTimeout(() => setCopied(false), 1200);
   };
   const goMealRequest = () => navigation.navigate('MealRequest', { placeId, placeName: name });
+  const goDinerProfile = (userId: number) => navigation.navigate('MateProfile', { userId });
   const toggleHonbab = () => {
     if (honbabOn && myCheckIn.data) endMut.mutate(myCheckIn.data.checkInId);
     else startMut.mutate(placeId);
@@ -186,7 +187,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
             })}
           </View>
 
-          {stab === 'home' && <HomeTab diners={diners.data ?? []} onMeal={goMealRequest} summary={summary.data} />}
+          {stab === 'home' && <HomeTab diners={diners.data ?? []} onMeal={goMealRequest} onDinerPress={goDinerProfile} summary={summary.data} />}
           {stab === 'menu' && <MenuTab />}
           {stab === 'review' && (
             <ReviewTab
@@ -264,7 +265,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
 }
 
 /* ── 홈 탭 ───────────────────────────────────────── */
-function HomeTab({ diners, onMeal, summary }: { diners: ActiveDiner[]; onMeal: () => void; summary: PlaceReviewSummary | undefined }) {
+function HomeTab({ diners, onMeal, onDinerPress, summary }: { diners: ActiveDiner[]; onMeal: () => void; onDinerPress: (userId: number) => void; summary: PlaceReviewSummary | undefined }) {
   return (
     <View>
       {/* 혼밥 친화도 카드 */}
@@ -336,11 +337,16 @@ function HomeTab({ diners, onMeal, summary }: { diners: ActiveDiner[]; onMeal: (
         ) : (
           <View style={{ marginTop: 12, gap: 10 }}>
             {diners.map((d) => (
-              <View key={d.checkInId} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Pressable
+                key={d.checkInId}
+                accessibilityRole="button"
+                onPress={() => onDinerPress(d.userId)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+              >
                 <Avatar name={d.nickname[0] ?? '?'} bg="#525252" size={32} />
                 <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: T2.text }}>{d.nickname}</Text>
                 <Text style={{ fontSize: 12, color: T2.textMute }}>{formatElapsed(d.elapsedMinutes)}</Text>
-              </View>
+              </Pressable>
             ))}
           </View>
         )}

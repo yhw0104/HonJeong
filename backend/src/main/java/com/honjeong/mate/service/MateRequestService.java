@@ -69,8 +69,16 @@ public class MateRequestService {
         mr.accept(now());
         User a = mr.getFromUser();
         User b = mr.getToUser();
-        mateRepository.save(Mate.create(a, b, now()));
-        mateRepository.save(Mate.create(b, a, now()));
+        // 멱등 저장: 이미 존재하는 방향은 skip(uq_mates_pair 위반 방지)
+        if (!mateRepository.existsByUser_IdAndMateUser_Id(a.getId(), b.getId())) {
+            mateRepository.save(Mate.create(a, b, now()));
+        }
+        if (!mateRepository.existsByUser_IdAndMateUser_Id(b.getId(), a.getId())) {
+            mateRepository.save(Mate.create(b, a, now()));
+        }
+        // 역방향 PENDING 신청(b→a)이 있으면 함께 ACCEPTED로 닫음
+        mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(b.getId(), a.getId(), MateRequestStatus.PENDING)
+                .ifPresent(rev -> rev.accept(now()));
         return MateRequestStatusResponse.from(mr);
     }
 

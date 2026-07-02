@@ -73,8 +73,10 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
                     ? '메이트'
                     : item.requestStatus === 'PENDING_SENT'
                     ? '신청함'
+                    : item.requestStatus === 'PENDING_RECEIVED'
+                    ? '신청 받음'
                     : '+ 메이트 추가';
-                  const isRelated = item.isMate || item.requestStatus === 'PENDING_SENT';
+                  const isRelated = item.isMate || item.requestStatus === 'PENDING_SENT' || item.requestStatus === 'PENDING_RECEIVED';
                   const disabled = isRelated || send.isPending;
                   return (
                     <Pressable

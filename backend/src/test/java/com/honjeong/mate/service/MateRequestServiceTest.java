@@ -14,6 +14,7 @@ import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.mate.domain.Mate;
 import com.honjeong.mate.domain.MateRequest;
+import com.honjeong.mate.domain.MateRequestStatus;
 import com.honjeong.mate.dto.MateRequestCreateRequest;
 import com.honjeong.mate.dto.MateRequestResponse;
 import com.honjeong.mate.repository.MateRepository;
@@ -75,17 +76,64 @@ class MateRequestServiceTest {
     }
 
     @Test
-    @DisplayName("accept: 수신자가 수락하면 mates 양방향 2행 저장")
+    @DisplayName("accept: 수신자가 수락하면 mates 양방향 2행 저장 (역방향 없음)")
     void accept_createsBidirectionalMates() {
         User from = mockUser(1L);
         User to = mockUser(2L);
         MateRequest mr = MateRequest.create(from, to, null);
         when(mateRequestRepository.findWithUsersById(10L)).thenReturn(Optional.of(mr));
+        when(mateRepository.existsByUser_IdAndMateUser_Id(anyLong(), anyLong())).thenReturn(false);
+        when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(2L, 1L, MateRequestStatus.PENDING))
+                .thenReturn(Optional.empty());
 
         service.accept(2L, 10L); // userId=2L(=to)가 수락
 
         verify(mateRepository, times(2)).save(any(Mate.class));
         assertThat(mr.getStatus().name()).isEqualTo("ACCEPTED");
+    }
+
+    @Test
+    @DisplayName("accept: 상호신청(A→B, B→A 둘 다 PENDING) 시 한쪽 수락으로 역방향도 ACCEPTED, mates 멱등 저장")
+    void accept_mutualPending_resolvesReverseAndSavesMatesIdempotently() {
+        User a = mockUser(1L);
+        User b = mockUser(2L);
+        // A→B 요청 (id=10), B가 수락
+        MateRequest mrAtoB = MateRequest.create(a, b, null);
+        // B→A 역방향 PENDING 요청
+        MateRequest mrBtoA = MateRequest.create(b, a, null);
+
+        when(mateRequestRepository.findWithUsersById(10L)).thenReturn(Optional.of(mrAtoB));
+        when(mateRepository.existsByUser_IdAndMateUser_Id(anyLong(), anyLong())).thenReturn(false);
+        when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(2L, 1L, MateRequestStatus.PENDING))
+                .thenReturn(Optional.of(mrBtoA));
+
+        service.accept(2L, 10L);
+
+        // mates는 양방향 각 1회씩(총 2회) 저장
+        verify(mateRepository, times(2)).save(any(Mate.class));
+        // 역방향 요청도 ACCEPTED
+        assertThat(mrBtoA.getStatus()).isEqualTo(MateRequestStatus.ACCEPTED);
+        // 원래 요청도 ACCEPTED
+        assertThat(mrAtoB.getStatus()).isEqualTo(MateRequestStatus.ACCEPTED);
+    }
+
+    @Test
+    @DisplayName("accept: 이미 메이트인 상태에서 잔존 PENDING 재수락 시 mates save 없이 ALREADY_RESPONDED(존재 체크 skip)")
+    void accept_alreadyMatesExistSkipsSave() {
+        User a = mockUser(1L);
+        User b = mockUser(2L);
+        MateRequest mr = MateRequest.create(a, b, null);
+        when(mateRequestRepository.findWithUsersById(10L)).thenReturn(Optional.of(mr));
+        // 양방향 모두 이미 존재
+        when(mateRepository.existsByUser_IdAndMateUser_Id(1L, 2L)).thenReturn(true);
+        when(mateRepository.existsByUser_IdAndMateUser_Id(2L, 1L)).thenReturn(true);
+        when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(2L, 1L, MateRequestStatus.PENDING))
+                .thenReturn(Optional.empty());
+
+        service.accept(2L, 10L);
+
+        // 이미 존재하므로 save는 한 번도 호출 안 됨
+        verify(mateRepository, never()).save(any(Mate.class));
     }
 
     private User mockUser(Long id) {
