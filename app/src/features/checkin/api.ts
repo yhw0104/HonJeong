@@ -10,7 +10,7 @@ export type MapMarker = {
   placeId: number; name: string; latitude: number; longitude: number; activeCount: number;
 };
 export type ActiveDiner = {
-  checkInId: number; nickname: string; startedAt: string; elapsedMinutes: number;
+  checkInId: number; userId: number; nickname: string; startedAt: string; elapsedMinutes: number;
 };
 
 /** 내 현재 ACTIVE 체크인(없으면 null). */

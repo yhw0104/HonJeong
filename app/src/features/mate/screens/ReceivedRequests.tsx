@@ -38,12 +38,12 @@ export function ReceivedRequestsScreen({ navigation }: RootStackScreenProps<'Rec
               <View style={{ gap: 12 }}>
                 {pending.map((r) => (
                   <View key={r.mealRequestId} style={styles.card}>
-                    <View style={styles.cardHead}>
+                    <Pressable style={styles.cardHead} onPress={() => navigation.navigate('MateProfile', { userId: r.fromUser.userId })} accessibilityRole="button">
                       <EmojiCircle emoji={r.fromUser.nickname[0] ?? '?'} size={46} />
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.name}>{r.fromUser.nickname}</Text>
                       </View>
-                    </View>
+                    </Pressable>
                     <View style={styles.placeChip}>
                       <Icon name="pin" size={14} color={T2.brand} />
                       <Text style={styles.placeText}>{r.placeName}</Text>
@@ -70,14 +70,14 @@ export function ReceivedRequestsScreen({ navigation }: RootStackScreenProps<'Rec
             ) : (
               <View>
                 {past.map((p, i) => (
-                  <View key={p.mealRequestId} style={[styles.pastRow, i < past.length - 1 && styles.pastDivider]}>
+                  <Pressable key={p.mealRequestId} style={[styles.pastRow, i < past.length - 1 && styles.pastDivider]} onPress={() => navigation.navigate('MateProfile', { userId: p.fromUser.userId })} accessibilityRole="button">
                     <EmojiCircle emoji={p.fromUser.nickname[0] ?? '?'} size={40} dimmed />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={styles.pastName}>{p.fromUser.nickname}</Text>
                       <Text style={styles.pastPlace}>{p.placeName}</Text>
                     </View>
                     <Text style={styles.pastState}>{mealStatusLabel(p.status)}</Text>
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             )}

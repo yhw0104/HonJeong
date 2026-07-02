@@ -88,13 +88,13 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
             <View style={{ gap: 12 }}>
               {receivedList.map((r) => (
                 <View key={r.mealRequestId} style={styles.recvCard}>
-                  <View style={styles.recvTop}>
+                  <Pressable style={styles.recvTop} onPress={() => navigation.navigate('MateProfile', { userId: r.fromUser.userId })} accessibilityRole="button">
                     <EmojiCircle emoji={r.fromUser.nickname[0] ?? '?'} size={46} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={styles.recvName}>{r.fromUser.nickname}</Text>
                       <Text style={styles.recvMeta}>{r.status === 'PENDING' ? '새 신청' : mealStatusLabel(r.status)}</Text>
                     </View>
-                  </View>
+                  </Pressable>
                   <View style={styles.recvPlace}>
                     <Icon name="pin" size={14} color={T2.brand} />
                     <Text style={styles.recvPlaceText}>{r.placeName}</Text>
@@ -125,7 +125,7 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
           sentList.length === 0 ? <Text style={styles.emptyInline}>보낸 신청이 없어요.</Text> : (
             <View>
               {sentList.map((s, i) => (
-                <View key={s.mealRequestId} style={[styles.sentRow, i < sentList.length - 1 && styles.sentRowBorder]}>
+                <Pressable key={s.mealRequestId} style={[styles.sentRow, i < sentList.length - 1 && styles.sentRowBorder]} onPress={() => navigation.navigate('MateProfile', { userId: s.toUser.userId })} accessibilityRole="button">
                   <EmojiCircle emoji={s.toUser.nickname[0] ?? '?'} size={44} dimmed={s.status === 'DECLINED'} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.sentName, { color: s.status === 'DECLINED' ? T2.textMute : T2.text }]}>{s.toUser.nickname}</Text>
@@ -134,7 +134,7 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
                   <View style={[styles.sentPill, { backgroundColor: s.status === 'ACCEPTED' ? T2.brandSoft : T2.bg, borderColor: s.status === 'ACCEPTED' ? 'rgba(255,90,31,0.2)' : T2.border }]}>
                     <Text style={[styles.sentPillText, { color: s.status === 'ACCEPTED' ? T2.brand : T2.textMute }]}>{mealStatusLabel(s.status)}</Text>
                   </View>
-                </View>
+                </Pressable>
               ))}
             </View>
           )

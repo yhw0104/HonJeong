@@ -4,8 +4,8 @@ export type MealRequestStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
 
 export type MealRequestListItem = {
   mealRequestId: number;
-  fromUser: { nickname: string };
-  toUser: { nickname: string };
+  fromUser: { userId: number; nickname: string };
+  toUser: { userId: number; nickname: string };
   placeId: number;
   placeName: string;
   message: string | null;
