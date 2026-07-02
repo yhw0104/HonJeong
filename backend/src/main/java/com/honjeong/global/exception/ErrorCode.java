@@ -40,6 +40,14 @@ public enum ErrorCode {
     MEALREQUEST_DUPLICATE(HttpStatus.CONFLICT, "이미 신청한 대상입니다."),
     MEALREQUEST_ALREADY_RESPONDED(HttpStatus.CONFLICT, "이미 응답한 신청입니다."),
 
+    // 메이트 — 신청/수락/거절/취소·관계
+    MATE_SELF(HttpStatus.BAD_REQUEST, "본인에게는 메이트 신청을 할 수 없습니다."),
+    MATE_ALREADY(HttpStatus.CONFLICT, "이미 메이트인 상대입니다."),
+    MATE_REQUEST_DUPLICATE(HttpStatus.CONFLICT, "이미 신청한 상대입니다."),
+    MATE_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "메이트 신청을 찾을 수 없습니다."),
+    MATE_REQUEST_ALREADY_RESPONDED(HttpStatus.CONFLICT, "이미 처리된 신청입니다."),
+    MATE_NOT_FOUND(HttpStatus.NOT_FOUND, "메이트 관계를 찾을 수 없습니다."),
+
     // 리뷰
     REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "리뷰를 찾을 수 없습니다."),
     REVIEW_DUPLICATE_CHECKIN(HttpStatus.CONFLICT, "이미 이 방문에 리뷰를 남겼어요."),
