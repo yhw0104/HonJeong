@@ -63,6 +63,42 @@ class MateRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
+    @DisplayName("findReceived: status=null이면 전체(PENDING+DECLINED), status 지정 시 필터")
+    void findReceivedStatusNullPath() {
+        User from = persistUser("01000000001", "신청자");
+        User to = persistUser("01000000002", "대상");
+        // 같은 쌍이라도 부분 유니크는 PENDING만 막으므로 PENDING 1 + DECLINED 1 저장 가능.
+        em.persist(MateRequest.create(from, to, NOW));
+        MateRequest declined = MateRequest.create(from, to, NOW);
+        declined.decline(NOW.plusMinutes(5));
+        em.persist(declined);
+        em.flush();
+        em.clear();
+
+        // status=null 바인딩: 두 상태 모두 반환되어야 JPQL null 경로 정상.
+        assertThat(mateRequestRepository.findReceived(to.getId(), null)).hasSize(2);
+        assertThat(mateRequestRepository.findReceived(to.getId(), MateRequestStatus.PENDING)).hasSize(1);
+        assertThat(mateRequestRepository.findReceived(to.getId(), MateRequestStatus.DECLINED)).hasSize(1);
+        assertThat(mateRequestRepository.findReceived(to.getId(), MateRequestStatus.CANCELED)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("findSent: status=null이면 내가 보낸 전체 반환")
+    void findSentStatusNullPath() {
+        User me = persistUser("01000000001", "나");
+        User to = persistUser("01000000002", "대상");
+        em.persist(MateRequest.create(me, to, NOW));
+        MateRequest canceled = MateRequest.create(me, to, NOW);
+        canceled.cancel(NOW.plusMinutes(5));
+        em.persist(canceled);
+        em.flush();
+        em.clear();
+
+        assertThat(mateRequestRepository.findSent(me.getId(), null)).hasSize(2);
+        assertThat(mateRequestRepository.findSent(me.getId(), MateRequestStatus.PENDING)).hasSize(1);
+    }
+
+    @Test
     @DisplayName("findMatesWithUserByUserId: 내 user_id 행만 mateUser fetch")
     void findMates() {
         User me = persistUser("01000000001", "나");
