@@ -54,8 +54,8 @@ class MateProfileServiceTest {
     }
 
     @Test
-    @DisplayName("getPublicProfile: 비메이트면 온라인 상태 미노출 + checkInRepository 온라인조회 호출 안 함(프라이버시)")
-    void publicProfile_nonMate_onlineHidden() {
+    @DisplayName("getPublicProfile: 비메이트여도 ACTIVE 체크인이면 online=true·currentPlaceName·currentPlaceId 노출")
+    void publicProfile_nonMate_onlineShown() {
         User target = user(2L, "상대");
         when(userRepository.findById(2L)).thenReturn(Optional.of(target));
         when(mateRepository.existsByUser_IdAndMateUser_Id(1L, 2L)).thenReturn(false);
@@ -67,15 +67,21 @@ class MateProfileServiceTest {
         when(checkInRepository.countByUser_Id(2L)).thenReturn(3L);
         when(foodRepository.findByUserId(2L)).thenReturn(Optional.empty());
 
+        Place place = mock(Place.class);
+        when(place.getName()).thenReturn("국밥집");
+        when(place.getId()).thenReturn(7L);
+        CheckIn active = mock(CheckIn.class);
+        when(active.getPlace()).thenReturn(place);
+        when(checkInRepository.findByUser_IdAndStatus(2L, CheckInStatus.ACTIVE)).thenReturn(Optional.of(active));
+
         PublicProfileResponse res = service.getPublicProfile(1L, 2L);
 
         assertThat(res.isMate()).isFalse();
-        assertThat(res.isOnline()).isFalse();
-        assertThat(res.currentPlaceName()).isNull();
+        assertThat(res.isOnline()).isTrue();
+        assertThat(res.currentPlaceName()).isEqualTo("국밥집");
+        assertThat(res.currentPlaceId()).isEqualTo(7L);
         assertThat(res.requestStatus()).isEqualTo("NONE");
         assertThat(res.checkInCount()).isEqualTo(3L);
-        // 비메이트일 때 온라인(현재 체크인) 조회는 절대 호출되지 않아야 한다
-        verify(checkInRepository, never()).findByUser_IdAndStatus(any(), any());
     }
 
     @Test

@@ -196,6 +196,7 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
                           disabled={accept.isPending}
                           onPress={() =>
                             accept.mutate(req.mateRequestId, {
+                              onSuccess: () => Alert.alert('메이트', '메이트가 되었어요'),
                               onError: (err) => Alert.alert('오류', mateErrorMessage(err)),
                             })
                           }
@@ -210,6 +211,7 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
                           disabled={decline.isPending}
                           onPress={() =>
                             decline.mutate(req.mateRequestId, {
+                              onSuccess: () => Alert.alert('메이트', '신청을 거절했어요'),
                               onError: (err) => Alert.alert('오류', mateErrorMessage(err)),
                             })
                           }

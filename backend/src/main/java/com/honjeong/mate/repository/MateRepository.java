@@ -11,6 +11,8 @@ public interface MateRepository extends JpaRepository<Mate, Long> {
 
     boolean existsByUser_IdAndMateUser_Id(Long userId, Long mateUserId);
 
+    long countByUser_Id(Long userId);
+
     @Query("""
             SELECT m FROM Mate m
             JOIN FETCH m.mateUser

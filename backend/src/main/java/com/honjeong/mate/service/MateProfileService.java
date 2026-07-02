@@ -59,17 +59,15 @@ public class MateProfileService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         boolean isMate = mateRepository.existsByUser_IdAndMateUser_Id(viewerId, targetId);
 
-        // 온라인 상태는 메이트 관계일 때만 노출
+        // 온라인 상태는 메이트 여부와 무관하게 항상 공개(같이먹기는 누구나 신청 가능)
         boolean online = false;
         String currentPlaceName = null;
         Long currentPlaceId = null;
-        if (isMate) {
-            CheckIn active = checkInRepository.findByUser_IdAndStatus(targetId, CheckInStatus.ACTIVE).orElse(null);
-            if (active != null) {
-                online = true;
-                currentPlaceName = active.getPlace().getName();
-                currentPlaceId = active.getPlace().getId();
-            }
+        CheckIn active = checkInRepository.findByUser_IdAndStatus(targetId, CheckInStatus.ACTIVE).orElse(null);
+        if (active != null) {
+            online = true;
+            currentPlaceName = active.getPlace().getName();
+            currentPlaceId = active.getPlace().getId();
         }
         List<String> foods = foodRepository.findByUserId(targetId)
                 .map(fp -> fp.toFoods()).orElse(List.of());

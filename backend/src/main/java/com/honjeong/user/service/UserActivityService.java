@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.favorite.repository.FavoriteRepository;
+import com.honjeong.mate.repository.MateRepository;
 import com.honjeong.review.repository.ReviewRepository;
 import com.honjeong.user.dto.ActivitySummaryResponse;
 
@@ -18,16 +19,18 @@ public class UserActivityService {
     private final CheckInRepository checkInRepository;
     private final ReviewRepository reviewRepository;
     private final FavoriteRepository favoriteRepository;
+    private final MateRepository mateRepository;
 
     public UserActivityService(CheckInRepository checkInRepository, ReviewRepository reviewRepository,
-            FavoriteRepository favoriteRepository) {
+            FavoriteRepository favoriteRepository, MateRepository mateRepository) {
         this.checkInRepository = checkInRepository;
         this.reviewRepository = reviewRepository;
         this.favoriteRepository = favoriteRepository;
+        this.mateRepository = mateRepository;
     }
 
     /**
-     * 사용자의 활동요약(혼밥·리뷰·즐겨찾기 카운트)을 집계한다. 메이트 수는 도메인 도입 전까지 0이다.
+     * 사용자의 활동요약(혼밥·리뷰·즐겨찾기·메이트 카운트)을 집계한다.
      *
      * @param userId 조회 대상 회원 식별자(JWT sub)
      * @return 카운트 묶음 {@link ActivitySummaryResponse}
@@ -37,7 +40,7 @@ public class UserActivityService {
         long checkInCount = checkInRepository.countByUser_Id(userId);
         long reviewCount = reviewRepository.countByUser_Id(userId);
         long favoriteCount = favoriteRepository.countDistinctPlaceByUserId(userId);
-        long mateCount = 0L; // 메이트 도메인 도입 시 카운트 소스 연결
+        long mateCount = mateRepository.countByUser_Id(userId);
         return new ActivitySummaryResponse(checkInCount, reviewCount, favoriteCount, mateCount);
     }
 }
