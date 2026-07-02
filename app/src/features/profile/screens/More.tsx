@@ -1,12 +1,13 @@
 // More — 더보기 / 마이페이지 (원본: screens/More.jsx)
 // 프로필 카드 + 3섹션 메뉴 + 로그아웃. 메뉴 대상 화면은 아직 미변환이라 onPress no-op.
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
 import { Screen, Avatar, Icon } from '@/shared/components';
 import type { IconName } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useAuth } from '@/shared/auth/AuthContext';
 import type { MainTabScreenProps } from '@/navigation/types';
+import { useFocusEffect } from '@react-navigation/native';
 import { useMyProfile, useActivitySummary } from '@/features/users/queries';
 
 type MenuRoute =
@@ -49,7 +50,10 @@ const SECTIONS: Section[] = [
 export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
   const { signOut } = useAuth();
   const { data: profile } = useMyProfile();
-  const { data: summary } = useActivitySummary();
+  const activity = useActivitySummary();
+  const summary = activity.data;
+  // 상대가 내 신청을 수락하거나 메이트를 해제하면 내 앱엔 트리거가 없으므로, 더보기 재진입 시 통계를 새로고침한다.
+  useFocusEffect(useCallback(() => { activity.refetch(); }, [activity.refetch]));
   const num = (n?: number) => (n === undefined ? '–' : String(n));
   const stats: { n: string; l: string; route: 'DiningHistory' | 'Mates' | 'Favorites' }[] = [
     { n: num(summary?.checkInCount), l: '혼밥', route: 'DiningHistory' },
