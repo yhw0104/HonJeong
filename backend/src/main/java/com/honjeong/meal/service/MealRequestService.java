@@ -82,7 +82,10 @@ public class MealRequestService {
     }
 
     /**
-     * 신청을 수락한다. 없으면 404, 수신자가 아니면 403, 이미 응답했으면 409.
+     * 신청을 수락한다. 없으면 404, 수신자가 아니면 403, 이미 응답했으면 409, 대상이 이미 혼밥을 끝냈으면
+     * MEALREQUEST_TARGET_ENDED(409). 수락 시 매칭 전이가 함께 일어난다 — 수신자 체크인은 ACTIVE→TOGETHER로
+     * 바뀌고, 발신자에게는 새 TOGETHER 체크인이 insert된다(발신자가 기존에 다른 곳 ACTIVE면 먼저 종료하고,
+     * 이미 TOGETHER면 MEALREQUEST_SENDER_BUSY). 같은 대상으로 온 나머지 PENDING 신청은 자동 DECLINED 처리한다.
      *
      * @param userId 요청 회원 id(수신자여야 함)
      * @param id     신청 id
@@ -91,7 +94,35 @@ public class MealRequestService {
     @Transactional
     public MealRequestStatusResponse accept(Long userId, Long id) {
         MealRequest mr = loadPendingForReceiver(userId, id);
-        mr.accept(now());
+
+        CheckIn target = mr.getToCheckIn();
+        if (target.getStatus() != CheckInStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.MEALREQUEST_TARGET_ENDED);
+        }
+
+        LocalDateTime now = now();
+        mr.accept(now);
+        target.matchTogether(mr.getId(), now);              // 수신자 ACTIVE → TOGETHER
+
+        Long senderId = mr.getFromUser().getId();
+        checkInRepository.findByUser_IdAndStatusIn(senderId,
+                        List.of(CheckInStatus.ACTIVE, CheckInStatus.TOGETHER))
+                .ifPresent(existing -> {
+                    if (existing.getStatus() == CheckInStatus.TOGETHER) {
+                        throw new BusinessException(ErrorCode.MEALREQUEST_SENDER_BUSY);
+                    }
+                    existing.end(now);                       // 발신자 기존 ACTIVE 종료
+                    checkInRepository.flush();               // INSERT 전 UPDATE 반영(유니크 인덱스)
+                });
+
+        try {
+            checkInRepository.save(CheckIn.startTogether(
+                    userRepository.getReferenceById(senderId), target.getPlace(), mr.getId(), now));
+        } catch (DataIntegrityViolationException e) {        // 경쟁: 발신자에 두 번째 TOGETHER
+            throw new BusinessException(ErrorCode.MEALREQUEST_SENDER_BUSY);
+        }
+
+        mealRequestRepository.declineOtherPending(target.getId(), mr.getId(), now); // 다른 PENDING 정리
         return MealRequestStatusResponse.from(mr);
     }
 

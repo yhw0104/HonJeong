@@ -1,9 +1,11 @@
 package com.honjeong.meal.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -67,4 +69,15 @@ public interface MealRequestRepository extends JpaRepository<MealRequest, Long> 
             ORDER BY mr.createdAt DESC
             """)
     List<MealRequest> findSent(@Param("userId") Long userId, @Param("status") MealRequestStatus status);
+
+    /** 같은 대상 체크인으로 온 나머지 PENDING 신청을 일괄 DECLINED 처리한다(수락 시 정리). exceptId=방금 수락한 신청. */
+    @Modifying
+    @Query("""
+            UPDATE MealRequest mr
+            SET mr.status = com.honjeong.meal.domain.MealRequestStatus.DECLINED, mr.respondedAt = :now
+            WHERE mr.toCheckIn.id = :toCheckInId AND mr.id <> :exceptId
+              AND mr.status = com.honjeong.meal.domain.MealRequestStatus.PENDING
+            """)
+    int declineOtherPending(@Param("toCheckInId") Long toCheckInId,
+            @Param("exceptId") Long exceptId, @Param("now") LocalDateTime now);
 }

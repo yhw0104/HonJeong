@@ -40,6 +40,8 @@ public enum ErrorCode {
     MEALREQUEST_OPT_OUT(HttpStatus.FORBIDDEN, "상대가 같이먹기 신청을 받지 않습니다."),
     MEALREQUEST_DUPLICATE(HttpStatus.CONFLICT, "이미 신청한 대상입니다."),
     MEALREQUEST_ALREADY_RESPONDED(HttpStatus.CONFLICT, "이미 응답한 신청입니다."),
+    MEALREQUEST_TARGET_ENDED(HttpStatus.CONFLICT, "상대가 이미 혼밥을 종료했어요."),
+    MEALREQUEST_SENDER_BUSY(HttpStatus.CONFLICT, "이미 다른 사람과 식사 중입니다."),
 
     // 메이트 — 신청/수락/거절/취소·관계
     MATE_SELF(HttpStatus.BAD_REQUEST, "본인에게는 메이트 신청을 할 수 없습니다."),

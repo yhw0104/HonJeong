@@ -3,6 +3,8 @@ package com.honjeong.meal.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -18,6 +20,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import com.honjeong.checkin.domain.CheckIn;
@@ -70,11 +73,41 @@ class MealRequestServiceTest {
     }
 
     private MealRequest pendingRequest(long receiverId) {
+        User sender = mock(User.class);
+        when(sender.getId()).thenReturn(1L);
         User receiver = mock(User.class);
         when(receiver.getId()).thenReturn(receiverId);
         CheckIn ci = mock(CheckIn.class);
+        when(ci.getId()).thenReturn(3L);
         when(ci.getUser()).thenReturn(receiver);
-        return MealRequest.create(mock(User.class), ci, mock(Place.class), "msg", nowKst);
+        when(ci.getStatus()).thenReturn(CheckInStatus.ACTIVE); // accept의 대상 ACTIVE 가드를 통과시킨다.
+        when(ci.getPlace()).thenReturn(mock(Place.class));
+        return MealRequest.create(sender, ci, mock(Place.class), "msg", nowKst);
+    }
+
+    /** 실 엔티티(mock 아님)로 매칭 전이 테스트용 Place를 만든다 — id만 리플렉션으로 주입. */
+    private Place place(long id) {
+        Place p = Place.ofPublicData("ext" + id, "식당", "한식", "서울", "도로명", 37.5, 127.0, null, "영업");
+        setId(p, id);
+        return p;
+    }
+
+    /** 실 엔티티(mock 아님)로 매칭 전이 테스트용 User 참조를 만든다 — id만 리플렉션으로 주입. */
+    private User userRef(long id) {
+        User u = User.pending("010" + id, null);
+        setId(u, id);
+        return u;
+    }
+
+    /** 엔티티의 id 필드를 리플렉션으로 주입한다(IDENTITY 채번이라 mock 없이 검증하려면 필요). */
+    private void setId(Object target, long id) {
+        try {
+            var f = target.getClass().getDeclaredField("id");
+            f.setAccessible(true);
+            f.set(target, id);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Test
@@ -158,11 +191,15 @@ class MealRequestServiceTest {
     void accept_success() {
         MealRequest mr = pendingRequest(2L);
         when(mealRequestRepository.findWithReceiverById(7L)).thenReturn(Optional.of(mr));
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.empty());
+        when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
 
         MealRequestStatusResponse res = service.accept(2L, 7L);
 
         assertThat(res.status()).isEqualTo("ACCEPTED");
         assertThat(res.respondedAt()).isEqualTo(nowKst);
+        verify(checkInRepository).save(any(CheckIn.class));
+        verify(mealRequestRepository).declineOtherPending(eq(3L), any(), eq(nowKst));
     }
 
     @Test
@@ -220,6 +257,87 @@ class MealRequestServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.MEALREQUEST_ALREADY_RESPONDED));
+    }
+
+    @Test
+    @DisplayName("accept: 수신자 ACTIVE→TOGETHER 전이 + 발신자 TOGETHER insert + 다른 PENDING 정리")
+    void accept_matches() {
+        // given: 수신자(2L)의 ACTIVE 체크인 대상 + 수락자=수신자(2L), 발신자=1L
+        Place p = place(10L);
+        CheckIn target = CheckIn.start(userRef(2L), p, nowKst);              // 수신자 체크인(ACTIVE)
+        MealRequest mr = MealRequest.create(userRef(1L), target, p, "hi", nowKst); // 발신자 1L → target
+        setId(mr, 5L);
+        setId(target, 3L);                                                  // 테스트 헬퍼로 id 주입
+        when(mealRequestRepository.findWithReceiverById(5L)).thenReturn(Optional.of(mr));
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection()))
+                .thenReturn(Optional.empty()); // 발신자 체크인 없음
+        when(userRepository.getReferenceById(1L)).thenReturn(userRef(1L));
+
+        service.accept(2L, 5L);
+
+        // then: 요청 ACCEPTED, 수신자 TOGETHER, 발신자 TOGETHER 저장, 다른 PENDING 정리 호출
+        assertThat(mr.getStatus()).isEqualTo(MealRequestStatus.ACCEPTED);
+        assertThat(target.getStatus()).isEqualTo(CheckInStatus.TOGETHER);
+        ArgumentCaptor<CheckIn> saved = ArgumentCaptor.forClass(CheckIn.class);
+        verify(checkInRepository).save(saved.capture());
+        assertThat(saved.getValue().getStatus()).isEqualTo(CheckInStatus.TOGETHER);
+        assertThat(saved.getValue().getMealRequestId()).isEqualTo(5L);
+        verify(mealRequestRepository).declineOtherPending(3L, 5L, nowKst);
+    }
+
+    @Test
+    @DisplayName("accept: 수신자 체크인이 더는 ACTIVE가 아니면 MEALREQUEST_TARGET_ENDED")
+    void accept_targetEnded() {
+        Place p = place(10L);
+        CheckIn target = CheckIn.start(userRef(2L), p, nowKst);
+        target.end(nowKst); // 이미 종료
+        MealRequest mr = MealRequest.create(userRef(1L), target, p, null, nowKst);
+        setId(mr, 5L);
+        when(mealRequestRepository.findWithReceiverById(5L)).thenReturn(Optional.of(mr));
+
+        assertThatThrownBy(() -> service.accept(2L, 5L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.MEALREQUEST_TARGET_ENDED));
+    }
+
+    @Test
+    @DisplayName("accept: 발신자가 이미 TOGETHER면 MEALREQUEST_SENDER_BUSY")
+    void accept_senderBusy() {
+        Place p = place(10L);
+        CheckIn target = CheckIn.start(userRef(2L), p, nowKst);
+        MealRequest mr = MealRequest.create(userRef(1L), target, p, null, nowKst);
+        setId(mr, 5L);
+        CheckIn senderTogether = CheckIn.startTogether(userRef(1L), place(99L), 8L, nowKst);
+        when(mealRequestRepository.findWithReceiverById(5L)).thenReturn(Optional.of(mr));
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection()))
+                .thenReturn(Optional.of(senderTogether));
+
+        assertThatThrownBy(() -> service.accept(2L, 5L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.MEALREQUEST_SENDER_BUSY));
+    }
+
+    @Test
+    @DisplayName("accept: 발신자가 다른 곳 ACTIVE면 그 ACTIVE를 종료하고 TOGETHER insert")
+    void accept_endsSenderActive() {
+        Place p = place(10L);
+        CheckIn target = CheckIn.start(userRef(2L), p, nowKst);
+        MealRequest mr = MealRequest.create(userRef(1L), target, p, null, nowKst);
+        setId(mr, 5L);
+        setId(target, 3L);
+        CheckIn senderActive = CheckIn.start(userRef(1L), place(99L), nowKst);
+        when(mealRequestRepository.findWithReceiverById(5L)).thenReturn(Optional.of(mr));
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection()))
+                .thenReturn(Optional.of(senderActive));
+        when(userRepository.getReferenceById(1L)).thenReturn(userRef(1L));
+
+        service.accept(2L, 5L);
+
+        assertThat(senderActive.getStatus()).isEqualTo(CheckInStatus.ENDED);
+        verify(checkInRepository).flush();
+        verify(checkInRepository).save(any(CheckIn.class));
     }
 
     @Test
