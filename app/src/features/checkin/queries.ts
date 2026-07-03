@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Coord } from '@/shared/location/pickLocation';
 import { LIVE_REFETCH_MS } from '@/shared/realtime';
 import {
-  fetchMyCheckIn, startCheckIn, endCheckIn, fetchStats, fetchMap, fetchActiveDiners,
+  fetchMyCheckIn, startCheckIn, endCheckIn, cancelCheckIn, fetchStats, fetchMap, fetchActiveDiners,
 } from './api';
 import { startCheckInWithRecovery } from './recovery';
 
@@ -35,6 +35,7 @@ function invalidateLoop(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['nearby'] });
   qc.invalidateQueries({ queryKey: ['place'] });
   qc.invalidateQueries({ queryKey: ['checkin', 'stats'] });
+  qc.invalidateQueries({ queryKey: ['meal'] }); // 받은/보낸 같이먹기 신청(매칭·정리 반영)
 }
 
 export function useStartCheckIn() {
@@ -50,6 +51,14 @@ export function useEndCheckIn() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (checkInId: number) => endCheckIn(checkInId),
+    onSuccess: () => invalidateLoop(qc),
+  });
+}
+
+export function useCancelCheckIn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (checkInId: number) => cancelCheckIn(checkInId),
     onSuccess: () => invalidateLoop(qc),
   });
 }
