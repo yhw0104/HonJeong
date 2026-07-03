@@ -189,6 +189,52 @@ class CheckInMealHappyPathE2eTest extends AbstractPostgresTest {
     }
 
     @Test
+    @DisplayName("종료: TOGETHER 매칭 중 한쪽이 종료 엔드포인트를 호출하면 양쪽 체크인이 모두 ENDED된다"
+            + "(매칭 쌍 동시 종료 불변식, 실 DB 확증)")
+    void endCheckIn_whenTogether_endsBothSides() throws Exception {
+        // given: 발신자(Alice)·수신자(Bob) 온보딩(다른 테스트와 전화번호·닉네임 유니크 충돌 없게 새 값 사용).
+        String aliceToken = onboard("01077772001", "e2eAliceEnd"); // 발신자
+        String bobToken = onboard("01077772002", "e2eBobEnd");      // 수신자
+
+        // 식당 X 시드 — 수신자 Bob이 체크인할 곳.
+        Place placeX = placeRepository.save(
+                Place.ofPublicData("E2E-END-X", "식당종료X", "한식", "서울 어딘가", "서울 도로명종료X",
+                        37.5665, 126.9780, "02-000-0003", "영업"));
+
+        // 1) 수신자 B가 식당 X에 체크인(ACTIVE).
+        JsonNode bobCheckIn = perform(jsonPost("/api/check-ins", Map.of("placeId", placeX.getId())), bobToken, 201);
+        long bobCheckInId = bobCheckIn.path("data").path("checkInId").asLong();
+
+        // 2) 발신자 A가 B에게 같이먹기를 신청하고, B가 수락한다 — A·B 둘 다 TOGETHER로 전이.
+        JsonNode created = perform(jsonPost("/api/meal-requests", Map.of(
+                "toCheckInId", bobCheckInId, "message", "같이 드실래요?")), aliceToken, 201);
+        long mealRequestId = created.path("data").path("mealRequestId").asLong();
+        perform(patch("/api/meal-requests/" + mealRequestId + "/accept"), bobToken, 200);
+
+        // A의 새 TOGETHER 체크인 id를 원시 SQL로 확보한다(accept 응답 본문엔 체크인 id가 없다).
+        Long aliceUserId = jdbcTemplate.queryForObject(
+                "SELECT id FROM users WHERE nickname = ?", Long.class, "e2eAliceEnd");
+        Long aliceCheckInId = jdbcTemplate.queryForObject(
+                "SELECT id FROM check_ins WHERE user_id = ? AND status = 'TOGETHER'", Long.class, aliceUserId);
+
+        // when: 매칭 한쪽(Bob)만 자기 체크인을 종료 엔드포인트로 종료하면
+        JsonNode ended = perform(patch("/api/check-ins/" + bobCheckInId + "/end"), bobToken, 200);
+        assertThat(ended.path("data").path("status").asText()).isEqualTo("ENDED");
+
+        // then(실 DB 왕복 재조회): 종료를 요청하지 않은 A의 체크인도 함께 ENDED여야 한다
+        // (같이먹기는 한쪽만 끝낼 수 없다 — CheckInService.endCheckIn의 파트너 동시 종료 로직을 실 Postgres로 확증).
+        Map<String, Object> bobRow = jdbcTemplate.queryForMap(
+                "SELECT status, ended_at FROM check_ins WHERE id = ?", bobCheckInId);
+        assertThat(bobRow.get("status")).isEqualTo("ENDED");
+        assertThat(bobRow.get("ended_at")).isNotNull();
+
+        Map<String, Object> aliceRow = jdbcTemplate.queryForMap(
+                "SELECT status, ended_at FROM check_ins WHERE id = ?", aliceCheckInId);
+        assertThat(aliceRow.get("status")).isEqualTo("ENDED");
+        assertThat(aliceRow.get("ended_at")).isNotNull();
+    }
+
+    @Test
     @DisplayName("사회적 증거 통계는 토큰 없이도 공개 조회된다(비로그인 첫 화면)")
     void stats_isPublic() throws Exception {
         // given: 토큰 없음 / when: 통계 조회 / then: 200 + 집계 필드 노출(보안 필터 체인의 permitAll 동작 확인)

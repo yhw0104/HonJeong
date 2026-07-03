@@ -26,3 +26,10 @@ test('TOGETHER는 항상 end (혼밥 아님 → 취소 프롬프트 없음)', ()
 test('임계값은 30분', () => {
   expect(CANCEL_PROMPT_WINDOW_MIN).toBe(30);
 });
+
+test('ACTIVE + 경과 정확히 30분 → end (경계는 < 30이라 30분은 이미 end)', () => {
+  const started = new Date('2026-07-03T12:00:00Z');
+  const now = new Date('2026-07-03T12:30:00Z').getTime(); // 정확히 30분 경과
+  expect(decideEndAction({ ...base, status: 'ACTIVE', startedAt: started.toISOString() }, now))
+    .toBe('end');
+});

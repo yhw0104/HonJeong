@@ -28,7 +28,7 @@ export function useActiveDiners(placeId: number) {
   });
 }
 
-// 체크인 시작/종료 후 지도·주변·내체크인·혼밥러목록·통계를 모두 무효화한다(전 화면 자동 갱신).
+// 체크인 시작/종료/취소 후 지도·주변·내체크인·혼밥러목록·통계를 모두 무효화한다(전 화면 자동 갱신).
 function invalidateLoop(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['checkin', 'me'] });
   qc.invalidateQueries({ queryKey: ['map'] });

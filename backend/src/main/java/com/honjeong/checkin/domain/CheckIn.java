@@ -19,10 +19,14 @@ import jakarta.persistence.Table;
 
 /**
  * 혼밥 체크인(핵심 데이터). 사용자가 선택한 식당에 "혼밥 중"을 등록한 기록이며, 통계·지도·혼밥러 목록의 원천이다.
- * 사용자당 ACTIVE 1개 제약은 DB 부분 유니크 인덱스(uq_check_ins_active_user)가 보장한다.
+ * 사용자당 ACTIVE+TOGETHER 합쳐 최대 1개 제약은 DB 부분 유니크 인덱스(uq_check_ins_current_user)가 보장한다.
  *
  * <p>{@code check_ins}는 {@code created_at}만 있고 {@code updated_at}이 없어 {@code BaseTimeEntity}를 상속하지 않고
  * 시각을 직접 매핑한다. User·Place는 LAZY {@code @ManyToOne}으로 두어, 혼밥러 목록·지도 집계를 프로젝션/페치조인으로 뽑는다.
+ *
+ * <p><b>순환 FK:</b> 이 엔티티의 {@code meal_request_id → meal_requests(id)}와 {@code meal_requests.to_check_in_id
+ * → check_ins(id)}가 서로를 참조해 순환 FK를 이룬다. 두 엔티티 모두 hard-delete하지 않고 영구 보존하므로(상태 전이로만
+ * 정리) ON DELETE를 지정하지 않은 기본값(RESTRICT)이 의도된 동작이다.
  */
 @Entity
 @Table(name = "check_ins")
