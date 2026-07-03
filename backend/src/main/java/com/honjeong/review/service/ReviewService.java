@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.honjeong.checkin.domain.CheckIn;
+import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
@@ -210,7 +211,7 @@ public class ReviewService {
 
         LocalDateTime monthStart = LocalDate.ofInstant(clock.instant(), KST).withDayOfMonth(1).atStartOfDay();
         DiningHistoryResponse.Summary summary = new DiningHistoryResponse.Summary(
-                checkInRepository.countByUser_Id(userId),
+                checkInRepository.countByUser_IdAndStatusNot(userId, CheckInStatus.CANCELLED),
                 reviewRepository.countByUser_Id(userId),
                 checkInRepository.countDistinctPlacesByUser(userId),
                 checkInRepository.countByUserSince(userId, monthStart));

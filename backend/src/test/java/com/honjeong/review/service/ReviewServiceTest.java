@@ -229,7 +229,7 @@ class ReviewServiceTest {
 
         when(checkInRepository.findHistoryWithPlaceByUser(1L)).thenReturn(java.util.List.of(c1, c2));
         when(reviewRepository.findByUserWithCheckIn(1L)).thenReturn(java.util.List.of(r1));
-        when(checkInRepository.countByUser_Id(1L)).thenReturn(5L);
+        when(checkInRepository.countByUser_IdAndStatusNot(1L, com.honjeong.checkin.domain.CheckInStatus.CANCELLED)).thenReturn(5L);
         when(reviewRepository.countByUser_Id(1L)).thenReturn(3L);
         when(checkInRepository.countDistinctPlacesByUser(1L)).thenReturn(2L);
         when(checkInRepository.countByUserSince(org.mockito.ArgumentMatchers.eq(1L), any())).thenReturn(4L);
@@ -473,7 +473,7 @@ class ReviewServiceTest {
 
         when(checkInRepository.findHistoryWithPlaceByUser(1L)).thenReturn(List.of(c1));
         when(reviewRepository.findByUserWithCheckIn(1L)).thenReturn(List.of(r1));
-        when(checkInRepository.countByUser_Id(1L)).thenReturn(1L);
+        when(checkInRepository.countByUser_IdAndStatusNot(1L, com.honjeong.checkin.domain.CheckInStatus.CANCELLED)).thenReturn(1L);
         when(reviewRepository.countByUser_Id(1L)).thenReturn(1L);
         when(checkInRepository.countDistinctPlacesByUser(1L)).thenReturn(1L);
         when(checkInRepository.countByUserSince(org.mockito.ArgumentMatchers.eq(1L), any())).thenReturn(1L);
