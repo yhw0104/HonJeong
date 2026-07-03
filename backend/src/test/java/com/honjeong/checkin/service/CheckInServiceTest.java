@@ -3,7 +3,9 @@ package com.honjeong.checkin.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -62,6 +64,12 @@ class CheckInServiceTest {
     private User userRef(long id) {
         User user = mock(User.class);
         when(user.getId()).thenReturn(id);
+        return user;
+    }
+
+    private User userRef(long id, String nickname) {
+        User user = userRef(id);
+        when(user.getNickname()).thenReturn(nickname);
         return user;
     }
 
@@ -240,14 +248,41 @@ class CheckInServiceTest {
     }
 
     @Test
-    @DisplayName("getMyActiveCheckIn: ACTIVE 있으면 응답, 없으면 null")
-    void myActive() {
+    @DisplayName("getMyCurrentCheckIn: ACTIVE 있으면 응답(파트너 없음), 없으면 null")
+    void myCurrent_active() {
         CheckIn ci = CheckIn.start(mock(User.class), place(3L), nowKst);
-        when(checkInRepository.findByUser_IdAndStatus(1L, CheckInStatus.ACTIVE)).thenReturn(Optional.of(ci));
-        assertThat(service.getMyActiveCheckIn(1L)).isNotNull();
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.of(ci));
+        CheckInResponse res = service.getMyCurrentCheckIn(1L);
+        assertThat(res).isNotNull();
+        assertThat(res.status()).isEqualTo("ACTIVE");
+        assertThat(res.partnerNickname()).isNull();
 
-        when(checkInRepository.findByUser_IdAndStatus(2L, CheckInStatus.ACTIVE)).thenReturn(Optional.empty());
-        assertThat(service.getMyActiveCheckIn(2L)).isNull();
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(2L), anyCollection())).thenReturn(Optional.empty());
+        assertThat(service.getMyCurrentCheckIn(2L)).isNull();
+    }
+
+    @Test
+    @DisplayName("getMyCurrentCheckIn: TOGETHER면 파트너 닉네임을 포함한다")
+    void getMyCurrent_togetherWithPartner() {
+        CheckIn mine = CheckIn.startTogether(userRef(1L), place(10L), 50L, nowKst);   // 나
+        CheckIn partner = CheckIn.startTogether(userRef(2L, "상대"), place(10L), 50L, nowKst); // 파트너
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection()))
+                .thenReturn(Optional.of(mine));
+        when(checkInRepository.findTogetherByMealRequestId(50L))
+                .thenReturn(List.of(mine, partner));
+
+        CheckInResponse res = service.getMyCurrentCheckIn(1L);
+
+        assertThat(res.status()).isEqualTo("TOGETHER");
+        assertThat(res.partnerNickname()).isEqualTo("상대");
+    }
+
+    @Test
+    @DisplayName("getMyCurrentCheckIn: 현재 체크인이 없으면 null")
+    void getMyCurrent_none() {
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection()))
+                .thenReturn(Optional.empty());
+        assertThat(service.getMyCurrentCheckIn(1L)).isNull();
     }
 
     @Test

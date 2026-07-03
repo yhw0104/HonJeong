@@ -130,16 +130,29 @@ public class CheckInService {
     }
 
     /**
-     * 내 현재 ACTIVE 체크인을 반환한다. 없으면 null(컨트롤러가 data:null로 응답).
+     * 내 현재 체크인(ACTIVE 또는 TOGETHER)을 반환한다. 없으면 null.
+     * TOGETHER면 파트너 닉네임을 함께 채워 앱이 "같이 먹는 중"을 렌더할 수 있게 한다.
      *
      * @param userId 회원 id
-     * @return 현재 ACTIVE 체크인 또는 null
+     * @return 현재 체크인 응답 또는 null
      */
     @Transactional(readOnly = true)
-    public CheckInResponse getMyActiveCheckIn(Long userId) {
-        return checkInRepository.findByUser_IdAndStatus(userId, CheckInStatus.ACTIVE)
-                .map(CheckInResponse::from)
+    public CheckInResponse getMyCurrentCheckIn(Long userId) {
+        Optional<CheckIn> current = checkInRepository.findByUser_IdAndStatusIn(
+                userId, List.of(CheckInStatus.ACTIVE, CheckInStatus.TOGETHER));
+        if (current.isEmpty()) {
+            return null;
+        }
+        CheckIn c = current.get();
+        if (c.getStatus() != CheckInStatus.TOGETHER) {
+            return CheckInResponse.from(c);
+        }
+        String partnerNickname = checkInRepository.findTogetherByMealRequestId(c.getMealRequestId()).stream()
+                .filter(x -> !x.getUser().getId().equals(userId))
+                .findFirst()
+                .map(x -> x.getUser().getNickname())
                 .orElse(null);
+        return CheckInResponse.from(c, partnerNickname);
     }
 
     /**

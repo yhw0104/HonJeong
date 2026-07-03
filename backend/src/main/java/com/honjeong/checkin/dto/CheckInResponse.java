@@ -5,29 +5,32 @@ import java.time.LocalDateTime;
 import com.honjeong.checkin.domain.CheckIn;
 
 /**
- * 체크인 응답(POST/end/me 공용). {@code status}는 enum 이름 문자열(ACTIVE|ENDED), {@code endedAt}은 ACTIVE면 null이다.
- * 명세의 최소 형태(POST는 endedAt 없음)보다 한 필드 많은 의도적 상위집합 — 프론트는 status로 분기한다.
+ * 체크인 응답(POST/end/cancel/me 공용). {@code status}는 enum 이름 문자열(ACTIVE|TOGETHER|ENDED|CANCELLED),
+ * {@code endedAt}은 진행 중이면 null, {@code matchedAt}·{@code partnerNickname}은 솔로면 null이다.
+ * 명세의 최소 형태보다 필드가 많은 의도적 상위집합 — 프론트는 status로 분기한다.
  *
- * @param checkInId 체크인 id
- * @param placeId   식당 id
- * @param status    상태 문자열(ACTIVE|ENDED)
- * @param startedAt 시작 시각
- * @param endedAt   종료 시각(ACTIVE면 null)
+ * @param checkInId       체크인 id
+ * @param placeId         식당 id
+ * @param status          상태 문자열(ACTIVE|TOGETHER|ENDED|CANCELLED)
+ * @param startedAt       시작 시각
+ * @param endedAt         종료 시각(진행 중이면 null)
+ * @param matchedAt       매칭 시각(솔로면 null)
+ * @param partnerNickname 같이먹기 파트너 닉네임(TOGETHER /me 응답 전용, 그 외 null)
  */
 public record CheckInResponse(
-        Long checkInId,
-        Long placeId,
-        String status,
-        LocalDateTime startedAt,
-        LocalDateTime endedAt) {
+        Long checkInId, Long placeId, String status,
+        LocalDateTime startedAt, LocalDateTime endedAt,
+        LocalDateTime matchedAt, String partnerNickname) {
 
-    /** 체크인 엔티티를 응답으로 변환한다. */
-    public static CheckInResponse from(CheckIn checkIn) {
+    /** 파트너 없는 변환(ACTIVE/ENDED/CANCELLED/POST/end 공용). */
+    public static CheckInResponse from(CheckIn c) {
+        return from(c, null);
+    }
+
+    /** 파트너 닉네임을 포함한 변환(TOGETHER /me 응답). */
+    public static CheckInResponse from(CheckIn c, String partnerNickname) {
         return new CheckInResponse(
-                checkIn.getId(),
-                checkIn.getPlace().getId(),
-                checkIn.getStatus().name(),
-                checkIn.getStartedAt(),
-                checkIn.getEndedAt());
+                c.getId(), c.getPlace().getId(), c.getStatus().name(),
+                c.getStartedAt(), c.getEndedAt(), c.getMatchedAt(), partnerNickname);
     }
 }

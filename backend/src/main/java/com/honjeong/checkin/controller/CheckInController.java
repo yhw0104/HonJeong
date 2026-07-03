@@ -60,10 +60,10 @@ public class CheckInController {
         return ApiResponse.success(checkInService.cancelCheckIn(userId, id));
     }
 
-    /** 내 현재 ACTIVE 체크인(없으면 data:null). */
+    /** 내 현재 체크인(ACTIVE 또는 TOGETHER, 없으면 data:null). */
     @GetMapping("/me")
     public ApiResponse<CheckInResponse> me(@CurrentUserId Long userId) {
-        return ApiResponse.success(checkInService.getMyActiveCheckIn(userId));
+        return ApiResponse.success(checkInService.getMyCurrentCheckIn(userId));
     }
 
     /** 사회적 증거 통계("오늘 N명 / 현재 N명"). */

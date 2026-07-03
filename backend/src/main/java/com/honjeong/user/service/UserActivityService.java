@@ -3,6 +3,7 @@ package com.honjeong.user.service;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.favorite.repository.FavoriteRepository;
 import com.honjeong.mate.repository.MateRepository;
@@ -37,7 +38,7 @@ public class UserActivityService {
      */
     @Transactional(readOnly = true)
     public ActivitySummaryResponse getActivitySummary(long userId) {
-        long checkInCount = checkInRepository.countByUser_Id(userId);
+        long checkInCount = checkInRepository.countByUser_IdAndStatusNot(userId, CheckInStatus.CANCELLED);
         long reviewCount = reviewRepository.countByUser_Id(userId);
         long favoriteCount = favoriteRepository.countDistinctPlaceByUserId(userId);
         long mateCount = mateRepository.countByUser_Id(userId);

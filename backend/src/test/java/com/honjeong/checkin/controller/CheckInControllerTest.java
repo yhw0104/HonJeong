@@ -62,7 +62,7 @@ class CheckInControllerTest {
     @DisplayName("POST /api/check-ins: USER면 201 + 체크인 응답")
     void create_201() throws Exception {
         when(checkInService.createCheckIn(eq(1L), any())).thenReturn(
-                new CheckInResponse(10L, 3L, "ACTIVE", LocalDateTime.of(2026, 6, 15, 12, 0), null));
+                new CheckInResponse(10L, 3L, "ACTIVE", LocalDateTime.of(2026, 6, 15, 12, 0), null, null, null));
 
         mockMvc.perform(post("/api/check-ins").header("Authorization", userToken())
                         .contentType(MediaType.APPLICATION_JSON).content(body()))
@@ -131,7 +131,7 @@ class CheckInControllerTest {
     void end_200() throws Exception {
         when(checkInService.endCheckIn(1L, 10L)).thenReturn(
                 new CheckInResponse(10L, 3L, "ENDED", LocalDateTime.of(2026, 6, 15, 12, 0),
-                        LocalDateTime.of(2026, 6, 15, 13, 0)));
+                        LocalDateTime.of(2026, 6, 15, 13, 0), null, null));
 
         mockMvc.perform(patch("/api/check-ins/10/end").header("Authorization", userToken()))
                 .andExpect(status().isOk())
@@ -154,7 +154,7 @@ class CheckInControllerTest {
     void cancel_ok() throws Exception {
         when(checkInService.cancelCheckIn(eq(1L), eq(3L))).thenReturn(
                 new CheckInResponse(3L, 10L, "CANCELLED", LocalDateTime.of(2026, 6, 15, 12, 0),
-                        LocalDateTime.of(2026, 6, 15, 12, 0)));
+                        LocalDateTime.of(2026, 6, 15, 12, 0), null, null));
 
         mockMvc.perform(patch("/api/check-ins/3/cancel").header("Authorization", userToken()))
                 .andExpect(status().isOk())
@@ -195,9 +195,9 @@ class CheckInControllerTest {
     }
 
     @Test
-    @DisplayName("GET /me: ACTIVE 없으면 data:null")
+    @DisplayName("GET /me: ACTIVE/TOGETHER 없으면 data:null")
     void me_null() throws Exception {
-        when(checkInService.getMyActiveCheckIn(1L)).thenReturn(null);
+        when(checkInService.getMyCurrentCheckIn(1L)).thenReturn(null);
 
         mockMvc.perform(get("/api/check-ins/me").header("Authorization", userToken()))
                 .andExpect(status().isOk())
