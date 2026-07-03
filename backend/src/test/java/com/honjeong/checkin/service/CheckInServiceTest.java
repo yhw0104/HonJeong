@@ -20,6 +20,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import com.honjeong.checkin.domain.CheckIn;
@@ -369,17 +370,30 @@ class CheckInServiceTest {
     }
 
     @Test
-    @DisplayName("expireStaleCheckIns: ACTIVE와 TOGETHER를 각각의 기준으로 만료한다")
+    @DisplayName("expireStaleCheckIns: ACTIVE와 TOGETHER를 각각의 기준(ttlHours/togetherTtlHours)으로 만료한다"
+            + "(threshold 스왑 방지 — 두 ttl을 다른 값으로 구성)")
     void expire_bothStatuses() {
-        // props.ttlHours()=3, props.togetherTtlHours()=3 → 둘 다 threshold=09:00
-        LocalDateTime threshold = LocalDateTime.of(2026, 6, 15, 9, 0);
-        when(checkInRepository.endActiveStartedBefore(threshold, nowKst)).thenReturn(2);
-        when(checkInRepository.endTogetherMatchedBefore(threshold, nowKst)).thenReturn(1);
+        // ttlHours=3, togetherTtlHours=5로 서로 다르게 구성한다. 공용 props(둘 다 3)를 쓰면 두 threshold가
+        // 같은 값(09:00)이 되어 프로덕션이 두 인자를 뒤바꿔 써도 테스트가 통과해버린다(스왑 무방비).
+        // 여기서는 ACTIVE→09:00, TOGETHER→07:00로 서로 다르게 만들어 스왑 시 반드시 실패하게 한다.
+        HonjeongCheckInProperties props2 = new HonjeongCheckInProperties(3, 300_000L, 5);
+        CheckInService service2 =
+                new CheckInService(checkInRepository, placeService, userRepository, clock, props2);
+        when(checkInRepository.endActiveStartedBefore(any(), any())).thenReturn(2);
+        when(checkInRepository.endTogetherMatchedBefore(any(), any())).thenReturn(1);
 
-        int n = service.expireStaleCheckIns();
+        int n = service2.expireStaleCheckIns();
 
         assertThat(n).isEqualTo(3);
-        verify(checkInRepository).endActiveStartedBefore(threshold, nowKst);
-        verify(checkInRepository).endTogetherMatchedBefore(threshold, nowKst);
+
+        ArgumentCaptor<LocalDateTime> activeThreshold = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> togetherThreshold = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(checkInRepository).endActiveStartedBefore(activeThreshold.capture(), eq(nowKst));
+        verify(checkInRepository).endTogetherMatchedBefore(togetherThreshold.capture(), eq(nowKst));
+
+        // ttlHours=3 → now-3h(09:00), togetherTtlHours=5 → now-5h(07:00). 값이 다르므로 인자가
+        // 뒤바뀌면(스왑) 아래 두 단언 중 하나가 실패한다.
+        assertThat(activeThreshold.getValue()).isEqualTo(nowKst.minusHours(3));
+        assertThat(togetherThreshold.getValue()).isEqualTo(nowKst.minusHours(5));
     }
 }
