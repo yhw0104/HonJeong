@@ -9,9 +9,17 @@ import { T2 } from '@/shared/theme';
 // 카드 높이. 절대배치하는 화면이 상단 컨트롤을 카드 아래로 내릴 때 참조.
 export const HONBAB_BAR_H = 44;
 
-type Props = { place: string; onEnd: () => void; style?: StyleProp<ViewStyle> };
+type Props = {
+  place: string;
+  onEnd: () => void;
+  together?: boolean; // true면 "같이 먹는 중"
+  partnerNickname?: string | null;
+  style?: StyleProp<ViewStyle>;
+};
 
-export function HonbabStatusBar({ place, onEnd, style }: Props) {
+export function HonbabStatusBar({ place, onEnd, together = false, partnerNickname, style }: Props) {
+  const strong = together ? '같이 먹는 중' : '혼밥 중';
+  const dim = together && partnerNickname ? `  ·  ${partnerNickname} · ${place}` : `  ·  ${place}`;
   return (
     <View style={[styles.card, style]}>
       <View style={styles.pulse}>
@@ -19,8 +27,8 @@ export function HonbabStatusBar({ place, onEnd, style }: Props) {
         <View style={styles.dot} />
       </View>
       <Text style={styles.label} numberOfLines={1}>
-        <Text style={styles.labelStrong}>혼밥 중</Text>
-        <Text style={styles.labelDim}>{'  ·  '}{place}</Text>
+        <Text style={styles.labelStrong}>{strong}</Text>
+        <Text style={styles.labelDim}>{dim}</Text>
       </Text>
       <Pressable style={styles.endBtn} onPress={onEnd} hitSlop={6}>
         <Text style={styles.endText}>끝내기</Text>

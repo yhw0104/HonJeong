@@ -10,7 +10,8 @@ import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H } from '@
 import { T2 } from '@/shared/theme';
 import { usePlaceDetail, useNearby } from '@/features/place/queries';
 import { formatDistance, walkingMinutes } from '@/shared/location/distance';
-import { useActiveDiners, useMyCheckIn, useStartCheckIn, useEndCheckIn } from '@/features/checkin/queries';
+import { useActiveDiners, useMyCheckIn, useStartCheckIn } from '@/features/checkin/queries';
+import { usePromptEndCheckIn } from '@/features/checkin/usePromptEndCheckIn';
 import type { ActiveDiner } from '@/features/checkin/api';
 import { formatElapsed, addressHead } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
@@ -80,12 +81,13 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const diners = useActiveDiners(placeId);
   const myCheckIn = useMyCheckIn();
   const startMut = useStartCheckIn();
-  const endMut = useEndCheckIn();
+  const promptEnd = usePromptEndCheckIn();
   const name = detail.data?.name ?? route.params.name ?? '식당';
   const fullAddr = detail.data?.roadAddress ?? detail.data?.address ?? '주소 정보 없음';
   const addrHead = addressHead(fullAddr); // 시·도~구·군까지(기본 표시)
   const addrRest = fullAddr.trim() === addrHead ? '' : fullAddr.trim().slice(addrHead.length).trimStart(); // 나머지(펼침)
-  const honbabOn = myCheckIn.data?.status === 'ACTIVE' && myCheckIn.data.placeId === placeId;
+  // ACTIVE 또는 TOGETHER — 종료/취소되면 useMyCheckIn이 null을 반환
+  const honbabOn = !!myCheckIn.data && myCheckIn.data.placeId === placeId;
   const reviews = usePlaceReviews(placeId);
   const summary = usePlaceReviewSummary(placeId);
 
@@ -115,7 +117,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const goMealRequest = () => navigation.navigate('MealRequest', { placeId, placeName: name });
   const goDinerProfile = (userId: number) => navigation.navigate('MateProfile', { userId });
   const toggleHonbab = () => {
-    if (honbabOn && myCheckIn.data) endMut.mutate(myCheckIn.data.checkInId);
+    if (honbabOn && myCheckIn.data) promptEnd(myCheckIn.data);
     else startMut.mutate(placeId);
   };
 
@@ -255,7 +257,12 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
       {/* 혼밥 중 상태 카드 — 켜져 있으면 최상단에 띄움 */}
       {honbabOn && (
         <View style={[styles.honbabFloat, { top: insets.top + 8 }]}>
-          <HonbabStatusBar place={name} onEnd={toggleHonbab} />
+          <HonbabStatusBar
+            place={name}
+            together={myCheckIn.data?.status === 'TOGETHER'}
+            partnerNickname={myCheckIn.data?.partnerNickname}
+            onEnd={toggleHonbab}
+          />
         </View>
       )}
 

@@ -8,7 +8,8 @@ import type { HonjeongMapHandle } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useLocation } from '@/shared/location/useLocation';
 import { useNearby } from '@/features/place/queries';
-import { useMap, useMyCheckIn, useStats, useStartCheckIn, useEndCheckIn } from '@/features/checkin/queries';
+import { useMap, useMyCheckIn, useStats, useStartCheckIn } from '@/features/checkin/queries';
+import { usePromptEndCheckIn } from '@/features/checkin/usePromptEndCheckIn';
 import { formatDistance } from '@/shared/format';
 import type { MainTabScreenProps } from '@/navigation/types';
 
@@ -27,9 +28,9 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const nearby = useNearby(coord);
   const myCheckIn = useMyCheckIn();
   const startMut = useStartCheckIn();
-  const endMut = useEndCheckIn();
+  const promptEnd = usePromptEndCheckIn();
 
-  const honbabOn = myCheckIn.data?.status === 'ACTIVE';
+  const honbabOn = !!myCheckIn.data; // ACTIVE 또는 TOGETHER — 종료/취소되면 useMyCheckIn이 null을 반환
   const nearbyList = nearby.data?.content ?? [];
   const myPlaceName =
     markers.data?.find((m) => m.placeId === myCheckIn.data?.placeId)?.name ??
@@ -44,7 +45,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     startMut.mutate(placeId);
   };
   const endHonbab = () => {
-    if (myCheckIn.data) endMut.mutate(myCheckIn.data.checkInId);
+    if (myCheckIn.data) promptEnd(myCheckIn.data);
   };
 
   // 드래그로 펼치는 하단 시트: 핸들/헤더를 위로 끌면 펼침, 아래로 끌면 접힘.
@@ -109,7 +110,13 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         )}
 
         {honbabOn && (
-          <HonbabStatusBar place={myPlaceName} onEnd={endHonbab} style={{ marginTop: 10 }} />
+          <HonbabStatusBar
+            place={myPlaceName}
+            together={myCheckIn.data?.status === 'TOGETHER'}
+            partnerNickname={myCheckIn.data?.partnerNickname}
+            onEnd={endHonbab}
+            style={{ marginTop: 10 }}
+          />
         )}
       </View>
 
