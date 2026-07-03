@@ -43,7 +43,7 @@ public class CheckIn {
     @JoinColumn(name = "place_id", nullable = false)
     private Place place;
 
-    // 상태(ACTIVE|ENDED). 문자열 enum으로 저장.
+    // 상태(ACTIVE|TOGETHER|ENDED|CANCELLED). 문자열 enum으로 저장.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private CheckInStatus status;
@@ -58,6 +58,13 @@ public class CheckIn {
     // 생성 시각. INSERT 시 한 번 채워지고 갱신되지 않는다.
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    // 매칭 시각(TOGETHER TTL 기준). 솔로면 null.
+    private LocalDateTime matchedAt;
+
+    // 매칭된 같이먹기 신청 id(쌍 링크). 엔티티 관계 아닌 plain Long — checkin→meal 순환 회피. 솔로면 null.
+    @Column(name = "meal_request_id")
+    private Long mealRequestId;
 
     /** JPA가 리플렉션으로 엔티티를 생성할 때 쓰는 기본 생성자. 외부 직접 호출은 막으려고 protected. */
     protected CheckIn() {
@@ -84,13 +91,57 @@ public class CheckIn {
     }
 
     /**
-     * 체크인을 종료한다. 이미 ENDED면 아무 것도 하지 않는다(멱등).
+     * 발신자용 TOGETHER 체크인을 새로 만든다. startedAt·matchedAt·createdAt을 동일 now로 채운다.
+     *
+     * @param user          같이먹기 발신자
+     * @param place         매칭된 식당(수신자의 장소)
+     * @param mealRequestId 매칭 신청 id
+     * @param now           매칭 시각
+     * @return TOGETHER 상태 체크인
+     */
+    public static CheckIn startTogether(User user, Place place, Long mealRequestId, LocalDateTime now) {
+        CheckIn c = new CheckIn(user, place, now);
+        c.status = CheckInStatus.TOGETHER;
+        c.matchedAt = now;
+        c.mealRequestId = mealRequestId;
+        return c;
+    }
+
+    /**
+     * 체크인을 종료한다. ACTIVE 또는 TOGETHER에서만 전이하며, 이미 ENDED(또는 CANCELLED)면 아무 것도 하지
+     * 않는다(멱등).
      *
      * @param now 종료 시각
      */
     public void end(LocalDateTime now) {
-        if (status == CheckInStatus.ACTIVE) {
+        if (status == CheckInStatus.ACTIVE || status == CheckInStatus.TOGETHER) {
             this.status = CheckInStatus.ENDED;
+            this.endedAt = now;
+        }
+    }
+
+    /**
+     * ACTIVE 체크인을 TOGETHER(같이 먹는 중)로 전이한다. ACTIVE가 아니면 무시(멱등).
+     *
+     * @param mealRequestId 매칭 신청 id
+     * @param now           매칭 시각
+     */
+    public void matchTogether(Long mealRequestId, LocalDateTime now) {
+        if (status == CheckInStatus.ACTIVE) {
+            this.status = CheckInStatus.TOGETHER;
+            this.matchedAt = now;
+            this.mealRequestId = mealRequestId;
+        }
+    }
+
+    /**
+     * ACTIVE 체크인을 CANCELLED(오집계 취소)로 전이한다. ACTIVE가 아니면 무시(멱등).
+     *
+     * @param now 취소 시각
+     */
+    public void cancel(LocalDateTime now) {
+        if (status == CheckInStatus.ACTIVE) {
+            this.status = CheckInStatus.CANCELLED;
             this.endedAt = now;
         }
     }
@@ -115,7 +166,7 @@ public class CheckIn {
         return place;
     }
 
-    /** 현재 상태(ACTIVE|ENDED)를 반환한다. */
+    /** 현재 상태(ACTIVE|TOGETHER|ENDED|CANCELLED)를 반환한다. */
     public CheckInStatus getStatus() {
         return status;
     }
@@ -133,5 +184,15 @@ public class CheckIn {
     /** 생성 시각을 반환한다. */
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    /** 매칭 시각을 반환한다(솔로면 null). */
+    public LocalDateTime getMatchedAt() {
+        return matchedAt;
+    }
+
+    /** 매칭된 같이먹기 신청 id를 반환한다(솔로면 null). */
+    public Long getMealRequestId() {
+        return mealRequestId;
     }
 }
