@@ -1,6 +1,7 @@
 package com.honjeong.checkin.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,6 +30,24 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     Optional<CheckIn> findByUser_IdAndStatus(Long userId, CheckInStatus status);
 
     /**
+     * 사용자의 현재 활동 체크인(ACTIVE 또는 TOGETHER) 1건. 확장 유니크 인덱스(uq_check_ins_current_user)로 최대 1개다.
+     *
+     * @param userId   회원 id
+     * @param statuses 조회할 상태 집합(보통 ACTIVE, TOGETHER)
+     * @return 해당 체크인(없으면 빈 Optional)
+     */
+    Optional<CheckIn> findByUser_IdAndStatusIn(Long userId, Collection<CheckInStatus> statuses);
+
+    /**
+     * 특정 상태를 제외한 사용자 체크인 수(총 체크인에서 CANCELLED 제외용).
+     *
+     * @param userId 회원 id
+     * @param status 제외할 상태
+     * @return 건수
+     */
+    long countByUser_IdAndStatusNot(Long userId, CheckInStatus status);
+
+    /**
      * 해당 상태의 전체 체크인 수(통계 activeCount용).
      *
      * @param status 셀 상태
@@ -42,7 +61,8 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
      * @param start 집계 시작 경계(KST 자정)
      * @return 중복 제거된 사용자 수
      */
-    @Query("SELECT COUNT(DISTINCT c.user.id) FROM CheckIn c WHERE c.startedAt >= :start")
+    @Query("SELECT COUNT(DISTINCT c.user.id) FROM CheckIn c "
+            + "WHERE c.startedAt >= :start AND c.status <> com.honjeong.checkin.domain.CheckInStatus.CANCELLED")
     long countDistinctUsersStartedSince(@Param("start") LocalDateTime start);
 
     /**
@@ -100,6 +120,7 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
 
     /**
      * place에 대한 user의 최근 체크인(ACTIVE 또는 since 이후 ENDED). 리뷰 인증 자동연결용.
+     * 같이먹기로 매칭됐던(matchedAt not null) 체크인은 제외한다 — 혼밥 리뷰 자동연결은 솔로 체크인만 대상으로 한다.
      *
      * @param userId  회원 id
      * @param placeId 식당 id
@@ -108,7 +129,7 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
      */
     @Query("""
             SELECT c FROM CheckIn c
-            WHERE c.user.id = :userId AND c.place.id = :placeId
+            WHERE c.user.id = :userId AND c.place.id = :placeId AND c.matchedAt IS NULL
               AND (c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE
                    OR (c.status = com.honjeong.checkin.domain.CheckInStatus.ENDED AND c.endedAt >= :since))
             ORDER BY c.startedAt DESC
@@ -116,6 +137,32 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             """)
     Optional<CheckIn> findRecentForReview(@Param("userId") Long userId,
             @Param("placeId") Long placeId, @Param("since") LocalDateTime since);
+
+    /**
+     * 같은 매칭(meal_request_id)에 묶인 TOGETHER 체크인들(양쪽). 파트너 동시 종료·파트너 조회용. user fetch join.
+     *
+     * @param mealRequestId 매칭 신청 id
+     * @return 해당 매칭의 TOGETHER 체크인들(user 로딩됨)
+     */
+    @Query("""
+            SELECT c FROM CheckIn c JOIN FETCH c.user
+            WHERE c.mealRequestId = :mealRequestId AND c.status = com.honjeong.checkin.domain.CheckInStatus.TOGETHER
+            """)
+    List<CheckIn> findTogetherByMealRequestId(@Param("mealRequestId") Long mealRequestId);
+
+    /**
+     * matched_at이 기준 이전인 TOGETHER를 일괄 ENDED 처리한다(같이먹기 TTL 만료).
+     *
+     * @param threshold 이 시각 이전 매칭된 TOGETHER가 만료 대상
+     * @param now       종료 시각으로 기록할 현재 시각
+     * @return 만료된 건수
+     */
+    @Modifying
+    @Query("""
+            UPDATE CheckIn c SET c.status = com.honjeong.checkin.domain.CheckInStatus.ENDED, c.endedAt = :now
+            WHERE c.status = com.honjeong.checkin.domain.CheckInStatus.TOGETHER AND c.matchedAt < :threshold
+            """)
+    int endTogetherMatchedBefore(@Param("threshold") LocalDateTime threshold, @Param("now") LocalDateTime now);
 
     /**
      * 기준 시각 이전 시작된 ACTIVE를 일괄 ENDED 처리하고 만료 건수를 반환한다(TTL 자동 만료).
@@ -137,7 +184,9 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
      * @param userId 회원 id
      * @return 체크인 이력(place fetch join 포함, 최신순)
      */
-    @Query("SELECT c FROM CheckIn c JOIN FETCH c.place WHERE c.user.id = :userId ORDER BY c.startedAt DESC")
+    @Query("SELECT c FROM CheckIn c JOIN FETCH c.place "
+            + "WHERE c.user.id = :userId AND c.status <> com.honjeong.checkin.domain.CheckInStatus.CANCELLED "
+            + "ORDER BY c.startedAt DESC")
     List<CheckIn> findHistoryWithPlaceByUser(@Param("userId") Long userId);
 
     /**
@@ -154,7 +203,8 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
      * @param userId 회원 id
      * @return 고유 식당 수
      */
-    @Query("SELECT COUNT(DISTINCT c.place.id) FROM CheckIn c WHERE c.user.id = :userId")
+    @Query("SELECT COUNT(DISTINCT c.place.id) FROM CheckIn c "
+            + "WHERE c.user.id = :userId AND c.status <> com.honjeong.checkin.domain.CheckInStatus.CANCELLED")
     long countDistinctPlacesByUser(@Param("userId") Long userId);
 
     /**
@@ -164,7 +214,8 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
      * @param monthStart 집계 시작 경계
      * @return 해당 기간 체크인 건수
      */
-    @Query("SELECT COUNT(c) FROM CheckIn c WHERE c.user.id = :userId AND c.startedAt >= :monthStart")
+    @Query("SELECT COUNT(c) FROM CheckIn c WHERE c.user.id = :userId AND c.startedAt >= :monthStart "
+            + "AND c.status <> com.honjeong.checkin.domain.CheckInStatus.CANCELLED")
     long countByUserSince(@Param("userId") Long userId, @Param("monthStart") LocalDateTime monthStart);
 
     /**
@@ -174,7 +225,9 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
      * @param placeIds 판정할 장소 pk 목록
      * @return 체크인 이력이 있는 장소 id 목록(중복 제거)
      */
-    @Query("SELECT DISTINCT c.place.id FROM CheckIn c WHERE c.user.id = :userId AND c.place.id IN :placeIds")
+    @Query("SELECT DISTINCT c.place.id FROM CheckIn c "
+            + "WHERE c.user.id = :userId AND c.place.id IN :placeIds "
+            + "AND c.status <> com.honjeong.checkin.domain.CheckInStatus.CANCELLED")
     List<Long> findVisitedPlaceIds(@Param("userId") Long userId, @Param("placeIds") List<Long> placeIds);
 
     /**

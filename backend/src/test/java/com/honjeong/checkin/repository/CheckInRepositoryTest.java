@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -204,5 +206,228 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         CheckIn found = checkInRepository.findById(saved.getId()).orElseThrow();
         assertThat(found.getMatchedAt()).isEqualTo(NOW);
         assertThat(found.getMealRequestId()).isEqualTo(mealRequest.getId());
+    }
+
+    @Test
+    @DisplayName("오늘 혼밥 수: CANCELLED는 제외한다")
+    void todayCount_excludesCancelled() {
+        User u = persistUser("01000000001", "A");
+        Place p = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn c = checkInRepository.saveAndFlush(CheckIn.start(u, p, NOW));
+        c.cancel(NOW);
+        checkInRepository.saveAndFlush(c);
+
+        long today = checkInRepository.countDistinctUsersStartedSince(NOW.minusHours(1));
+        assertThat(today).isZero();
+    }
+
+    @Test
+    @DisplayName("findByUser_IdAndStatusIn: ACTIVE 또는 TOGETHER 현재 체크인 1건을 찾는다")
+    void findCurrent_returnsActiveOrTogether() {
+        User u = persistUser("01000000001", "A");
+        User other = persistUser("01000000002", "B");
+        Place p = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn otherCheckIn = em.persist(CheckIn.start(other, p, NOW));
+        MealRequest mealRequest = em.persist(MealRequest.create(u, otherCheckIn, p, null, NOW));
+        em.flush();
+        checkInRepository.saveAndFlush(CheckIn.startTogether(u, p, mealRequest.getId(), NOW));
+
+        Optional<CheckIn> cur = checkInRepository.findByUser_IdAndStatusIn(
+                u.getId(), List.of(CheckInStatus.ACTIVE, CheckInStatus.TOGETHER));
+        assertThat(cur).isPresent();
+        assertThat(cur.get().getStatus()).isEqualTo(CheckInStatus.TOGETHER);
+    }
+
+    @Test
+    @DisplayName("findByUser_IdAndStatusIn: ACTIVE/TOGETHER가 없으면(ENDED만) 빈 Optional")
+    void findCurrent_emptyWhenOnlyEnded() {
+        User u = persistUser("01000000001", "A");
+        Place p = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn ended = CheckIn.start(u, p, NOW.minusHours(2));
+        ended.end(NOW.minusHours(1));
+        checkInRepository.saveAndFlush(ended);
+
+        Optional<CheckIn> cur = checkInRepository.findByUser_IdAndStatusIn(
+                u.getId(), List.of(CheckInStatus.ACTIVE, CheckInStatus.TOGETHER));
+        assertThat(cur).isEmpty();
+    }
+
+    @Test
+    @DisplayName("endTogetherMatchedBefore: 오래된 TOGETHER를 ENDED로 만료한다")
+    void endTogether_expiresOld() {
+        User u = persistUser("01000000001", "A");
+        User other = persistUser("01000000002", "B");
+        Place p = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn otherCheckIn = em.persist(CheckIn.start(other, p, NOW.minusHours(4)));
+        MealRequest mealRequest = em.persist(MealRequest.create(u, otherCheckIn, p, null, NOW.minusHours(4)));
+        em.flush();
+        CheckIn c = CheckIn.startTogether(u, p, mealRequest.getId(), NOW.minusHours(4)); // matchedAt=4h 전
+        checkInRepository.saveAndFlush(c);
+        em.clear(); // 벌크 @Modifying 후 1차 캐시 stale 방지(findById 재조회 보장)
+
+        int n = checkInRepository.endTogetherMatchedBefore(NOW.minusHours(3), NOW);
+        assertThat(n).isEqualTo(1);
+        assertThat(checkInRepository.findById(c.getId()).orElseThrow().getStatus())
+                .isEqualTo(CheckInStatus.ENDED);
+    }
+
+    @Test
+    @DisplayName("endTogetherMatchedBefore: 임계 이후(최근) TOGETHER는 보존한다")
+    void endTogether_preservesRecent() {
+        User u = persistUser("01000000001", "A");
+        User other = persistUser("01000000002", "B");
+        Place p = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn otherCheckIn = em.persist(CheckIn.start(other, p, NOW.minusHours(1)));
+        MealRequest mealRequest = em.persist(MealRequest.create(u, otherCheckIn, p, null, NOW.minusHours(1)));
+        em.flush();
+        CheckIn c = CheckIn.startTogether(u, p, mealRequest.getId(), NOW.minusHours(1)); // matchedAt=1h 전
+        checkInRepository.saveAndFlush(c);
+        em.clear(); // 벌크 @Modifying 후 1차 캐시 stale 방지(findById 재조회 보장)
+
+        int n = checkInRepository.endTogetherMatchedBefore(NOW.minusHours(3), NOW);
+        assertThat(n).isZero();
+        assertThat(checkInRepository.findById(c.getId()).orElseThrow().getStatus())
+                .isEqualTo(CheckInStatus.TOGETHER);
+    }
+
+    @Test
+    @DisplayName("countByUser_IdAndStatusNot: CANCELLED를 제외한 총 체크인 수")
+    void countExcludingCancelled() {
+        User u = persistUser("01000000001", "A");
+        Place p = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn cancelled = CheckIn.start(u, p, NOW.minusDays(2));
+        cancelled.cancel(NOW.minusDays(2));
+        em.persist(cancelled); // CANCELLED로 insert되므로 유니크 슬롯을 점유하지 않음
+        CheckIn ended = CheckIn.start(u, p, NOW.minusHours(2));
+        ended.end(NOW.minusHours(1));
+        em.persist(ended);
+        CheckIn active = CheckIn.start(u, p, NOW);
+        em.persist(active);
+        em.flush();
+
+        assertThat(checkInRepository.countByUser_IdAndStatusNot(u.getId(), CheckInStatus.CANCELLED))
+                .isEqualTo(2);
+        assertThat(checkInRepository.countByUser_Id(u.getId())).isEqualTo(3); // 기존 메서드는 그대로 총건수
+    }
+
+    @Test
+    @DisplayName("findTogetherByMealRequestId: 같은 매칭의 TOGETHER 쌍을 user와 함께 반환한다")
+    void findTogetherPair() {
+        User sender = persistUser("01000000001", "신청자");
+        User receiver = persistUser("01000000002", "수신자");
+        Place p = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn receiverCheckIn = em.persist(CheckIn.start(receiver, p, NOW));
+        MealRequest mealRequest = em.persist(MealRequest.create(sender, receiverCheckIn, p, null, NOW));
+        em.flush();
+
+        checkInRepository.saveAndFlush(CheckIn.startTogether(sender, p, mealRequest.getId(), NOW));
+        receiverCheckIn.matchTogether(mealRequest.getId(), NOW);
+        checkInRepository.saveAndFlush(receiverCheckIn);
+        em.clear();
+
+        List<CheckIn> pair = checkInRepository.findTogetherByMealRequestId(mealRequest.getId());
+
+        assertThat(pair).hasSize(2);
+        assertThat(pair).extracting(c -> c.getUser().getNickname())
+                .containsExactlyInAnyOrder("신청자", "수신자");
+        assertThat(pair).allMatch(c -> c.getStatus() == CheckInStatus.TOGETHER);
+    }
+
+    @Test
+    @DisplayName("findHistoryWithPlaceByUser: CANCELLED는 이력에서 제외한다")
+    void history_excludesCancelled() {
+        User u = persistUser("01000000001", "A");
+        Place p = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn cancelled = CheckIn.start(u, p, NOW.minusDays(1));
+        cancelled.cancel(NOW.minusDays(1));
+        em.persist(cancelled);
+        CheckIn ended = CheckIn.start(u, p, NOW.minusHours(2));
+        ended.end(NOW.minusHours(1));
+        em.persist(ended);
+        em.flush();
+        em.clear();
+
+        List<CheckIn> history = checkInRepository.findHistoryWithPlaceByUser(u.getId());
+
+        assertThat(history).hasSize(1);
+        assertThat(history.get(0).getStatus()).isEqualTo(CheckInStatus.ENDED);
+    }
+
+    @Test
+    @DisplayName("countDistinctPlacesByUser: CANCELLED만 있는 방문지는 제외한다")
+    void distinctPlaces_excludesCancelled() {
+        User u = persistUser("01000000001", "A");
+        Place p1 = persistPlace("ext-1", 37.5, 127.0);
+        Place p2 = persistPlace("ext-2", 37.6, 127.1);
+        CheckIn cancelledAtP2 = CheckIn.start(u, p2, NOW.minusDays(1));
+        cancelledAtP2.cancel(NOW.minusDays(1));
+        em.persist(cancelledAtP2);
+        CheckIn endedAtP1 = CheckIn.start(u, p1, NOW.minusHours(2));
+        endedAtP1.end(NOW.minusHours(1));
+        em.persist(endedAtP1);
+        em.flush();
+
+        assertThat(checkInRepository.countDistinctPlacesByUser(u.getId())).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("countByUserSince: 기준 이후 체크인 중 CANCELLED는 제외한다")
+    void countSince_excludesCancelled() {
+        User u = persistUser("01000000001", "A");
+        Place p = persistPlace("ext-1", 37.5, 127.0);
+        LocalDateTime monthStart = NOW.minusDays(5);
+        CheckIn cancelled = CheckIn.start(u, p, NOW.minusDays(1));
+        cancelled.cancel(NOW.minusDays(1));
+        em.persist(cancelled);
+        CheckIn ended = CheckIn.start(u, p, NOW.minusHours(2));
+        ended.end(NOW.minusHours(1));
+        em.persist(ended);
+        em.flush();
+
+        assertThat(checkInRepository.countByUserSince(u.getId(), monthStart)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("findVisitedPlaceIds: CANCELLED만 있는 장소는 방문지로 치지 않는다")
+    void visited_excludesCancelled() {
+        User u = persistUser("01000000001", "A");
+        Place onlyCancelled = persistPlace("ext-1", 37.5, 127.0);
+        Place visited = persistPlace("ext-2", 37.6, 127.1);
+        CheckIn cancelled = CheckIn.start(u, onlyCancelled, NOW.minusDays(1));
+        cancelled.cancel(NOW.minusDays(1));
+        em.persist(cancelled);
+        em.persist(CheckIn.start(u, visited, NOW));
+        em.flush();
+
+        List<Long> ids = checkInRepository.findVisitedPlaceIds(
+                u.getId(), List.of(onlyCancelled.getId(), visited.getId()));
+
+        assertThat(ids).containsExactly(visited.getId());
+    }
+
+    @Test
+    @DisplayName("findRecentForReview: 같이먹기로 매칭됐던 체크인(matchedAt not null)은 리뷰 자동연결에서 제외한다")
+    void recentForReview_excludesMatched() {
+        User u = persistUser("01000000001", "A");
+        User other = persistUser("01000000002", "B");
+        Place p = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn otherCheckIn = em.persist(CheckIn.start(other, p, NOW.minusHours(2)));
+        MealRequest mealRequest = em.persist(MealRequest.create(u, otherCheckIn, p, null, NOW.minusHours(2)));
+        em.flush();
+        CheckIn matched = CheckIn.startTogether(u, p, mealRequest.getId(), NOW.minusHours(2));
+        matched.end(NOW.minusHours(1));
+        checkInRepository.saveAndFlush(matched);
+
+        assertThat(checkInRepository.findRecentForReview(u.getId(), p.getId(), NOW.minusHours(3)))
+                .isEmpty();
+
+        // 매칭 없는(솔로) 체크인은 여전히 자동연결된다
+        CheckIn solo = CheckIn.start(u, p, NOW.minusMinutes(30));
+        solo.end(NOW.minusMinutes(10));
+        checkInRepository.saveAndFlush(solo);
+
+        Optional<CheckIn> found = checkInRepository.findRecentForReview(u.getId(), p.getId(), NOW.minusHours(3));
+        assertThat(found).isPresent();
+        assertThat(found.get().getId()).isEqualTo(solo.getId());
     }
 }
