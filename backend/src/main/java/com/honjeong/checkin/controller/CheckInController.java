@@ -54,6 +54,12 @@ public class CheckInController {
         return ApiResponse.success(checkInService.endCheckIn(userId, id));
     }
 
+    /** 짧은 혼밥 취소(오집계 제외). 소유자의 ACTIVE만. */
+    @PatchMapping("/{id}/cancel")
+    public ApiResponse<CheckInResponse> cancel(@CurrentUserId Long userId, @PathVariable Long id) {
+        return ApiResponse.success(checkInService.cancelCheckIn(userId, id));
+    }
+
     /** 내 현재 ACTIVE 체크인(없으면 data:null). */
     @GetMapping("/me")
     public ApiResponse<CheckInResponse> me(@CurrentUserId Long userId) {

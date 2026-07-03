@@ -31,6 +31,7 @@ public enum ErrorCode {
     // 체크인 — 단일 활성 제약 충돌(다른 장소 ACTIVE)·대상 없음
     CHECKIN_ALREADY_ACTIVE(HttpStatus.CONFLICT, "이미 진행 중인 체크인이 있습니다."),
     CHECKIN_NOT_FOUND(HttpStatus.NOT_FOUND, "체크인을 찾을 수 없습니다."),
+    CHECKIN_NOT_ACTIVE(HttpStatus.CONFLICT, "진행 중인 혼밥만 취소할 수 있습니다."),
 
     // 같이먹기 — 대상 체크인 상태·opt-in·자기신청/중복·응답완료 충돌
     MEALREQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "같이먹기 신청을 찾을 수 없습니다."),

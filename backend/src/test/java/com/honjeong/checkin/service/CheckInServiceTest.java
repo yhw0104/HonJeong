@@ -59,6 +59,12 @@ class CheckInServiceTest {
         return place;
     }
 
+    private User userRef(long id) {
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(id);
+        return user;
+    }
+
     private CheckInRequest request() {
         return new CheckInRequest(3L);
     }
@@ -183,6 +189,54 @@ class CheckInServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    @DisplayName("cancelCheckIn: 소유자의 ACTIVE를 CANCELLED로 전이한다")
+    void cancelCheckIn_cancelsActive() {
+        CheckIn c = CheckIn.start(userRef(1L), place(10L), nowKst);
+        when(checkInRepository.findById(3L)).thenReturn(Optional.of(c));
+
+        CheckInResponse res = service.cancelCheckIn(1L, 3L);
+
+        assertThat(res.status()).isEqualTo("CANCELLED");
+        assertThat(c.getStatus()).isEqualTo(CheckInStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("cancelCheckIn: ACTIVE가 아니면 CHECKIN_NOT_ACTIVE")
+    void cancelCheckIn_rejectsNonActive() {
+        CheckIn c = CheckIn.start(userRef(1L), place(10L), nowKst);
+        c.end(nowKst);
+        when(checkInRepository.findById(3L)).thenReturn(Optional.of(c));
+
+        assertThatThrownBy(() -> service.cancelCheckIn(1L, 3L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.CHECKIN_NOT_ACTIVE));
+    }
+
+    @Test
+    @DisplayName("cancelCheckIn: 타인 체크인이면 FORBIDDEN")
+    void cancelCheckIn_rejectsNonOwner() {
+        CheckIn c = CheckIn.start(userRef(2L), place(10L), nowKst);
+        when(checkInRepository.findById(3L)).thenReturn(Optional.of(c));
+
+        assertThatThrownBy(() -> service.cancelCheckIn(1L, 3L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    @DisplayName("cancelCheckIn: 없으면 CHECKIN_NOT_FOUND(404)")
+    void cancelCheckIn_notFound() {
+        when(checkInRepository.findById(3L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.cancelCheckIn(1L, 3L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.CHECKIN_NOT_FOUND));
     }
 
     @Test

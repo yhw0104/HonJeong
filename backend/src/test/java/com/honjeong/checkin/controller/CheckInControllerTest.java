@@ -150,6 +150,51 @@ class CheckInControllerTest {
     }
 
     @Test
+    @DisplayName("PATCH /check-ins/{id}/cancel → 200, CANCELLED 응답")
+    void cancel_ok() throws Exception {
+        when(checkInService.cancelCheckIn(eq(1L), eq(3L))).thenReturn(
+                new CheckInResponse(3L, 10L, "CANCELLED", LocalDateTime.of(2026, 6, 15, 12, 0),
+                        LocalDateTime.of(2026, 6, 15, 12, 0)));
+
+        mockMvc.perform(patch("/api/check-ins/3/cancel").header("Authorization", userToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+    }
+
+    @Test
+    @DisplayName("PATCH .../cancel: ACTIVE가 아니면 409")
+    void cancel_409() throws Exception {
+        when(checkInService.cancelCheckIn(eq(1L), eq(3L)))
+                .thenThrow(new BusinessException(ErrorCode.CHECKIN_NOT_ACTIVE));
+
+        mockMvc.perform(patch("/api/check-ins/3/cancel").header("Authorization", userToken()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("CHECKIN_NOT_ACTIVE"));
+    }
+
+    @Test
+    @DisplayName("PATCH .../cancel: 없으면 404")
+    void cancel_404() throws Exception {
+        when(checkInService.cancelCheckIn(eq(1L), eq(99L)))
+                .thenThrow(new BusinessException(ErrorCode.CHECKIN_NOT_FOUND));
+
+        mockMvc.perform(patch("/api/check-ins/99/cancel").header("Authorization", userToken()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("CHECKIN_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("PATCH .../cancel: 타인 체크인이면 403")
+    void cancel_403() throws Exception {
+        when(checkInService.cancelCheckIn(eq(1L), eq(3L)))
+                .thenThrow(new BusinessException(ErrorCode.FORBIDDEN));
+
+        mockMvc.perform(patch("/api/check-ins/3/cancel").header("Authorization", userToken()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    @Test
     @DisplayName("GET /me: ACTIVE 없으면 data:null")
     void me_null() throws Exception {
         when(checkInService.getMyActiveCheckIn(1L)).thenReturn(null);

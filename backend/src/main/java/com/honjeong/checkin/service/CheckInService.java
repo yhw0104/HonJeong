@@ -109,6 +109,27 @@ public class CheckInService {
     }
 
     /**
+     * 체크인을 취소(CANCELLED)한다. 짧은 혼밥 오집계 방지용 — 소유자의 ACTIVE만 취소 가능하다.
+     *
+     * @param userId    요청 회원 id
+     * @param checkInId 취소할 체크인 id
+     * @return 취소된 체크인 응답
+     */
+    @Transactional
+    public CheckInResponse cancelCheckIn(Long userId, Long checkInId) {
+        CheckIn checkIn = checkInRepository.findById(checkInId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHECKIN_NOT_FOUND));
+        if (!checkIn.isOwnedBy(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        if (checkIn.getStatus() != CheckInStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.CHECKIN_NOT_ACTIVE);
+        }
+        checkIn.cancel(now());
+        return CheckInResponse.from(checkIn);
+    }
+
+    /**
      * 내 현재 ACTIVE 체크인을 반환한다. 없으면 null(컨트롤러가 data:null로 응답).
      *
      * @param userId 회원 id
