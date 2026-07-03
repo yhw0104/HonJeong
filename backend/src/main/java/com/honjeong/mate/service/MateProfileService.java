@@ -13,6 +13,7 @@ import com.honjeong.mate.dto.PublicProfileResponse;
 import com.honjeong.mate.dto.UserSearchResponse;
 import com.honjeong.mate.repository.MateRepository;
 import com.honjeong.mate.repository.MateRequestRepository;
+import com.honjeong.meal.repository.MealRequestRepository;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.domain.UserStatus;
 import com.honjeong.user.repository.UserFoodPreferenceRepository;
@@ -26,15 +27,17 @@ public class MateProfileService {
     private final MateRequestRepository mateRequestRepository;
     private final CheckInRepository checkInRepository;
     private final UserFoodPreferenceRepository foodRepository;
+    private final MealRequestRepository mealRequestRepository;
 
     public MateProfileService(UserRepository userRepository, MateRepository mateRepository,
             MateRequestRepository mateRequestRepository, CheckInRepository checkInRepository,
-            UserFoodPreferenceRepository foodRepository) {
+            UserFoodPreferenceRepository foodRepository, MealRequestRepository mealRequestRepository) {
         this.userRepository = userRepository;
         this.mateRepository = mateRepository;
         this.mateRequestRepository = mateRequestRepository;
         this.checkInRepository = checkInRepository;
         this.foodRepository = foodRepository;
+        this.mealRequestRepository = mealRequestRepository;
     }
 
     @Transactional(readOnly = true)
@@ -80,7 +83,7 @@ public class MateProfileService {
                 t.getDiningStyle() == null ? null : t.getDiningStyle().name(),
                 foods,
                 checkInRepository.countByUser_IdAndStatusNot(targetId, CheckInStatus.CANCELLED),
-                0L,  // mealsTogether — 범위 밖
+                mealRequestRepository.countAcceptedBetween(viewerId, targetId),  // 함께 먹음(나↔대상 수락 건수)
                 0L,  // badgeCount — 뱃지 도메인 없음
                 online, currentPlaceName, currentPlaceId,
                 isMate, requestStatus(viewerId, targetId));

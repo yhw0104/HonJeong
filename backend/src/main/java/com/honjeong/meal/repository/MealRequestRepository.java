@@ -80,4 +80,43 @@ public interface MealRequestRepository extends JpaRepository<MealRequest, Long> 
             """)
     int declineOtherPending(@Param("toCheckInId") Long toCheckInId,
             @Param("exceptId") Long exceptId, @Param("now") LocalDateTime now);
+
+    /**
+     * 두 사용자가 함께 먹은 횟수 = 수락(ACCEPTED)된 같이먹기 신청 수. 방향 무관 —
+     * a가 신청하고 b가 수신했거나 그 반대 모두 센다(상대방 프로필 "함께 먹음" 통계).
+     *
+     * @param a 한쪽 사용자 id(보통 뷰어)
+     * @param b 다른쪽 사용자 id(보통 대상)
+     * @return 두 사람 사이 수락된 같이먹기 건수
+     */
+    @Query("""
+            SELECT COUNT(mr) FROM MealRequest mr
+            WHERE mr.status = com.honjeong.meal.domain.MealRequestStatus.ACCEPTED
+              AND ((mr.fromUser.id = :a AND mr.toCheckIn.user.id = :b)
+                OR (mr.fromUser.id = :b AND mr.toCheckIn.user.id = :a))
+            """)
+    long countAcceptedBetween(@Param("a") Long a, @Param("b") Long b);
+
+    /**
+     * viewer가 참여한 수락된 같이먹기의 (신청자, 수신자) 사용자 id 쌍 목록. 메이트 목록의
+     * 상대별 "함께 먹음"을 한 번에 집계하기 위한 배치 조회다(메이트마다 count 날리는 N+1 방지).
+     * 상대 id는 호출 측에서 {@code fromId==viewer ? toId : fromId}로 뽑아 합산한다.
+     *
+     * @param viewerId 기준 사용자(나) id
+     * @return viewer가 신청자이거나 수신자인 ACCEPTED 신청들의 (fromId, toId) 쌍
+     */
+    @Query("""
+            SELECT mr.fromUser.id AS fromId, mr.toCheckIn.user.id AS toId
+            FROM MealRequest mr
+            WHERE mr.status = com.honjeong.meal.domain.MealRequestStatus.ACCEPTED
+              AND (mr.fromUser.id = :viewerId OR mr.toCheckIn.user.id = :viewerId)
+            """)
+    List<MealPairRow> findAcceptedPairsForUser(@Param("viewerId") Long viewerId);
+
+    /** 수락된 같이먹기 한 건의 신청자·수신자 사용자 id 쌍(함께먹음 배치 집계용). */
+    interface MealPairRow {
+        Long getFromId();
+
+        Long getToId();
+    }
 }

@@ -18,6 +18,7 @@ import com.honjeong.mate.dto.PublicProfileResponse;
 import com.honjeong.mate.dto.UserSearchResponse;
 import com.honjeong.mate.repository.MateRepository;
 import com.honjeong.mate.repository.MateRequestRepository;
+import com.honjeong.meal.repository.MealRequestRepository;
 import com.honjeong.place.domain.Place;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.domain.UserFoodPreference;
@@ -31,8 +32,10 @@ class MateProfileServiceTest {
     private final MateRequestRepository mateRequestRepository = mock(MateRequestRepository.class);
     private final CheckInRepository checkInRepository = mock(CheckInRepository.class);
     private final UserFoodPreferenceRepository foodRepository = mock(UserFoodPreferenceRepository.class);
+    private final MealRequestRepository mealRequestRepository = mock(MealRequestRepository.class);
     private final MateProfileService service = new MateProfileService(
-            userRepository, mateRepository, mateRequestRepository, checkInRepository, foodRepository);
+            userRepository, mateRepository, mateRequestRepository, checkInRepository, foodRepository,
+            mealRequestRepository);
 
     @Test
     @DisplayName("searchUsers: 본인 제외 + 내가 보낸 PENDING이면 requestStatus=PENDING_SENT")
@@ -118,6 +121,26 @@ class MateProfileServiceTest {
         assertThat(res.checkInCount()).isEqualTo(5L);
         assertThat(res.mealsTogether()).isZero();
         assertThat(res.badgeCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("getPublicProfile: mealsTogether = 나↔대상 수락된 같이먹기 건수(countAcceptedBetween)")
+    void publicProfile_mealsTogether() {
+        User target = user(2L, "상대");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(target));
+        when(mateRepository.existsByUser_IdAndMateUser_Id(1L, 2L)).thenReturn(false);
+        when(checkInRepository.findByUser_IdAndStatus(2L, CheckInStatus.ACTIVE)).thenReturn(Optional.empty());
+        when(checkInRepository.countByUser_IdAndStatusNot(2L, CheckInStatus.CANCELLED)).thenReturn(8L);
+        when(foodRepository.findByUserId(2L)).thenReturn(Optional.empty());
+        when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(1L, 2L, MateRequestStatus.PENDING))
+                .thenReturn(Optional.empty());
+        when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(2L, 1L, MateRequestStatus.PENDING))
+                .thenReturn(Optional.empty());
+        when(mealRequestRepository.countAcceptedBetween(1L, 2L)).thenReturn(4L);
+
+        PublicProfileResponse res = service.getPublicProfile(1L, 2L);
+
+        assertThat(res.mealsTogether()).isEqualTo(4L);
     }
 
     @Test

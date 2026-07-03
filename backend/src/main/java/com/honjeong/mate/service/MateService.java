@@ -1,5 +1,6 @@
 package com.honjeong.mate.service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -14,6 +15,8 @@ import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.mate.domain.Mate;
 import com.honjeong.mate.dto.MateResponse;
 import com.honjeong.mate.repository.MateRepository;
+import com.honjeong.meal.repository.MealRequestRepository;
+import com.honjeong.meal.repository.MealRequestRepository.MealPairRow;
 import com.honjeong.user.domain.User;
 
 @Service
@@ -21,10 +24,13 @@ public class MateService {
 
     private final MateRepository mateRepository;
     private final CheckInRepository checkInRepository;
+    private final MealRequestRepository mealRequestRepository;
 
-    public MateService(MateRepository mateRepository, CheckInRepository checkInRepository) {
+    public MateService(MateRepository mateRepository, CheckInRepository checkInRepository,
+            MealRequestRepository mealRequestRepository) {
         this.mateRepository = mateRepository;
         this.checkInRepository = checkInRepository;
+        this.mealRequestRepository = mealRequestRepository;
     }
 
     @Transactional(readOnly = true)
@@ -38,11 +44,18 @@ public class MateService {
                 .collect(Collectors.toMap(c -> c.getUser().getId(), Function.identity(), (a, b) -> a));
         Map<Long, Long> countByUser = checkInRepository.countByUserIds(mateIds).stream()
                 .collect(Collectors.toMap(CheckInCountRow::getUserId, CheckInCountRow::getCnt));
+        // 함께 먹음(나↔각 메이트 수락 건수)을 한 번의 조회로 집계한다(메이트별 count N+1 방지).
+        Map<Long, Long> togetherByUser = new HashMap<>();
+        for (MealPairRow row : mealRequestRepository.findAcceptedPairsForUser(userId)) {
+            Long otherId = row.getFromId().equals(userId) ? row.getToId() : row.getFromId();
+            togetherByUser.merge(otherId, 1L, Long::sum);
+        }
 
         return mates.stream().map(m -> {
             User mate = m.getMateUser();
             CheckIn active = activeByUser.get(mate.getId());
             long checkInCount = countByUser.getOrDefault(mate.getId(), 0L);
+            long mealsTogether = togetherByUser.getOrDefault(mate.getId(), 0L);
             return new MateResponse(
                     mate.getId(),
                     mate.getNickname(),
@@ -54,7 +67,7 @@ public class MateService {
                     active != null ? active.getPlace().getName() : null,
                     active != null ? active.getStartedAt() : null,
                     checkInCount,
-                    0L, // mealsTogether — MATE-011 정밀집계는 범위 밖
+                    mealsTogether,
                     m.getCreatedAt());
         }).toList();
     }

@@ -15,6 +15,8 @@ import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.mate.domain.Mate;
 import com.honjeong.mate.dto.MateResponse;
 import com.honjeong.mate.repository.MateRepository;
+import com.honjeong.meal.repository.MealRequestRepository;
+import com.honjeong.meal.repository.MealRequestRepository.MealPairRow;
 import java.util.Optional;
 import com.honjeong.place.domain.Place;
 import com.honjeong.user.domain.User;
@@ -23,7 +25,8 @@ class MateServiceTest {
 
     private final MateRepository mateRepository = mock(MateRepository.class);
     private final CheckInRepository checkInRepository = mock(CheckInRepository.class);
-    private final MateService service = new MateService(mateRepository, checkInRepository);
+    private final MealRequestRepository mealRequestRepository = mock(MealRequestRepository.class);
+    private final MateService service = new MateService(mateRepository, checkInRepository, mealRequestRepository);
 
     @Test
     @DisplayName("deleteMate: 관계 없으면 MATE_NOT_FOUND")
@@ -111,10 +114,43 @@ class MateServiceTest {
         assertThat(b.matesSince()).isEqualTo(matesSinceB);
     }
 
+    @Test
+    @DisplayName("getMyMates: mealsTogether = 나↔각 메이트 수락 건수(양방향 합산, 비메이트 상대는 무시)")
+    void getMyMates_mealsTogether() {
+        User userA = mock(User.class);
+        when(userA.getId()).thenReturn(10L);
+        User userB = mock(User.class);
+        when(userB.getId()).thenReturn(20L);
+        Mate mateA = mock(Mate.class);
+        when(mateA.getMateUser()).thenReturn(userA);
+        Mate mateB = mock(Mate.class);
+        when(mateB.getMateUser()).thenReturn(userB);
+        when(mateRepository.findMatesWithUserByUserId(1L)).thenReturn(List.of(mateA, mateB));
+        when(checkInRepository.findActiveWithPlaceByUserIds(List.of(10L, 20L))).thenReturn(List.of());
+        when(checkInRepository.countByUserIds(List.of(10L, 20L))).thenReturn(List.of());
+        // 나(1L)↔A(10L): 내가 신청 1 + A가 신청 1 = 2회, 나↔B: 0회, 나↔비메이트(99L): 1회(무시)
+        List<MealPairRow> pairs = List.of(pair(1L, 10L), pair(10L, 1L), pair(1L, 99L));
+        when(mealRequestRepository.findAcceptedPairsForUser(1L)).thenReturn(pairs);
+
+        List<MateResponse> result = service.getMyMates(1L);
+
+        assertThat(result.get(0).mateUserId()).isEqualTo(10L);
+        assertThat(result.get(0).mealsTogether()).isEqualTo(2L);
+        assertThat(result.get(1).mateUserId()).isEqualTo(20L);
+        assertThat(result.get(1).mealsTogether()).isZero();
+    }
+
     private CheckInCountRow countRow(long userId, long cnt) {
         CheckInCountRow row = mock(CheckInCountRow.class);
         when(row.getUserId()).thenReturn(userId);
         when(row.getCnt()).thenReturn(cnt);
+        return row;
+    }
+
+    private MealPairRow pair(long fromId, long toId) {
+        MealPairRow row = mock(MealPairRow.class);
+        when(row.getFromId()).thenReturn(fromId);
+        when(row.getToId()).thenReturn(toId);
         return row;
     }
 }

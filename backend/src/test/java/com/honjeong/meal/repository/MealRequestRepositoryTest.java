@@ -137,6 +137,73 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
+    @DisplayName("countAcceptedBetween: 두 사람 사이 ACCEPTED만 방향 무관 집계(PENDING·DECLINED·제3자 제외)")
+    void countAcceptedBetween() {
+        User me = persistUser("01000000001", "나");
+        User friend = persistUser("01000000002", "친구");
+        User stranger = persistUser("01000000003", "제3자");
+        Place place = persistPlace("ext-1");
+        // 유니크 제약상 사용자당 ACTIVE 체크인 1개, (from,to_check_in) 쌍 1개 — 쌍이 겹치지 않게 구성
+        CheckIn myCheckIn = persistCheckIn(me, place);
+        CheckIn friendCheckIn = persistCheckIn(friend, place);
+        CheckIn strangerCheckIn = persistCheckIn(stranger, place);
+
+        persistAccepted(me, friendCheckIn, place);      // 나→친구 수락 (count)
+        persistAccepted(friend, myCheckIn, place);      // 친구→나 수락 (역방향도 count)
+        persistAccepted(me, strangerCheckIn, place);    // 나→제3자 수락 (친구와 무관)
+        em.persist(MealRequest.create(stranger, friendCheckIn, place, "대기", NOW)); // 제3자→친구 PENDING (제외)
+        persistDeclined(stranger, myCheckIn, place);    // 제3자→나 DECLINED (제외)
+        em.flush();
+        em.clear();
+
+        assertThat(mealRequestRepository.countAcceptedBetween(me.getId(), friend.getId())).isEqualTo(2L);
+        assertThat(mealRequestRepository.countAcceptedBetween(friend.getId(), me.getId())).isEqualTo(2L); // 대칭
+        assertThat(mealRequestRepository.countAcceptedBetween(me.getId(), stranger.getId())).isEqualTo(1L); // declined 제외
+        assertThat(mealRequestRepository.countAcceptedBetween(friend.getId(), stranger.getId())).isZero(); // pending만 → 0
+    }
+
+    @Test
+    @DisplayName("findAcceptedPairsForUser: viewer가 신청자/수신자인 ACCEPTED 쌍만 반환(from/to id)")
+    void findAcceptedPairsForUser() {
+        User me = persistUser("01000000001", "나");
+        User a = persistUser("01000000002", "A");
+        User b = persistUser("01000000003", "B");
+        Place place = persistPlace("ext-1");
+        CheckIn myCheckIn = persistCheckIn(me, place);
+        CheckIn aCheckIn = persistCheckIn(a, place);
+        CheckIn bCheckIn = persistCheckIn(b, place);
+
+        persistAccepted(me, aCheckIn, place);   // 나→A
+        persistAccepted(b, myCheckIn, place);   // B→나
+        persistAccepted(a, bCheckIn, place);    // A→B (나 무관, 제외)
+        em.persist(MealRequest.create(me, bCheckIn, place, "대기", NOW)); // 나→B PENDING (제외)
+        em.flush();
+        em.clear();
+
+        List<MealRequestRepository.MealPairRow> rows =
+                mealRequestRepository.findAcceptedPairsForUser(me.getId());
+
+        assertThat(rows).hasSize(2);
+        assertThat(rows).allSatisfy(r ->
+                assertThat(r.getFromId().equals(me.getId()) || r.getToId().equals(me.getId())).isTrue());
+        // (from, to) 쌍 집합 검증: (나→A), (B→나)
+        assertThat(rows).extracting(r -> r.getFromId() + "->" + r.getToId())
+                .containsExactlyInAnyOrder(me.getId() + "->" + a.getId(), b.getId() + "->" + me.getId());
+    }
+
+    private void persistAccepted(User from, CheckIn targetCheckIn, Place place) {
+        MealRequest mr = MealRequest.create(from, targetCheckIn, place, "수락건", NOW);
+        mr.accept(NOW.plusMinutes(5));
+        em.persist(mr);
+    }
+
+    private void persistDeclined(User from, CheckIn targetCheckIn, Place place) {
+        MealRequest mr = MealRequest.create(from, targetCheckIn, place, "거절건", NOW);
+        mr.decline(NOW.plusMinutes(5));
+        em.persist(mr);
+    }
+
+    @Test
     @DisplayName("findWithReceiverById: toCheckIn.user fetch로 수신자 식별 가능")
     void findWithReceiverById() {
         User from = persistUser("01000000001", "신청자");
