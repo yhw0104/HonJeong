@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -21,6 +22,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import com.honjeong.checkin.domain.CheckIn;
@@ -336,8 +338,11 @@ class MealRequestServiceTest {
         service.accept(2L, 5L);
 
         assertThat(senderActive.getStatus()).isEqualTo(CheckInStatus.ENDED);
-        verify(checkInRepository).flush();
-        verify(checkInRepository).save(any(CheckIn.class));
+        // flush가 save(INSERT)보다 먼저 호출돼야 한다 — 그래야 유니크 인덱스(uq_check_ins_current_user)
+        // 위반 없이 기존 ACTIVE 종료(UPDATE)가 새 TOGETHER(INSERT)보다 먼저 DB에 반영된다.
+        InOrder inOrder = inOrder(checkInRepository);
+        inOrder.verify(checkInRepository).flush();
+        inOrder.verify(checkInRepository).save(any(CheckIn.class));
     }
 
     @Test

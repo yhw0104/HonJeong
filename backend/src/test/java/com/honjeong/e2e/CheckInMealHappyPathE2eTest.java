@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
@@ -42,6 +43,11 @@ import com.honjeong.support.AbstractPostgresTest;
  *   <li>Alice가 같은 식당 혼밥러 목록에서 Bob을 발견하고 같이먹기를 신청한다.</li>
  *   <li>Bob이 받은 신청 목록에서 확인하고 수락한다.</li>
  * </ol>
+ *
+ * <p>추가로 {@code accept_whenSenderHasExistingActiveElsewhere_endsItAndInsertsNewTogether}는 발신자가
+ * 이미 다른 식당에 ACTIVE 체크인을 가진 상태에서 수락되는 경로를 실 Postgres로 검증한다 —
+ * {@code MealRequestService.accept}의 flush-before-insert 순서가 {@code uq_check_ins_current_user}
+ * 부분 유니크 인덱스 위반을 실제로 회피하는지를 확인한다(단위 테스트는 Mockito라 실 제약 위반을 잡지 못한다).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -113,6 +119,73 @@ class CheckInMealHappyPathE2eTest extends AbstractPostgresTest {
         JsonNode accepted = perform(patch("/api/meal-requests/" + mealRequestId + "/accept"), bobToken, 200);
         // then: 상태가 ACCEPTED로 전이된다(핵심 루프 완주).
         assertThat(accepted.path("data").path("status").asText()).isEqualTo("ACCEPTED");
+    }
+
+    @Test
+    @DisplayName("수락: 발신자가 다른 식당에 기존 ACTIVE를 가진 채로 수락돼도 유니크 위반 없이 매칭된다"
+            + "(flush-before-insert 실 DB 검증)")
+    void accept_whenSenderHasExistingActiveElsewhere_endsItAndInsertsNewTogether() throws Exception {
+        // given: 발신자(Alice)·수신자(Bob) 온보딩.
+        String aliceToken = onboard("01077771001", "e2eAliceActive"); // 발신자 — 기존 ACTIVE 보유 예정
+        String bobToken = onboard("01077771002", "e2eBobActive");      // 수신자
+
+        // 식당 X(수신자 Bob이 체크인)·Y(발신자 Alice가 먼저 체크인) 시드.
+        Place placeX = placeRepository.save(
+                Place.ofPublicData("E2E-X", "식당X", "한식", "서울 어딘가", "서울 도로명X",
+                        37.5665, 126.9780, "02-000-0001", "영업"));
+        Place placeY = placeRepository.save(
+                Place.ofPublicData("E2E-Y", "식당Y", "한식", "서울 어딘가", "서울 도로명Y",
+                        37.5651, 126.9895, "02-000-0002", "영업"));
+
+        // 1) 수신자 B가 식당 X에 체크인(ACTIVE).
+        JsonNode bobCheckIn = perform(jsonPost("/api/check-ins", Map.of("placeId", placeX.getId())), bobToken, 201);
+        long bobCheckInId = bobCheckIn.path("data").path("checkInId").asLong();
+
+        // 2) 발신자 A가 다른 식당 Y에 체크인(ACTIVE) — 기존 ACTIVE 보유 상태를 만든다.
+        JsonNode aliceCheckIn = perform(jsonPost("/api/check-ins", Map.of("placeId", placeY.getId())), aliceToken, 201);
+        long aliceOriginalCheckInId = aliceCheckIn.path("data").path("checkInId").asLong();
+
+        // 3) A가 B의 체크인으로 같이먹기 신청 → B가 수락.
+        JsonNode created = perform(jsonPost("/api/meal-requests", Map.of(
+                "toCheckInId", bobCheckInId, "message", "같이 드실래요?")), aliceToken, 201);
+        long mealRequestId = created.path("data").path("mealRequestId").asLong();
+
+        // when: B가 수락하면 예외 없이 200이 돌아온다
+        // (= 서비스가 발신자의 기존 ACTIVE를 end() + flush()한 뒤 새 TOGETHER를 insert해
+        //   uq_check_ins_current_user 유니크 인덱스 위반을 실제로 회피했다는 뜻).
+        JsonNode accepted = perform(patch("/api/meal-requests/" + mealRequestId + "/accept"), bobToken, 200);
+        assertThat(accepted.path("data").path("status").asText()).isEqualTo("ACCEPTED");
+
+        // then(실 DB 왕복 재조회): 각 체크인의 최종 상태를 원시 SQL로 직접 확인한다.
+        // A의 식당 Y 체크인 → ENDED.
+        Map<String, Object> aliceOriginalRow = jdbcTemplate.queryForMap(
+                "SELECT status FROM check_ins WHERE id = ?", aliceOriginalCheckInId);
+        assertThat(aliceOriginalRow.get("status")).isEqualTo("ENDED");
+
+        // B의 식당 X 체크인 → TOGETHER(matched_at·meal_request_id 세팅).
+        Map<String, Object> bobRow = jdbcTemplate.queryForMap(
+                "SELECT status, matched_at, meal_request_id FROM check_ins WHERE id = ?", bobCheckInId);
+        assertThat(bobRow.get("status")).isEqualTo("TOGETHER");
+        assertThat(bobRow.get("matched_at")).isNotNull();
+        assertThat(((Number) bobRow.get("meal_request_id")).longValue()).isEqualTo(mealRequestId);
+
+        // A의 새 체크인(식당 X, TOGETHER, meal_request_id=신청 id) 1건 존재 — 기존 행의 update가 아니라 별도 insert여야 한다.
+        Long aliceUserId = jdbcTemplate.queryForObject(
+                "SELECT id FROM users WHERE nickname = ?", Long.class, "e2eAliceActive");
+        List<Map<String, Object>> aliceTogetherRows = jdbcTemplate.queryForList(
+                "SELECT id, place_id, meal_request_id FROM check_ins WHERE user_id = ? AND status = 'TOGETHER'",
+                aliceUserId);
+        assertThat(aliceTogetherRows).hasSize(1);
+        Map<String, Object> aliceNewRow = aliceTogetherRows.get(0);
+        assertThat(((Number) aliceNewRow.get("id")).longValue()).isNotEqualTo(aliceOriginalCheckInId);
+        assertThat(((Number) aliceNewRow.get("place_id")).longValue()).isEqualTo(placeX.getId());
+        assertThat(((Number) aliceNewRow.get("meal_request_id")).longValue()).isEqualTo(mealRequestId);
+
+        // 인덱스 불변식: A는 ACTIVE/TOGETHER를 통틀어 정확히 1건만 가진다(uq_check_ins_current_user 유지).
+        Integer aliceActiveOrTogetherCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM check_ins WHERE user_id = ? AND status IN ('ACTIVE','TOGETHER')",
+                Integer.class, aliceUserId);
+        assertThat(aliceActiveOrTogetherCount).isEqualTo(1);
     }
 
     @Test
