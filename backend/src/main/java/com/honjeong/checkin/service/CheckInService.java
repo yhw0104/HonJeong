@@ -92,10 +92,11 @@ public class CheckInService {
 
     /**
      * 체크인을 종료한다. 없으면 404, 본인 것이 아니면 403, 이미 ENDED면 멱등 반환한다.
+     * TOGETHER면 같은 매칭(mealRequestId)의 파트너 체크인도 함께 ENDED 처리한다(같이먹기는 한쪽만 끝낼 수 없음).
      *
      * @param userId    요청 회원 id
      * @param checkInId 종료할 체크인 id
-     * @return 종료된(또는 이미 종료된) 체크인 응답
+     * @return 종료된(또는 이미 종료된) 요청자 본인의 체크인 응답
      */
     @Transactional
     public CheckInResponse endCheckIn(Long userId, Long checkInId) {
@@ -104,7 +105,14 @@ public class CheckInService {
         if (!checkIn.isOwnedBy(userId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
-        checkIn.end(now());
+        LocalDateTime now = now();
+        if (checkIn.getStatus() == CheckInStatus.TOGETHER && checkIn.getMealRequestId() != null) {
+            // 같은 매칭의 양쪽(나+파트너)을 함께 종료
+            checkInRepository.findTogetherByMealRequestId(checkIn.getMealRequestId())
+                    .forEach(c -> c.end(now));
+        } else {
+            checkIn.end(now);
+        }
         return CheckInResponse.from(checkIn);
     }
 
@@ -222,15 +230,17 @@ public class CheckInService {
     }
 
     /**
-     * 방치된 ACTIVE 체크인(activeTtlHours 초과)을 일괄 ENDED 처리하고 만료 건수를 반환한다.
+     * 방치된 ACTIVE 체크인(ttlHours 초과, startedAt 기준)과 방치된 TOGETHER 체크인(togetherTtlHours 초과,
+     * matchedAt 기준)을 각각 일괄 ENDED 처리하고 합산 만료 건수를 반환한다.
      *
-     * @return 만료된 체크인 수
+     * @return 만료된 체크인 수(ACTIVE + TOGETHER)
      */
     @Transactional
     public int expireStaleCheckIns() {
         LocalDateTime now = now();
-        LocalDateTime threshold = now.minusHours(props.ttlHours());
-        return checkInRepository.endActiveStartedBefore(threshold, now);
+        int endedActive = checkInRepository.endActiveStartedBefore(now.minusHours(props.ttlHours()), now);
+        int endedTogether = checkInRepository.endTogetherMatchedBefore(now.minusHours(props.togetherTtlHours()), now);
+        return endedActive + endedTogether;
     }
 
     /** 현재 시각을 KST LocalDateTime으로 반환한다(Clock instant를 Asia/Seoul로 환산). */

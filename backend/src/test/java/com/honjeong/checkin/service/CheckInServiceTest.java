@@ -200,6 +200,22 @@ class CheckInServiceTest {
     }
 
     @Test
+    @DisplayName("endCheckIn: TOGETHER 종료 시 같은 매칭의 파트너도 함께 ENDED")
+    void endCheckIn_endsPartner() {
+        CheckIn mine = CheckIn.startTogether(userRef(1L), place(10L), 50L, nowKst);
+        CheckIn partner = CheckIn.startTogether(userRef(2L), place(10L), 50L, nowKst);
+        when(checkInRepository.findById(3L)).thenReturn(Optional.of(mine));
+        when(checkInRepository.findTogetherByMealRequestId(50L)).thenReturn(List.of(mine, partner));
+
+        CheckInResponse res = service.endCheckIn(1L, 3L);
+
+        assertThat(mine.getStatus()).isEqualTo(CheckInStatus.ENDED);
+        assertThat(partner.getStatus()).isEqualTo(CheckInStatus.ENDED);
+        assertThat(res.status()).isEqualTo("ENDED");
+        assertThat(res.matchedAt()).isEqualTo(nowKst);
+    }
+
+    @Test
     @DisplayName("cancelCheckIn: 소유자의 ACTIVE를 CANCELLED로 전이한다")
     void cancelCheckIn_cancelsActive() {
         CheckIn c = CheckIn.start(userRef(1L), place(10L), nowKst);
@@ -350,5 +366,20 @@ class CheckInServiceTest {
                 LocalDateTime.of(2026, 6, 15, 9, 0), nowKst)).thenReturn(2);
 
         assertThat(service.expireStaleCheckIns()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("expireStaleCheckIns: ACTIVE와 TOGETHER를 각각의 기준으로 만료한다")
+    void expire_bothStatuses() {
+        // props.ttlHours()=3, props.togetherTtlHours()=3 → 둘 다 threshold=09:00
+        LocalDateTime threshold = LocalDateTime.of(2026, 6, 15, 9, 0);
+        when(checkInRepository.endActiveStartedBefore(threshold, nowKst)).thenReturn(2);
+        when(checkInRepository.endTogetherMatchedBefore(threshold, nowKst)).thenReturn(1);
+
+        int n = service.expireStaleCheckIns();
+
+        assertThat(n).isEqualTo(3);
+        verify(checkInRepository).endActiveStartedBefore(threshold, nowKst);
+        verify(checkInRepository).endTogetherMatchedBefore(threshold, nowKst);
     }
 }
