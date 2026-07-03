@@ -1,7 +1,8 @@
 // TogetherFeed — 같이 먹기 탭(하단바). 주변 혼밥 식당 + 받은/보낸 신청.
 import React, { useCallback, useState } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Screen, EmojiCircle, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { MainTabScreenProps } from '@/navigation/types';
@@ -12,6 +13,8 @@ import {
   useReceivedRequests, useSentRequests, useAcceptMealRequest, useDeclineMealRequest,
 } from '@/features/meal/queries';
 import { mealStatusLabel, mealErrorMessage } from '@/features/meal/mealCopy';
+import { fetchMyCheckIn } from '@/features/checkin/api';
+import { LIVE_REFETCH_MS } from '@/shared/realtime';
 
 export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherFeed'>) {
   const [tab, setTab] = useState<'received' | 'sent'>('received');
@@ -21,8 +24,27 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
   const sent = useSentRequests();
   const accept = useAcceptMealRequest();
   const decline = useDeclineMealRequest();
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+
+  // 이 화면에 있는 동안만 내 체크인을 폴링해 매칭(TOGETHER) 전이를 빠르게 반영한다.
+  // useMyCheckIn(다른 화면)과 동일한 쿼리 키를 써서 캐시를 공유하되, 기본 훅 자체는 건드리지 않는다.
+  useQuery({
+    queryKey: ['checkin', 'me'],
+    queryFn: fetchMyCheckIn,
+    refetchInterval: LIVE_REFETCH_MS,
+  });
 
   useFocusEffect(useCallback(() => { received.refetch(); sent.refetch(); }, [received.refetch, sent.refetch]));
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ['meal'] }),
+      qc.invalidateQueries({ queryKey: ['checkin', 'me'] }),
+    ]);
+    setRefreshing(false);
+  }, [qc]);
 
   const livePlaces = (nearby.data?.content ?? []).filter((p) => p.activeCount > 0);
   const receivedList = received.data ?? [];
@@ -53,7 +75,10 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
       </View>
       <View style={styles.divider} />
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T2.brand} />}
+      >
         {/* 주변 혼밥 식당 — nearby 재사용 */}
         <View style={styles.liveHead}>
           <View style={styles.liveHeadLeft}>
