@@ -17,6 +17,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.global.config.JpaConfig;
+import com.honjeong.meal.domain.MealRequest;
 import com.honjeong.place.domain.Place;
 import com.honjeong.support.AbstractPostgresTest;
 import com.honjeong.user.domain.User;
@@ -170,5 +171,38 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         assertThat(expired).isEqualTo(1);
         assertThat(checkInRepository.countByStatus(CheckInStatus.ACTIVE)).isEqualTo(1);
         assertThat(checkInRepository.countByStatus(CheckInStatus.ENDED)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("확장 유니크 인덱스: 한 사용자가 ACTIVE와 TOGETHER를 동시에 가질 수 없다")
+    void currentUserUnique_blocksActivePlusTogether() {
+        // given: 사용자 u가 ACTIVE 체크인 보유, meal_request_id FK를 만족할 실제 신청 1건
+        User u = persistUser("01000000001", "혼밥러A");
+        User other = persistUser("01000000002", "혼밥러B");
+        Place p = persistPlace("ext-1", 37.5, 127.0);
+        checkInRepository.saveAndFlush(CheckIn.start(u, p, NOW));
+        CheckIn otherCheckIn = em.persist(CheckIn.start(other, p, NOW));
+        MealRequest mealRequest = em.persist(MealRequest.create(u, otherCheckIn, p, null, NOW));
+
+        // when/then: 같은 사용자의 TOGETHER insert는 유니크 위반
+        assertThatThrownBy(() ->
+                checkInRepository.saveAndFlush(CheckIn.startTogether(u, p, mealRequest.getId(), NOW)))
+            .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("matched_at·meal_request_id가 저장/조회된다")
+    void persistsMatchColumns() {
+        User u = persistUser("01000000001", "혼밥러A");
+        User other = persistUser("01000000002", "혼밥러B");
+        Place p = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn otherCheckIn = em.persist(CheckIn.start(other, p, NOW));
+        MealRequest mealRequest = em.persist(MealRequest.create(u, otherCheckIn, p, null, NOW));
+        em.flush();
+        CheckIn saved = checkInRepository.saveAndFlush(CheckIn.startTogether(u, p, mealRequest.getId(), NOW));
+
+        CheckIn found = checkInRepository.findById(saved.getId()).orElseThrow();
+        assertThat(found.getMatchedAt()).isEqualTo(NOW);
+        assertThat(found.getMealRequestId()).isEqualTo(mealRequest.getId());
     }
 }

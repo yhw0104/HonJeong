@@ -7,9 +7,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * @param ttlHours         ACTIVE 유효시간(시간, yml 키 {@code ttl-hours}). 기본 3.
  * @param expiryIntervalMs 만료 스케줄러 주기(ms, yml 키 {@code expiry-interval-ms}). 기본 300000(5분).
+ * @param togetherTtlHours TOGETHER 유효시간(시간, matched_at 기준, yml 키 {@code together-ttl-hours}). 기본 3.
  */
 @ConfigurationProperties(prefix = "honjeong.checkin")
-public record HonjeongCheckInProperties(Integer ttlHours, Long expiryIntervalMs) {
+public record HonjeongCheckInProperties(Integer ttlHours, Long expiryIntervalMs, Integer togetherTtlHours) {
 
     public HonjeongCheckInProperties {
         if (ttlHours == null) {
@@ -17,6 +18,9 @@ public record HonjeongCheckInProperties(Integer ttlHours, Long expiryIntervalMs)
         }
         if (expiryIntervalMs == null) {
             expiryIntervalMs = 300_000L;
+        }
+        if (togetherTtlHours == null) {
+            togetherTtlHours = 3;
         }
     }
 }

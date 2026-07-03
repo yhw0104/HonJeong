@@ -47,7 +47,7 @@ class CheckInServiceTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     // KST 12:00 = UTC 03:00 으로 고정. now()는 ofInstant(instant, KST) = 2026-06-15T12:00.
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneOffset.UTC);
-    private final HonjeongCheckInProperties props = new HonjeongCheckInProperties(3, 300_000L);
+    private final HonjeongCheckInProperties props = new HonjeongCheckInProperties(3, 300_000L, 3);
     private final CheckInService service =
             new CheckInService(checkInRepository, placeService, userRepository, clock, props);
 
