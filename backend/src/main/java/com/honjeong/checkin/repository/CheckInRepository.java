@@ -246,18 +246,20 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     List<CheckIn> findActiveWithPlaceByUserIds(@Param("userIds") List<Long> userIds);
 
     /**
-     * 주어진 사용자 id 목록의 전체 체크인 수를 사용자별로 배치 집계한다(메이트 목록 checkInCount N+1 방지).
-     * 체크인이 0건인 사용자는 결과에 포함되지 않는다(호출 측에서 기본값 0으로 처리).
+     * 주어진 사용자 id 목록의 체크인 수(혼밥 횟수)를 사용자별로 배치 집계한다(메이트 목록 checkInCount N+1 방지).
+     * 본인 프로필·메이트 상세와 같은 기준({@code countByUser_IdAndStatusNot(CANCELLED)})으로
+     * CANCELLED(30분 미만 취소)는 제외한다 — 포함하면 화면마다 혼밥 횟수가 달라진다.
+     * 유효 체크인이 0건인 사용자는 결과에 포함되지 않는다(호출 측에서 기본값 0으로 처리).
      *
      * <p><b>주의:</b> userIds가 빈 리스트이면 JPQL {@code IN ()} 오류가 발생할 수 있으므로
      * 호출 전 반드시 빈 리스트 여부를 확인하고 단락 처리해야 한다.
      *
      * @param userIds 조회할 사용자 PK 목록
-     * @return 사용자별 체크인 수 행(체크인이 있는 사용자만 포함)
+     * @return 사용자별 체크인 수 행(유효 체크인이 있는 사용자만 포함)
      */
     @Query("""
             SELECT c.user.id AS userId, COUNT(c) AS cnt FROM CheckIn c
-            WHERE c.user.id IN :userIds
+            WHERE c.user.id IN :userIds AND c.status <> com.honjeong.checkin.domain.CheckInStatus.CANCELLED
             GROUP BY c.user.id
             """)
     List<CheckInCountRow> countByUserIds(@Param("userIds") List<Long> userIds);

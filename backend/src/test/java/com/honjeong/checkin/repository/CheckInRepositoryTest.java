@@ -311,6 +311,36 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
+    @DisplayName("countByUserIds: 배치 집계도 CANCELLED를 제외한다(본인 프로필 카운트와 일치)")
+    void countByUserIdsExcludesCancelled() {
+        // given: A는 ENDED 2 + CANCELLED 1, B는 CANCELLED 1건뿐
+        User a = persistUser("01000000001", "A");
+        User b = persistUser("01000000002", "B");
+        Place p = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn ended1 = CheckIn.start(a, p, NOW.minusHours(5));
+        ended1.end(NOW.minusHours(4));
+        em.persist(ended1);
+        CheckIn ended2 = CheckIn.start(a, p, NOW.minusHours(3));
+        ended2.end(NOW.minusHours(2));
+        em.persist(ended2);
+        CheckIn cancelledA = CheckIn.start(a, p, NOW.minusHours(1));
+        cancelledA.cancel(NOW.minusHours(1));
+        em.persist(cancelledA);
+        CheckIn cancelledB = CheckIn.start(b, p, NOW.minusHours(1));
+        cancelledB.cancel(NOW.minusHours(1));
+        em.persist(cancelledB);
+        em.flush();
+
+        // when
+        List<CheckInRepository.CheckInCountRow> rows = checkInRepository.countByUserIds(List.of(a.getId(), b.getId()));
+
+        // then: A=2(CANCELLED 제외), B는 유효 체크인 0건이라 행 자체가 없음
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).getUserId()).isEqualTo(a.getId());
+        assertThat(rows.get(0).getCnt()).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("findTogetherByMealRequestId: 같은 매칭의 TOGETHER 쌍을 user와 함께 반환한다")
     void findTogetherPair() {
         User sender = persistUser("01000000001", "신청자");
