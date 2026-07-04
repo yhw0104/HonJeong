@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HonjeongMap, Icon, HonbabStatusBar } from '@/shared/components';
 import type { HonjeongMapHandle } from '@/shared/components';
 import { T2 } from '@/shared/theme';
+import { BellButton } from '@/features/notifications/BellButton';
 import { useLocation } from '@/shared/location/useLocation';
 import { useNearby } from '@/features/place/queries';
 import { useMap, useMyCheckIn, useStats, useStartCheckIn } from '@/features/checkin/queries';
@@ -98,6 +99,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
             <Icon name="search" size={16} color={T2.text} />
             <Text style={styles.searchPlaceholder}>장소, 음식, 메이트</Text>
           </Pressable>
+          <BellButton />
           <View style={styles.navBtn}>
             <Icon name="navigate" size={20} color="#fff" />
           </View>

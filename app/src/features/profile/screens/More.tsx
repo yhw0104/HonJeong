@@ -11,6 +11,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useMyProfile, useActivitySummary } from '@/features/users/queries';
 import { useReceivedRequests } from '@/features/meal/queries';
 import { diningStyleLabel } from '@/shared/format';
+import { BellButton } from '@/features/notifications/BellButton';
 
 type MenuRoute =
   | 'ReceivedRequests'
@@ -86,9 +87,10 @@ export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
   return (
     <Screen bg={T2.bg} edges={['top']}>
       <ScrollView contentContainerStyle={{ paddingBottom: 16 }}>
-        {/* 헤더 */}
-        <View style={styles.header}>
+        {/* 헤더 — 타이틀 + 알림 종 */}
+        <View style={[styles.header, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
           <Text style={styles.h1}>더보기</Text>
+          <BellButton />
         </View>
 
         {/* 프로필 카드 */}
