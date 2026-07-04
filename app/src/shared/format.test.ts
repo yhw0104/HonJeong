@@ -1,4 +1,4 @@
-import { formatDistance, formatElapsed, addressHead, diningStyleLabel, ageGenderLabel } from './format';
+import { formatDistance, formatElapsed, addressHead, diningStyleLabel, ageGenderLabel, formatTimeAgo } from './format';
 
 describe('formatDistance', () => {
   it('1000m 미만은 m', () => expect(formatDistance(120)).toBe('120m'));
@@ -47,4 +47,12 @@ describe('ageGenderLabel', () => {
     expect(ageGenderLabel(undefined, undefined)).toBeNull();
   });
   it('모르는 성별 값은 무시', () => expect(ageGenderLabel('20대', 'X')).toBe('20대'));
+});
+
+describe('formatTimeAgo', () => {
+  const now = new Date('2026-07-04T12:00:00');
+  it('1분 미만은 방금 전', () => expect(formatTimeAgo('2026-07-04T11:59:30', now)).toBe('방금 전'));
+  it('60분 미만은 N분 전', () => expect(formatTimeAgo('2026-07-04T11:35:00', now)).toBe('25분 전'));
+  it('24시간 미만은 N시간 전', () => expect(formatTimeAgo('2026-07-04T09:00:00', now)).toBe('3시간 전'));
+  it('그 이상은 N일 전', () => expect(formatTimeAgo('2026-07-01T12:00:00', now)).toBe('3일 전'));
 });

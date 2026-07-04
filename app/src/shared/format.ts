@@ -37,3 +37,13 @@ export function addressHead(full: string): string {
   if (idx <= 0) return trimmed;
   return tokens.slice(0, idx).join(' ');
 }
+
+/** 발생 시각(KST naive 문자열)을 "N분 전" 상대 표기로. now는 테스트 주입용 — 화면에선 new Date(). */
+export function formatTimeAgo(createdAt: string, now: Date): string {
+  const diffMin = Math.floor((now.getTime() - new Date(createdAt).getTime()) / 60_000);
+  if (diffMin < 1) return '방금 전';
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const hours = Math.floor(diffMin / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  return `${Math.floor(hours / 24)}일 전`;
+}
