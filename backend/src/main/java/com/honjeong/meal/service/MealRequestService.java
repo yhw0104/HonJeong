@@ -21,6 +21,8 @@ import com.honjeong.meal.dto.MealRequestListItemResponse;
 import com.honjeong.meal.dto.MealRequestResponse;
 import com.honjeong.meal.dto.MealRequestStatusResponse;
 import com.honjeong.meal.repository.MealRequestRepository;
+import com.honjeong.notification.domain.NotificationType;
+import com.honjeong.notification.service.NotificationService;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
@@ -38,13 +40,15 @@ public class MealRequestService {
     private final MealRequestRepository mealRequestRepository;
     private final CheckInRepository checkInRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
     private final Clock clock;
 
     public MealRequestService(MealRequestRepository mealRequestRepository, CheckInRepository checkInRepository,
-            UserRepository userRepository, Clock clock) {
+            UserRepository userRepository, NotificationService notificationService, Clock clock) {
         this.mealRequestRepository = mealRequestRepository;
         this.checkInRepository = checkInRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
         this.clock = clock;
     }
 
@@ -75,6 +79,7 @@ public class MealRequestService {
             // saveAndFlush로 즉시 INSERT를 실행해 유니크 위반이 트랜잭션 커밋 전에 발생하도록 강제한다 — 동시 요청에도 catch가 신뢰성 있게 동작한다.
             MealRequest saved = mealRequestRepository.saveAndFlush(
                     MealRequest.create(fromRef, target, target.getPlace(), request.message(), now()));
+            notificationService.publish(receiver.getId(), NotificationType.MEAL_REQUEST_RECEIVED, userId);
             return MealRequestResponse.from(saved);
         } catch (DataIntegrityViolationException e) {              // 중복 신청(유니크 위반)
             throw new BusinessException(ErrorCode.MEALREQUEST_DUPLICATE);
@@ -123,6 +128,7 @@ public class MealRequestService {
         }
 
         mealRequestRepository.declineOtherPending(target.getId(), mr.getId(), now); // 다른 PENDING 정리
+        notificationService.publish(senderId, NotificationType.MEAL_REQUEST_ACCEPTED, userId);
         return MealRequestStatusResponse.from(mr);
     }
 

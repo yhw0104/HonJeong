@@ -37,6 +37,8 @@ import com.honjeong.meal.dto.MealRequestListItemResponse;
 import com.honjeong.meal.dto.MealRequestResponse;
 import com.honjeong.meal.dto.MealRequestStatusResponse;
 import com.honjeong.meal.repository.MealRequestRepository;
+import com.honjeong.notification.domain.NotificationType;
+import com.honjeong.notification.service.NotificationService;
 import com.honjeong.place.domain.Place;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
@@ -51,8 +53,10 @@ class MealRequestServiceTest {
     private final CheckInRepository checkInRepository = mock(CheckInRepository.class);
     private final UserRepository userRepository = mock(UserRepository.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-18T03:00:00Z"), ZoneOffset.UTC);
+    private final NotificationService notificationService = mock(NotificationService.class);
     private final MealRequestService service =
-            new MealRequestService(mealRequestRepository, checkInRepository, userRepository, clock);
+            new MealRequestService(mealRequestRepository, checkInRepository, userRepository,
+                    notificationService, clock);
 
     private final LocalDateTime nowKst = LocalDateTime.of(2026, 6, 18, 12, 0);
 
@@ -126,6 +130,7 @@ class MealRequestServiceTest {
         assertThat(res.message()).isEqualTo("같이 드실래요?");
         assertThat(res.status()).isEqualTo("PENDING");
         verify(mealRequestRepository).saveAndFlush(any(MealRequest.class));
+        verify(notificationService).publish(2L, NotificationType.MEAL_REQUEST_RECEIVED, 1L);
     }
 
     @Test
@@ -202,6 +207,7 @@ class MealRequestServiceTest {
         assertThat(res.respondedAt()).isEqualTo(nowKst);
         verify(checkInRepository).save(any(CheckIn.class));
         verify(mealRequestRepository).declineOtherPending(eq(3L), any(), eq(nowKst));
+        verify(notificationService).publish(1L, NotificationType.MEAL_REQUEST_ACCEPTED, 2L);
     }
 
     @Test
