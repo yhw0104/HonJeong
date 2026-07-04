@@ -26,11 +26,11 @@ export function BellButton({ style }: { style?: object }) {
 }
 
 const styles = StyleSheet.create({
-  // MapHome의 navBtn(48x48)과 크기를 맞춤 — 검색줄에 나란히 놓여도 높이가 어긋나지 않도록.
+  // MapHome navBtn과 동일한 48×48 라운드 사각형 — 검색줄에 나란히 놓여도 높이가 어긋나지 않도록.
   btn: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: 14,
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: T2.border,
