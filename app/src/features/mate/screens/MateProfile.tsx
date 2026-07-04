@@ -90,7 +90,7 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
               ) : null}
             </View>
           )}
-          {p.region ? <Text style={styles.sub}>{p.region}</Text> : null}
+          {/* 내 동네 표기는 제거(설정 기능 없음) — 성향은 아래 전용 카드에서 이미 보여준다. */}
           {p.introduction ? <Text style={styles.bio}>{p.introduction}</Text> : null}
         </View>
 

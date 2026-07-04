@@ -137,7 +137,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
           gender: gender === 'female' ? 'FEMALE' : 'MALE',
           diningStyle: style === 'talk' ? 'TALK' : 'QUIET',
           introduction: intro,
-          region: '마포구 연남동',
+          // region은 보내지 않는다 — '내 동네' 기능 제거 결정(2026-07-04). 서버 필드는 선택이라 생략 가능.
           favoriteFoods: foods,
           profileImageUrl: imageUrl ?? undefined,
           ageGroup: ageGroup ?? undefined,
@@ -306,19 +306,6 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
           })}
         </View>
 
-        {/* 우리 동네 */}
-        <View style={{ marginTop: 28 }}>
-          <FieldLabel>우리 동네</FieldLabel>
-          <View style={styles.hood}>
-            <View style={styles.hoodDot} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 }}>마포구 연남동</Text>
-              <Text style={{ fontSize: 11, color: T2.textMute, marginTop: 2 }}>현재 위치 기반 · 식당 142곳</Text>
-            </View>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: T2.text }}>변경</Text>
-          </View>
-        </View>
-
         {/* 인증 배지 */}
         <View style={styles.verifyBadge}>
           <View style={styles.verifyIcon}>
@@ -470,9 +457,6 @@ const styles = StyleSheet.create({
   radioRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, marginBottom: 8, borderWidth: 1 },
   radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   radioInner: { width: 6, height: 6, borderRadius: 3, backgroundColor: T2.text },
-
-  hood: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: T2.border },
-  hoodDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: T2.brand },
 
   verifyBadge: {
     marginTop: 16,

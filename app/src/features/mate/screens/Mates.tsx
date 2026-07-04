@@ -16,12 +16,14 @@ import {
   useDeclineMateRequest,
 } from '@/features/mate/queries';
 import { mateErrorMessage } from '@/features/mate/mateCopy';
+import { diningStyleLabel } from '@/shared/format';
 
 function emojiFor(nickname: string | null): string {
   return nickname?.[0] ?? '?';
 }
 
-function diningStyleLabel(style: 'TALK' | 'QUIET' | null): string | null {
+// 메이트 카드 태그 칩용 짧은 라벨(풀 라벨은 shared/format의 diningStyleLabel).
+function diningStyleTag(style: 'TALK' | 'QUIET' | null): string | null {
   if (style === 'TALK') return '대화 OK';
   if (style === 'QUIET') return '조용히';
   return null;
@@ -92,7 +94,10 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
                       <EmojiCircle emoji={emojiFor(item.nickname)} size={48} />
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.name}>{item.nickname ?? '알 수 없음'}</Text>
-                        {item.region ? <Text style={styles.meta}>{item.region}</Text> : null}
+                        {/* 내 동네 표기는 제거(설정 기능 없음) — 식사 성향으로 대체. */}
+                        {diningStyleLabel(item.diningStyle) ? (
+                          <Text style={styles.meta}>{diningStyleLabel(item.diningStyle)}</Text>
+                        ) : null}
                       </View>
                       <Pressable
                         onPress={() => {
@@ -131,7 +136,7 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
                 ) : (
                   <View style={{ gap: 10 }}>
                     {(mates.data ?? []).map((m) => {
-                      const styleTag = diningStyleLabel(m.diningStyle);
+                      const styleTag = diningStyleTag(m.diningStyle);
                       return (
                         <Pressable
                           key={m.mateUserId}
@@ -160,7 +165,10 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
                               </View>
                             ) : (
                               <Text style={styles.meta}>
-                                {[m.region, `혼밥 ${m.checkInCount}회`].filter(Boolean).join(' · ')}
+                                {/* 내 동네 대신 나와의 관계 데이터(함께 먹음)로 채운다. 성향은 아래 태그로 이미 표시. */}
+                                {[`혼밥 ${m.checkInCount}회`, m.mealsTogether ? `함께 ${m.mealsTogether}회` : null]
+                                  .filter(Boolean)
+                                  .join(' · ')}
                               </Text>
                             )}
                             {styleTag ? (

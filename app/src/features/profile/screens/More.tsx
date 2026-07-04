@@ -10,6 +10,7 @@ import type { MainTabScreenProps } from '@/navigation/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useMyProfile, useActivitySummary } from '@/features/users/queries';
 import { useReceivedRequests } from '@/features/meal/queries';
+import { diningStyleLabel } from '@/shared/format';
 
 type MenuRoute =
   | 'ReceivedRequests'
@@ -97,7 +98,12 @@ export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
               <Avatar uri={profile?.profileImageUrl} bg={T2.bg} size={52} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.profileName}>{profile?.nickname ?? '혼밥러'}</Text>
-                <Text style={styles.profileMeta}>혼밥 {num(summary?.checkInCount)}회 · {profile?.region ?? '동네 미설정'}</Text>
+                {/* 내 동네 표기는 제거(설정 기능 없음) — 식사 성향으로 대체, 미설정이면 혼밥 횟수만. */}
+                <Text style={styles.profileMeta}>
+                  {[`혼밥 ${num(summary?.checkInCount)}회`, diningStyleLabel(profile?.diningStyle)]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
               </View>
               <Icon name="chevronRight" size={18} color={T2.textMute} />
             </Pressable>

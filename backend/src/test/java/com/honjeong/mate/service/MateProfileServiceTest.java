@@ -20,6 +20,7 @@ import com.honjeong.mate.repository.MateRepository;
 import com.honjeong.mate.repository.MateRequestRepository;
 import com.honjeong.meal.repository.MealRequestRepository;
 import com.honjeong.place.domain.Place;
+import com.honjeong.user.domain.DiningStyle;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.domain.UserFoodPreference;
 import com.honjeong.user.repository.UserFoodPreferenceRepository;
@@ -49,11 +50,13 @@ class MateProfileServiceTest {
                 .thenReturn(Optional.of(mock(MateRequest.class)));
         when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(2L, 1L, MateRequestStatus.PENDING))
                 .thenReturn(Optional.empty());
+        when(other.getDiningStyle()).thenReturn(DiningStyle.QUIET);
 
         List<UserSearchResponse> res = service.searchUsers(1L, "상");
         assertThat(res).hasSize(1); // 본인(1L) 제외
         assertThat(res.get(0).userId()).isEqualTo(2L);
         assertThat(res.get(0).requestStatus()).isEqualTo("PENDING_SENT");
+        assertThat(res.get(0).diningStyle()).isEqualTo("QUIET"); // 검색 카드 표시용(내 동네 대체)
     }
 
     @Test

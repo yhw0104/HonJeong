@@ -1,4 +1,4 @@
-import { formatDistance, formatElapsed, addressHead } from './format';
+import { formatDistance, formatElapsed, addressHead, diningStyleLabel } from './format';
 
 describe('formatDistance', () => {
   it('1000m 미만은 m', () => expect(formatDistance(120)).toBe('120m'));
@@ -25,5 +25,14 @@ describe('addressHead', () => {
   });
   it('뗄 게 없으면 원문 그대로', () => {
     expect(addressHead('주소 정보 없음')).toBe('주소 정보 없음');
+  });
+});
+
+describe('diningStyleLabel', () => {
+  it('TALK은 도란도란 대화하며', () => expect(diningStyleLabel('TALK')).toBe('도란도란 대화하며'));
+  it('QUIET은 조용히 각자', () => expect(diningStyleLabel('QUIET')).toBe('조용히 각자'));
+  it('null·undefined는 null', () => {
+    expect(diningStyleLabel(null)).toBeNull();
+    expect(diningStyleLabel(undefined)).toBeNull();
   });
 });

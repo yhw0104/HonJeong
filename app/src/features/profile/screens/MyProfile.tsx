@@ -5,6 +5,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Screen, Avatar, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useMyProfile, useActivitySummary } from '@/features/users/queries';
+import { diningStyleLabel } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 const RECENT_BADGES = ['🌱', '🍚', '🔥', '🤝'];
@@ -41,7 +42,10 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
         <View style={styles.profile}>
           <Avatar uri={profile?.profileImageUrl} bg={T2.bg} size={84} />
           <Text style={styles.name}>{profile?.nickname ?? '혼밥러'}</Text>
-          <Text style={styles.sub}>{profile?.region ?? '동네 미설정'}</Text>
+          {/* 내 동네 표기는 제거(설정 기능 없음) — 식사 성향으로 대체. */}
+          {diningStyleLabel(profile?.diningStyle) ? (
+            <Text style={styles.sub}>{diningStyleLabel(profile?.diningStyle)}</Text>
+          ) : null}
           {!!profile?.introduction && <Text style={styles.bio}>"{profile.introduction}"</Text>}
         </View>
 

@@ -51,6 +51,7 @@ public class MateProfileService {
                 .filter(u -> !u.getId().equals(viewerId))
                 .map(u -> new UserSearchResponse(
                         u.getId(), u.getNickname(), u.getProfileImageUrl(), u.getRegion(),
+                        u.getDiningStyle() == null ? null : u.getDiningStyle().name(),
                         mateRepository.existsByUser_IdAndMateUser_Id(viewerId, u.getId()),
                         requestStatus(viewerId, u.getId())))
                 .toList();

@@ -146,16 +146,6 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
           />
         </View>
 
-        {/* 내 동네 */}
-        <View style={{ marginTop: 24 }}>
-          <FieldLabel>내 동네</FieldLabel>
-          <View style={[styles.fieldBox, { gap: 8 }]}>
-            <Icon name="pin" size={16} color={T2.textMute} />
-            <Text style={styles.hoodText}>연남동</Text>
-            <Text style={styles.changeText}>변경</Text>
-          </View>
-        </View>
-
         {/* 좋아하는 음식 */}
         <View style={{ marginTop: 24 }}>
           <FieldLabel>좋아하는 음식 · 최대 3개</FieldLabel>
@@ -241,8 +231,6 @@ const styles = StyleSheet.create({
   },
   fieldInput: { flex: 1, fontSize: 15, fontWeight: '600', color: T2.text, letterSpacing: -0.3, padding: 0 },
   counter: { fontSize: 12, color: T2.textMute },
-  hoodText: { flex: 1, fontSize: 15, fontWeight: '600', color: T2.text, letterSpacing: -0.3 },
-  changeText: { fontSize: 13, fontWeight: '700', color: T2.brand },
 
   bioInput: {
     padding: 16,

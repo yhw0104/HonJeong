@@ -33,6 +33,7 @@ export type UserSearchItem = {
   nickname: string | null;
   profileImageUrl: string | null;
   region: string | null;
+  diningStyle: 'TALK' | 'QUIET' | null;
   isMate: boolean;
   requestStatus: RelationStatus;
 };
