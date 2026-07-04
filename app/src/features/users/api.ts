@@ -11,6 +11,8 @@ export type MyProfile = {
   regionLng: number | null;
   introduction: string | null;
   diningStyle: DiningStyle | null;
+  gender: 'FEMALE' | 'MALE' | null;
+  ageGroup: string | null;
   favoriteFoods: string[];
 };
 

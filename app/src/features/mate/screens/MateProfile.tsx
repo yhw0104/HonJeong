@@ -7,6 +7,7 @@ import { T2, C } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { useUserProfile, useSendMateRequest, useDeleteMate } from '@/features/mate/queries';
 import { mateErrorMessage } from '@/features/mate/mateCopy';
+import { ageGenderLabel } from '@/shared/format';
 
 export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'MateProfile'>) {
   const { userId } = route.params;
@@ -90,7 +91,10 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
               ) : null}
             </View>
           )}
-          {/* 내 동네 표기는 제거(설정 기능 없음) — 성향은 아래 전용 카드에서 이미 보여준다. */}
+          {/* 상대가 어떤 사람인지 기본 신호: "20대 여성". 성향은 아래 전용 카드에서 보여준다. */}
+          {ageGenderLabel(p.ageGroup, p.gender) ? (
+            <Text style={styles.sub}>{ageGenderLabel(p.ageGroup, p.gender)}</Text>
+          ) : null}
           {p.introduction ? <Text style={styles.bio}>{p.introduction}</Text> : null}
         </View>
 

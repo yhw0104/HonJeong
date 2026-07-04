@@ -1,4 +1,4 @@
-import { formatDistance, formatElapsed, addressHead, diningStyleLabel } from './format';
+import { formatDistance, formatElapsed, addressHead, diningStyleLabel, ageGenderLabel } from './format';
 
 describe('formatDistance', () => {
   it('1000m 미만은 m', () => expect(formatDistance(120)).toBe('120m'));
@@ -35,4 +35,16 @@ describe('diningStyleLabel', () => {
     expect(diningStyleLabel(null)).toBeNull();
     expect(diningStyleLabel(undefined)).toBeNull();
   });
+});
+
+describe('ageGenderLabel', () => {
+  it('둘 다 있으면 "20대 여성"', () => expect(ageGenderLabel('20대', 'FEMALE')).toBe('20대 여성'));
+  it('남성은 MALE 매핑', () => expect(ageGenderLabel('30대', 'MALE')).toBe('30대 남성'));
+  it('연령대만 있으면 연령대만', () => expect(ageGenderLabel('20대', null)).toBe('20대'));
+  it('성별만 있으면 성별만', () => expect(ageGenderLabel(null, 'FEMALE')).toBe('여성'));
+  it('둘 다 없으면 null', () => {
+    expect(ageGenderLabel(null, null)).toBeNull();
+    expect(ageGenderLabel(undefined, undefined)).toBeNull();
+  });
+  it('모르는 성별 값은 무시', () => expect(ageGenderLabel('20대', 'X')).toBe('20대'));
 });

@@ -5,7 +5,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Screen, Avatar, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useMyProfile, useActivitySummary } from '@/features/users/queries';
-import { diningStyleLabel } from '@/shared/format';
+import { diningStyleLabel, ageGenderLabel } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 const RECENT_BADGES = ['🌱', '🍚', '🔥', '🤝'];
@@ -20,6 +20,10 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
     { n: num(summary?.favoriteCount), l: '즐겨찾기' },
   ];
   const foods = profile?.favoriteFoods ?? [];
+  // 이름 아래 서브라인: "20대 여성 · 도란도란 대화하며" — 있는 것만 이어 붙인다.
+  const subLine = [ageGenderLabel(profile?.ageGroup, profile?.gender), diningStyleLabel(profile?.diningStyle)]
+    .filter(Boolean)
+    .join(' · ');
   const styleLabel =
     profile?.diningStyle === 'QUIET'
       ? { title: '조용히 각자', sub: '편하게, 말 없이 먹어도 좋아요' }
@@ -42,10 +46,7 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
         <View style={styles.profile}>
           <Avatar uri={profile?.profileImageUrl} bg={T2.bg} size={84} />
           <Text style={styles.name}>{profile?.nickname ?? '혼밥러'}</Text>
-          {/* 내 동네 표기는 제거(설정 기능 없음) — 식사 성향으로 대체. */}
-          {diningStyleLabel(profile?.diningStyle) ? (
-            <Text style={styles.sub}>{diningStyleLabel(profile?.diningStyle)}</Text>
-          ) : null}
+          {subLine ? <Text style={styles.sub}>{subLine}</Text> : null}
           {!!profile?.introduction && <Text style={styles.bio}>"{profile.introduction}"</Text>}
         </View>
 
