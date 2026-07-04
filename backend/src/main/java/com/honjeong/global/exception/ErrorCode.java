@@ -51,6 +51,9 @@ public enum ErrorCode {
     MATE_REQUEST_ALREADY_RESPONDED(HttpStatus.CONFLICT, "이미 처리된 신청입니다."),
     MATE_NOT_FOUND(HttpStatus.NOT_FOUND, "메이트 관계를 찾을 수 없습니다."),
 
+    // 알림
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다."),
+
     // 리뷰
     REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "리뷰를 찾을 수 없습니다."),
     REVIEW_DUPLICATE_CHECKIN(HttpStatus.CONFLICT, "이미 이 방문에 리뷰를 남겼어요."),
