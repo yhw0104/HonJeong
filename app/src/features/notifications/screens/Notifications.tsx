@@ -19,7 +19,14 @@ export function NotificationsScreen({ navigation }: RootStackScreenProps<'Notifi
 
   const onPress = (n: NotificationItem) => {
     if (!n.isRead) markRead.mutate(n.id);
-    navigation.navigate(notificationTarget(n.type));
+    const target = notificationTarget(n.type);
+    // 'MainTabs'는 탭 네비게이터의 기존 탭 상태를 보존하므로, 홈 탭(MapHome)을 명시해
+    // 더보기 탭 등 다른 탭에서 진입했더라도 스펙대로 홈 지도로 이동시킨다.
+    if (target === 'MainTabs') {
+      navigation.navigate('MainTabs', { screen: 'MapHome' });
+      return;
+    }
+    navigation.navigate(target);
   };
 
   return (

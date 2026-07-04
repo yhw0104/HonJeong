@@ -1,14 +1,14 @@
 // 네비게이션 라우트 파라미터 타입 — 화면 간 타입 안전한 이동에 사용.
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { CompositeScreenProps } from '@react-navigation/native';
+import type { CompositeScreenProps, NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootStackParamList = {
   Welcome: undefined;
   PhoneAuth: undefined;
   VerifyCode: { phone: string };
   ProfileSetup: { onboardingToken: string };
-  MainTabs: undefined;
+  MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   NewGroup: { groupId?: number; initial?: { name: string; note: string; color: string } } | undefined;
   PlaceSearch: undefined;
   RestaurantDetail: { placeId: number; name?: string };
