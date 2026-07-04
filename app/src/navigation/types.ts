@@ -28,6 +28,7 @@ export type RootStackParamList = {
   MyProfile: undefined;
   ProfileEdit: undefined;
   NotificationSettings: undefined;
+  Notifications: undefined;
   Notices: undefined;
   BlockReport: undefined;
   Support: undefined;

@@ -21,6 +21,7 @@ import { ChallengeBadgesScreen } from '@/features/record/screens/ChallengeBadges
 import { MyProfileScreen } from '@/features/profile/screens/MyProfile';
 import { ProfileEditScreen } from '@/features/profile/screens/ProfileEdit';
 import { NotificationSettingsScreen } from '@/features/settings/screens/NotificationSettings';
+import { NotificationsScreen } from '@/features/notifications/screens/Notifications';
 import { NoticesScreen } from '@/features/settings/screens/Notices';
 import { BlockReportScreen } from '@/features/settings/screens/BlockReport';
 import { SupportScreen } from '@/features/settings/screens/Support';
@@ -58,6 +59,7 @@ export function RootNavigator() {
           <Stack.Screen name="DiningLogWrite" component={DiningLogWriteScreen} options={{ presentation: 'modal' }} />
           <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} options={{ presentation: 'modal' }} />
           <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+          <Stack.Screen name="Notifications" component={NotificationsScreen} />
           <Stack.Screen name="Notices" component={NoticesScreen} />
           <Stack.Screen name="BlockReport" component={BlockReportScreen} />
           <Stack.Screen name="Support" component={SupportScreen} />
