@@ -9,6 +9,7 @@ import { useAuth } from '@/shared/auth/AuthContext';
 import type { MainTabScreenProps } from '@/navigation/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useMyProfile, useActivitySummary } from '@/features/users/queries';
+import { useReceivedRequests } from '@/features/meal/queries';
 
 type MenuRoute =
   | 'ReceivedRequests'
@@ -32,7 +33,8 @@ const SECTIONS: Section[] = [
   {
     title: '메이트',
     items: [
-      { l: '받은 같이 먹기 신청', d: '2건', icon: 'mate', badge: '2', route: 'ReceivedRequests' },
+      // 받은 신청 건수(d·badge)는 렌더 시 실데이터로 채운다(아래 menuDetail·menuBadge).
+      { l: '받은 같이 먹기 신청', icon: 'mate', route: 'ReceivedRequests' },
       { l: '차단 / 신고 관리', icon: 'shield', route: 'BlockReport' },
     ],
   },
@@ -54,15 +56,24 @@ export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
   const summary = activity.data;
   // 상대가 내 신청을 수락하거나 메이트를 해제하면 내 앱엔 트리거가 없으므로, 더보기 재진입 시 통계를 새로고침한다.
   useFocusEffect(useCallback(() => { activity.refetch(); }, [activity.refetch]));
+  // 받은 같이먹기 신청(PENDING) — 같이먹기 화면과 같은 쿼리라 캐시 공유·라이브 폴링으로 갱신된다.
+  const received = useReceivedRequests('PENDING');
+  const pendingCount = received.data?.length;
   const num = (n?: number) => (n === undefined ? '–' : String(n));
   const stats: { n: string; l: string; route: 'DiningHistory' | 'Mates' | 'Favorites' }[] = [
     { n: num(summary?.checkInCount), l: '혼밥', route: 'DiningHistory' },
     { n: num(summary?.mateCount), l: '메이트', route: 'Mates' },
     { n: num(summary?.favoriteCount), l: '즐겨찾기', route: 'Favorites' },
   ];
-  // '내 혼밥 기록' detail은 실데이터(혼밥 횟수·일기 수), 나머지 메뉴는 정적 d 유지.
-  const menuDetail = (it: MenuItem) =>
-    it.route === 'DiningHistory' ? `${num(summary?.checkInCount)}회 · 일기 ${num(summary?.reviewCount)}편` : it.d;
+  // '내 혼밥 기록'·'받은 같이 먹기 신청' detail은 실데이터, 나머지 메뉴는 정적 d 유지.
+  const menuDetail = (it: MenuItem) => {
+    if (it.route === 'DiningHistory') return `${num(summary?.checkInCount)}회 · 일기 ${num(summary?.reviewCount)}편`;
+    if (it.route === 'ReceivedRequests') return pendingCount === undefined ? undefined : `${pendingCount}건`;
+    return it.d;
+  };
+  // 뱃지(빨간 카운트)는 받은 신청이 1건 이상일 때만 노출.
+  const menuBadge = (it: MenuItem) =>
+    it.route === 'ReceivedRequests' ? (pendingCount ? String(pendingCount) : undefined) : it.badge;
 
   const onLogout = () => {
     Alert.alert('로그아웃', '로그아웃하시겠어요?', [
@@ -122,9 +133,9 @@ export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
                     <Icon name={it.icon} size={20} color={it.accent ? T2.brand : T2.text} />
                   </View>
                   <Text style={styles.menuLabel}>{it.l}</Text>
-                  {it.badge ? (
+                  {menuBadge(it) ? (
                     <View style={styles.menuBadge}>
-                      <Text style={styles.menuBadgeText}>{it.badge}</Text>
+                      <Text style={styles.menuBadgeText}>{menuBadge(it)}</Text>
                     </View>
                   ) : null}
                   {menuDetail(it) ? <Text style={styles.menuDetail}>{menuDetail(it)}</Text> : null}
