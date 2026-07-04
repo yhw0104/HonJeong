@@ -19,6 +19,8 @@ import com.honjeong.mate.dto.MateRequestCreateRequest;
 import com.honjeong.mate.dto.MateRequestResponse;
 import com.honjeong.mate.repository.MateRepository;
 import com.honjeong.mate.repository.MateRequestRepository;
+import com.honjeong.notification.domain.NotificationType;
+import com.honjeong.notification.service.NotificationService;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
@@ -28,8 +30,10 @@ class MateRequestServiceTest {
     private final MateRepository mateRepository = mock(MateRepository.class);
     private final UserRepository userRepository = mock(UserRepository.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-02T03:00:00Z"), ZoneOffset.UTC);
+    private final NotificationService notificationService = mock(NotificationService.class);
     private final MateRequestService service =
-            new MateRequestService(mateRequestRepository, mateRepository, userRepository, clock);
+            new MateRequestService(mateRequestRepository, mateRepository, userRepository,
+                    notificationService, clock);
 
     @Test
     @DisplayName("create: 자기 자신에게 신청하면 MATE_SELF")
@@ -60,6 +64,7 @@ class MateRequestServiceTest {
         MateRequestResponse res = service.create(1L, new MateRequestCreateRequest(2L));
         assertThat(res.status()).isEqualTo("PENDING");
         verify(mateRequestRepository).saveAndFlush(any(MateRequest.class));
+        verify(notificationService).publish(2L, NotificationType.MATE_REQUEST_RECEIVED, 1L);
     }
 
     @Test
@@ -90,10 +95,11 @@ class MateRequestServiceTest {
 
         verify(mateRepository, times(2)).save(any(Mate.class));
         assertThat(mr.getStatus().name()).isEqualTo("ACCEPTED");
+        verify(notificationService).publish(1L, NotificationType.MATE_REQUEST_ACCEPTED, 2L);
     }
 
     @Test
-    @DisplayName("accept: 상호신청(A→B, B→A 둘 다 PENDING) 시 한쪽 수락으로 역방향도 ACCEPTED, mates 멱등 저장")
+    @DisplayName("accept: 상호신청(A→B, B→A 둘 다 PENDING) 시 한쪽 수락으로 역방향도 ACCEPTED, mates 멱등 저장, 알림은 수락된 신청의 발신자에게 1건만")
     void accept_mutualPending_resolvesReverseAndSavesMatesIdempotently() {
         User a = mockUser(1L);
         User b = mockUser(2L);
@@ -115,6 +121,9 @@ class MateRequestServiceTest {
         assertThat(mrBtoA.getStatus()).isEqualTo(MateRequestStatus.ACCEPTED);
         // 원래 요청도 ACCEPTED
         assertThat(mrAtoB.getStatus()).isEqualTo(MateRequestStatus.ACCEPTED);
+        // 알림은 수락된 신청(A→B)의 발신자(A=1L)에게 1건만 — 자동수락된 역방향(B→A)의 발신자(B=2L)는 수락자 본인이라 제외
+        verify(notificationService, times(1)).publish(anyLong(), any(NotificationType.class), anyLong());
+        verify(notificationService).publish(1L, NotificationType.MATE_REQUEST_ACCEPTED, 2L);
     }
 
     @Test

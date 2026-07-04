@@ -18,6 +18,8 @@ import com.honjeong.mate.dto.MateRequestResponse;
 import com.honjeong.mate.dto.MateRequestStatusResponse;
 import com.honjeong.mate.repository.MateRepository;
 import com.honjeong.mate.repository.MateRequestRepository;
+import com.honjeong.notification.domain.NotificationType;
+import com.honjeong.notification.service.NotificationService;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
@@ -31,13 +33,15 @@ public class MateRequestService {
     private final MateRequestRepository mateRequestRepository;
     private final MateRepository mateRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
     private final Clock clock;
 
     public MateRequestService(MateRequestRepository mateRequestRepository, MateRepository mateRepository,
-            UserRepository userRepository, Clock clock) {
+            UserRepository userRepository, NotificationService notificationService, Clock clock) {
         this.mateRequestRepository = mateRequestRepository;
         this.mateRepository = mateRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
         this.clock = clock;
     }
 
@@ -57,6 +61,7 @@ public class MateRequestService {
             User fromRef = userRepository.getReferenceById(userId);
             User toRef = userRepository.getReferenceById(toUserId);
             MateRequest saved = mateRequestRepository.saveAndFlush(MateRequest.create(fromRef, toRef, now()));
+            notificationService.publish(toUserId, NotificationType.MATE_REQUEST_RECEIVED, userId);
             return MateRequestResponse.from(saved);
         } catch (DataIntegrityViolationException e) {
             throw new BusinessException(ErrorCode.MATE_REQUEST_DUPLICATE);
@@ -79,6 +84,8 @@ public class MateRequestService {
         // 역방향 PENDING 신청(b→a)이 있으면 함께 ACCEPTED로 닫음
         mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(b.getId(), a.getId(), MateRequestStatus.PENDING)
                 .ifPresent(rev -> rev.accept(now()));
+        // 알림은 수락된 신청의 발신자에게만 — 자동수락된 역방향 신청의 발신자는 수락자 본인이라 불필요(스펙).
+        notificationService.publish(mr.getFromUser().getId(), NotificationType.MATE_REQUEST_ACCEPTED, userId);
         return MateRequestStatusResponse.from(mr);
     }
 
