@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import * as Location from 'expo-location';
 import { useMyProfile } from '@/features/users/queries';
 import { pickLocation, type Coord, type LocationSource } from './pickLocation';
@@ -19,10 +19,8 @@ export function useLocation(): {
   const [permission, setPermission] = useState<Permission>('undetermined');
   const profile = useMyProfile();
 
-  const region: Coord | null =
-    profile.data?.regionLat != null && profile.data?.regionLng != null
-      ? { lat: profile.data.regionLat, lng: profile.data.regionLng }
-      : null;
+  const regionLat = profile.data?.regionLat;
+  const regionLng = profile.data?.regionLng;
 
   const load = async () => {
     try {
@@ -45,6 +43,14 @@ export function useLocation(): {
     load();
   }, []);
 
-  const { coord, source } = pickLocation({ gps, region });
+  // coord 참조를 입력이 실제로 바뀔 때만 갱신 — 매 렌더 새 객체면 지도(center)가 불필요하게 반응한다.
+  const { coord, source } = useMemo(
+    () =>
+      pickLocation({
+        gps,
+        region: regionLat != null && regionLng != null ? { lat: regionLat, lng: regionLng } : null,
+      }),
+    [gps, regionLat, regionLng],
+  );
   return { coord, source, permission, requestAgain: load };
 }

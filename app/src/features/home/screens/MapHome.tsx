@@ -23,7 +23,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const [picking, setPicking] = useState(false);
   const mapRef = useRef<HonjeongMapHandle>(null);
 
-  const { coord, permission } = useLocation();
+  const { coord, source, permission, requestAgain } = useLocation();
   const stats = useStats();
   const markers = useMap(coord);
   const nearby = useNearby(coord);
@@ -47,6 +47,13 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   };
   const endHonbab = () => {
     if (myCheckIn.data) promptEnd(myCheckIn.data);
+  };
+
+  // 내 위치로: 진짜 GPS가 있으면 지도 이동, 없으면(거부/실패) 권한을 다시 요청한다.
+  // 재요청으로 GPS가 잡히면 coord가 바뀌어 지도 center가 따라 이동한다.
+  const recenterToMe = () => {
+    if (source === 'gps') mapRef.current?.recenter();
+    else requestAgain();
   };
 
   // 드래그로 펼치는 하단 시트: 핸들/헤더를 위로 끌면 펼침, 아래로 끌면 접힘.
@@ -82,7 +89,8 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
       <HonjeongMap
         ref={mapRef}
         center={coord}
-        myLocation={coord}
+        // '내 위치' 파란 점은 진짜 GPS일 때만 — 폴백 좌표(연남동 기본 등)를 내 위치처럼 보이게 하지 않는다.
+        myLocation={source === 'gps' ? coord : null}
         markers={(markers.data ?? []).map((m) => ({
           placeId: m.placeId,
           latitude: m.latitude,
@@ -100,9 +108,9 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
             <Text style={styles.searchPlaceholder}>장소, 음식, 메이트</Text>
           </Pressable>
           <BellButton />
-          <View style={styles.navBtn}>
+          <Pressable style={styles.navBtn} onPress={recenterToMe}>
             <Icon name="navigate" size={20} color="#fff" />
-          </View>
+          </Pressable>
         </View>
 
         {permission === 'denied' && (
@@ -130,7 +138,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         <Pressable style={[styles.zoomBtn, styles.zoomDivider]} onPress={() => mapRef.current?.zoomOut()}>
           <Text style={styles.zoomText}>−</Text>
         </Pressable>
-        <Pressable style={styles.zoomBtn} onPress={() => mapRef.current?.recenter()}>
+        <Pressable style={styles.zoomBtn} onPress={recenterToMe}>
           <Text style={styles.zoomText}>◎</Text>
         </Pressable>
       </View>

@@ -136,7 +136,10 @@ export const HonjeongMap = forwardRef<HonjeongMapHandle, Props>(function Honjeon
 }: Props, ref) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [detail, setDetail] = useState<string>('');
-  const html = useMemo(() => buildHtml(KAKAO_JS_KEY, center, level), [center, level]);
+  // HTML은 최초 center/level로 1회만 생성한다 — center prop이 바뀔 때마다 문서를 다시 만들면
+  // WebView가 통째로 리로드되어 지도가 깜빡인다. 이후 center 변경은 아래 setCenter 주입으로 반영.
+  const initialRef = useRef({ center, level });
+  const html = useMemo(() => buildHtml(KAKAO_JS_KEY, initialRef.current.center, initialRef.current.level), []);
   const webRef = useRef<WebView>(null);
   const run = (js: string) => webRef.current?.injectJavaScript(js + ' true;');
 
@@ -150,6 +153,12 @@ export const HonjeongMap = forwardRef<HonjeongMapHandle, Props>(function Honjeon
       }
     },
   }));
+
+  // center prop 변경(GPS 취득 등)은 리로드 없이 지도 이동으로 반영한다.
+  useEffect(() => {
+    if (status !== 'ready') return;
+    run(`window.__map && window.__map.setCenter(new kakao.maps.LatLng(${center.lat}, ${center.lng}));`);
+  }, [center.lat, center.lng, status]);
 
   // 지도가 준비되거나 markers가 바뀌면 마커 목록을 주입한다.
   useEffect(() => {
