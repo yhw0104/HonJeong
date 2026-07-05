@@ -10,6 +10,7 @@
 // (요청 도중 401이 나면 자동 재시도하는 per-request refresh는 다음 단계로 분리.)
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { apiPost } from '@/shared/api/client';
 import { clearTokens, getRefreshToken, loadTokens, setTokens, type Tokens } from '@/shared/auth/session';
@@ -29,6 +30,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
+  const queryClient = useQueryClient(); // App.tsx에서 QueryClientProvider 안쪽에 배치됨
 
   // 앱 시작 시 1회: 저장된 refresh 토큰으로 세션 복원을 시도한다.
   useEffect(() => {
@@ -70,8 +72,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
     await clearTokens();
+    // 이전 계정의 캐시(프로필·체크인 등)가 재로그인 시 잠깐 노출되지 않도록 전부 비운다.
+    queryClient.clear();
     setStatus('guest');
-  }, []);
+  }, [queryClient]);
 
   // 세션 복원 중에는 스플래시(빈 로딩 화면)를 보여준다.
   if (status === 'loading') {
