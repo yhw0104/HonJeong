@@ -1,25 +1,22 @@
 // BlockReport — 차단 / 신고 관리 (원본: screens/BlockReport.jsx)
 // 더보기 '차단 / 신고 관리'에서 진입. 차단 목록 / 신고 내역 탭.
 import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { Screen, MoreHeader, EmojiCircle } from '@/shared/components';
+import { View, Text, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
+import { Screen, MoreHeader, Avatar } from '@/shared/components';
 import { T2, C } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
-
-const BLOCKED = [
-  { name: '소란한식객', emo: '🍔', date: '2026.05.28' },
-  { name: '늦참러', emo: '🥡', date: '2026.05.12' },
-];
-const REPORTS = [
-  { target: '익명 메이트', reason: '부적절한 메시지', date: '2026.05.30', status: '처리 완료' },
-  { target: '게시물 리뷰', reason: '광고 · 스팸', date: '2026.05.20', status: '검토 중' },
-];
+import { useBlockedUsers, useMyReports, useUnblockUser } from '@/features/safety/queries';
+import { reasonLabel, reportStatusLabel, formatDotDate } from '@/features/safety/reportCopy';
 
 export function BlockReportScreen({ navigation }: RootStackScreenProps<'BlockReport'>) {
   const [tab, setTab] = useState<'block' | 'report'>('block');
+  const blocks = useBlockedUsers();
+  const reports = useMyReports();
+  const unblock = useUnblockUser();
+
   const TABS = [
-    { key: 'block' as const, label: '차단 목록', count: BLOCKED.length },
-    { key: 'report' as const, label: '신고 내역', count: REPORTS.length },
+    { key: 'block' as const, label: '차단 목록', count: blocks.data?.length ?? 0 },
+    { key: 'report' as const, label: '신고 내역', count: reports.data?.length ?? 0 },
   ];
 
   return (
@@ -45,17 +42,31 @@ export function BlockReportScreen({ navigation }: RootStackScreenProps<'BlockRep
         {tab === 'block' ? (
           <>
             <Text style={styles.intro}>
-              차단한 메이트는 서로의 프로필·혼밥 현황을 볼 수 없고, 같이 먹기 신청도 보낼 수 없어요.
+              {blocks.isError
+                ? '잠시 후 다시 시도해주세요'
+                : '차단한 메이트는 서로의 프로필·혼밥 현황을 볼 수 없고, 같이 먹기 신청도 보낼 수 없어요.'}
             </Text>
+            {!blocks.isError && (blocks.data?.length ?? 0) === 0 ? (
+              <Text style={styles.intro}>차단한 사용자가 없어요</Text>
+            ) : null}
             <View style={{ gap: 10 }}>
-              {BLOCKED.map((b) => (
-                <View key={b.name} style={styles.card}>
-                  <EmojiCircle emoji={b.emo} size={44} dimmed />
+              {(blocks.data ?? []).map((b) => (
+                <View key={b.userId} style={styles.card}>
+                  <Avatar uri={b.profileImageUrl} size={44} />
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.name}>{b.name}</Text>
-                    <Text style={styles.meta}>{b.date} 차단</Text>
+                    <Text style={styles.name}>{b.nickname ?? '알 수 없음'}</Text>
+                    <Text style={styles.meta}>{formatDotDate(b.createdAt)} 차단</Text>
                   </View>
-                  <Pressable style={styles.unblockBtn}>
+                  <Pressable
+                    style={styles.unblockBtn}
+                    disabled={unblock.isPending}
+                    onPress={() =>
+                      Alert.alert('차단 해제', `${b.nickname ?? '이 사용자'}님을 차단 해제할까요?`, [
+                        { text: '취소', style: 'cancel' },
+                        { text: '해제', style: 'destructive', onPress: () => unblock.mutate(b.userId) },
+                      ])
+                    }
+                  >
                     <Text style={styles.unblockText}>차단 해제</Text>
                   </Pressable>
                 </View>
@@ -64,22 +75,29 @@ export function BlockReportScreen({ navigation }: RootStackScreenProps<'BlockRep
           </>
         ) : (
           <>
-            <Text style={styles.intro}>신고는 운영팀이 확인 후 조치하며, 처리 결과를 알림으로 알려드려요.</Text>
+            <Text style={styles.intro}>
+              {reports.isError
+                ? '잠시 후 다시 시도해주세요'
+                : '신고는 운영팀이 확인 후 조치하며, 처리 결과를 알림으로 알려드려요.'}
+            </Text>
+            {!reports.isError && (reports.data?.length ?? 0) === 0 ? (
+              <Text style={styles.intro}>신고 내역이 없어요</Text>
+            ) : null}
             <View style={{ gap: 10 }}>
-              {REPORTS.map((r) => {
-                const done = r.status === '처리 완료';
+              {(reports.data ?? []).map((r) => {
+                const done = r.status === 'RESOLVED';
                 return (
-                  <View key={r.target} style={styles.reportCard}>
+                  <View key={r.id} style={styles.reportCard}>
                     <View style={styles.reportHead}>
-                      <Text style={styles.reportTarget}>{r.target}</Text>
+                      <Text style={styles.reportTarget}>{r.targetNickname}</Text>
                       <View style={[styles.statusPill, { backgroundColor: done ? 'rgba(34,166,90,0.1)' : T2.brandSoft }]}>
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: done ? C.openDark : T2.brand, letterSpacing: -0.2 }}>{r.status}</Text>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: done ? C.openDark : T2.brand, letterSpacing: -0.2 }}>{reportStatusLabel(r.status)}</Text>
                       </View>
                     </View>
                     <View style={styles.reportMeta}>
-                      <Text style={styles.reportReason}>사유 · {r.reason}</Text>
+                      <Text style={styles.reportReason}>사유 · {reasonLabel(r.reasonCode)}</Text>
                       <Text style={styles.metaDot}>·</Text>
-                      <Text style={styles.reportDate}>{r.date}</Text>
+                      <Text style={styles.reportDate}>{formatDotDate(r.createdAt)}</Text>
                     </View>
                   </View>
                 );
