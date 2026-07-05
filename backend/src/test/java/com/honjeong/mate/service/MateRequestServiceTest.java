@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -157,6 +158,17 @@ class MateRequestServiceTest {
 
         // 이미 존재하므로 save는 한 번도 호출 안 됨
         verify(mateRepository, never()).save(any(Mate.class));
+    }
+
+    @Test
+    @DisplayName("getMateRequests: 차단 상호 은닉 — blockRepository의 제외 id를 리포지토리에 그대로 전달한다")
+    void getMateRequests_passesExclusionIdsFromBlockRepository() {
+        when(blockRepository.findExclusionIds(1L)).thenReturn(List.of(9L, 10L));
+        when(mateRequestRepository.findReceived(1L, null, List.of(9L, 10L))).thenReturn(List.of());
+
+        service.getMateRequests(1L, "received", null);
+
+        verify(mateRequestRepository).findReceived(1L, null, List.of(9L, 10L));
     }
 
     private User mockUser(Long id) {

@@ -28,7 +28,11 @@ export function ReportFormScreen({ navigation, route }: RootStackScreenProps<'Re
               {
                 text: '차단하기',
                 style: 'destructive',
-                onPress: () => block.mutate(targetId, { onSettled: () => navigation.goBack() }),
+                onPress: () =>
+                  block.mutate(targetId, {
+                    onSuccess: () => navigation.goBack(),
+                    onError: () => Alert.alert('차단 실패', '잠시 후 다시 시도해주세요.'),
+                  }),
               },
             ]);
           } else {

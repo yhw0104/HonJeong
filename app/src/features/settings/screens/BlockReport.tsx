@@ -63,7 +63,14 @@ export function BlockReportScreen({ navigation }: RootStackScreenProps<'BlockRep
                     onPress={() =>
                       Alert.alert('차단 해제', `${b.nickname ?? '이 사용자'}님을 차단 해제할까요?`, [
                         { text: '취소', style: 'cancel' },
-                        { text: '해제', style: 'destructive', onPress: () => unblock.mutate(b.userId) },
+                        {
+                          text: '해제',
+                          style: 'destructive',
+                          onPress: () =>
+                            unblock.mutate(b.userId, {
+                              onError: () => Alert.alert('차단 해제 실패', '잠시 후 다시 시도해주세요.'),
+                            }),
+                        },
                       ])
                     }
                   >

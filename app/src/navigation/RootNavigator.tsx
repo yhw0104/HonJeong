@@ -63,7 +63,7 @@ export function RootNavigator() {
           <Stack.Screen name="Notifications" component={NotificationsScreen} />
           <Stack.Screen name="Notices" component={NoticesScreen} />
           <Stack.Screen name="BlockReport" component={BlockReportScreen} />
-          <Stack.Screen name="ReportForm" component={ReportFormScreen} />
+          <Stack.Screen name="ReportForm" component={ReportFormScreen} options={{ presentation: 'modal' }} />
           <Stack.Screen name="Support" component={SupportScreen} />
         </>
       )}

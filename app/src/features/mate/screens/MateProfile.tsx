@@ -35,7 +35,11 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
               text: '차단',
               style: 'destructive',
               // 차단하면 이 프로필 자체가 404가 되므로 목록으로 되돌아간다.
-              onPress: () => blockMut.mutate(userId, { onSuccess: () => navigation.goBack() }),
+              onPress: () =>
+                blockMut.mutate(userId, {
+                  onSuccess: () => navigation.goBack(),
+                  onError: () => Alert.alert('차단 실패', '잠시 후 다시 시도해주세요.'),
+                }),
             },
           ]),
       },
