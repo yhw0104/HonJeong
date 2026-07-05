@@ -6,6 +6,8 @@ import { Screen, FieldLabel, Avatar, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useMyProfile, useUpdateMyProfile } from '@/features/users/queries';
 import { pickImages, uploadImages } from '@/shared/upload/imageUpload';
+import { apiGet } from '@/shared/api/client';
+import { NICKNAME_MAX, NICK_HINT, canSubmitNickname, precheckNickname, type NickStatus } from '@/features/auth/nickname';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 const FOODS = ['한식', '일식', '양식', '중식', '면 요리', '매운맛', '디저트'];
@@ -34,6 +36,30 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
     setStyle(profile.diningStyle === 'QUIET' ? 'quiet' : 'talk');
     setImageUrl(profile.profileImageUrl ?? null);
   }, [profile]);
+
+  // 닉네임 실시간 중복 확인(가입 화면과 동일 규칙). 기존 닉네임 그대로면 확인 없이 통과(자기 닉네임은 중복 아님).
+  const [nickStatus, setNickStatus] = useState<NickStatus>('idle');
+
+  useEffect(() => {
+    const pre = precheckNickname(nickname, profile?.nickname);
+    if (pre.action === 'set') {
+      setNickStatus(pre.status);
+      return;
+    }
+    const trimmed = nickname.trim();
+    setNickStatus('checking');
+    const handle = setTimeout(async () => {
+      try {
+        const res = await apiGet<{ nickname: string; available: boolean }>(
+          `/users/nickname-check?nickname=${encodeURIComponent(trimmed)}`,
+        );
+        setNickStatus(res.available ? 'available' : 'taken');
+      } catch {
+        setNickStatus('error');
+      }
+    }, 400);
+    return () => clearTimeout(handle); // 다음 입력이 오면 이전 예약을 취소(디바운스)
+  }, [nickname, profile?.nickname]);
 
   // 사진 변경: 갤러리에서 1장 선택 → POST /api/files 업로드 → 미리보기 url 교체(저장 시 PATCH로 전송).
   const onChangePhoto = async () => {
@@ -87,8 +113,11 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
           <Text style={styles.cancel}>취소</Text>
         </Pressable>
         <Text style={styles.title}>프로필 편집</Text>
-        <Pressable onPress={onSave} disabled={update.isPending} hitSlop={10}>
-          <Text style={[styles.save, update.isPending && { opacity: 0.4 }]}>저장</Text>
+        {/* 닉네임이 유효(2자 이상 + 중복확인 통과)해야 저장 가능 — 빈값·미확인 PATCH 차단 */}
+        <Pressable onPress={onSave} disabled={update.isPending || !canSubmitNickname(nickname, nickStatus)} hitSlop={10}>
+          <Text style={[styles.save, (update.isPending || !canSubmitNickname(nickname, nickStatus)) && { opacity: 0.4 }]}>
+            저장
+          </Text>
         </Pressable>
       </View>
 
@@ -123,12 +152,19 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
             <TextInput
               style={styles.fieldInput}
               value={nickname}
-              onChangeText={(t) => setNickname(t.slice(0, 12))}
-              maxLength={12}
+              onChangeText={(t) => setNickname(t.slice(0, NICKNAME_MAX))}
+              maxLength={NICKNAME_MAX}
               placeholder="닉네임"
               placeholderTextColor={T2.textMute}
             />
-            <Text style={styles.counter}>{nickname.length} / 12</Text>
+            {nickStatus !== 'idle' && nickStatus !== 'available' && (
+              <Text style={[styles.nickStatus, { color: NICK_HINT[nickStatus].color }]}>
+                {NICK_HINT[nickStatus].text}
+              </Text>
+            )}
+            <Text style={styles.counter}>
+              {nickname.length} / {NICKNAME_MAX}
+            </Text>
           </View>
         </View>
 
@@ -230,6 +266,7 @@ const styles = StyleSheet.create({
     borderColor: T2.border,
   },
   fieldInput: { flex: 1, fontSize: 15, fontWeight: '600', color: T2.text, letterSpacing: -0.3, padding: 0 },
+  nickStatus: { fontSize: 12, fontWeight: '700', marginRight: 8 },
   counter: { fontSize: 12, color: T2.textMute },
 
   bioInput: {

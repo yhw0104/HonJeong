@@ -7,6 +7,7 @@ import { T2 } from '@/shared/theme';
 import { apiGet, apiPost, ApiError } from '@/shared/api/client';
 import { pickImages, uploadImages } from '@/shared/upload/imageUpload';
 import { useAuth } from '@/shared/auth/AuthContext';
+import { NICKNAME_MAX, NICK_HINT, canSubmitNickname, precheckNickname, type NickStatus } from '@/features/auth/nickname';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 const FOODS = ['한식', '일식', '양식', '중식', '면 요리', '매운맛', '디저트'];
@@ -24,20 +25,6 @@ const TERMS: Term[] = [
   { key: 'location', label: '위치정보 이용 동의', req: true },
   { key: 'marketing', label: '마케팅 알림 수신', req: false },
 ];
-
-// 닉네임 중복확인 상태별 표시(문구·색). invalid = 완성된 글자 없이 자음/모음 낱자만(예: 'ㅋㅋ').
-type NickStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'error';
-const NICK_HINT: Record<NickStatus, { text: string; color: string }> = {
-  idle: { text: '', color: T2.textMute },
-  checking: { text: '확인 중…', color: T2.textMute },
-  available: { text: '사용 가능', color: T2.brand },
-  taken: { text: '이미 사용 중', color: '#E1493F' },
-  invalid: { text: '자음·모음만으로는 안 돼요', color: '#E1493F' },
-  error: { text: '확인 실패', color: T2.textMute },
-};
-
-// 완성된 한글 글자(가-힣)·영문·숫자 없이 자음/모음 낱자(ㄱ-ㅎ, ㅏ-ㅣ)만으로 이뤄졌는지.
-const isOnlyJamo = (s: string) => /^[ㄱ-ㅎㅏ-ㅣ]+$/.test(s);
 
 export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'ProfileSetup'>) {
   const { onboardingToken } = route.params;
@@ -69,15 +56,12 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
   const [nickStatus, setNickStatus] = useState<NickStatus>('idle');
 
   useEffect(() => {
+    const pre = precheckNickname(nickname);
+    if (pre.action === 'set') {
+      setNickStatus(pre.status); // 2자 미만=idle, 자음/모음 낱자만=invalid → 서버 확인 없음
+      return;
+    }
     const trimmed = nickname.trim();
-    if (trimmed.length < 2) {
-      setNickStatus('idle');
-      return;
-    }
-    if (isOnlyJamo(trimmed)) {
-      setNickStatus('invalid'); // 자음/모음 낱자만 → 서버 확인 없이 거절
-      return;
-    }
     setNickStatus('checking');
     const handle = setTimeout(async () => {
       try {
@@ -193,7 +177,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
               style={styles.nickInput}
               value={nickname}
               onChangeText={setNickname}
-              maxLength={10}
+              maxLength={NICKNAME_MAX}
               placeholder="닉네임"
               placeholderTextColor={T2.textMute}
             />
@@ -352,7 +336,8 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
       <View style={styles.ctaWrap}>
         <CTAButton
           label="시작하기"
-          disabled={submitting || !requiredOk || !nickname.trim() || nickStatus === 'taken' || nickStatus === 'invalid'}
+          // 닉네임은 중복확인 통과(available)까지 필요 — 1글자(idle)로 확인을 우회하는 구멍 차단.
+          disabled={submitting || !requiredOk || !canSubmitNickname(nickname, nickStatus)}
           onPress={onComplete}
         />
       </View>
