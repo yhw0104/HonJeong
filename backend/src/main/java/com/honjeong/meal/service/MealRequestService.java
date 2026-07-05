@@ -9,6 +9,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
@@ -41,14 +42,17 @@ public class MealRequestService {
     private final CheckInRepository checkInRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final BlockRepository blockRepository;
     private final Clock clock;
 
     public MealRequestService(MealRequestRepository mealRequestRepository, CheckInRepository checkInRepository,
-            UserRepository userRepository, NotificationService notificationService, Clock clock) {
+            UserRepository userRepository, NotificationService notificationService,
+            BlockRepository blockRepository, Clock clock) {
         this.mealRequestRepository = mealRequestRepository;
         this.checkInRepository = checkInRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.blockRepository = blockRepository;
         this.clock = clock;
     }
 
@@ -72,6 +76,10 @@ public class MealRequestService {
         }
         if (!receiver.isAllowMealRequest()) {
             throw new BusinessException(ErrorCode.MEALREQUEST_OPT_OUT);
+        }
+        // 차단 관계(어느 방향이든)면 신청 불가 — 메시지는 차단 사실을 드러내지 않는다.
+        if (blockRepository.existsBlockBetween(userId, receiver.getId())) {
+            throw new BusinessException(ErrorCode.USER_BLOCKED);
         }
 
         try {

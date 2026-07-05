@@ -10,6 +10,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
+import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.mate.domain.Mate;
@@ -31,9 +32,10 @@ class MateRequestServiceTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-02T03:00:00Z"), ZoneOffset.UTC);
     private final NotificationService notificationService = mock(NotificationService.class);
+    private final BlockRepository blockRepository = mock(BlockRepository.class);
     private final MateRequestService service =
             new MateRequestService(mateRequestRepository, mateRepository, userRepository,
-                    notificationService, clock);
+                    notificationService, blockRepository, clock);
 
     @Test
     @DisplayName("create: 자기 자신에게 신청하면 MATE_SELF")
@@ -41,6 +43,18 @@ class MateRequestServiceTest {
         assertThatThrownBy(() -> service.create(1L, new MateRequestCreateRequest(1L)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.MATE_SELF);
+    }
+
+    @Test
+    @DisplayName("차단 관계면 신청 불가(USER_BLOCKED) + 알림 미발행")
+    void create_blockedPair_throws() {
+        when(userRepository.existsById(2L)).thenReturn(true);
+        when(blockRepository.existsBlockBetween(1L, 2L)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.create(1L, new MateRequestCreateRequest(2L)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.USER_BLOCKED);
+        verify(notificationService, never()).publish(anyLong(), any(), anyLong());
     }
 
     @Test

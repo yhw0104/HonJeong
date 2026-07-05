@@ -7,6 +7,7 @@ import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.mate.domain.Mate;
@@ -34,14 +35,17 @@ public class MateRequestService {
     private final MateRepository mateRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final BlockRepository blockRepository;
     private final Clock clock;
 
     public MateRequestService(MateRequestRepository mateRequestRepository, MateRepository mateRepository,
-            UserRepository userRepository, NotificationService notificationService, Clock clock) {
+            UserRepository userRepository, NotificationService notificationService,
+            BlockRepository blockRepository, Clock clock) {
         this.mateRequestRepository = mateRequestRepository;
         this.mateRepository = mateRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.blockRepository = blockRepository;
         this.clock = clock;
     }
 
@@ -53,6 +57,9 @@ public class MateRequestService {
         }
         if (!userRepository.existsById(toUserId)) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        if (blockRepository.existsBlockBetween(userId, toUserId)) {
+            throw new BusinessException(ErrorCode.USER_BLOCKED);
         }
         if (mateRepository.existsByUser_IdAndMateUser_Id(userId, toUserId)) {
             throw new BusinessException(ErrorCode.MATE_ALREADY);

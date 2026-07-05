@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -25,6 +26,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
@@ -54,9 +56,10 @@ class MealRequestServiceTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-18T03:00:00Z"), ZoneOffset.UTC);
     private final NotificationService notificationService = mock(NotificationService.class);
+    private final BlockRepository blockRepository = mock(BlockRepository.class);
     private final MealRequestService service =
             new MealRequestService(mealRequestRepository, checkInRepository, userRepository,
-                    notificationService, clock);
+                    notificationService, blockRepository, clock);
 
     private final LocalDateTime nowKst = LocalDateTime.of(2026, 6, 18, 12, 0);
 
@@ -178,6 +181,19 @@ class MealRequestServiceTest {
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.MEALREQUEST_OPT_OUT));
         verify(mealRequestRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("차단 관계면 신청 불가(USER_BLOCKED) + 알림 미발행")
+    void create_blockedPair_throws() {
+        CheckIn target = targetCheckIn(10L, 2L, true, 3L);
+        when(checkInRepository.findById(10L)).thenReturn(Optional.of(target));
+        when(blockRepository.existsBlockBetween(1L, 2L)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.create(1L, request(10L)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.USER_BLOCKED);
+        verify(notificationService, never()).publish(anyLong(), any(), anyLong());
     }
 
     @Test
