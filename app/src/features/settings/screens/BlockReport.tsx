@@ -46,7 +46,7 @@ export function BlockReportScreen({ navigation }: RootStackScreenProps<'BlockRep
                 ? '잠시 후 다시 시도해주세요'
                 : '차단한 메이트는 서로의 프로필·혼밥 현황을 볼 수 없고, 같이 먹기 신청도 보낼 수 없어요.'}
             </Text>
-            {!blocks.isError && (blocks.data?.length ?? 0) === 0 ? (
+            {blocks.isSuccess && (blocks.data?.length ?? 0) === 0 ? (
               <Text style={styles.intro}>차단한 사용자가 없어요</Text>
             ) : null}
             <View style={{ gap: 10 }}>
@@ -80,7 +80,7 @@ export function BlockReportScreen({ navigation }: RootStackScreenProps<'BlockRep
                 ? '잠시 후 다시 시도해주세요'
                 : '신고는 운영팀이 확인 후 조치하며, 처리 결과를 알림으로 알려드려요.'}
             </Text>
-            {!reports.isError && (reports.data?.length ?? 0) === 0 ? (
+            {reports.isSuccess && (reports.data?.length ?? 0) === 0 ? (
               <Text style={styles.intro}>신고 내역이 없어요</Text>
             ) : null}
             <View style={{ gap: 10 }}>
