@@ -13,6 +13,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
@@ -47,16 +48,18 @@ public class ReviewService {
     private final CheckInRepository checkInRepository;
     private final PlaceService placeService;
     private final UserRepository userRepository;
+    private final BlockRepository blockRepository;
     private final Clock clock;
     private final ReviewPhotoRepository reviewPhotoRepository;
 
     public ReviewService(ReviewRepository reviewRepository, CheckInRepository checkInRepository,
-            PlaceService placeService, UserRepository userRepository, Clock clock,
+            PlaceService placeService, UserRepository userRepository, BlockRepository blockRepository, Clock clock,
             ReviewPhotoRepository reviewPhotoRepository) {
         this.reviewRepository = reviewRepository;
         this.checkInRepository = checkInRepository;
         this.placeService = placeService;
         this.userRepository = userRepository;
+        this.blockRepository = blockRepository;
         this.clock = clock;
         this.reviewPhotoRepository = reviewPhotoRepository;
     }
@@ -87,7 +90,9 @@ public class ReviewService {
                         ReviewPhotoRepository.ReviewPhotoRow::getReviewId,
                         LinkedHashMap::new,
                         Collectors.mapping(ReviewPhotoRepository.ReviewPhotoRow::getImageUrl, Collectors.toList())));
-        return reviewRepository.findByPlaceWithUserAndTags(placeId).stream()
+        // 차단 상대의 리뷰는 숨긴다 — 응답 DTO에 작성자 id가 없어 서버 필터가 유일한 방법(FR-108).
+        List<Long> excluded = blockRepository.findExclusionIds(currentUserId);
+        return reviewRepository.findByPlaceWithUserAndTags(placeId, excluded).stream()
                 .map(r -> PlaceReviewResponse.from(r, currentUserId,
                         photosByReview.getOrDefault(r.getId(), List.of())))
                 .toList();

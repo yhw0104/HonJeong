@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
@@ -34,9 +35,10 @@ class MateProfileServiceTest {
     private final CheckInRepository checkInRepository = mock(CheckInRepository.class);
     private final UserFoodPreferenceRepository foodRepository = mock(UserFoodPreferenceRepository.class);
     private final MealRequestRepository mealRequestRepository = mock(MealRequestRepository.class);
+    private final BlockRepository blockRepository = mock(BlockRepository.class);
     private final MateProfileService service = new MateProfileService(
             userRepository, mateRepository, mateRequestRepository, checkInRepository, foodRepository,
-            mealRequestRepository);
+            mealRequestRepository, blockRepository);
 
     @Test
     @DisplayName("searchUsers: 본인 제외 + 내가 보낸 PENDING이면 requestStatus=PENDING_SENT")
@@ -57,6 +59,20 @@ class MateProfileServiceTest {
         assertThat(res.get(0).userId()).isEqualTo(2L);
         assertThat(res.get(0).requestStatus()).isEqualTo("PENDING_SENT");
         assertThat(res.get(0).diningStyle()).isEqualTo("QUIET"); // 검색 카드 표시용(내 동네 대체)
+    }
+
+    @Test
+    @DisplayName("닉네임 검색: 차단 상대는 결과에서 제외")
+    void searchUsers_excludesBlocked() {
+        User userB = user(2L, "차단상대");
+        User userC = user(3L, "일반유저");
+        when(userRepository.findTop20ByNicknameContainingIgnoreCaseAndStatus(eq("닉"), any()))
+                .thenReturn(List.of(userB, userC));
+        when(blockRepository.findCounterpartIds(1L)).thenReturn(List.of(2L));
+
+        List<UserSearchResponse> result = service.searchUsers(1L, "닉");
+
+        assertThat(result).extracting(UserSearchResponse::userId).containsExactly(3L);
     }
 
     @Test
@@ -171,6 +187,19 @@ class MateProfileServiceTest {
         when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getPublicProfile(1L, 99L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("타인 프로필: 차단 관계면 USER_NOT_FOUND(404)로 위장")
+    void getPublicProfile_blockedPair_404() {
+        User target = user(2L, "상대");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(target));
+        when(blockRepository.existsBlockBetween(1L, 2L)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.getPublicProfile(1L, 2L))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.USER_NOT_FOUND);

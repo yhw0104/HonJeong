@@ -1,8 +1,11 @@
 package com.honjeong.mate.service;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
@@ -28,16 +31,19 @@ public class MateProfileService {
     private final CheckInRepository checkInRepository;
     private final UserFoodPreferenceRepository foodRepository;
     private final MealRequestRepository mealRequestRepository;
+    private final BlockRepository blockRepository;
 
     public MateProfileService(UserRepository userRepository, MateRepository mateRepository,
             MateRequestRepository mateRequestRepository, CheckInRepository checkInRepository,
-            UserFoodPreferenceRepository foodRepository, MealRequestRepository mealRequestRepository) {
+            UserFoodPreferenceRepository foodRepository, MealRequestRepository mealRequestRepository,
+            BlockRepository blockRepository) {
         this.userRepository = userRepository;
         this.mateRepository = mateRepository;
         this.mateRequestRepository = mateRequestRepository;
         this.checkInRepository = checkInRepository;
         this.foodRepository = foodRepository;
         this.mealRequestRepository = mealRequestRepository;
+        this.blockRepository = blockRepository;
     }
 
     @Transactional(readOnly = true)
@@ -45,10 +51,12 @@ public class MateProfileService {
         if (q == null || q.isBlank()) {
             return List.of();
         }
+        Set<Long> blockedIds = new HashSet<>(blockRepository.findCounterpartIds(viewerId));
         return userRepository
                 .findTop20ByNicknameContainingIgnoreCaseAndStatus(q.trim(), UserStatus.ACTIVE)
                 .stream()
                 .filter(u -> !u.getId().equals(viewerId))
+                .filter(u -> !blockedIds.contains(u.getId()))   // 차단 상호 은닉(FR-108)
                 .map(u -> new UserSearchResponse(
                         u.getId(), u.getNickname(), u.getProfileImageUrl(), u.getRegion(),
                         u.getDiningStyle() == null ? null : u.getDiningStyle().name(),
@@ -61,6 +69,10 @@ public class MateProfileService {
     public PublicProfileResponse getPublicProfile(Long viewerId, Long targetId) {
         User t = userRepository.findById(targetId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        // 차단 관계면 존재 자체를 숨긴다(404) — 차단당한 쪽이 눈치 못 채게(스토킹 방지, NFR-03).
+        if (blockRepository.existsBlockBetween(viewerId, targetId)) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
         boolean isMate = mateRepository.existsByUser_IdAndMateUser_Id(viewerId, targetId);
 
         // 온라인 상태는 메이트 여부와 무관하게 항상 공개(같이먹기는 누구나 신청 가능)

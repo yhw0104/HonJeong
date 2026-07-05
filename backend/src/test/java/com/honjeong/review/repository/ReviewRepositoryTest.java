@@ -45,7 +45,7 @@ class ReviewRepositoryTest extends AbstractPostgresTest {
         em.flush();
         em.clear();
 
-        List<Review> found = reviewRepository.findByPlaceWithUserAndTags(place.getId());
+        List<Review> found = reviewRepository.findByPlaceWithUserAndTags(place.getId(), List.of(-1L));
 
         assertThat(found).hasSize(1);
         assertThat(found.get(0).getUser().getNickname()).isEqualTo("연남러");
@@ -65,10 +65,46 @@ class ReviewRepositoryTest extends AbstractPostgresTest {
         em.flush();
         em.clear();
 
-        List<Review> found = reviewRepository.findByPlaceWithUserAndTags(place.getId());
+        List<Review> found = reviewRepository.findByPlaceWithUserAndTags(place.getId(), List.of(-1L));
 
         assertThat(found).hasSize(1);
         assertThat(found.get(0).isAuthenticated()).isFalse();
+    }
+
+    @Test
+    @DisplayName("식당 리뷰 목록: 제외 id 목록의 작성자 리뷰는 빠진다")
+    void findByPlaceWithUserAndTags_excludesBlocked() {
+        User userA = persistUser("01000000030", "정상러");
+        User userB = persistUser("01000000031", "차단러");
+        Place place = persistPlace("ext-block");
+        Review r1 = Review.create(userA, null, place, NOW, 5, 5, "a");
+        Review r2 = Review.create(userB, null, place, NOW, 4, 4, "b");
+        em.persist(r1);
+        em.persist(r2);
+        em.flush();
+        em.clear();
+
+        List<Review> found = reviewRepository.findByPlaceWithUserAndTags(place.getId(), List.of(userB.getId()));
+
+        assertThat(found).extracting(r -> r.getUser().getId()).containsExactly(userA.getId());
+    }
+
+    @Test
+    @DisplayName("식당 리뷰 목록: 센티널(-1)만 있으면 전원 노출")
+    void findByPlaceWithUserAndTags_sentinelShowsAll() {
+        User userA = persistUser("01000000032", "정상러2");
+        User userB = persistUser("01000000033", "차단러2");
+        Place place = persistPlace("ext-block2");
+        Review r1 = Review.create(userA, null, place, NOW, 5, 5, "a");
+        Review r2 = Review.create(userB, null, place, NOW, 4, 4, "b");
+        em.persist(r1);
+        em.persist(r2);
+        em.flush();
+        em.clear();
+
+        List<Review> found = reviewRepository.findByPlaceWithUserAndTags(place.getId(), List.of(-1L));
+
+        assertThat(found).hasSize(2);
     }
 
     @Test
@@ -128,7 +164,7 @@ class ReviewRepositoryTest extends AbstractPostgresTest {
         reviewRepository.saveAndFlush(loaded);
         em.clear();
 
-        Review after = reviewRepository.findByPlaceWithUserAndTags(p.getId()).get(0);
+        Review after = reviewRepository.findByPlaceWithUserAndTags(p.getId(), List.of(-1L)).get(0);
         assertThat(after.getTasteRating()).isEqualTo(3);
         assertThat(after.getSoloFriendlyRating()).isEqualTo(2);
         assertThat(after.getContent()).isEqualTo("new");
@@ -154,7 +190,7 @@ class ReviewRepositoryTest extends AbstractPostgresTest {
         em.flush();
         em.clear();
 
-        assertThat(reviewRepository.findByPlaceWithUserAndTags(p.getId())).isEmpty();
+        assertThat(reviewRepository.findByPlaceWithUserAndTags(p.getId(), List.of(-1L))).isEmpty();
         assertThat(reviewRepository.existsByCheckIn_Id(ciId)).isFalse();
     }
 

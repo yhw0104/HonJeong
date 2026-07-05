@@ -15,9 +15,11 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             JOIN FETCH r.user
             LEFT JOIN FETCH r.tags
             WHERE r.place.id = :placeId
+              AND r.user.id NOT IN :excludedUserIds
             ORDER BY r.createdAt DESC
             """)
-    List<Review> findByPlaceWithUserAndTags(@Param("placeId") Long placeId);
+    List<Review> findByPlaceWithUserAndTags(@Param("placeId") Long placeId,
+            @Param("excludedUserIds") List<Long> excludedUserIds);
 
     @Query("""
             SELECT AVG(r.tasteRating), AVG(r.soloFriendlyRating), COUNT(r)

@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 
 import org.mockito.ArgumentCaptor;
 
+import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.exception.BusinessException;
@@ -47,11 +48,12 @@ class ReviewServiceTest {
     private final CheckInRepository checkInRepository = mock(CheckInRepository.class);
     private final PlaceService placeService = mock(PlaceService.class);
     private final UserRepository userRepository = mock(UserRepository.class);
+    private final BlockRepository blockRepository = mock(BlockRepository.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-25T03:00:00Z"), ZoneOffset.UTC);
     private final ReviewPhotoRepository reviewPhotoRepository = mock(ReviewPhotoRepository.class);
     private final ReviewService service =
-            new ReviewService(reviewRepository, checkInRepository, placeService, userRepository, clock,
-                    reviewPhotoRepository);
+            new ReviewService(reviewRepository, checkInRepository, placeService, userRepository, blockRepository,
+                    clock, reviewPhotoRepository);
 
     private Place place(long id) {
         Place p = mock(Place.class);
@@ -383,7 +385,8 @@ class ReviewServiceTest {
         ReviewPhotoRepository.ReviewPhotoRow row = rowOf(10L, "p1");
         Review review = reviewWithId(10L);
         when(reviewPhotoRepository.findByPlaceFlattened(PLACE_ID)).thenReturn(List.of(row));
-        when(reviewRepository.findByPlaceWithUserAndTags(PLACE_ID)).thenReturn(List.of(review));
+        when(blockRepository.findExclusionIds(USER_ID)).thenReturn(List.of(-1L));
+        when(reviewRepository.findByPlaceWithUserAndTags(PLACE_ID, List.of(-1L))).thenReturn(List.of(review));
 
         // when
         List<PlaceReviewResponse> result = service.getPlaceReviews(PLACE_ID, USER_ID);
@@ -399,11 +402,26 @@ class ReviewServiceTest {
         // given: 사진 없음 — 리뷰는 미리 생성
         Review review = reviewWithId(10L);
         when(reviewPhotoRepository.findByPlaceFlattened(PLACE_ID)).thenReturn(List.of());
-        when(reviewRepository.findByPlaceWithUserAndTags(PLACE_ID)).thenReturn(List.of(review));
+        when(blockRepository.findExclusionIds(USER_ID)).thenReturn(List.of(-1L));
+        when(reviewRepository.findByPlaceWithUserAndTags(PLACE_ID, List.of(-1L))).thenReturn(List.of(review));
 
         List<PlaceReviewResponse> result = service.getPlaceReviews(PLACE_ID, USER_ID);
 
         assertThat(result.get(0).imageUrls()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("getPlaceReviews: blockRepository의 제외 id 목록을 리포지토리 호출에 그대로 전달한다(FR-108)")
+    void getPlaceReviews_passesExclusionIdsFromBlockRepository() {
+        Review review = reviewWithId(10L);
+        when(reviewPhotoRepository.findByPlaceFlattened(PLACE_ID)).thenReturn(List.of());
+        when(blockRepository.findExclusionIds(USER_ID)).thenReturn(List.of(5L, 6L));
+        when(reviewRepository.findByPlaceWithUserAndTags(PLACE_ID, List.of(5L, 6L))).thenReturn(List.of(review));
+
+        List<PlaceReviewResponse> result = service.getPlaceReviews(PLACE_ID, USER_ID);
+
+        assertThat(result).hasSize(1);
+        verify(reviewRepository).findByPlaceWithUserAndTags(PLACE_ID, List.of(5L, 6L));
     }
 
     private static ReviewPhotoRepository.ReviewPhotoRow rowOf(Long reviewId, String url) {
