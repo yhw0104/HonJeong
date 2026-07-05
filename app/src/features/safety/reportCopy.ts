@@ -14,6 +14,11 @@ export function reasonLabel(code: string): string {
   return REPORT_REASONS.find((r) => r.code === code)?.label ?? code;
 }
 
+/** 신고 대상 표기 — 유저는 "○○님", 리뷰는 "○○님의 리뷰"(신고 화면·내역 카드 공통). */
+export function reportTargetLabel(targetType: string, nickname: string): string {
+  return targetType === 'REVIEW' ? `${nickname}님의 리뷰` : `${nickname}님`;
+}
+
 /** 처리 상태 라벨. 현재 백엔드는 전부 RECEIVED만 저장하지만 예약 상태도 함께 매핑해 둔다. */
 export function reportStatusLabel(status: string): string {
   if (status === 'REVIEWING') return '검토 중';

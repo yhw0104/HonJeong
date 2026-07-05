@@ -6,7 +6,7 @@ import { Screen, MoreHeader, Avatar } from '@/shared/components';
 import { T2, C } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { useBlockedUsers, useMyReports, useUnblockUser } from '@/features/safety/queries';
-import { reasonLabel, reportStatusLabel, formatDotDate } from '@/features/safety/reportCopy';
+import { reasonLabel, reportStatusLabel, reportTargetLabel, formatDotDate } from '@/features/safety/reportCopy';
 
 export function BlockReportScreen({ navigation }: RootStackScreenProps<'BlockReport'>) {
   const [tab, setTab] = useState<'block' | 'report'>('block');
@@ -96,7 +96,8 @@ export function BlockReportScreen({ navigation }: RootStackScreenProps<'BlockRep
                 return (
                   <View key={r.id} style={styles.reportCard}>
                     <View style={styles.reportHead}>
-                      <Text style={styles.reportTarget}>{r.targetNickname}</Text>
+                      {/* 유저/리뷰 신고 구분: "○○님" vs "○○님의 리뷰" */}
+                      <Text style={styles.reportTarget}>{reportTargetLabel(r.targetType, r.targetNickname)}</Text>
                       <View style={[styles.statusPill, { backgroundColor: done ? 'rgba(34,166,90,0.1)' : T2.brandSoft }]}>
                         <Text style={{ fontSize: 11, fontWeight: '700', color: done ? C.openDark : T2.brand, letterSpacing: -0.2 }}>{reportStatusLabel(r.status)}</Text>
                       </View>
