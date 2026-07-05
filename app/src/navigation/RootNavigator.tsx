@@ -16,6 +16,7 @@ import { MatesScreen } from '@/features/mate/screens/Mates';
 import { MateProfileScreen } from '@/features/mate/screens/MateProfile';
 import { ReceivedRequestsScreen } from '@/features/mate/screens/ReceivedRequests';
 import { DiningHistoryScreen } from '@/features/record/screens/DiningHistory';
+import { MyReviewsScreen } from '@/features/review/screens/MyReviews';
 import { DiningLogWriteScreen } from '@/features/record/screens/DiningLogWrite';
 import { ChallengeBadgesScreen } from '@/features/record/screens/ChallengeBadges';
 import { MyProfileScreen } from '@/features/profile/screens/MyProfile';
@@ -55,6 +56,7 @@ export function RootNavigator() {
           <Stack.Screen name="MateProfile" component={MateProfileScreen} />
           <Stack.Screen name="ReceivedRequests" component={ReceivedRequestsScreen} />
           <Stack.Screen name="DiningHistory" component={DiningHistoryScreen} />
+          <Stack.Screen name="MyReviews" component={MyReviewsScreen} />
           <Stack.Screen name="ChallengeBadges" component={ChallengeBadgesScreen} />
           <Stack.Screen name="MyProfile" component={MyProfileScreen} />
           <Stack.Screen name="DiningLogWrite" component={DiningLogWriteScreen} options={{ presentation: 'modal' }} />

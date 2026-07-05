@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { createReview, updateReview, deleteReview, listPlaceReviews, fetchPlaceReviewSummary, fetchDiningHistory, fetchPlacePhotos, type CreateReviewBody, type UpdateReviewBody } from './api';
+import { createReview, updateReview, deleteReview, listPlaceReviews, fetchPlaceReviewSummary, fetchDiningHistory, fetchMyReviews, fetchPlacePhotos, type CreateReviewBody, type UpdateReviewBody } from './api';
 
 export function usePlaceReviews(placeId: number) {
   return useQuery({
@@ -22,6 +22,10 @@ export function useDiningHistory() {
   });
 }
 
+export function useMyReviews() {
+  return useQuery({ queryKey: ['review', 'mine'], queryFn: fetchMyReviews });
+}
+
 export function useCreateReview() {
   const qc = useQueryClient();
   return useMutation({
@@ -29,6 +33,7 @@ export function useCreateReview() {
     onSuccess: (_res, body) => {
       qc.invalidateQueries({ queryKey: ['place', body.placeId] }); // 상세·리뷰·집계 함께
       qc.invalidateQueries({ queryKey: ['review', 'diningHistory'] });
+      qc.invalidateQueries({ queryKey: ['review', 'mine'] });
     },
   });
 }
@@ -40,6 +45,7 @@ export function useUpdateReview() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['place'] }); // 모든 식당 상세·리뷰·집계
       qc.invalidateQueries({ queryKey: ['review', 'diningHistory'] });
+      qc.invalidateQueries({ queryKey: ['review', 'mine'] });
     },
   });
 }
@@ -51,6 +57,7 @@ export function useDeleteReview() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['place'] });
       qc.invalidateQueries({ queryKey: ['review', 'diningHistory'] });
+      qc.invalidateQueries({ queryKey: ['review', 'mine'] });
     },
   });
 }

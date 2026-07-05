@@ -80,6 +80,22 @@ export const fetchPlaceReviewSummary = (placeId: number) =>
 
 export const fetchDiningHistory = () => apiGet<DiningHistory>('/users/me/dining-history');
 
+export type MyReview = {
+  reviewId: number;
+  placeId: number;
+  placeName: string;
+  visitedAt: string;
+  content: string | null;
+  tasteRating: number;
+  soloFriendlyRating: number;
+  tags: string[];
+  imageUrls: string[];
+  authenticated: boolean;
+  createdAt: string;
+};
+
+export const fetchMyReviews = () => apiGet<{ reviews: MyReview[] }>('/users/me/reviews');
+
 export type PlacePhoto = { photoUrl: string; reviewId: number };
 
 export const fetchPlacePhotos = (placeId: number) =>

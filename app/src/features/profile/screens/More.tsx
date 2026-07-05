@@ -16,6 +16,7 @@ import { BellButton } from '@/features/notifications/BellButton';
 type MenuRoute =
   | 'ReceivedRequests'
   | 'DiningHistory'
+  | 'MyReviews'
   | 'ChallengeBadges'
   | 'BlockReport'
   | 'NotificationSettings'
@@ -29,6 +30,7 @@ const SECTIONS: Section[] = [
     title: '나의 혼밥',
     items: [
       { l: '내 혼밥 기록', icon: 'book', route: 'DiningHistory' },
+      { l: '내가 쓴 리뷰', icon: 'note', route: 'MyReviews' },
       { l: '혼밥 챌린지 · 뱃지', d: '획득 7 / 20', icon: 'badge', accent: true, route: 'ChallengeBadges' },
     ],
   },
