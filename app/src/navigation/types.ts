@@ -32,6 +32,7 @@ export type RootStackParamList = {
   Notices: undefined;
   BlockReport: undefined;
   Support: undefined;
+  ReportForm: { targetType: 'USER' | 'REVIEW'; targetId: number; targetNickname: string };
 };
 
 export type MainTabParamList = {

@@ -25,6 +25,7 @@ import { NotificationsScreen } from '@/features/notifications/screens/Notificati
 import { NoticesScreen } from '@/features/settings/screens/Notices';
 import { BlockReportScreen } from '@/features/settings/screens/BlockReport';
 import { SupportScreen } from '@/features/settings/screens/Support';
+import { ReportFormScreen } from '@/features/safety/screens/ReportForm';
 import { MainTabs } from './MainTabs';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -62,6 +63,7 @@ export function RootNavigator() {
           <Stack.Screen name="Notifications" component={NotificationsScreen} />
           <Stack.Screen name="Notices" component={NoticesScreen} />
           <Stack.Screen name="BlockReport" component={BlockReportScreen} />
+          <Stack.Screen name="ReportForm" component={ReportFormScreen} />
           <Stack.Screen name="Support" component={SupportScreen} />
         </>
       )}

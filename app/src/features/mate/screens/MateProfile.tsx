@@ -8,12 +8,40 @@ import type { RootStackScreenProps } from '@/navigation/types';
 import { useUserProfile, useSendMateRequest, useDeleteMate } from '@/features/mate/queries';
 import { mateErrorMessage } from '@/features/mate/mateCopy';
 import { ageGenderLabel } from '@/shared/format';
+import { useBlockUser } from '@/features/safety/queries';
 
 export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'MateProfile'>) {
   const { userId } = route.params;
   const { data: p, isLoading, isError } = useUserProfile(userId);
   const send = useSendMateRequest();
   const del = useDeleteMate();
+  const blockMut = useBlockUser();
+
+  const onKebab = () => {
+    const nickname = p?.nickname ?? '이 사용자';
+    Alert.alert(nickname, undefined, [
+      {
+        text: '신고하기',
+        onPress: () =>
+          navigation.navigate('ReportForm', { targetType: 'USER', targetId: userId, targetNickname: nickname }),
+      },
+      {
+        text: '차단하기',
+        style: 'destructive',
+        onPress: () =>
+          Alert.alert('차단', `${nickname}님을 차단할까요?\n서로의 프로필과 혼밥 현황이 보이지 않게 돼요.`, [
+            { text: '취소', style: 'cancel' },
+            {
+              text: '차단',
+              style: 'destructive',
+              // 차단하면 이 프로필 자체가 404가 되므로 목록으로 되돌아간다.
+              onPress: () => blockMut.mutate(userId, { onSuccess: () => navigation.goBack() }),
+            },
+          ]),
+      },
+      { text: '취소', style: 'cancel' },
+    ]);
+  };
 
   if (isLoading) {
     return (
@@ -61,13 +89,13 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
         <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.headerBtn}>
           <Icon name="chevronLeft" size={22} color={T2.text} />
         </Pressable>
-        <View style={styles.headerBtn}>
+        <Pressable onPress={onKebab} hitSlop={10} style={styles.headerBtn}>
           <View style={styles.dotsRow}>
             {[0, 1, 2].map((d) => (
               <View key={d} style={styles.dot} />
             ))}
           </View>
-        </View>
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
