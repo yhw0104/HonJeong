@@ -25,6 +25,7 @@ import com.honjeong.review.domain.Review;
 import com.honjeong.review.domain.ReviewPhoto;
 import com.honjeong.review.domain.SoloFriendlyTags;
 import com.honjeong.review.dto.DiningHistoryResponse;
+import com.honjeong.review.dto.MyReviewsResponse;
 import com.honjeong.review.dto.PlacePhotoResponse;
 import com.honjeong.review.dto.PlaceReviewResponse;
 import com.honjeong.review.dto.PlaceReviewSummaryResponse;
@@ -217,11 +218,35 @@ public class ReviewService {
         LocalDateTime monthStart = LocalDate.ofInstant(clock.instant(), KST).withDayOfMonth(1).atStartOfDay();
         DiningHistoryResponse.Summary summary = new DiningHistoryResponse.Summary(
                 checkInRepository.countByUser_IdAndStatusNot(userId, CheckInStatus.CANCELLED),
-                reviewRepository.countByUser_Id(userId),
+                reviewRepository.countByUser_IdAndCheckInIsNotNull(userId),  // 화면 목록(인증 일기만)과 기준 일치
                 checkInRepository.countDistinctPlacesByUser(userId),
                 checkInRepository.countByUserSince(userId, monthStart));
 
         return new DiningHistoryResponse(summary, entries);
+    }
+
+    /**
+     * 내가 쓴 리뷰 전체(인증+일반)를 작성 최신순으로 반환한다. '내가 쓴 리뷰' 화면용.
+     * 사진은 tags와의 MultipleBagFetch를 피해 별도 쿼리로 조립한다(getPlaceReviews와 동일 패턴).
+     *
+     * @param userId 회원 id
+     * @return 내 리뷰 목록
+     */
+    @Transactional(readOnly = true)
+    public MyReviewsResponse getMyReviews(Long userId) {
+        Map<Long, List<String>> photosByReview = reviewPhotoRepository.findByUserFlattened(userId).stream()
+                .collect(Collectors.groupingBy(
+                        ReviewPhotoRepository.ReviewPhotoRow::getReviewId,
+                        LinkedHashMap::new,
+                        Collectors.mapping(ReviewPhotoRepository.ReviewPhotoRow::getImageUrl, Collectors.toList())));
+        List<MyReviewsResponse.Item> items = reviewRepository.findAllByUserWithPlaceAndTags(userId).stream()
+                .map(r -> new MyReviewsResponse.Item(r.getId(), r.getPlace().getId(), r.getPlace().getName(),
+                        r.getVisitedAt(), r.getContent(), r.getTasteRating(), r.getSoloFriendlyRating(),
+                        r.getTags().stream().map(t -> t.getTag()).toList(),
+                        photosByReview.getOrDefault(r.getId(), List.of()),
+                        r.getCheckIn() != null, r.getCreatedAt()))
+                .toList();
+        return new MyReviewsResponse(items);
     }
 
     private LocalDateTime now() {

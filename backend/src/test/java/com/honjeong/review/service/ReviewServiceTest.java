@@ -29,6 +29,7 @@ import com.honjeong.place.domain.Place;
 import com.honjeong.place.service.PlaceService;
 import com.honjeong.review.domain.Review;
 import com.honjeong.review.domain.ReviewPhoto;
+import com.honjeong.review.dto.MyReviewsResponse;
 import com.honjeong.review.dto.PlacePhotoResponse;
 import com.honjeong.review.dto.PlaceReviewResponse;
 import com.honjeong.review.dto.PlaceReviewSummaryResponse;
@@ -232,7 +233,7 @@ class ReviewServiceTest {
         when(checkInRepository.findHistoryWithPlaceByUser(1L)).thenReturn(java.util.List.of(c1, c2));
         when(reviewRepository.findByUserWithCheckIn(1L)).thenReturn(java.util.List.of(r1));
         when(checkInRepository.countByUser_IdAndStatusNot(1L, com.honjeong.checkin.domain.CheckInStatus.CANCELLED)).thenReturn(5L);
-        when(reviewRepository.countByUser_Id(1L)).thenReturn(3L);
+        when(reviewRepository.countByUser_IdAndCheckInIsNotNull(1L)).thenReturn(3L);
         when(checkInRepository.countDistinctPlacesByUser(1L)).thenReturn(2L);
         when(checkInRepository.countByUserSince(org.mockito.ArgumentMatchers.eq(1L), any())).thenReturn(4L);
 
@@ -492,7 +493,7 @@ class ReviewServiceTest {
         when(checkInRepository.findHistoryWithPlaceByUser(1L)).thenReturn(List.of(c1));
         when(reviewRepository.findByUserWithCheckIn(1L)).thenReturn(List.of(r1));
         when(checkInRepository.countByUser_IdAndStatusNot(1L, com.honjeong.checkin.domain.CheckInStatus.CANCELLED)).thenReturn(1L);
-        when(reviewRepository.countByUser_Id(1L)).thenReturn(1L);
+        when(reviewRepository.countByUser_IdAndCheckInIsNotNull(1L)).thenReturn(1L);
         when(checkInRepository.countDistinctPlacesByUser(1L)).thenReturn(1L);
         when(checkInRepository.countByUserSince(org.mockito.ArgumentMatchers.eq(1L), any())).thenReturn(1L);
 
@@ -502,6 +503,97 @@ class ReviewServiceTest {
         // then
         assertThat(res.entries().get(0).review().imageUrls())
                 .containsExactly("https://example.com/photo.jpg");
+    }
+
+    @Test
+    @DisplayName("내 리뷰 전체: 인증 플래그·사진 조립·작성순 유지")
+    void getMyReviews_mapsAuthenticatedAndPhotos() {
+        // given: 일반 리뷰(checkIn null)와 인증 리뷰(checkIn 연결) 2건 — 스텁 순서(일반 먼저)가 응답 순서
+        Place generalPlace = place(3L);
+        when(generalPlace.getName()).thenReturn("국밥집");
+        Review general = mock(Review.class);
+        when(general.getId()).thenReturn(1L);
+        when(general.getPlace()).thenReturn(generalPlace);
+        when(general.getVisitedAt()).thenReturn(LocalDateTime.of(2026, 6, 25, 12, 0));
+        when(general.getContent()).thenReturn("무난했다");
+        when(general.getTasteRating()).thenReturn(4);
+        when(general.getSoloFriendlyRating()).thenReturn(3);
+        when(general.getTags()).thenReturn(List.of());
+        when(general.getCheckIn()).thenReturn(null);
+        when(general.getCreatedAt()).thenReturn(LocalDateTime.of(2026, 6, 25, 12, 0));
+
+        Place authPlace = place(4L);
+        when(authPlace.getName()).thenReturn("혼밥맛집");
+        CheckIn linkedCheckIn = mock(CheckIn.class);
+        Review authenticated = mock(Review.class);
+        when(authenticated.getId()).thenReturn(2L);
+        when(authenticated.getPlace()).thenReturn(authPlace);
+        when(authenticated.getVisitedAt()).thenReturn(LocalDateTime.of(2026, 6, 24, 12, 0));
+        when(authenticated.getContent()).thenReturn("혼밥 인증 완료");
+        when(authenticated.getTasteRating()).thenReturn(5);
+        when(authenticated.getSoloFriendlyRating()).thenReturn(5);
+        when(authenticated.getTags()).thenReturn(List.of());
+        when(authenticated.getCheckIn()).thenReturn(linkedCheckIn);
+        when(authenticated.getCreatedAt()).thenReturn(LocalDateTime.of(2026, 6, 24, 12, 0));
+
+        ReviewPhotoRepository.ReviewPhotoRow row = rowOf(2L, "http://img/1.jpg");
+        when(reviewRepository.findAllByUserWithPlaceAndTags(1L)).thenReturn(List.of(general, authenticated));
+        when(reviewPhotoRepository.findByUserFlattened(1L)).thenReturn(List.of(row));
+
+        var res = service.getMyReviews(1L);
+
+        assertThat(res.reviews()).hasSize(2);
+        assertThat(res.reviews().get(0).authenticated()).isFalse();  // 스텁 순서 유지(일반 먼저)
+        assertThat(res.reviews().get(1).authenticated()).isTrue();
+        assertThat(res.reviews().get(1).imageUrls()).containsExactly("http://img/1.jpg");
+        assertThat(res.reviews().get(0).imageUrls()).isEmpty();
+        assertThat(res.reviews().get(0).placeName()).isEqualTo("국밥집");
+    }
+
+    @Test
+    @DisplayName("내 리뷰 없음 → 빈 목록")
+    void getMyReviews_empty() {
+        when(reviewRepository.findAllByUserWithPlaceAndTags(1L)).thenReturn(List.of());
+        when(reviewPhotoRepository.findByUserFlattened(1L)).thenReturn(List.of());
+        assertThat(service.getMyReviews(1L).reviews()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("혼밥 기록 요약의 일기 수는 인증 리뷰만 센다")
+    void getDiningHistory_summaryCountsOnlyAuthenticatedReviews() {
+        // given: 기존 getDiningHistory 해피패스(diningHistory_joinsReviewsToCheckIns)와 동일 셋업
+        Place p3 = place(3L);
+        CheckIn c1 = mock(CheckIn.class);
+        when(c1.getId()).thenReturn(10L);
+        when(c1.getPlace()).thenReturn(p3);
+        when(c1.getStartedAt()).thenReturn(LocalDateTime.of(2026, 6, 25, 11, 0));
+        when(c1.getStatus()).thenReturn(com.honjeong.checkin.domain.CheckInStatus.ENDED);
+        when(p3.getName()).thenReturn("큰순두부");
+        CheckIn c2 = mock(CheckIn.class);
+        when(c2.getId()).thenReturn(8L);
+        when(c2.getPlace()).thenReturn(p3);
+        when(c2.getStartedAt()).thenReturn(LocalDateTime.of(2026, 6, 24, 11, 0));
+        when(c2.getStatus()).thenReturn(com.honjeong.checkin.domain.CheckInStatus.ENDED);
+
+        Review r1 = mock(Review.class);
+        when(r1.getId()).thenReturn(42L);
+        when(r1.getCheckIn()).thenReturn(c1);
+        when(r1.getContent()).thenReturn("편히");
+        when(r1.getTasteRating()).thenReturn(5);
+        when(r1.getSoloFriendlyRating()).thenReturn(4);
+        when(r1.getTags()).thenReturn(List.of());
+
+        when(checkInRepository.findHistoryWithPlaceByUser(1L)).thenReturn(List.of(c1, c2));
+        when(reviewRepository.findByUserWithCheckIn(1L)).thenReturn(List.of(r1));
+        when(checkInRepository.countByUser_IdAndStatusNot(1L, com.honjeong.checkin.domain.CheckInStatus.CANCELLED)).thenReturn(5L);
+        when(reviewRepository.countByUser_IdAndCheckInIsNotNull(1L)).thenReturn(2L);
+        when(checkInRepository.countDistinctPlacesByUser(1L)).thenReturn(2L);
+        when(checkInRepository.countByUserSince(org.mockito.ArgumentMatchers.eq(1L), any())).thenReturn(4L);
+
+        var res = service.getDiningHistory(1L);
+
+        assertThat(res.summary().totalReviews()).isEqualTo(2L);
+        verify(reviewRepository, never()).countByUser_Id(org.mockito.ArgumentMatchers.anyLong());
     }
 
     private static Long eqL(long v) { return org.mockito.ArgumentMatchers.eq(v); }
