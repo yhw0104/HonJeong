@@ -108,6 +108,8 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
       reviewId: r.reviewId,
       initial: { taste: r.tasteRating, honbab: r.soloFriendlyRating, tags: r.tags, content: r.content ?? '', photos: r.imageUrls },
     });
+  const reportReview = (r: PlaceReview) =>
+    navigation.navigate('ReportForm', { targetType: 'REVIEW', targetId: r.reviewId, targetNickname: r.user.nickname });
 
   const copy = async () => {
     await Clipboard.setStringAsync(fullAddr); // 전체 주소(시·도 포함)를 복사
@@ -199,6 +201,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
               onWrite={() => navigation.navigate('DiningLogWrite', { placeId, placeName: name })}
               onEdit={editReview}
               onDelete={confirmDelete}
+              onReport={reportReview}
             />
           )}
           {stab === 'photo' && <PhotoTab placeId={placeId} />}
@@ -427,10 +430,10 @@ function MenuTab() {
 }
 
 /* ── 리뷰 탭 ─────────────────────────────────────── */
-function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete }: {
+function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete, onReport }: {
   reviews: PlaceReview[];
   isLoading: boolean; isError: boolean; onWrite: () => void;
-  onEdit: (r: PlaceReview) => void; onDelete: (reviewId: number) => void;
+  onEdit: (r: PlaceReview) => void; onDelete: (reviewId: number) => void; onReport: (r: PlaceReview) => void;
 }) {
   return (
     <View style={{ marginTop: 4 }}>
@@ -457,6 +460,11 @@ function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete }: {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 14, fontWeight: '700', color: T2.text }}>{r.user.nickname}</Text>
               {r.authenticated ? <Text style={{ fontSize: 11, color: T2.brand }}>✔ 인증</Text> : null}
+              {!r.mine && (
+                <Pressable hitSlop={8} style={{ marginLeft: 'auto' }} onPress={() => onReport(r)}>
+                  <Text style={styles.reviewReport}>신고</Text>
+                </Pressable>
+              )}
             </View>
             {r.content ? <Text style={{ marginTop: 6, color: T2.textSub, lineHeight: 20 }}>{r.content}</Text> : null}
             {(r.imageUrls?.length ?? 0) > 0 && (
@@ -811,6 +819,7 @@ const styles = StyleSheet.create({
 
   reviewCard: { paddingBottom: 22, marginBottom: 22 },
   reviewDivider: { borderBottomWidth: 1, borderBottomColor: T2.border },
+  reviewReport: { fontSize: 12, color: T2.textMute, letterSpacing: -0.2 },
   heroCounter: { position: 'absolute', right: 12, bottom: 12, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   heroCounterText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
