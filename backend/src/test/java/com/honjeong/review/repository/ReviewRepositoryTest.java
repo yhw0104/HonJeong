@@ -217,6 +217,58 @@ class ReviewRepositoryTest extends AbstractPostgresTest {
         assertThat(again.getPhotos()).extracting(ReviewPhoto::getImageUrl).containsExactly("only");
     }
 
+    @Test
+    @DisplayName("내 리뷰 전체: 인증+일반 모두, 작성 최신순, 타 유저 제외")
+    void findAllByUserWithPlaceAndTags_allMineNewestFirst() {
+        // given: userA의 인증 리뷰 1(체크인 연결, 먼저 저장)·일반 리뷰 1(checkIn null, 나중에 저장돼 createdAt이 더 최근), userB의 리뷰 1
+        User userA = persistUser("01000000040", "복합러");
+        User userB = persistUser("01000000041", "타인러");
+        Place place = persistPlace("ext-mine");
+        CheckIn checkIn = persistCheckIn(userA, place);
+
+        Review authenticated = Review.create(userA, checkIn, place, NOW, 5, 5, "인증 리뷰");
+        authenticated.addTag(place, "1인석 많음");
+        em.persist(authenticated);
+        em.flush();
+
+        Review general = Review.create(userA, null, place, NOW.plusHours(1), 4, 4, "일반 리뷰");
+        em.persist(general);
+        em.flush();
+
+        Review others = Review.create(userB, null, place, NOW, 3, 3, "타인 리뷰");
+        em.persist(others);
+        em.flush();
+        em.clear();
+
+        List<Review> result = reviewRepository.findAllByUserWithPlaceAndTags(userA.getId());
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getCheckIn()).isNull();      // 일반(최근 작성)이 먼저
+        assertThat(result.get(1).getCheckIn()).isNotNull();   // 인증이 다음
+        assertThat(result.get(0).getPlace().getName()).isNotNull(); // place 로딩 확인
+    }
+
+    @Test
+    @DisplayName("인증 리뷰 카운트: checkIn 연결된 것만")
+    void countByUser_IdAndCheckInIsNotNull_countsOnlyAuthenticated() {
+        // given: userA의 인증 리뷰 1(체크인 연결)·일반 리뷰 1(checkIn null), userB의 리뷰 1
+        User userA = persistUser("01000000042", "복합러2");
+        User userB = persistUser("01000000043", "타인러2");
+        Place place = persistPlace("ext-mine-count");
+        CheckIn checkIn = persistCheckIn(userA, place);
+
+        Review authenticated = Review.create(userA, checkIn, place, NOW, 5, 5, "인증 리뷰");
+        em.persist(authenticated);
+        Review general = Review.create(userA, null, place, NOW, 4, 4, "일반 리뷰");
+        em.persist(general);
+        Review others = Review.create(userB, null, place, NOW, 3, 3, "타인 리뷰");
+        em.persist(others);
+        em.flush();
+        em.clear();
+
+        assertThat(reviewRepository.countByUser_IdAndCheckInIsNotNull(userA.getId())).isEqualTo(1L);
+    }
+
     // --- helpers (MealRequestRepositoryTest와 동일 도메인 팩토리 사용) ---
     private User persistUser(String phone, String nickname) {
         User u = User.pending(phone, null);

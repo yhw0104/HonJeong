@@ -50,6 +50,31 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Review> findByUserWithCheckIn(@Param("userId") Long userId);
 
     /**
+     * 사용자의 전체 리뷰(인증+일반)를 작성 최신순으로 조회한다. '내가 쓴 리뷰' 화면용.
+     * place는 fetch join, tags는 left fetch join(사진은 MultipleBagFetch 회피를 위해 별도 쿼리).
+     *
+     * @param userId 회원 id
+     * @return 내 리뷰 목록(place·tags 로딩됨, createdAt DESC)
+     */
+    @Query("""
+            SELECT DISTINCT r FROM Review r
+            JOIN FETCH r.place
+            LEFT JOIN FETCH r.tags
+            WHERE r.user.id = :userId
+            ORDER BY r.createdAt DESC
+            """)
+    List<Review> findAllByUserWithPlaceAndTags(@Param("userId") Long userId);
+
+    /**
+     * 사용자의 인증 리뷰 수(checkIn 연결된 것만). '내 혼밥 기록' 요약 "일기 N"용 —
+     * 그 화면 목록이 인증 일기만 노출하므로 카운트 기준을 일치시킨다.
+     *
+     * @param userId 회원 id
+     * @return 인증 리뷰 건수
+     */
+    long countByUser_IdAndCheckInIsNotNull(Long userId);
+
+    /**
      * 사용자의 전체 리뷰 수.
      *
      * @param userId 회원 id

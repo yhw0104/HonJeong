@@ -73,6 +73,34 @@ class ReviewPhotoRepositoryTest extends AbstractPostgresTest {
         assertThat(rows).isEmpty();
     }
 
+    @Test
+    @DisplayName("내 리뷰 사진 평탄화: 내 리뷰의 사진만, 리뷰 최신순+sortOrder")
+    void findByUserFlattened_onlyMine() {
+        // given: userA 리뷰에 사진 2장(sortOrder 0·1), userB 리뷰에 사진 1장
+        User userA = persistUser("01000000040", "내사진러");
+        User userB = persistUser("01000000041", "타인사진러");
+        Place place = persistPlace("ext-user-photo-flat");
+
+        Review reviewA = Review.create(userA, null, place, LocalDateTime.of(2026, 6, 25, 12, 0), 5, 5, "userA 리뷰");
+        reviewA.replacePhotos(List.of("a1", "a2"));
+        em.persist(reviewA);
+
+        Review reviewB = Review.create(userB, null, place, LocalDateTime.of(2026, 6, 25, 12, 0), 4, 4, "userB 리뷰");
+        reviewB.replacePhotos(List.of("b1"));
+        em.persist(reviewB);
+
+        em.flush();
+        em.clear();
+
+        // when
+        List<ReviewPhotoRow> rows = reviewPhotoRepository.findByUserFlattened(userA.getId());
+
+        // then: userB 사진은 제외, userA 사진만 sortOrder 순으로
+        assertThat(rows).hasSize(2);
+        assertThat(rows.get(0).getReviewId()).isEqualTo(reviewA.getId());
+        assertThat(rows).extracting(ReviewPhotoRow::getImageUrl).containsExactly("a1", "a2");
+    }
+
     // --- helpers ---
     private User persistUser(String phone, String nickname) {
         User u = User.pending(phone, null);
