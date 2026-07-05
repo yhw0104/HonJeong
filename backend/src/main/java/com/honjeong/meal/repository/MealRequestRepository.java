@@ -34,10 +34,12 @@ public interface MealRequestRepository extends JpaRepository<MealRequest, Long> 
 
     /**
      * 내가 수신자인(toCheckIn.user = me) 신청 목록. status가 null이면 전체. fromUser·toCheckIn.user·place를 fetch join. createdAt 내림차순.
+     * 차단 관계(양방향) 상대(fromUser=신청자)의 신청은 상호 은닉을 위해 제외한다(FR-108).
      *
-     * @param userId 수신자(나) id
-     * @param status 상태 필터(null이면 전체)
-     * @return 받은 신청 목록
+     * @param userId          수신자(나) id
+     * @param status          상태 필터(null이면 전체)
+     * @param excludedUserIds 제외할 신청자 id 목록(차단 상호 은닉용, 항상 non-empty)
+     * @return 받은 신청 목록(제외 대상 제외)
      */
     @Query("""
             SELECT mr FROM MealRequest mr
@@ -47,16 +49,20 @@ public interface MealRequestRepository extends JpaRepository<MealRequest, Long> 
             JOIN FETCH mr.place
             WHERE ci.user.id = :userId
               AND (:status IS NULL OR mr.status = :status)
+              AND mr.fromUser.id NOT IN :excludedUserIds
             ORDER BY mr.createdAt DESC
             """)
-    List<MealRequest> findReceived(@Param("userId") Long userId, @Param("status") MealRequestStatus status);
+    List<MealRequest> findReceived(@Param("userId") Long userId, @Param("status") MealRequestStatus status,
+            @Param("excludedUserIds") List<Long> excludedUserIds);
 
     /**
      * 내가 신청자인(fromUser = me) 신청 목록. status가 null이면 전체. fromUser·toCheckIn.user·place를 fetch join. createdAt 내림차순.
+     * 차단 관계(양방향) 상대(toCheckIn.user=수신자)로 보낸 신청은 상호 은닉을 위해 제외한다(FR-108).
      *
-     * @param userId 신청자(나) id
-     * @param status 상태 필터(null이면 전체)
-     * @return 보낸 신청 목록
+     * @param userId          신청자(나) id
+     * @param status          상태 필터(null이면 전체)
+     * @param excludedUserIds 제외할 수신자 id 목록(차단 상호 은닉용, 항상 non-empty)
+     * @return 보낸 신청 목록(제외 대상 제외)
      */
     @Query("""
             SELECT mr FROM MealRequest mr
@@ -66,9 +72,11 @@ public interface MealRequestRepository extends JpaRepository<MealRequest, Long> 
             JOIN FETCH mr.place
             WHERE mr.fromUser.id = :userId
               AND (:status IS NULL OR mr.status = :status)
+              AND ci.user.id NOT IN :excludedUserIds
             ORDER BY mr.createdAt DESC
             """)
-    List<MealRequest> findSent(@Param("userId") Long userId, @Param("status") MealRequestStatus status);
+    List<MealRequest> findSent(@Param("userId") Long userId, @Param("status") MealRequestStatus status,
+            @Param("excludedUserIds") List<Long> excludedUserIds);
 
     /** 같은 대상 체크인으로 온 나머지 PENDING 신청을 일괄 DECLINED 처리한다(수락 시 정리). exceptId=방금 수락한 신청. */
     @Modifying

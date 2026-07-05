@@ -89,16 +89,20 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
 
     /**
      * 식당의 현재 ACTIVE 체크인을 startedAt 오름차순으로 조회한다. 닉네임을 위해 user를 fetch join한다(N+1 방지).
+     * 차단 관계(양방향) 유저는 상호 은닉하기 위해 {@code excludedUserIds}로 걸러낸다(FR-108).
      *
-     * @param placeId 식당 id
-     * @return ACTIVE 체크인 목록(user 로딩됨)
+     * @param placeId         식당 id
+     * @param excludedUserIds 제외할 사용자 id 목록(차단 상호 은닉용, 항상 non-empty — 빈 IN 방지는 호출 측 책임)
+     * @return ACTIVE 체크인 목록(user 로딩됨, 제외 대상 제외)
      */
     @Query("""
             SELECT c FROM CheckIn c JOIN FETCH c.user
             WHERE c.place.id = :placeId AND c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE
+              AND c.user.id NOT IN :excludedUserIds
             ORDER BY c.startedAt
             """)
-    List<CheckIn> findActiveWithUserByPlace(@Param("placeId") Long placeId);
+    List<CheckIn> findActiveWithUserByPlace(@Param("placeId") Long placeId,
+            @Param("excludedUserIds") List<Long> excludedUserIds);
 
     /**
      * 주어진 장소 ID 목록에 대해 현재 ACTIVE 체크인 수를 장소별로 집계한다.

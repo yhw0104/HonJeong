@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.honjeong.checkin.dto.CheckInUserResponse;
 import com.honjeong.checkin.service.CheckInService;
 import com.honjeong.global.common.ApiResponse;
+import com.honjeong.global.security.CurrentUserId;
 
 /**
  * 식당별 혼밥러 목록 엔드포인트(/api/places/{placeId}/check-ins). 경로가 places 네임스페이스라
@@ -25,9 +26,10 @@ public class PlaceCheckInController {
         this.checkInService = checkInService;
     }
 
-    /** 같은 식당 현재 혼밥러 목록(프라이버시: 닉네임·경과만). */
+    /** 같은 식당 현재 혼밥러 목록(프라이버시: 닉네임·경과만, 차단 상대는 상호 은닉). */
     @GetMapping("/{placeId}/check-ins")
-    public ApiResponse<List<CheckInUserResponse>> activeDiners(@PathVariable Long placeId) {
-        return ApiResponse.success(checkInService.getActiveDiners(placeId));
+    public ApiResponse<List<CheckInUserResponse>> activeDiners(@CurrentUserId Long userId,
+            @PathVariable Long placeId) {
+        return ApiResponse.success(checkInService.getActiveDiners(userId, placeId));
     }
 }

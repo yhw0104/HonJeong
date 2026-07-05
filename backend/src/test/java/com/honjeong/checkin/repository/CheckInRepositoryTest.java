@@ -149,11 +149,43 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         em.flush();
         em.clear(); // fetch join 실제 동작 확인(영속성 컨텍스트 비움)
 
-        var diners = checkInRepository.findActiveWithUserByPlace(place.getId());
+        var diners = checkInRepository.findActiveWithUserByPlace(place.getId(), List.of(-1L));
 
         assertThat(diners).hasSize(2);
         assertThat(diners.get(0).getUser().getNickname()).isEqualTo("먼저온사람");
         assertThat(diners.get(1).getUser().getNickname()).isEqualTo("나중온사람");
+    }
+
+    @Test
+    @DisplayName("혼밥러 목록: 제외 id 목록의 유저는 빠진다")
+    void findActiveWithUserByPlace_excludesBlocked() {
+        User userA = persistUser("01000000001", "A");
+        User userB = persistUser("01000000002", "B");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        em.persist(CheckIn.start(userA, place, NOW));
+        em.persist(CheckIn.start(userB, place, NOW.plusMinutes(1)));
+        em.flush();
+        em.clear();
+
+        List<CheckIn> result = checkInRepository.findActiveWithUserByPlace(place.getId(), List.of(userB.getId()));
+
+        assertThat(result).extracting(c -> c.getUser().getId()).containsExactly(userA.getId());
+    }
+
+    @Test
+    @DisplayName("혼밥러 목록: 센티널(-1)만 있으면 전원 노출")
+    void findActiveWithUserByPlace_sentinelShowsAll() {
+        User userA = persistUser("01000000001", "A");
+        User userB = persistUser("01000000002", "B");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        em.persist(CheckIn.start(userA, place, NOW));
+        em.persist(CheckIn.start(userB, place, NOW.plusMinutes(1)));
+        em.flush();
+        em.clear();
+
+        List<CheckIn> result = checkInRepository.findActiveWithUserByPlace(place.getId(), List.of(-1L));
+
+        assertThat(result).hasSize(2);
     }
 
     @Test

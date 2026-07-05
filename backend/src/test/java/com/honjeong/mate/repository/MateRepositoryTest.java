@@ -3,6 +3,7 @@ package com.honjeong.mate.repository;
 import static org.assertj.core.api.Assertions.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -76,10 +77,45 @@ class MateRepositoryTest extends AbstractPostgresTest {
         em.clear();
 
         // status=null 바인딩: 두 상태 모두 반환되어야 JPQL null 경로 정상.
-        assertThat(mateRequestRepository.findReceived(to.getId(), null)).hasSize(2);
-        assertThat(mateRequestRepository.findReceived(to.getId(), MateRequestStatus.PENDING)).hasSize(1);
-        assertThat(mateRequestRepository.findReceived(to.getId(), MateRequestStatus.DECLINED)).hasSize(1);
-        assertThat(mateRequestRepository.findReceived(to.getId(), MateRequestStatus.CANCELED)).isEmpty();
+        assertThat(mateRequestRepository.findReceived(to.getId(), null, List.of(-1L))).hasSize(2);
+        assertThat(mateRequestRepository.findReceived(to.getId(), MateRequestStatus.PENDING, List.of(-1L)))
+                .hasSize(1);
+        assertThat(mateRequestRepository.findReceived(to.getId(), MateRequestStatus.DECLINED, List.of(-1L)))
+                .hasSize(1);
+        assertThat(mateRequestRepository.findReceived(to.getId(), MateRequestStatus.CANCELED, List.of(-1L)))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("findReceived: 제외 id 목록의 fromUser(신청자)는 빠진다")
+    void findReceived_excludesBlocked() {
+        User from = persistUser("01000000001", "신청자");
+        User blockedFrom = persistUser("01000000004", "차단된신청자");
+        User to = persistUser("01000000002", "나");
+        em.persist(MateRequest.create(from, to, NOW));
+        em.persist(MateRequest.create(blockedFrom, to, NOW));
+        em.flush();
+        em.clear();
+
+        List<MateRequest> received = mateRequestRepository.findReceived(to.getId(), null,
+                List.of(blockedFrom.getId()));
+
+        assertThat(received).hasSize(1);
+        assertThat(received.get(0).getFromUser().getNickname()).isEqualTo("신청자");
+    }
+
+    @Test
+    @DisplayName("findReceived: 센티널(-1)만 있으면 전원 노출")
+    void findReceived_sentinelShowsAll() {
+        User from = persistUser("01000000001", "신청자");
+        User other = persistUser("01000000004", "다른신청자");
+        User to = persistUser("01000000002", "나");
+        em.persist(MateRequest.create(from, to, NOW));
+        em.persist(MateRequest.create(other, to, NOW));
+        em.flush();
+        em.clear();
+
+        assertThat(mateRequestRepository.findReceived(to.getId(), null, List.of(-1L))).hasSize(2);
     }
 
     @Test
@@ -94,8 +130,65 @@ class MateRepositoryTest extends AbstractPostgresTest {
         em.flush();
         em.clear();
 
-        assertThat(mateRequestRepository.findSent(me.getId(), null)).hasSize(2);
-        assertThat(mateRequestRepository.findSent(me.getId(), MateRequestStatus.PENDING)).hasSize(1);
+        assertThat(mateRequestRepository.findSent(me.getId(), null, List.of(-1L))).hasSize(2);
+        assertThat(mateRequestRepository.findSent(me.getId(), MateRequestStatus.PENDING, List.of(-1L))).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("findSent: 제외 id 목록의 toUser(상대)에게 보낸 신청은 빠진다")
+    void findSent_excludesBlocked() {
+        User me = persistUser("01000000001", "나");
+        User to = persistUser("01000000002", "대상");
+        User blockedTo = persistUser("01000000003", "차단된대상");
+        em.persist(MateRequest.create(me, to, NOW));
+        em.persist(MateRequest.create(me, blockedTo, NOW));
+        em.flush();
+        em.clear();
+
+        List<MateRequest> sent = mateRequestRepository.findSent(me.getId(), null, List.of(blockedTo.getId()));
+
+        assertThat(sent).hasSize(1);
+        assertThat(sent.get(0).getToUser().getNickname()).isEqualTo("대상");
+    }
+
+    @Test
+    @DisplayName("findSent: 센티널(-1)만 있으면 전원 노출")
+    void findSent_sentinelShowsAll() {
+        User me = persistUser("01000000001", "나");
+        User to = persistUser("01000000002", "대상");
+        User to2 = persistUser("01000000003", "대상2");
+        em.persist(MateRequest.create(me, to, NOW));
+        em.persist(MateRequest.create(me, to2, NOW));
+        em.flush();
+        em.clear();
+
+        assertThat(mateRequestRepository.findSent(me.getId(), null, List.of(-1L))).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("resolvePendingBetween: from→to 방향 PENDING만 지정 status로 바뀌고, 역방향·non-PENDING은 불변")
+    void resolvePendingBetween_updatesOnlyForwardPending() {
+        User a = persistUser("01000000001", "A");
+        User b = persistUser("01000000002", "B");
+        MateRequest forwardPending = em.persist(MateRequest.create(a, b, NOW));      // a→b PENDING(대상)
+        MateRequest forwardAccepted = MateRequest.create(a, b, NOW);
+        forwardAccepted.accept(NOW.plusMinutes(1));
+        em.persist(forwardAccepted);                                                 // a→b ACCEPTED(불변 확인용)
+        MateRequest backwardPending = em.persist(MateRequest.create(b, a, NOW));     // b→a PENDING(역방향, 불변)
+        em.flush();
+        em.clear(); // 벌크 @Modifying 후 1차 캐시 stale 방지(findById 재조회 보장)
+
+        int updated = mateRequestRepository.resolvePendingBetween(
+                a.getId(), b.getId(), MateRequestStatus.CANCELED, NOW.plusMinutes(5));
+
+        assertThat(updated).isEqualTo(1);
+        em.clear();
+        assertThat(mateRequestRepository.findById(forwardPending.getId()).orElseThrow().getStatus())
+                .isEqualTo(MateRequestStatus.CANCELED);
+        assertThat(mateRequestRepository.findById(forwardAccepted.getId()).orElseThrow().getStatus())
+                .isEqualTo(MateRequestStatus.ACCEPTED);
+        assertThat(mateRequestRepository.findById(backwardPending.getId()).orElseThrow().getStatus())
+                .isEqualTo(MateRequestStatus.PENDING);
     }
 
     @Test

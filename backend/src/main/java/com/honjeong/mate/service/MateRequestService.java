@@ -133,9 +133,11 @@ public class MateRequestService {
     public List<MateRequestListItemResponse> getMateRequests(Long userId, String role, String status) {
         boolean sent = parseRole(role);
         MateRequestStatus statusFilter = parseStatus(status);
+        // 차단 관계(양방향) 유저는 메이트 신청 목록에서 상호 은닉한다(FR-108).
+        List<Long> excluded = blockRepository.findExclusionIds(userId);
         List<MateRequest> result = sent
-                ? mateRequestRepository.findSent(userId, statusFilter)
-                : mateRequestRepository.findReceived(userId, statusFilter);
+                ? mateRequestRepository.findSent(userId, statusFilter, excluded)
+                : mateRequestRepository.findReceived(userId, statusFilter, excluded);
         return result.stream().map(MateRequestListItemResponse::from).toList();
     }
 

@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.dto.CheckInRequest;
@@ -48,11 +49,12 @@ class CheckInServiceTest {
     private final CheckInRepository checkInRepository = mock(CheckInRepository.class);
     private final PlaceService placeService = mock(PlaceService.class);
     private final UserRepository userRepository = mock(UserRepository.class);
+    private final BlockRepository blockRepository = mock(BlockRepository.class);
     // KST 12:00 = UTC 03:00 으로 고정. now()는 ofInstant(instant, KST) = 2026-06-15T12:00.
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneOffset.UTC);
     private final HonjeongCheckInProperties props = new HonjeongCheckInProperties(3, 300_000L, 3);
     private final CheckInService service =
-            new CheckInService(checkInRepository, placeService, userRepository, clock, props);
+            new CheckInService(checkInRepository, placeService, userRepository, blockRepository, clock, props);
 
     private final LocalDateTime nowKst = LocalDateTime.of(2026, 6, 15, 12, 0);
 
@@ -349,14 +351,31 @@ class CheckInServiceTest {
         when(user.getId()).thenReturn(5L);
         when(user.getNickname()).thenReturn("혼밥러");
         CheckIn ci = CheckIn.start(user, place(3L), nowKst.minusMinutes(15));
-        when(checkInRepository.findActiveWithUserByPlace(3L)).thenReturn(List.of(ci));
+        when(blockRepository.findExclusionIds(1L)).thenReturn(List.of(-1L));
+        when(checkInRepository.findActiveWithUserByPlace(3L, List.of(-1L))).thenReturn(List.of(ci));
 
-        var diners = service.getActiveDiners(3L);
+        var diners = service.getActiveDiners(1L, 3L);
 
         assertThat(diners).hasSize(1);
         assertThat(diners.get(0).userId()).isEqualTo(5L);
         assertThat(diners.get(0).nickname()).isEqualTo("혼밥러");
         assertThat(diners.get(0).elapsedMinutes()).isEqualTo(15L);
+    }
+
+    @Test
+    @DisplayName("getActiveDiners: 차단 상호 은닉 — blockRepository의 제외 id를 리포지토리에 그대로 전달한다")
+    void diners_passesExclusionIdsFromBlockRepository() {
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(5L);
+        when(user.getNickname()).thenReturn("혼밥러");
+        CheckIn ci = CheckIn.start(user, place(3L), nowKst.minusMinutes(15));
+        when(blockRepository.findExclusionIds(1L)).thenReturn(List.of(9L, 10L));
+        when(checkInRepository.findActiveWithUserByPlace(3L, List.of(9L, 10L))).thenReturn(List.of(ci));
+
+        var diners = service.getActiveDiners(1L, 3L);
+
+        assertThat(diners).hasSize(1);
+        verify(checkInRepository).findActiveWithUserByPlace(3L, List.of(9L, 10L));
     }
 
     @Test
@@ -378,7 +397,7 @@ class CheckInServiceTest {
         // 여기서는 ACTIVE→09:00, TOGETHER→07:00로 서로 다르게 만들어 스왑 시 반드시 실패하게 한다.
         HonjeongCheckInProperties props2 = new HonjeongCheckInProperties(3, 300_000L, 5);
         CheckInService service2 =
-                new CheckInService(checkInRepository, placeService, userRepository, clock, props2);
+                new CheckInService(checkInRepository, placeService, userRepository, blockRepository, clock, props2);
         when(checkInRepository.endActiveStartedBefore(any(), any())).thenReturn(2);
         when(checkInRepository.endTogetherMatchedBefore(any(), any())).thenReturn(1);
 

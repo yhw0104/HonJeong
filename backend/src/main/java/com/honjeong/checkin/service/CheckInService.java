@@ -13,6 +13,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.dto.CheckInRequest;
@@ -48,14 +49,17 @@ public class CheckInService {
     private final CheckInRepository checkInRepository;
     private final PlaceService placeService;
     private final UserRepository userRepository;
+    private final BlockRepository blockRepository;
     private final Clock clock;
     private final HonjeongCheckInProperties props;
 
     public CheckInService(CheckInRepository checkInRepository, PlaceService placeService,
-            UserRepository userRepository, Clock clock, HonjeongCheckInProperties props) {
+            UserRepository userRepository, BlockRepository blockRepository, Clock clock,
+            HonjeongCheckInProperties props) {
         this.checkInRepository = checkInRepository;
         this.placeService = placeService;
         this.userRepository = userRepository;
+        this.blockRepository = blockRepository;
         this.clock = clock;
         this.props = props;
     }
@@ -212,14 +216,17 @@ public class CheckInService {
 
     /**
      * 식당의 현재 혼밥러 목록을 반환한다. 경과분은 now−startedAt. 프라이버시상 닉네임·시작시각·경과만 노출한다.
+     * 차단 관계(양방향) 유저는 혼밥러 목록에서 상호 은닉한다(FR-108).
      *
-     * @param placeId 식당 id
-     * @return 현재 ACTIVE 혼밥러 목록(startedAt 오름차순)
+     * @param viewerId 조회하는 회원 id(차단 필터 기준)
+     * @param placeId  식당 id
+     * @return 현재 ACTIVE 혼밥러 목록(startedAt 오름차순, 차단 상대 제외)
      */
     @Transactional(readOnly = true)
-    public List<CheckInUserResponse> getActiveDiners(Long placeId) {
+    public List<CheckInUserResponse> getActiveDiners(Long viewerId, Long placeId) {
+        List<Long> excluded = blockRepository.findExclusionIds(viewerId);
         LocalDateTime now = now();
-        return checkInRepository.findActiveWithUserByPlace(placeId).stream()
+        return checkInRepository.findActiveWithUserByPlace(placeId, excluded).stream()
                 .map(c -> new CheckInUserResponse(
                         c.getId(),
                         c.getUser().getId(),

@@ -84,7 +84,7 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
         em.flush();
         em.clear();
 
-        List<MealRequest> received = mealRequestRepository.findReceived(me.getId(), null);
+        List<MealRequest> received = mealRequestRepository.findReceived(me.getId(), null, List.of(-1L));
 
         assertThat(received).hasSize(1);
         assertThat(received.get(0).getFromUser().getNickname()).isEqualTo("신청자");
@@ -92,6 +92,42 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
         assertThat(received.get(0).getPlace().getId()).isEqualTo(place.getId());
         assertThat(received.get(0).getPlace().getName()).isEqualTo("ext-1식당");
         assertThat(received.get(0).getToCheckIn().getUser().getNickname()).isEqualTo("나");
+    }
+
+    @Test
+    @DisplayName("findReceived: 제외 id 목록의 fromUser(신청자)는 빠진다")
+    void findReceived_excludesBlocked() {
+        User from = persistUser("01000000001", "신청자");
+        User blockedFrom = persistUser("01000000004", "차단된신청자");
+        User me = persistUser("01000000002", "나");
+        Place place = persistPlace("ext-1");
+        CheckIn myCheckIn = persistCheckIn(me, place);
+        em.persist(MealRequest.create(from, myCheckIn, place, "정상신청", NOW));
+        em.persist(MealRequest.create(blockedFrom, myCheckIn, place, "차단대상신청", NOW));
+        em.flush();
+        em.clear();
+
+        List<MealRequest> received = mealRequestRepository.findReceived(me.getId(), null,
+                List.of(blockedFrom.getId()));
+
+        assertThat(received).hasSize(1);
+        assertThat(received.get(0).getFromUser().getNickname()).isEqualTo("신청자");
+    }
+
+    @Test
+    @DisplayName("findReceived: 센티널(-1)만 있으면 전원 노출")
+    void findReceived_sentinelShowsAll() {
+        User from = persistUser("01000000001", "신청자");
+        User other = persistUser("01000000004", "다른신청자");
+        User me = persistUser("01000000002", "나");
+        Place place = persistPlace("ext-1");
+        CheckIn myCheckIn = persistCheckIn(me, place);
+        em.persist(MealRequest.create(from, myCheckIn, place, "정상신청", NOW));
+        em.persist(MealRequest.create(other, myCheckIn, place, "다른신청", NOW));
+        em.flush();
+        em.clear();
+
+        assertThat(mealRequestRepository.findReceived(me.getId(), null, List.of(-1L))).hasSize(2);
     }
 
     @Test
@@ -109,10 +145,13 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
         em.flush();
         em.clear();
 
-        assertThat(mealRequestRepository.findReceived(me.getId(), MealRequestStatus.PENDING)).hasSize(1);
-        assertThat(mealRequestRepository.findReceived(me.getId(), MealRequestStatus.ACCEPTED)).hasSize(1);
-        assertThat(mealRequestRepository.findReceived(me.getId(), MealRequestStatus.DECLINED)).isEmpty();
-        assertThat(mealRequestRepository.findReceived(me.getId(), null)).hasSize(2);
+        assertThat(mealRequestRepository.findReceived(me.getId(), MealRequestStatus.PENDING, List.of(-1L)))
+                .hasSize(1);
+        assertThat(mealRequestRepository.findReceived(me.getId(), MealRequestStatus.ACCEPTED, List.of(-1L)))
+                .hasSize(1);
+        assertThat(mealRequestRepository.findReceived(me.getId(), MealRequestStatus.DECLINED, List.of(-1L)))
+                .isEmpty();
+        assertThat(mealRequestRepository.findReceived(me.getId(), null, List.of(-1L))).hasSize(2);
     }
 
     @Test
@@ -128,12 +167,78 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
         em.flush();
         em.clear();
 
-        List<MealRequest> sent = mealRequestRepository.findSent(me.getId(), null);
+        List<MealRequest> sent = mealRequestRepository.findSent(me.getId(), null, List.of(-1L));
         assertThat(sent).hasSize(1);
         assertThat(sent.get(0).getFromUser().getNickname()).isEqualTo("나");
         assertThat(sent.get(0).getMessage()).isEqualTo("보낸신청");
         assertThat(sent.get(0).getPlace().getName()).isEqualTo("ext-1식당");
         assertThat(sent.get(0).getToCheckIn().getUser().getNickname()).isEqualTo("수신자");
+    }
+
+    @Test
+    @DisplayName("findSent: 제외 id 목록의 수신자(toCheckIn.user)에게 보낸 신청은 빠진다")
+    void findSent_excludesBlocked() {
+        User me = persistUser("01000000001", "나");
+        User to = persistUser("01000000002", "수신자");
+        User blockedTo = persistUser("01000000003", "차단된수신자");
+        Place place = persistPlace("ext-1");
+        CheckIn target = persistCheckIn(to, place);
+        CheckIn blockedTarget = persistCheckIn(blockedTo, place);
+        em.persist(MealRequest.create(me, target, place, "정상발신", NOW));
+        em.persist(MealRequest.create(me, blockedTarget, place, "차단대상발신", NOW));
+        em.flush();
+        em.clear();
+
+        List<MealRequest> sent = mealRequestRepository.findSent(me.getId(), null, List.of(blockedTo.getId()));
+
+        assertThat(sent).hasSize(1);
+        assertThat(sent.get(0).getToCheckIn().getUser().getNickname()).isEqualTo("수신자");
+    }
+
+    @Test
+    @DisplayName("findSent: 센티널(-1)만 있으면 전원 노출")
+    void findSent_sentinelShowsAll() {
+        User me = persistUser("01000000001", "나");
+        User to = persistUser("01000000002", "수신자");
+        User to2 = persistUser("01000000003", "수신자2");
+        Place place = persistPlace("ext-1");
+        CheckIn target = persistCheckIn(to, place);
+        CheckIn target2 = persistCheckIn(to2, place);
+        em.persist(MealRequest.create(me, target, place, "발신1", NOW));
+        em.persist(MealRequest.create(me, target2, place, "발신2", NOW));
+        em.flush();
+        em.clear();
+
+        assertThat(mealRequestRepository.findSent(me.getId(), null, List.of(-1L))).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("declinePendingBetween: 두 유저 사이 양방향 PENDING을 모두 DECLINED, 제3자는 불변")
+    void declinePendingBetween_bulkDeclines() {
+        User a = persistUser("01000000001", "A");
+        User b = persistUser("01000000002", "B");
+        User stranger = persistUser("01000000003", "제3자");
+        Place place = persistPlace("ext-1");
+        CheckIn aCheckIn = persistCheckIn(a, place);
+        CheckIn bCheckIn = persistCheckIn(b, place);
+
+        MealRequest aToB = em.persist(MealRequest.create(a, bCheckIn, place, "a->b", NOW));           // a→b PENDING
+        MealRequest bToA = em.persist(MealRequest.create(b, aCheckIn, place, "b->a", NOW));           // b→a PENDING
+        MealRequest strangerToA =
+                em.persist(MealRequest.create(stranger, aCheckIn, place, "제3자->a", NOW));           // 불변 대상
+        em.flush();
+        em.clear();
+
+        int updated = mealRequestRepository.declinePendingBetween(a.getId(), b.getId(), NOW.plusMinutes(5));
+
+        assertThat(updated).isEqualTo(2);
+        em.clear();
+        assertThat(mealRequestRepository.findById(aToB.getId()).orElseThrow().getStatus())
+                .isEqualTo(MealRequestStatus.DECLINED);
+        assertThat(mealRequestRepository.findById(bToA.getId()).orElseThrow().getStatus())
+                .isEqualTo(MealRequestStatus.DECLINED);
+        assertThat(mealRequestRepository.findById(strangerToA.getId()).orElseThrow().getStatus())
+                .isEqualTo(MealRequestStatus.PENDING);
     }
 
     @Test

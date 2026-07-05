@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -370,23 +372,35 @@ class MealRequestServiceTest {
     @Test
     @DisplayName("getMealRequests: role 기본(null·received)→findReceived, sent→findSent 라우팅")
     void list_roleRouting() {
-        when(mealRequestRepository.findReceived(1L, null)).thenReturn(List.of());
-        when(mealRequestRepository.findSent(1L, null)).thenReturn(List.of());
+        when(mealRequestRepository.findReceived(eq(1L), isNull(), anyList())).thenReturn(List.of());
+        when(mealRequestRepository.findSent(eq(1L), isNull(), anyList())).thenReturn(List.of());
 
         service.getMealRequests(1L, "received", null);
         service.getMealRequests(1L, null, null); // null → received 기본
-        verify(mealRequestRepository, times(2)).findReceived(1L, null);
+        verify(mealRequestRepository, times(2)).findReceived(eq(1L), isNull(), anyList());
 
         service.getMealRequests(1L, "sent", null);
-        verify(mealRequestRepository).findSent(1L, null);
+        verify(mealRequestRepository).findSent(eq(1L), isNull(), anyList());
     }
 
     @Test
     @DisplayName("getMealRequests: status를 enum으로 변환해 전달")
     void list_statusFilter() {
-        when(mealRequestRepository.findReceived(1L, MealRequestStatus.PENDING)).thenReturn(List.of());
+        when(mealRequestRepository.findReceived(eq(1L), eq(MealRequestStatus.PENDING), anyList()))
+                .thenReturn(List.of());
         service.getMealRequests(1L, "received", "PENDING");
-        verify(mealRequestRepository).findReceived(1L, MealRequestStatus.PENDING);
+        verify(mealRequestRepository).findReceived(eq(1L), eq(MealRequestStatus.PENDING), anyList());
+    }
+
+    @Test
+    @DisplayName("getMealRequests: 차단 상호 은닉 — blockRepository의 제외 id를 리포지토리에 그대로 전달한다")
+    void list_passesExclusionIdsFromBlockRepository() {
+        when(blockRepository.findExclusionIds(1L)).thenReturn(List.of(9L, 10L));
+        when(mealRequestRepository.findReceived(1L, null, List.of(9L, 10L))).thenReturn(List.of());
+
+        service.getMealRequests(1L, "received", null);
+
+        verify(mealRequestRepository).findReceived(1L, null, List.of(9L, 10L));
     }
 
     @Test
@@ -404,7 +418,7 @@ class MealRequestServiceTest {
         when(place.getId()).thenReturn(3L);
         when(place.getName()).thenReturn("큰순두부");
         MealRequest mr = MealRequest.create(from, ci, place, "같이 드실래요?", nowKst);
-        when(mealRequestRepository.findReceived(1L, null)).thenReturn(List.of(mr));
+        when(mealRequestRepository.findReceived(eq(1L), isNull(), anyList())).thenReturn(List.of(mr));
 
         List<MealRequestListItemResponse> result = service.getMealRequests(1L, "received", null);
 

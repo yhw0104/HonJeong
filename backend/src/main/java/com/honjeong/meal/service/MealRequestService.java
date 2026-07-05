@@ -179,9 +179,11 @@ public class MealRequestService {
     public List<MealRequestListItemResponse> getMealRequests(Long userId, String role, String status) {
         boolean sent = parseRole(role);
         MealRequestStatus statusFilter = parseStatus(status);
+        // 차단 관계(양방향) 유저는 같이먹기 신청 목록에서 상호 은닉한다(FR-108).
+        List<Long> excluded = blockRepository.findExclusionIds(userId);
         List<MealRequest> result = sent
-                ? mealRequestRepository.findSent(userId, statusFilter)
-                : mealRequestRepository.findReceived(userId, statusFilter);
+                ? mealRequestRepository.findSent(userId, statusFilter, excluded)
+                : mealRequestRepository.findReceived(userId, statusFilter, excluded);
         return result.stream().map(MealRequestListItemResponse::from).toList();
     }
 
