@@ -1,7 +1,8 @@
 // MateProfile — 메이트 프로필(다른 사람) (원본: screens/MateProfile.jsx)
 // Mates 목록에서 진입. 프로필/통계/선호/성향 + 하단 CTA(메이트/같이먹기).
-import React from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, Alert, Modal } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, Avatar, Icon } from '@/shared/components';
 import { T2, C } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
@@ -17,33 +18,34 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
   const del = useDeleteMate();
   const blockMut = useBlockUser();
 
-  const onKebab = () => {
+  // 우상단 … 메뉴: Alert 대신 버튼 아래 드롭다운 카드로 표시(백드롭 탭으로 닫기).
+  const [menuOpen, setMenuOpen] = useState(false);
+  const insets = useSafeAreaInsets();
+
+  const openReport = () => {
+    setMenuOpen(false);
+    navigation.navigate('ReportForm', {
+      targetType: 'USER',
+      targetId: userId,
+      targetNickname: p?.nickname ?? '이 사용자',
+    });
+  };
+
+  const confirmBlock = () => {
+    setMenuOpen(false);
     const nickname = p?.nickname ?? '이 사용자';
-    Alert.alert(nickname, undefined, [
-      {
-        text: '신고하기',
-        onPress: () =>
-          navigation.navigate('ReportForm', { targetType: 'USER', targetId: userId, targetNickname: nickname }),
-      },
-      {
-        text: '차단하기',
-        style: 'destructive',
-        onPress: () =>
-          Alert.alert('차단', `${nickname}님을 차단할까요?\n서로의 프로필과 혼밥 현황이 보이지 않게 돼요.`, [
-            { text: '취소', style: 'cancel' },
-            {
-              text: '차단',
-              style: 'destructive',
-              // 차단하면 이 프로필 자체가 404가 되므로 목록으로 되돌아간다.
-              onPress: () =>
-                blockMut.mutate(userId, {
-                  onSuccess: () => navigation.goBack(),
-                  onError: () => Alert.alert('차단 실패', '잠시 후 다시 시도해주세요.'),
-                }),
-            },
-          ]),
-      },
+    Alert.alert('차단', `${nickname}님을 차단할까요?\n서로의 프로필과 혼밥 현황이 보이지 않게 돼요.`, [
       { text: '취소', style: 'cancel' },
+      {
+        text: '차단',
+        style: 'destructive',
+        // 차단하면 이 프로필 자체가 404가 되므로 목록으로 되돌아간다.
+        onPress: () =>
+          blockMut.mutate(userId, {
+            onSuccess: () => navigation.goBack(),
+            onError: () => Alert.alert('차단 실패', '잠시 후 다시 시도해주세요.'),
+          }),
+      },
     ]);
   };
 
@@ -93,7 +95,7 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
         <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.headerBtn}>
           <Icon name="chevronLeft" size={22} color={T2.text} />
         </Pressable>
-        <Pressable onPress={onKebab} hitSlop={10} style={styles.headerBtn}>
+        <Pressable onPress={() => setMenuOpen(true)} hitSlop={10} style={styles.headerBtn}>
           <View style={styles.dotsRow}>
             {[0, 1, 2].map((d) => (
               <View key={d} style={styles.dot} />
@@ -101,6 +103,21 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
           </View>
         </Pressable>
       </View>
+
+      {/* … 드롭다운 메뉴 — 버튼 아래 카드, 바깥 탭으로 닫힘 */}
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
+          <Pressable style={[styles.menuCard, { top: insets.top + 48 }]} onPress={() => {}}>
+            <Pressable style={styles.menuItem} onPress={openReport}>
+              <Text style={styles.menuItemText}>신고하기</Text>
+            </Pressable>
+            <View style={styles.menuDivider} />
+            <Pressable style={styles.menuItem} onPress={confirmBlock}>
+              <Text style={[styles.menuItemText, styles.menuItemDanger]}>차단하기</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* 프로필 헤더 */}
@@ -241,6 +258,27 @@ const styles = StyleSheet.create({
   headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   dotsRow: { flexDirection: 'row', gap: 3 },
   dot: { width: 3.5, height: 3.5, borderRadius: 2, backgroundColor: T2.text },
+
+  menuBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.12)' },
+  menuCard: {
+    position: 'absolute',
+    right: 12,
+    minWidth: 148,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: T2.border,
+    paddingVertical: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  menuItem: { paddingVertical: 13, paddingHorizontal: 16 },
+  menuItemText: { fontSize: 14, fontWeight: '600', color: T2.text, letterSpacing: -0.3 },
+  menuItemDanger: { color: '#E1493F' },
+  menuDivider: { height: 1, backgroundColor: T2.border, marginHorizontal: 8 },
 
   scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 },
 
