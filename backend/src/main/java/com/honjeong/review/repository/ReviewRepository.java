@@ -61,7 +61,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             JOIN FETCH r.place
             LEFT JOIN FETCH r.tags
             WHERE r.user.id = :userId
-            ORDER BY r.createdAt DESC
+            ORDER BY r.createdAt DESC, r.id DESC
             """)
     List<Review> findAllByUserWithPlaceAndTags(@Param("userId") Long userId);
 
