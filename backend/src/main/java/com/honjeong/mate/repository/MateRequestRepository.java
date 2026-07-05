@@ -1,8 +1,10 @@
 package com.honjeong.mate.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.honjeong.mate.domain.MateRequest;
@@ -40,4 +42,15 @@ public interface MateRequestRepository extends JpaRepository<MateRequest, Long> 
 
     // 관계상태(PENDING_SENT/PENDING_RECEIVED) 판정용: 두 유저 사이의 진행 중 신청.
     Optional<MateRequest> findByFromUser_IdAndToUser_IdAndStatus(Long fromUserId, Long toUserId, MateRequestStatus status);
+
+    /** 두 유저 사이 방향별 PENDING 신청 일괄 종결(차단 자동 정리용). from→to 방향만 갱신한다. */
+    @Modifying
+    @Query("""
+            UPDATE MateRequest mr
+            SET mr.status = :status, mr.respondedAt = :now
+            WHERE mr.fromUser.id = :fromId AND mr.toUser.id = :toId
+              AND mr.status = com.honjeong.mate.domain.MateRequestStatus.PENDING
+            """)
+    int resolvePendingBetween(@Param("fromId") Long fromId, @Param("toId") Long toId,
+            @Param("status") MateRequestStatus status, @Param("now") LocalDateTime now);
 }

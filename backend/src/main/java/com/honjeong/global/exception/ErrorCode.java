@@ -62,6 +62,14 @@ public enum ErrorCode {
     FAVORITE_GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "즐겨찾기 그룹을 찾을 수 없습니다."),
     DEFAULT_GROUP_NOT_DELETABLE(HttpStatus.BAD_REQUEST, "기본 그룹은 삭제할 수 없습니다."),
 
+    // 차단/신고 — FR-108 안전장치
+    BLOCK_SELF(HttpStatus.BAD_REQUEST, "자기 자신은 차단할 수 없습니다."),
+    BLOCK_ALREADY(HttpStatus.CONFLICT, "이미 차단한 상대입니다."),
+    BLOCK_NOT_FOUND(HttpStatus.NOT_FOUND, "차단 내역을 찾을 수 없습니다."),
+    USER_BLOCKED(HttpStatus.FORBIDDEN, "신청할 수 없는 상대예요."),
+    REPORT_TARGET_NOT_FOUND(HttpStatus.NOT_FOUND, "신고 대상을 찾을 수 없습니다."),
+    REPORT_SELF(HttpStatus.BAD_REQUEST, "자기 자신(또는 내가 쓴 리뷰)은 신고할 수 없습니다."),
+
     // 예기치 못한 서버 내부 오류(처리되지 않은 예외 → 500)
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
 

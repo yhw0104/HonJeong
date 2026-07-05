@@ -119,4 +119,17 @@ public interface MealRequestRepository extends JpaRepository<MealRequest, Long> 
 
         Long getToId();
     }
+
+    /** 두 유저 사이(방향 무관) PENDING 같이먹기 신청 일괄 DECLINED(차단 자동 정리용). */
+    @Modifying
+    @Query("""
+            UPDATE MealRequest mr
+            SET mr.status = com.honjeong.meal.domain.MealRequestStatus.DECLINED, mr.respondedAt = :now
+            WHERE mr.status = com.honjeong.meal.domain.MealRequestStatus.PENDING
+              AND ((mr.fromUser.id = :a AND mr.toCheckIn.id IN
+                        (SELECT c.id FROM CheckIn c WHERE c.user.id = :b))
+                OR (mr.fromUser.id = :b AND mr.toCheckIn.id IN
+                        (SELECT c.id FROM CheckIn c WHERE c.user.id = :a)))
+            """)
+    int declinePendingBetween(@Param("a") Long a, @Param("b") Long b, @Param("now") LocalDateTime now);
 }
