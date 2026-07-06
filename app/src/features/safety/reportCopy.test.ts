@@ -1,8 +1,8 @@
-import { REPORT_REASONS, reasonLabel, reportStatusLabel, reportTargetLabel, formatDotDate } from './reportCopy';
+import { REPORT_REASONS, reasonLabel, reportStatusLabel, reportTypeLabel, formatDotDate } from './reportCopy';
 
-test('신고 대상 표기 — 유저는 ○○님, 리뷰는 ○○님의 리뷰', () => {
-  expect(reportTargetLabel('USER', '소란한식객')).toBe('소란한식객님');
-  expect(reportTargetLabel('REVIEW', '소란한식객')).toBe('소란한식객님의 리뷰');
+test('신고 대상 타입 칩 라벨 — 유저는 메이트, 리뷰는 리뷰', () => {
+  expect(reportTypeLabel('USER')).toBe('메이트');
+  expect(reportTypeLabel('REVIEW')).toBe('리뷰');
 });
 
 test('신고 사유는 5종 고정, 순서 유지', () => {

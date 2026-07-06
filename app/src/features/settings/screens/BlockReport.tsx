@@ -6,7 +6,7 @@ import { Screen, MoreHeader, Avatar } from '@/shared/components';
 import { T2, C } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { useBlockedUsers, useMyReports, useUnblockUser } from '@/features/safety/queries';
-import { reasonLabel, reportStatusLabel, reportTargetLabel, formatDotDate } from '@/features/safety/reportCopy';
+import { reasonLabel, reportStatusLabel, reportTypeLabel, formatDotDate } from '@/features/safety/reportCopy';
 
 export function BlockReportScreen({ navigation }: RootStackScreenProps<'BlockReport'>) {
   const [tab, setTab] = useState<'block' | 'report'>('block');
@@ -96,8 +96,11 @@ export function BlockReportScreen({ navigation }: RootStackScreenProps<'BlockRep
                 return (
                   <View key={r.id} style={styles.reportCard}>
                     <View style={styles.reportHead}>
-                      {/* 유저/리뷰 신고 구분: "○○님" vs "○○님의 리뷰" */}
-                      <Text style={styles.reportTarget}>{reportTargetLabel(r.targetType, r.targetNickname)}</Text>
+                      {/* 유저/리뷰 신고 구분: '메이트'/'리뷰' 타입 칩 + 닉네임은 공통 "○○님" */}
+                      <View style={styles.typeChip}>
+                        <Text style={styles.typeChipText}>{reportTypeLabel(r.targetType)}</Text>
+                      </View>
+                      <Text style={styles.reportTarget}>{r.targetNickname}님</Text>
                       <View style={[styles.statusPill, { backgroundColor: done ? 'rgba(34,166,90,0.1)' : T2.brandSoft }]}>
                         <Text style={{ fontSize: 11, fontWeight: '700', color: done ? C.openDark : T2.brand, letterSpacing: -0.2 }}>{reportStatusLabel(r.status)}</Text>
                       </View>
@@ -137,6 +140,8 @@ const styles = StyleSheet.create({
 
   reportCard: { padding: 16, backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: T2.border },
   reportHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  typeChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1, borderColor: T2.borderStrong },
+  typeChipText: { fontSize: 11, fontWeight: '700', color: T2.textSub, letterSpacing: -0.2 },
   reportTarget: { flex: 1, fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
   statusPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
   reportMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
