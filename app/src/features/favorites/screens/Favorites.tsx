@@ -7,14 +7,16 @@ import { useLocation } from '@/shared/location/useLocation';
 import { distanceMeters, formatDistance } from '@/shared/location/distance';
 import type { MainTabScreenProps } from '@/navigation/types';
 import { useFavoriteGroups, useFavoriteGroupDetail, useDeleteFavoriteGroup, useRemovePlaceFromGroup } from '../queries';
+import { FAVORITE_SORTS, sortByMode, type FavoriteSort } from '../sortFavorites';
 import type { FavoritePlace } from '../api';
 
 export function FavoritesScreen({ navigation }: MainTabScreenProps<'Favorites'>) {
   const [openGroupId, setOpenGroupId] = useState<number | null>(null);
+  const [sort, setSort] = useState<FavoriteSort>('registered');
   const groupsQ = useFavoriteGroups();
   const detailQ = useFavoriteGroupDetail(openGroupId);
   const deleteGroup = useDeleteFavoriteGroup();
-  const groups = groupsQ.data ?? [];
+  const groups = sortByMode(groupsQ.data ?? [], sort);
   const detail = detailQ.data;
 
   const onDeleteGroup = () => {
@@ -34,10 +36,22 @@ export function FavoritesScreen({ navigation }: MainTabScreenProps<'Favorites'>)
     <Screen bg={T2.bg} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.h1}>즐겨찾기</Text>
-        <View style={styles.segment}>
-          <Text style={styles.segLabel}>내 장소</Text>
-          <Text style={styles.segCount}>{groups.length}</Text>
-          <View style={styles.segUnderline} />
+        <View style={styles.segRow}>
+          <View style={styles.segment}>
+            <Text style={styles.segLabel}>내 장소</Text>
+            <Text style={styles.segCount}>{groups.length}</Text>
+          </View>
+          {/* 등록순/이름순 정렬 — 그룹 목록과 그룹 상세 목록에 공통 적용 */}
+          <View style={styles.sortRow}>
+            {FAVORITE_SORTS.map((s, i) => (
+              <React.Fragment key={s.key}>
+                {i > 0 ? <Text style={styles.sortDot}>·</Text> : null}
+                <Pressable hitSlop={6} onPress={() => setSort(s.key)}>
+                  <Text style={[styles.sortLabel, sort === s.key && styles.sortLabelOn]}>{s.label}</Text>
+                </Pressable>
+              </React.Fragment>
+            ))}
+          </View>
         </View>
       </View>
       <View style={styles.divider} />
@@ -103,7 +117,7 @@ export function FavoritesScreen({ navigation }: MainTabScreenProps<'Favorites'>)
             {(detail?.places ?? []).length === 0 ? (
               <Text style={styles.empty}>아직 담은 곳이 없어요</Text>
             ) : (
-              (detail?.places ?? []).map((p) => (
+              sortByMode(detail?.places ?? [], sort).map((p) => (
                 <FavoritePlaceRow
                   key={p.placeId}
                   place={p}
@@ -173,10 +187,14 @@ function FavoritePlaceRow({
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 12 },
   h1: { fontSize: 28, fontWeight: '800', color: T2.text, letterSpacing: -1 },
-  segment: { marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 6, paddingBottom: 12, alignSelf: 'flex-start' },
+  segRow: { marginTop: 18, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  segment: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   segLabel: { fontSize: 16, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
   segCount: { fontSize: 12, fontWeight: '700', color: T2.brand },
-  segUnderline: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, backgroundColor: T2.brand },
+  sortRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sortDot: { fontSize: 12, color: T2.textMute },
+  sortLabel: { fontSize: 13, color: T2.textMute, letterSpacing: -0.2, fontWeight: '600' },
+  sortLabelOn: { color: T2.text, fontWeight: '800' },
   divider: { height: 1, backgroundColor: T2.border },
 
   groupRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: T2.border },
