@@ -15,9 +15,9 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
   const { data: summary } = useActivitySummary();
   const num = (n?: number) => (n === undefined ? '–' : String(n));
   const stats = [
-    { n: num(summary?.checkInCount), l: '혼밥' },
-    { n: num(summary?.mateCount), l: '메이트' },
-    { n: num(summary?.favoriteCount), l: '즐겨찾기' },
+    { n: num(summary?.checkInCount), l: '혼밥', go: () => navigation.navigate('DiningHistory') },
+    { n: num(summary?.mateCount), l: '메이트', go: () => navigation.navigate('Mates') },
+    { n: num(summary?.favoriteCount), l: '즐겨찾기', go: () => navigation.navigate('MainTabs', { screen: 'Favorites' }) },
   ];
   const foods = profile?.favoriteFoods ?? [];
   // 이름 아래 서브라인: "20대 여성 · 도란도란 대화하며" — 있는 것만 이어 붙인다.
@@ -53,10 +53,10 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
         {/* 통계 */}
         <View style={styles.statsCard}>
           {stats.map((s, i) => (
-            <View key={s.l} style={[styles.statCell, i > 0 && styles.statDivider]}>
+            <Pressable key={s.l} style={[styles.statCell, i > 0 && styles.statDivider]} onPress={s.go}>
               <Text style={styles.statNum}>{s.n}</Text>
               <Text style={styles.statLabel}>{s.l}</Text>
-            </View>
+            </Pressable>
           ))}
         </View>
 
