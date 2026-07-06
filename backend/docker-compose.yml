@@ -5,10 +5,13 @@ services:
   db:
     image: postgres:17
     container_name: honjeong-db
+    # DB 세션 기본 타임존을 KST로 — psql에서 now()를 써도 스키마 관례(KST naive)와 일치.
+    command: postgres -c timezone=Asia/Seoul
     environment:
       POSTGRES_DB: honjeong
       POSTGRES_USER: honjeong
       POSTGRES_PASSWORD: honjeong
+      TZ: Asia/Seoul
     ports:
       - "5432:5432"
     volumes:
