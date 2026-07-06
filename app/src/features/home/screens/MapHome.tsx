@@ -126,7 +126,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         <View style={styles.searchRow}>
           <Pressable style={styles.search} onPress={() => navigation.navigate('PlaceSearch')}>
             <Icon name="search" size={16} color={T2.text} />
-            <Text style={styles.searchPlaceholder}>장소, 음식, 메이트</Text>
+            <Text style={styles.searchPlaceholder}>혼밥집 검색</Text>
             {/* 종은 검색창 안 오른쪽 끝 — 자체 Pressable이라 탭이 검색 이동과 분리된다 */}
             <BellButton />
           </Pressable>
