@@ -101,7 +101,7 @@ class FavoriteGroupServiceTest {
     }
 
     @Test
-    @DisplayName("createDefaultGroup: 기본 그룹이 없으면 '즐겨찾기' 생성")
+    @DisplayName("createDefaultGroup: 기본 그룹이 없으면 '기본 그룹' 생성")
     void createDefault_creates() {
         when(groupRepository.existsByUser_IdAndIsDefaultTrue(1L)).thenReturn(false);
         when(userRepository.getReferenceById(1L)).thenReturn(User.pending("0100", null));

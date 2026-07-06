@@ -60,7 +60,7 @@ public class FavoriteGroup extends BaseTimeEntity {
     }
 
     public static FavoriteGroup createDefault(User user) {
-        return new FavoriteGroup(user, "즐겨찾기", null, "#FF5A1F", true);
+        return new FavoriteGroup(user, "기본 그룹", null, "#FF5A1F", true);
     }
 
     /** null 인자는 미변경(부분 수정). */
