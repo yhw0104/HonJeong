@@ -10,6 +10,7 @@ import { reasonLabel, reportStatusLabel, reportTypeLabel, formatDotDate } from '
 
 export function BlockReportScreen({ navigation }: RootStackScreenProps<'BlockReport'>) {
   const [tab, setTab] = useState<'block' | 'report'>('block');
+  const [openReportId, setOpenReportId] = useState<number | null>(null);
   const blocks = useBlockedUsers();
   const reports = useMyReports();
   const unblock = useUnblockUser();
@@ -93,8 +94,9 @@ export function BlockReportScreen({ navigation }: RootStackScreenProps<'BlockRep
             <View style={{ gap: 10 }}>
               {(reports.data ?? []).map((r) => {
                 const done = r.status === 'RESOLVED';
+                const open = openReportId === r.id;
                 return (
-                  <View key={r.id} style={styles.reportCard}>
+                  <Pressable key={r.id} style={styles.reportCard} onPress={() => setOpenReportId(open ? null : r.id)}>
                     <View style={styles.reportHead}>
                       {/* 유저/리뷰 신고 구분: '메이트'/'리뷰' 타입 칩 + 닉네임은 공통 "○○님" */}
                       <View style={styles.typeChip}>
@@ -104,13 +106,20 @@ export function BlockReportScreen({ navigation }: RootStackScreenProps<'BlockRep
                       <View style={[styles.statusPill, { backgroundColor: done ? 'rgba(34,166,90,0.1)' : T2.brandSoft }]}>
                         <Text style={{ fontSize: 11, fontWeight: '700', color: done ? C.openDark : T2.brand, letterSpacing: -0.2 }}>{reportStatusLabel(r.status)}</Text>
                       </View>
+                      <Text style={styles.chevron}>{open ? '▴' : '▾'}</Text>
                     </View>
                     <View style={styles.reportMeta}>
                       <Text style={styles.reportReason}>사유 · {reasonLabel(r.reasonCode)}</Text>
                       <Text style={styles.metaDot}>·</Text>
                       <Text style={styles.reportDate}>{formatDotDate(r.createdAt)}</Text>
                     </View>
-                  </View>
+                    {open ? (
+                      <View style={styles.detailBox}>
+                        <Text style={styles.detailLabel}>상세 내용</Text>
+                        <Text style={styles.detailText}>{r.detail?.trim() ? r.detail : '작성한 상세 내용이 없어요'}</Text>
+                      </View>
+                    ) : null}
+                  </Pressable>
                 );
               })}
             </View>
@@ -144,7 +153,11 @@ const styles = StyleSheet.create({
   typeChipText: { fontSize: 11, fontWeight: '700', color: T2.textSub, letterSpacing: -0.2 },
   reportTarget: { flex: 1, fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
   statusPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
+  chevron: { fontSize: 11, color: T2.textMute },
   reportMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  detailBox: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: T2.border },
+  detailLabel: { fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: -0.2, marginBottom: 5 },
+  detailText: { fontSize: 13, color: T2.textSub, lineHeight: 20, letterSpacing: -0.2 },
   reportReason: { fontSize: 13, color: T2.textSub, letterSpacing: -0.2 },
   metaDot: { color: T2.textMute },
   reportDate: { fontSize: 13, color: T2.textMute, letterSpacing: -0.2 },
