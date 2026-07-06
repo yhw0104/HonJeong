@@ -46,9 +46,10 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
       {/* 본문 */}
       {q.length === 0 ? (
         <View style={styles.center}>
-          <Text style={styles.hintEmoji}>🔎</Text>
+          <View style={styles.hintIcon}>
+            <Icon name="search" size={30} color={T2.textMute} />
+          </View>
           <Text style={styles.hintText}>식당 이름으로 검색해보세요</Text>
-          <Text style={styles.hintSub}>예: 큰순두부 · 돈수백 · 김밥</Text>
         </View>
       ) : isError ? (
         <View style={styles.center}>
@@ -149,8 +150,7 @@ const styles = StyleSheet.create({
   cardMeta: { fontSize: 12, color: T2.textSub, marginTop: 3, letterSpacing: -0.2 },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingBottom: 80 },
-  hintEmoji: { fontSize: 34, marginBottom: 14 },
+  hintIcon: { marginBottom: 14 },
   hintText: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
-  hintSub: { fontSize: 13, color: T2.textMute, marginTop: 6, letterSpacing: -0.2 },
   msg: { fontSize: 14, color: T2.textSub, textAlign: 'center', lineHeight: 21, marginTop: 24 },
 });
