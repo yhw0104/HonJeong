@@ -28,7 +28,10 @@ import com.honjeong.global.security.JwtProvider;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * 무상태 JWT 보안(Spring Security 7). 토큰의 {@code typ} 클레임을 권한으로 매핑한다:
+ * 1. 기능: 무상태 JWT 보안 설정 — JwtProvider/JwtDecoder 빈 등록, 경로별 인가 규칙, typ 클레임→ROLE 매핑, 401/403 공통 엔벨로프 응답
+ * 2. 사용처: 스프링 시큐리티 필터 체인으로 전 API 요청에 자동 적용(직접 참조 없음) — JwtProvider 빈은 AuthService·TokenService가 주입받음
+ *
+ * <p>[기존 주석] 무상태 JWT 보안(Spring Security 7). 토큰의 {@code typ} 클레임을 권한으로 매핑한다:
  * typ=access → ROLE_USER, typ=onboarding → ROLE_ONBOARDING.
  *
  * <p>인가: 인증/헬스는 공개, 온보딩 엔드포인트는 ONBOARDING|USER, 그 외 전부 USER.
@@ -40,7 +43,11 @@ import jakarta.servlet.http.HttpServletResponse;
 public class SecurityConfig {
 
     /**
-     * 자체 발급 JWT(access·onboarding)의 생성·검증을 담당하는 {@link JwtProvider}를 빈으로 등록한다.
+     * 기능: 자체 발급 JWT(access·onboarding)의 생성·검증을 담당하는 JwtProvider를 빈으로 등록한다
+     * Request: props — honjeong.jwt.* 설정값(시크릿·access/onboarding TTL)
+     * Response: JwtProvider — 시크릿·TTL·UTC Clock으로 구성된 발급/검증기
+     *
+     * <p>[기존 주석] 자체 발급 JWT(access·onboarding)의 생성·검증을 담당하는 {@link JwtProvider}를 빈으로 등록한다.
      * 시크릿·TTL은 {@link HonjeongJwtProperties}에서 받고, 시각은 UTC Clock으로 고정한다.
      *
      * @param props honjeong.jwt.* 설정값(시크릿·access/onboarding TTL)
@@ -53,7 +60,11 @@ public class SecurityConfig {
     }
 
     /**
-     * 리소스 서버(oauth2ResourceServer().jwt())가 들어온 토큰을 검증할 때 쓸 {@link JwtDecoder} 빈.
+     * 기능: 리소스 서버가 들어온 Bearer 토큰을 검증할 때 쓸 JwtDecoder를 빈으로 등록한다
+     * Request: jwtProvider — 토큰 발급/검증 컴포넌트
+     * Response: JwtDecoder — JwtProvider 내부 디코더(발급과 같은 대칭키·HS256)
+     *
+     * <p>[기존 주석] 리소스 서버(oauth2ResourceServer().jwt())가 들어온 토큰을 검증할 때 쓸 {@link JwtDecoder} 빈.
      * JwtProvider가 가진 디코더(같은 대칭키·HS256)를 그대로 노출해 발급과 검증의 키를 일치시킨다.
      *
      * @param jwtProvider 토큰 발급/검증 컴포넌트
@@ -65,7 +76,11 @@ public class SecurityConfig {
     }
 
     /**
-     * 무상태(STATELESS) JWT 기반 보안 필터 체인을 구성한다.
+     * 기능: 무상태(STATELESS) JWT 기반 보안 필터 체인을 구성한다 — CSRF 끔, 세션 미생성, 경로별 인가, 토큰 검증·401/403 처리기 연결
+     * Request: http — Security DSL 빌더, jwtDecoder — 들어온 JWT를 검증할 디코더
+     * Response: SecurityFilterChain — 빌드된 보안 필터 체인
+     *
+     * <p>[기존 주석] 무상태(STATELESS) JWT 기반 보안 필터 체인을 구성한다.
      * <ul>
      *   <li>CSRF 비활성화(쿠키·세션 미사용, Bearer 토큰만 받는 API라 불필요).</li>
      *   <li>세션을 만들지 않음(STATELESS) — 매 요청을 토큰으로만 인증한다.</li>
@@ -116,7 +131,11 @@ public class SecurityConfig {
     }
 
     /**
-     * JWT의 {@code typ} 클레임을 Spring Security 권한(ROLE_*)으로 매핑하는 컨버터를 만든다.
+     * 기능: JWT의 typ 클레임을 Spring Security 권한(ROLE_*)으로 매핑하는 컨버터를 만든다
+     * Request: 없음
+     * Response: JwtAuthenticationConverter — typ=onboarding→ROLE_ONBOARDING, 그 외→ROLE_USER 매핑 적용
+     *
+     * <p>[기존 주석] JWT의 {@code typ} 클레임을 Spring Security 권한(ROLE_*)으로 매핑하는 컨버터를 만든다.
      * typ=onboarding이면 ROLE_ONBOARDING, 그 외(access 포함)는 ROLE_USER를 부여한다.
      * 이 매핑이 위 인가 규칙(hasRole/hasAnyRole)의 판정 근거가 된다.
      *
@@ -135,7 +154,11 @@ public class SecurityConfig {
     }
 
     /**
-     * 인증 실패(미인증) 시 호출되는 진입점. 401과 함께 공통 에러 엔벨로프 JSON을 직접 쓴다.
+     * 기능: 인증 실패(미인증) 시 401과 공통 에러 엔벨로프 JSON을 내려주는 진입점을 만든다
+     * Request: 없음
+     * Response: AuthenticationEntryPoint — UNAUTHORIZED(401) 응답기
+     *
+     * <p>[기존 주석] 인증 실패(미인증) 시 호출되는 진입점. 401과 함께 공통 에러 엔벨로프 JSON을 직접 쓴다.
      * (스프링 기본 응답 대신 우리 {@code {success:false,error:{...}}} 포맷으로 통일하기 위함.)
      *
      * @return UNAUTHORIZED(401)을 내려주는 AuthenticationEntryPoint
@@ -145,7 +168,11 @@ public class SecurityConfig {
     }
 
     /**
-     * 인가 실패(권한 부족) 시 호출되는 핸들러. 403과 함께 공통 에러 엔벨로프 JSON을 직접 쓴다.
+     * 기능: 인가 실패(권한 부족) 시 403과 공통 에러 엔벨로프 JSON을 내려주는 핸들러를 만든다
+     * Request: 없음
+     * Response: AccessDeniedHandler — FORBIDDEN(403) 응답기
+     *
+     * <p>[기존 주석] 인가 실패(권한 부족) 시 호출되는 핸들러. 403과 함께 공통 에러 엔벨로프 JSON을 직접 쓴다.
      *
      * @return FORBIDDEN(403)을 내려주는 AccessDeniedHandler
      */
@@ -154,7 +181,11 @@ public class SecurityConfig {
     }
 
     /**
-     * 보안 필터 단계(컨트롤러 진입 전)에서 발생한 401/403을 공통 응답 엔벨로프 JSON으로 직접 직렬화한다.
+     * 기능: 보안 필터 단계(컨트롤러 진입 전)에서 발생한 401/403을 공통 응답 엔벨로프 JSON으로 직접 직렬화한다
+     * Request: response — 응답 객체(상태·콘텐츠타입·본문 기록 대상), code — 내려줄 에러 코드(상태·코드명·메시지의 출처)
+     * Response: 없음(void) — response 본문에 {success:false,error:{code,message}} JSON 기록
+     *
+     * <p>[기존 주석] 보안 필터 단계(컨트롤러 진입 전)에서 발생한 401/403을 공통 응답 엔벨로프 JSON으로 직접 직렬화한다.
      * 이 시점엔 {@code GlobalExceptionHandler}(@RestControllerAdvice)가 동작하지 않으므로 문자열로 직접 작성한다.
      *
      * @param response 응답 객체(상태·콘텐츠타입·인코딩을 세팅하고 본문을 기록)

@@ -19,7 +19,10 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 /**
- * 같이먹기 신청. 신청자(fromUser)가 대상 혼밥러의 체크인(toCheckIn)에 보낸다. 수신자는 {@code toCheckIn.user}로 식별한다.
+ * 같이먹기 신청 — 신청자가 같은 식당 혼밥러의 체크인에 "같이 먹자"고 보낸 요청(수신 opt-in 필수)
+ * (매핑 테이블 meal_requests)
+ *
+ * <p>[기존 주석] 같이먹기 신청. 신청자(fromUser)가 대상 혼밥러의 체크인(toCheckIn)에 보낸다. 수신자는 {@code toCheckIn.user}로 식별한다.
  * {@code created_at}·{@code responded_at}만 있고 {@code updated_at}이 없어 {@code BaseTimeEntity}를 상속하지 않는다(CheckIn 패턴).
  * 단일 신청 중복은 DB 유니크(from_user_id, to_check_in_id)가 강제한다.
  */
@@ -27,35 +30,43 @@ import jakarta.persistence.Table;
 @Table(name = "meal_requests")
 public class MealRequest {
 
+    /** 신청 PK (id, auto-increment) */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** 신청을 보낸 회원 (FK: from_user_id) */
     // 신청자. LAZY — 목록에서 fetch join으로 닉네임만 가져온다.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "from_user_id", nullable = false)
     private User fromUser;
 
+    /** 대상 혼밥러의 체크인 — 수신자(소유자)·장소의 원천 (FK: to_check_in_id) */
     // 대상 혼밥러의 체크인. 수신자(소유자)·장소의 원천. LAZY.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "to_check_in_id", nullable = false)
     private CheckIn toCheckIn;
 
+    /** 신청 발생 장소 — 대상 체크인의 place에서 역정규화 (FK: place_id) */
     // 신청 발생 장소(대상 체크인의 place에서 파생·역정규화). LAZY — 응답엔 id만 필요(프록시 getId는 로딩 없음).
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "place_id", nullable = false)
     private Place place;
 
+    /** 인사 한마디 (message, 선택·최대 200자) */
     // 인사 한마디(선택, 최대 200자).
     private String message;
 
+    /** 신청 상태 (status: PENDING|ACCEPTED|DECLINED) */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MealRequestStatus status;
 
+    /** 신청 생성 시각 (created_at, INSERT 후 불변) */
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /** 수락/거절 응답 시각 (responded_at, PENDING이면 null) */
     // 수락/거절 시각. PENDING 동안 null.
     private LocalDateTime respondedAt;
 

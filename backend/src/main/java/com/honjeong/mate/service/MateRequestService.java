@@ -24,6 +24,10 @@ import com.honjeong.notification.service.NotificationService;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
+/**
+ * 1. 기능: 메이트 신청 생성·수락·거절·취소와 신청 목록 조회 비즈니스 로직
+ * 2. 사용 Controller: MateRequestController
+ */
 @Service
 public class MateRequestService {
 
@@ -49,6 +53,11 @@ public class MateRequestService {
         this.clock = clock;
     }
 
+    /**
+     * 기능: 메이트 신청 생성 — 자기 자신·미존재 사용자·차단 관계·이미 메이트·중복 PENDING 방지, 수신자에게 알림 발행
+     * Request: userId — 신청자 ID, request — MateRequestCreateRequest(toUserId: 상대 사용자 ID)
+     * Response: MateRequestResponse — 생성된 신청 ID·상대 ID·상태(PENDING)
+     */
     @Transactional
     public MateRequestResponse create(Long userId, MateRequestCreateRequest request) {
         Long toUserId = request.toUserId();
@@ -75,6 +84,11 @@ public class MateRequestService {
         }
     }
 
+    /**
+     * 기능: 받은 신청 수락 — 양방향 Mate 2행 멱등 저장, 역방향 PENDING 신청도 함께 수락 처리, 발신자에게 알림 발행
+     * Request: userId — 수락하는 사용자(수신자) ID, id — 신청 ID
+     * Response: MateRequestStatusResponse — 신청 ID·상태(ACCEPTED)·응답 시각
+     */
     @Transactional
     public MateRequestStatusResponse accept(Long userId, Long id) {
         MateRequest mr = loadPendingForReceiver(userId, id);
@@ -96,6 +110,11 @@ public class MateRequestService {
         return MateRequestStatusResponse.from(mr);
     }
 
+    /**
+     * 기능: 받은 신청 거절 (수신자만 가능, PENDING 상태만 처리)
+     * Request: userId — 거절하는 사용자(수신자) ID, id — 신청 ID
+     * Response: MateRequestStatusResponse — 신청 ID·상태(DECLINED)·응답 시각
+     */
     @Transactional
     public MateRequestStatusResponse decline(Long userId, Long id) {
         MateRequest mr = loadPendingForReceiver(userId, id);
@@ -103,6 +122,11 @@ public class MateRequestService {
         return MateRequestStatusResponse.from(mr);
     }
 
+    /**
+     * 기능: 보낸 신청 취소 (발신자만 가능, PENDING 상태만 처리)
+     * Request: userId — 취소하는 사용자(발신자) ID, id — 신청 ID
+     * Response: MateRequestStatusResponse — 신청 ID·상태(CANCELED)·응답 시각
+     */
     @Transactional
     public MateRequestStatusResponse cancel(Long userId, Long id) {
         MateRequest mr = mateRequestRepository.findWithUsersById(id)
@@ -117,6 +141,7 @@ public class MateRequestService {
         return MateRequestStatusResponse.from(mr);
     }
 
+    /** 기능: 신청 조회 후 수신자 본인·PENDING 상태 검증 (아니면 FORBIDDEN/MATE_REQUEST_ALREADY_RESPONDED 예외) */
     private MateRequest loadPendingForReceiver(Long userId, Long id) {
         MateRequest mr = mateRequestRepository.findWithUsersById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MATE_REQUEST_NOT_FOUND));
@@ -129,6 +154,11 @@ public class MateRequestService {
         return mr;
     }
 
+    /**
+     * 기능: 받은/보낸 메이트 신청 목록 조회 (상태 필터 선택, 차단 상대 상호 은닉)
+     * Request: userId — 사용자 ID, role — received|sent(기본 received), status — 상태 필터(선택, 예: PENDING)
+     * Response: List<MateRequestListItemResponse> — 신청 목록(최신순)
+     */
     @Transactional(readOnly = true)
     public List<MateRequestListItemResponse> getMateRequests(Long userId, String role, String status) {
         boolean sent = parseRole(role);
@@ -141,6 +171,7 @@ public class MateRequestService {
         return result.stream().map(MateRequestListItemResponse::from).toList();
     }
 
+    /** 기능: role 파라미터를 sent 여부 boolean으로 파싱 (received|sent 외 값은 INVALID_INPUT 예외) */
     private boolean parseRole(String role) {
         if (role == null || role.isBlank() || ROLE_RECEIVED.equals(role)) {
             return false;
@@ -151,6 +182,7 @@ public class MateRequestService {
         throw new BusinessException(ErrorCode.INVALID_INPUT, "잘못된 role입니다.");
     }
 
+    /** 기능: status 파라미터를 MateRequestStatus로 파싱 (빈 값이면 null=전체, 잘못된 값은 INVALID_INPUT 예외) */
     private MateRequestStatus parseStatus(String status) {
         if (status == null || status.isBlank()) {
             return null;
@@ -162,6 +194,7 @@ public class MateRequestService {
         }
     }
 
+    /** 기능: 주입된 Clock 기준 현재 시각을 KST LocalDateTime으로 변환 */
     private LocalDateTime now() {
         return LocalDateTime.ofInstant(clock.instant(), KST);
     }

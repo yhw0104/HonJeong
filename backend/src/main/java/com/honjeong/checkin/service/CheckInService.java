@@ -31,7 +31,10 @@ import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
 /**
- * 체크인 도메인 서비스. 단일 활성 제약(같은 장소 멱등 / 다른 장소 409)·종료·내 체크인·통계·지도·혼밥러 목록·TTL 만료를 담당한다.
+ * 1. 기능: 혼밥 체크인 비즈니스 로직 — 시작(단일 활성 제약)·종료·취소·내 체크인 조회·사회적 증거 통계·지도 마커·혼밥러 목록·TTL 자동 만료
+ * 2. 사용 Controller: CheckInController, PlaceCheckInController (그 외 CheckInExpiryScheduler·MealRequestService에서도 사용)
+ *
+ * <p>[기존 주석] 체크인 도메인 서비스. 단일 활성 제약(같은 장소 멱등 / 다른 장소 409)·종료·내 체크인·통계·지도·혼밥러 목록·TTL 만료를 담당한다.
  *
  * <p>모든 시각은 주입된 {@link Clock}의 instant를 Asia/Seoul로 환산해 KST로 통일한다 — 통계 "오늘" 경계와 저장
  * 시각의 기준을 일치시켜 경계 어긋남을 막는다(전역 Clock 빈의 zone과 무관).
@@ -65,7 +68,11 @@ public class CheckInService {
     }
 
     /**
-     * 혼밥 체크인을 시작한다. placeId로 장소를 조회한 뒤, 기존 ACTIVE가 있으면 같은 장소는 멱등 반환, 다른 장소는 409.
+     * 기능: 혼밥 체크인을 시작한다(같은 장소 멱등 반환, 다른 장소 409, 경쟁 시 인덱스 위반을 409로 변환)
+     * Request: userId — 체크인하는 회원 ID, request — CheckInRequest(placeId)
+     * Response: CheckInResponse — 새로 만들었거나 멱등 반환한 기존 체크인
+     *
+     * <p>[기존 주석] 혼밥 체크인을 시작한다. placeId로 장소를 조회한 뒤, 기존 ACTIVE가 있으면 같은 장소는 멱등 반환, 다른 장소는 409.
      * 경쟁으로 단일활성 인덱스가 위반되면 {@link DataIntegrityViolationException}을 409로 변환한다.
      *
      * @param userId  체크인하는 회원 id
@@ -95,7 +102,11 @@ public class CheckInService {
     }
 
     /**
-     * 체크인을 종료한다. 없으면 404, 본인 것이 아니면 403, 이미 ENDED면 멱등 반환한다.
+     * 기능: 체크인을 종료(ENDED)한다 — TOGETHER면 같은 매칭의 파트너 체크인도 함께 종료
+     * Request: userId — 요청 회원 ID, checkInId — 종료할 체크인 ID
+     * Response: CheckInResponse — 종료된(또는 이미 종료된) 요청자 본인의 체크인
+     *
+     * <p>[기존 주석] 체크인을 종료한다. 없으면 404, 본인 것이 아니면 403, 이미 ENDED면 멱등 반환한다.
      * TOGETHER면 같은 매칭(mealRequestId)의 파트너 체크인도 함께 ENDED 처리한다(같이먹기는 한쪽만 끝낼 수 없음).
      *
      * @param userId    요청 회원 id
@@ -121,7 +132,11 @@ public class CheckInService {
     }
 
     /**
-     * 체크인을 취소(CANCELLED)한다. 짧은 혼밥 오집계 방지용 — 소유자의 ACTIVE만 취소 가능하다.
+     * 기능: 체크인을 취소(CANCELLED)한다 — 짧은 혼밥 오집계 방지용, 소유자의 ACTIVE만 가능
+     * Request: userId — 요청 회원 ID, checkInId — 취소할 체크인 ID
+     * Response: CheckInResponse — 취소된 체크인
+     *
+     * <p>[기존 주석] 체크인을 취소(CANCELLED)한다. 짧은 혼밥 오집계 방지용 — 소유자의 ACTIVE만 취소 가능하다.
      *
      * @param userId    요청 회원 id
      * @param checkInId 취소할 체크인 id
@@ -142,7 +157,11 @@ public class CheckInService {
     }
 
     /**
-     * 내 현재 체크인(ACTIVE 또는 TOGETHER)을 반환한다. 없으면 null.
+     * 기능: 내 현재 체크인(ACTIVE 또는 TOGETHER)을 조회한다 — TOGETHER면 파트너 닉네임 포함
+     * Request: userId — 회원 ID
+     * Response: CheckInResponse — 현재 진행 중 체크인(없으면 null)
+     *
+     * <p>[기존 주석] 내 현재 체크인(ACTIVE 또는 TOGETHER)을 반환한다. 없으면 null.
      * TOGETHER면 파트너 닉네임을 함께 채워 앱이 "같이 먹는 중"을 렌더할 수 있게 한다.
      *
      * @param userId 회원 id
@@ -168,7 +187,11 @@ public class CheckInService {
     }
 
     /**
-     * 사회적 증거 통계를 반환한다. "오늘"은 Asia/Seoul 자정 기준이다.
+     * 기능: 사회적 증거 통계(오늘 혼밥한 사람 수·현재 혼밥 중 수)를 집계한다
+     * Request: 없음
+     * Response: CheckInStatsResponse — todayCount(오늘 distinct 사용자), activeCount(현재 ACTIVE)
+     *
+     * <p>[기존 주석] 사회적 증거 통계를 반환한다. "오늘"은 Asia/Seoul 자정 기준이다.
      *
      * @return todayCount(오늘 distinct 사용자)·activeCount(현재 ACTIVE)
      */
@@ -181,7 +204,11 @@ public class CheckInService {
     }
 
     /**
-     * 반경 내 식당별 현재 혼밥러 수 마커. 바운딩박스로 후보를 좁힌 뒤 Haversine로 원형 보정·거리순 정렬한다.
+     * 기능: 반경 내 식당별 현재 혼밥러 수 마커를 조회한다(바운딩박스 후보 → Haversine 원형 보정·거리순 정렬)
+     * Request: lat — 중심 위도(필수), lng — 중심 경도(필수), radius — 반경(m, 1~10,000 클램프)
+     * Response: List&lt;MapMarkerResponse&gt; — 거리순 정렬된 마커 목록(반경 밖 제외)
+     *
+     * <p>[기존 주석] 반경 내 식당별 현재 혼밥러 수 마커. 바운딩박스로 후보를 좁힌 뒤 Haversine로 원형 보정·거리순 정렬한다.
      *
      * @param lat    중심 위도(필수)
      * @param lng    중심 경도(필수)
@@ -204,7 +231,7 @@ public class CheckInService {
                 .toList();
     }
 
-    /** 두 좌표 간 거리(m)를 Haversine 공식으로 계산한다. */
+    /** 기능: 두 좌표 간 거리(m)를 Haversine 공식으로 계산한다. */
     private static double haversine(double lat1, double lng1, double lat2, double lng2) {
         double dLat = Math.toRadians(lat2 - lat1);
         double dLng = Math.toRadians(lng2 - lng1);
@@ -215,7 +242,11 @@ public class CheckInService {
     }
 
     /**
-     * 식당의 현재 혼밥러 목록을 반환한다. 경과분은 now−startedAt. 프라이버시상 닉네임·시작시각·경과만 노출한다.
+     * 기능: 식당의 현재 혼밥러 목록을 조회한다(차단 관계 상호 은닉, 경과분 계산 포함)
+     * Request: viewerId — 조회하는 회원 ID(차단 필터 기준), placeId — 식당 ID
+     * Response: List&lt;CheckInUserResponse&gt; — 현재 ACTIVE 혼밥러 목록(startedAt 오름차순)
+     *
+     * <p>[기존 주석] 식당의 현재 혼밥러 목록을 반환한다. 경과분은 now−startedAt. 프라이버시상 닉네임·시작시각·경과만 노출한다.
      * 차단 관계(양방향) 유저는 혼밥러 목록에서 상호 은닉한다(FR-108).
      *
      * @param viewerId 조회하는 회원 id(차단 필터 기준)
@@ -237,7 +268,11 @@ public class CheckInService {
     }
 
     /**
-     * 방치된 ACTIVE 체크인(ttlHours 초과, startedAt 기준)과 방치된 TOGETHER 체크인(togetherTtlHours 초과,
+     * 기능: TTL을 초과한 방치 체크인(ACTIVE·TOGETHER)을 일괄 ENDED 처리한다(스케줄러 호출용)
+     * Request: 없음
+     * Response: int — 만료된 체크인 수(ACTIVE + TOGETHER)
+     *
+     * <p>[기존 주석] 방치된 ACTIVE 체크인(ttlHours 초과, startedAt 기준)과 방치된 TOGETHER 체크인(togetherTtlHours 초과,
      * matchedAt 기준)을 각각 일괄 ENDED 처리하고 합산 만료 건수를 반환한다.
      *
      * @return 만료된 체크인 수(ACTIVE + TOGETHER)
@@ -250,7 +285,7 @@ public class CheckInService {
         return endedActive + endedTogether;
     }
 
-    /** 현재 시각을 KST LocalDateTime으로 반환한다(Clock instant를 Asia/Seoul로 환산). */
+    /** 기능: 현재 시각을 KST LocalDateTime으로 반환한다(Clock instant를 Asia/Seoul로 환산). */
     private LocalDateTime now() {
         return LocalDateTime.ofInstant(clock.instant(), KST);
     }

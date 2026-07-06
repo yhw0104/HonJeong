@@ -11,7 +11,11 @@ import com.honjeong.file.service.FileService;
 import com.honjeong.global.common.ApiResponse;
 
 /**
- * 파일 업로드 REST 컨트롤러(/api/files). 얇게 유지 — 멀티파트 파일을 받아 {@link FileService}에 위임만 한다.
+ * 파일(이미지) 업로드 컨트롤러.
+ *
+ * <p>기본 경로: /api/files
+ *
+ * <p>[기존 주석] 파일 업로드 REST 컨트롤러(/api/files). 얇게 유지 — 멀티파트 파일을 받아 {@link FileService}에 위임만 한다.
  *
  * <p><b>인가:</b> 프로필 사진은 온보딩(ProfileSetup) 단계에서도 업로드하므로 {@code ONBOARDING|USER} 모두 허용한다
  * (SecurityConfig에서 게이팅). 토큰이 없으면 401.
@@ -27,7 +31,13 @@ public class FileController {
     }
 
     /**
-     * 이미지 파일 업로드.
+     * 1. API 주소: POST /api/files
+     * 2. 사용 화면: 프로필 설정(ProfileSetup)·프로필 수정(ProfileEdit)·혼밥 기록 작성(DiningLogWrite) — 프로필/기록 사진 업로드
+     *    (앱은 shared/upload/imageUpload.ts에서 expo-file-system uploadAsync로 호출 — RN fetch가 FormData 파일파트 미지원)
+     * 3. Request: file(multipart/form-data, part 이름 "file") — 업로드할 이미지 파일 / 인증 토큰(ONBOARDING|USER)
+     * 4. Response: FileUploadResponse — 업로드된 파일의 접근 URL(url). 빈 파일·이미지가 아니면 400(INVALID_INPUT)
+     *
+     * <p>[기존 주석] 이미지 파일 업로드.
      *
      * <p><b>요청:</b> {@code POST /api/files} (multipart/form-data, part 이름 {@code file}).
      *

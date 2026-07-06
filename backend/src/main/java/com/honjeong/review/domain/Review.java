@@ -13,45 +13,58 @@ import com.honjeong.user.domain.User;
 import jakarta.persistence.*;
 
 /**
- * 리뷰 = 혼밥일기(ERD F-1, C3 통합). 공개 식당 리뷰이자 개인 방문기록.
+ * 식당 리뷰(혼밥일기) 한 건을 나타내는 엔티티 — 공개 식당 리뷰이자 개인 방문기록.
+ * (매핑 테이블 reviews)
+ *
+ * <p>[기존 주석] 리뷰 = 혼밥일기(ERD F-1, C3 통합). 공개 식당 리뷰이자 개인 방문기록.
  * check_in 연결 시 "인증". 같은 식당 다회 작성 허용(유니크 없음). 별점 2종은 NOT NULL.
  */
 @Entity
 @Table(name = "reviews")
 public class Review extends BaseTimeEntity {
 
+    /** 리뷰 PK */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** 리뷰 작성자 (FK: user_id) */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    /** 연결된 체크인 — 있으면 인증 리뷰 (FK: check_in_id, NULL 허용) */
     // 인증(있으면). NULL 허용 — 일반 리뷰.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "check_in_id")
     private CheckIn checkIn;
 
+    /** 리뷰 대상 식당 (FK: place_id) */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "place_id", nullable = false)
     private Place place;
 
+    /** 방문 시각 — 인증 리뷰면 체크인 시작 시각, 일반 리뷰면 작성 시점 */
     @Column(name = "visited_at", nullable = false)
     private LocalDateTime visitedAt;
 
+    /** 리뷰 본문(TEXT, NULL 허용) */
     @Column(columnDefinition = "TEXT")
     private String content;
 
+    /** 맛 별점(1~5, NOT NULL) */
     @Column(name = "taste_rating", nullable = false)
     private short tasteRating;
 
+    /** 혼밥 적합도 별점(1~5, NOT NULL) */
     @Column(name = "solo_friendly_rating", nullable = false)
     private short soloFriendlyRating;
 
+    /** 혼밥 친화 태그 목록 (review_tags 1:N, 교체 시 orphanRemoval로 기존 삭제) */
     @OneToMany(mappedBy = "review", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ReviewTag> tags = new ArrayList<>();
 
+    /** 리뷰 사진 목록 (review_photos 1:N, sortOrder 오름차순) */
     @OneToMany(mappedBy = "review", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sortOrder ASC")
     private List<ReviewPhoto> photos = new ArrayList<>();

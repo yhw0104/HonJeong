@@ -20,7 +20,10 @@ import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.global.security.JwtProvider;
 
 /**
- * 토큰 발급·관리 서비스. 인증에 쓰는 두 종류의 토큰을 다룬다.
+ * 1. 기능: JWT access 토큰과 불투명 refresh 토큰(해시 저장)의 발급·회전(rotate)·무효화(revoke)
+ * 2. 사용 Controller: (직접 주입 없음 — AuthService에서 사용)
+ *
+ * <p>[기존 주석] 토큰 발급·관리 서비스. 인증에 쓰는 두 종류의 토큰을 다룬다.
  *
  * <p>1) access 토큰: JWT(무상태). 서버가 별도로 저장하지 않고, 클라가 보내온 토큰의 서명만
  *    검증해 신원을 확인한다. 수명이 짧다(accessTtlSeconds).
@@ -66,7 +69,11 @@ public class TokenService {
     }
 
     /**
-     * 주어진 사용자에게 새 토큰 쌍(access + refresh)을 발급한다. 로그인·온보딩 완료 시 호출되는
+     * 기능: 사용자에게 새 토큰 쌍(access JWT + refresh 난수) 발급 — refresh는 해시로만 DB 저장
+     * Request: userId — 토큰을 발급받을 사용자 ID
+     * Response: TokenPair — access 토큰, refresh 원문, access 만료(초)
+     *
+     * <p>[기존 주석] 주어진 사용자에게 새 토큰 쌍(access + refresh)을 발급한다. 로그인·온보딩 완료 시 호출되는
      * 가장 기본적인 발급 메서드다.
      *
      * <p>동작 단계:
@@ -92,7 +99,11 @@ public class TokenService {
     }
 
     /**
-     * refresh 토큰을 회전(rotate)해 새 토큰 쌍을 재발급한다. access가 만료됐을 때 클라가 보관 중인
+     * 기능: refresh 토큰 회전 — 유효성 확인 후 기존 토큰 revoke + 새 토큰 쌍 재발급(재사용 차단)
+     * Request: rawRefreshToken — 클라이언트가 보관하던 refresh 원문
+     * Response: TokenPair — 새로 발급된 access/refresh 토큰 쌍 (무효 토큰이면 INVALID_REFRESH_TOKEN 예외)
+     *
+     * <p>[기존 주석] refresh 토큰을 회전(rotate)해 새 토큰 쌍을 재발급한다. access가 만료됐을 때 클라가 보관 중인
      * refresh 원문을 보내오면, 그 신원을 확인하고 새 access·refresh를 내준다.
      *
      * <p>동작 단계:
@@ -119,7 +130,11 @@ public class TokenService {
     }
 
     /**
-     * 로그아웃 처리. 제시된 refresh 원문에 해당하는 토큰을 찾아 무효화(revoke)한다. 무효화된 토큰은
+     * 기능: 제시된 refresh 토큰 무효화(로그아웃) — 없으면 조용히 무시(멱등)
+     * Request: rawRefreshToken — 무효화할 refresh 원문
+     * Response: 없음(void)
+     *
+     * <p>[기존 주석] 로그아웃 처리. 제시된 refresh 원문에 해당하는 토큰을 찾아 무효화(revoke)한다. 무효화된 토큰은
      * 이후 {@link #rotate}에서 재발급에 쓸 수 없다.
      *
      * <p>해당 토큰이 DB에 없으면(이미 만료·삭제되었거나 잘못된 값이면) 아무 일도 하지 않고 조용히
@@ -133,7 +148,9 @@ public class TokenService {
     }
 
     /**
-     * 불투명(opaque) refresh 토큰 원문을 생성한다. 암호학적으로 안전한 난수 32바이트를 만든 뒤,
+     * 기능: 불투명 refresh 토큰 원문 생성(SecureRandom 32바이트 → URL-safe Base64)
+     *
+     * <p>[기존 주석] 불투명(opaque) refresh 토큰 원문을 생성한다. 암호학적으로 안전한 난수 32바이트를 만든 뒤,
      * URL-safe Base64(패딩 없음)로 인코딩해 문자열로 돌려준다. JWT처럼 의미를 담지 않는 순수 난수라서
      * 추측이 불가능하다.
      *
@@ -146,7 +163,9 @@ public class TokenService {
     }
 
     /**
-     * 문자열을 SHA-256으로 해시해 16진수 문자열로 반환한다. refresh 원문을 저장·조회할 때 항상 이
+     * 기능: 문자열을 SHA-256 해시(64자리 hex)로 변환 — refresh 원문 저장·대조에 공통 사용
+     *
+     * <p>[기존 주석] 문자열을 SHA-256으로 해시해 16진수 문자열로 반환한다. refresh 원문을 저장·조회할 때 항상 이
      * 메서드를 거치므로, 같은 원문은 항상 같은 해시(64자리 hex)가 되어 DB의 저장 해시와 대조할 수 있다.
      *
      * @param value 해시할 원문(여기서는 refresh 토큰)

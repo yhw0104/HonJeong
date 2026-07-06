@@ -8,8 +8,16 @@ import org.springframework.data.repository.query.Param;
 
 import com.honjeong.review.domain.Review;
 
+/**
+ * 1. 기능: 리뷰 데이터 접근 — 식당별 목록·집계, 사용자별 목록·카운트 (대상 테이블: reviews, review_tags)
+ */
 public interface ReviewRepository extends JpaRepository<Review, Long> {
 
+    /**
+     * 기능: 식당의 리뷰 목록을 작성자·태그와 함께 최신순 조회(차단 관계 사용자 리뷰 제외)
+     * 쿼리: SELECT DISTINCT r.* FROM reviews r JOIN users u ON r.user_id = u.id LEFT JOIN review_tags t ON t.review_id = r.id WHERE r.place_id = :placeId AND r.user_id NOT IN (:excludedUserIds) ORDER BY r.created_at DESC — user는 JOIN FETCH, tags는 LEFT JOIN FETCH로 함께 로딩(N+1 방지)
+     * Request: placeId — 식당 ID, excludedUserIds — 제외할 사용자 ID 목록(차단 관계) / Response: List<Review> — 리뷰 목록(user·tags 로딩됨)
+     */
     @Query("""
             SELECT DISTINCT r FROM Review r
             JOIN FETCH r.user
@@ -21,12 +29,22 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Review> findByPlaceWithUserAndTags(@Param("placeId") Long placeId,
             @Param("excludedUserIds") List<Long> excludedUserIds);
 
+    /**
+     * 기능: 식당 리뷰의 별점 평균 2종과 리뷰 수 집계
+     * 쿼리: SELECT AVG(taste_rating), AVG(solo_friendly_rating), COUNT(*) FROM reviews WHERE place_id = :placeId
+     * Request: placeId — 식당 ID / Response: List<Object[]> — [맛 평균, 혼밥 적합도 평균, 건수] 단일 행
+     */
     @Query("""
             SELECT AVG(r.tasteRating), AVG(r.soloFriendlyRating), COUNT(r)
             FROM Review r WHERE r.place.id = :placeId
             """)
     List<Object[]> summarizeByPlace(@Param("placeId") Long placeId);
 
+    /**
+     * 기능: 식당의 친화 태그별 부착 횟수를 빈도 내림차순으로 집계
+     * 쿼리: SELECT tag, COUNT(*) FROM review_tags WHERE place_id = :placeId GROUP BY tag ORDER BY COUNT(*) DESC
+     * Request: placeId — 식당 ID / Response: List<Object[]> — [태그, 횟수] 행 목록
+     */
     @Query("""
             SELECT rt.tag, COUNT(rt) FROM ReviewTag rt
             WHERE rt.place.id = :placeId
@@ -36,7 +54,11 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Object[]> countTagsByPlace(@Param("placeId") Long placeId);
 
     /**
-     * 사용자의 체크인 연결 리뷰 목록. checkIn IS NOT NULL인 리뷰만 태그와 함께 createdAt DESC로 조회한다.
+     * 기능: 사용자의 인증(체크인 연결) 리뷰를 태그와 함께 작성 최신순 조회
+     * 쿼리: SELECT DISTINCT r.* FROM reviews r LEFT JOIN review_tags t ON t.review_id = r.id WHERE r.user_id = :userId AND r.check_in_id IS NOT NULL ORDER BY r.created_at DESC — tags LEFT JOIN FETCH
+     * Request: userId — 사용자 ID / Response: List<Review> — 인증 리뷰 목록(tags 로딩됨)
+     *
+     * <p>[기존 주석] 사용자의 체크인 연결 리뷰 목록. checkIn IS NOT NULL인 리뷰만 태그와 함께 createdAt DESC로 조회한다.
      *
      * @param userId 회원 id
      * @return 체크인 연결 리뷰 목록(tags LEFT JOIN FETCH, 최신순)
@@ -50,7 +72,11 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Review> findByUserWithCheckIn(@Param("userId") Long userId);
 
     /**
-     * 사용자의 전체 리뷰(인증+일반)를 작성 최신순으로 조회한다. '내가 쓴 리뷰' 화면용.
+     * 기능: 사용자의 전체 리뷰(인증+일반)를 식당·태그와 함께 작성 최신순 조회
+     * 쿼리: SELECT DISTINCT r.* FROM reviews r JOIN places p ON r.place_id = p.id LEFT JOIN review_tags t ON t.review_id = r.id WHERE r.user_id = :userId ORDER BY r.created_at DESC, r.id DESC — place JOIN FETCH, tags LEFT JOIN FETCH
+     * Request: userId — 사용자 ID / Response: List<Review> — 내 리뷰 목록(place·tags 로딩됨)
+     *
+     * <p>[기존 주석] 사용자의 전체 리뷰(인증+일반)를 작성 최신순으로 조회한다. '내가 쓴 리뷰' 화면용.
      * place는 fetch join, tags는 left fetch join(사진은 MultipleBagFetch 회피를 위해 별도 쿼리).
      *
      * @param userId 회원 id
@@ -66,7 +92,11 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Review> findAllByUserWithPlaceAndTags(@Param("userId") Long userId);
 
     /**
-     * 사용자의 인증 리뷰 수(checkIn 연결된 것만). '내 혼밥 기록' 요약 "일기 N"용 —
+     * 기능: 사용자의 인증 리뷰(체크인 연결) 건수 집계
+     * 쿼리: SELECT COUNT(*) FROM reviews WHERE user_id = :userId AND check_in_id IS NOT NULL
+     * Request: userId — 사용자 ID / Response: long — 인증 리뷰 건수
+     *
+     * <p>[기존 주석] 사용자의 인증 리뷰 수(checkIn 연결된 것만). '내 혼밥 기록' 요약 "일기 N"용 —
      * 그 화면 목록이 인증 일기만 노출하므로 카운트 기준을 일치시킨다.
      *
      * @param userId 회원 id
@@ -75,7 +105,11 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     long countByUser_IdAndCheckInIsNotNull(Long userId);
 
     /**
-     * 해당 체크인에 이미 리뷰가 있는지. 한 방문(체크인)=한 리뷰 제약(부분 유니크)의 사전 검사용.
+     * 기능: 해당 체크인에 연결된 리뷰가 이미 있는지 확인
+     * 쿼리: SELECT COUNT(*) > 0 FROM reviews WHERE check_in_id = :checkInId
+     * Request: checkInId — 체크인 ID / Response: boolean — 존재 여부
+     *
+     * <p>[기존 주석] 해당 체크인에 이미 리뷰가 있는지. 한 방문(체크인)=한 리뷰 제약(부분 유니크)의 사전 검사용.
      *
      * @param checkInId 체크인 id
      * @return 그 체크인에 연결된 리뷰 존재 여부

@@ -3,7 +3,10 @@ package com.honjeong.global.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * application.yml의 {@code honjeong.jwt.*} 값을 바인딩하는 타입 안전 설정 프로퍼티.
+ * 1. 기능: application.yml의 {@code honjeong.jwt.*} 값을 바인딩하는 타입 안전 설정 프로퍼티 — JWT 서명 시크릿과 토큰 종류별 TTL(초)
+ * 2. 사용처: SecurityConfig(JwtProvider 빈 구성·바인딩 활성화), TokenService(리프레시 토큰 TTL)
+ *
+ * <p>[기존 주석] application.yml의 {@code honjeong.jwt.*} 값을 바인딩하는 타입 안전 설정 프로퍼티.
  * 서명용 시크릿과 토큰 종류별 만료 시간(초)을 담는다.
  *
  * @param secret HS256 서명에 쓰는 대칭키 문자열({@link com.honjeong.global.security.JwtProvider}가 HmacSHA256 키로 사용)

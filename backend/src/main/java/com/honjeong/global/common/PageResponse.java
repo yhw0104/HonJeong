@@ -3,7 +3,10 @@ package com.honjeong.global.common;
 import java.util.List;
 
 /**
- * 페이지네이션 응답 엔벨로프(API 명세 §1.4: {@code content}/{@code page}/{@code size}/{@code totalElements}).
+ * 1. 기능: 페이지네이션 응답 공통 봉투 — 페이징 목록 API가 content/page/size/totalElements 구조로 응답하도록 표준화
+ * 2. 사용처: PlaceController·PlaceService(장소 검색 목록) 등 페이징 엔드포인트, 보통 ApiResponse&lt;PageResponse&lt;T&gt;&gt;로 감싸 응답
+ *
+ * <p>[기존 주석] 페이지네이션 응답 엔벨로프(API 명세 §1.4: {@code content}/{@code page}/{@code size}/{@code totalElements}).
  * 특정 도메인에 종속되지 않는 공통 엔벨로프라 {@code ApiResponse}와 같은 global/common에 둔다 — 이후 같이먹기 목록 등
  * 다른 페이징 엔드포인트가 그대로 재사용한다. 보통 {@code ApiResponse<PageResponse<T>>} 형태로 감싸 응답한다.
  *

@@ -10,7 +10,11 @@ import com.honjeong.geo.service.GeoService;
 import com.honjeong.global.common.ApiResponse;
 
 /**
- * 역지오코딩 REST 컨트롤러(AUTH-012).
+ * 역지오코딩(좌표→동네 이름 변환, AUTH-012) 컨트롤러.
+ *
+ * <p>기본 경로: /api/geo
+ *
+ * <p>[기존 주석] 역지오코딩 REST 컨트롤러(AUTH-012).
  *
  * <p><b>인가:</b> 온보딩 '동네 설정'(ProfileSetup) 단계에서 호출하므로 온보딩 토큰 또는 정식 USER 모두 허용한다.
  */
@@ -25,7 +29,12 @@ public class GeoController {
     }
 
     /**
-     * 좌표를 동네(행정구역)로 변환한다.
+     * 1. API 주소: GET /api/geo/reverse
+     * 2. 사용 화면: (앱 미사용 — 백엔드 내부용) — '내 동네' 기능 제거 결정(2026-07-04)으로 현재 앱은 호출하지 않음
+     * 3. Request: lat(쿼리) — 위도(필수), lng(쿼리) — 경도(필수)
+     * 4. Response: ReverseGeocodeResponse — 동네 표시명(region), 동네 중심 좌표(regionLat/regionLng)
+     *
+     * <p>[기존 주석] 좌표를 동네(행정구역)로 변환한다.
      *
      * <p><b>요청:</b> {@code GET /api/geo/reverse?lat=37.5&lng=127.0}.
      * {@code lat}/{@code lng}는 필수 — 누락·범위초과 시 400({@code INVALID_INPUT}).

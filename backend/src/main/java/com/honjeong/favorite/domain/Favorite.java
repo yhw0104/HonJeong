@@ -18,23 +18,31 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
+/**
+ * 즐겨찾기 그룹에 담긴 장소 1건(그룹-장소 매핑)을 나타내는 엔티티.
+ * (엔티티: 매핑 테이블 favorites)
+ */
 @Entity
 @Table(name = "favorites")
 @EntityListeners(AuditingEntityListener.class)
 public class Favorite {
 
+    /** 즐겨찾기 PK (자동 증가) */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** 즐겨찾기가 속한 그룹 (FK: group_id) */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "group_id", nullable = false)
     private FavoriteGroup group;
 
+    /** 즐겨찾기된 장소(식당) (FK: place_id) */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "place_id", nullable = false)
     private Place place;
 
+    /** 담은 시각 (JPA Auditing 자동 기록, 수정 불가) */
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -46,6 +54,11 @@ public class Favorite {
         this.place = place;
     }
 
+    /**
+     * 기능: 그룹-장소 매핑 즐겨찾기 인스턴스 생성(정적 팩토리)
+     * Request: group — 담을 그룹, place — 담을 장소
+     * Response: Favorite — 저장 전 새 즐겨찾기 엔티티
+     */
     public static Favorite of(FavoriteGroup group, Place place) {
         return new Favorite(group, place);
     }

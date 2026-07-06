@@ -24,7 +24,10 @@ import com.honjeong.user.repository.UserRepository;
 import com.honjeong.user.service.UserFoodPreferenceService;
 
 /**
- * 인증 흐름 전체를 지휘(오케스트레이션)하는 핵심 서비스. 휴대폰 인증·소셜(OAuth) 로그인이라는
+ * 1. 기능: 인증 흐름 전체(휴대폰 SMS 인증·소셜 OAuth 로그인·온보딩(약관→프로필)·토큰 재발급/로그아웃) 오케스트레이션
+ * 2. 사용 Controller: AuthController
+ *
+ * <p>[기존 주석] 인증 흐름 전체를 지휘(오케스트레이션)하는 핵심 서비스. 휴대폰 인증·소셜(OAuth) 로그인이라는
  * 두 진입 경로와, 그 뒤에 이어지는 온보딩(약관 동의 → 프로필 완성)까지를 담당한다.
  *
  * <p><b>회원 상태와 토큰 종류:</b> 사용자는 가입 도중엔 PENDING(가입 진행 중), 프로필까지 끝내면
@@ -85,7 +88,11 @@ public class AuthService {
     }
 
     /**
-     * 휴대폰 인증번호를 발급해 SMS로 보낸다. 휴대폰 가입·로그인의 첫 단계다.
+     * 기능: 휴대폰 인증번호를 생성·저장하고 SMS로 발송(개발 mock은 고정 000000·로그 출력)
+     * Request: phone — 인증번호를 받을 휴대폰 번호
+     * Response: 없음(void)
+     *
+     * <p>[기존 주석] 휴대폰 인증번호를 발급해 SMS로 보낸다. 휴대폰 가입·로그인의 첫 단계다.
      *
      * <p>동작 단계:
      * <ol>
@@ -106,7 +113,11 @@ public class AuthService {
     }
 
     /**
-     * 휴대폰 인증번호를 검증하고, 그 결과로 로그인 또는 온보딩으로 분기한다. 휴대폰 가입·로그인의
+     * 기능: 휴대폰 인증번호 검증(만료·시도횟수·일치) 후 기존 ACTIVE 회원은 로그인, 신규/미완은 PENDING 생성+온보딩 토큰 발급
+     * Request: phone — 검증할 휴대폰 번호, code — 사용자가 입력한 인증번호
+     * Response: AuthResult — 로그인(tokens) 또는 온보딩(onboardingToken) 결과
+     *
+     * <p>[기존 주석] 휴대폰 인증번호를 검증하고, 그 결과로 로그인 또는 온보딩으로 분기한다. 휴대폰 가입·로그인의
      * 두 번째 단계로, 이 서비스의 핵심 분기 로직이다.
      *
      * <p>검증 단계(하나라도 실패하면 즉시 예외):
@@ -171,7 +182,11 @@ public class AuthService {
     }
 
     /**
-     * 소셜(OAuth) 로그인을 처리한다. 카카오·애플 등 공급자가 발급한 idToken을 검증해 신원을 확인하고,
+     * 기능: 소셜 idToken 검증(개발은 MockOAuthVerifier) 후 연동 회원 로그인 또는 신규 PENDING 생성+온보딩 토큰 발급
+     * Request: provider — 소셜 공급자(KAKAO/APPLE), idToken — 공급자가 발급한 ID 토큰
+     * Response: AuthResult — 로그인(tokens) 또는 온보딩(onboardingToken) 결과
+     *
+     * <p>[기존 주석] 소셜(OAuth) 로그인을 처리한다. 카카오·애플 등 공급자가 발급한 idToken을 검증해 신원을 확인하고,
      * 그 신원에 연결된 회원을 찾아 로그인 또는 온보딩으로 분기한다.
      *
      * <p>동작 단계:
@@ -209,7 +224,11 @@ public class AuthService {
     }
 
     /**
-     * 약관 동의를 기록한다(온보딩 단계). 필수 약관 3종(서비스 이용·개인정보·위치)에 모두 동의해야
+     * 기능: 약관 동의 기록 저장(필수 3종 검증, 이미 동의했으면 멱등 통과)
+     * Request: userId — 동의하는 사용자 ID, service/privacy/location — 필수 약관 동의 여부, marketing — 선택 약관 동의 여부
+     * Response: 없음(void)
+     *
+     * <p>[기존 주석] 약관 동의를 기록한다(온보딩 단계). 필수 약관 3종(서비스 이용·개인정보·위치)에 모두 동의해야
      * 통과하며, 마케팅은 선택이다.
      *
      * <p>동작 단계:
@@ -239,7 +258,11 @@ public class AuthService {
     }
 
     /**
-     * 프로필을 확정해 온보딩을 끝내고 정식 토큰을 발급한다. 온보딩의 마지막 단계로, 이 호출이 성공하면
+     * 기능: 온보딩 프로필 확정(닉네임 중복 검사→프로필 저장→ACTIVE 전환→선호음식·기본 즐겨찾기 그룹 생성) 후 정식 토큰 발급
+     * Request: userId — 온보딩을 끝낼 사용자 ID, command — 프로필 입력값 묶음(CompleteProfileCommand)
+     * Response: TokenPair — 새로 발급된 access/refresh 토큰 쌍
+     *
+     * <p>[기존 주석] 프로필을 확정해 온보딩을 끝내고 정식 토큰을 발급한다. 온보딩의 마지막 단계로, 이 호출이 성공하면
      * 회원은 PENDING에서 ACTIVE로 전환되어 정상 회원이 된다.
      *
      * <p>동작 단계:
@@ -273,7 +296,11 @@ public class AuthService {
     }
 
     /**
-     * access 토큰 재발급. 클라가 보관한 refresh 원문으로 {@link TokenService#rotate}를 호출하는 얇은
+     * 기능: refresh 토큰 회전으로 access 토큰 재발급(TokenService.rotate 위임)
+     * Request: rawRefreshToken — 클라가 보관 중인 refresh 원문
+     * Response: TokenPair — 새로 발급된 토큰 쌍
+     *
+     * <p>[기존 주석] access 토큰 재발급. 클라가 보관한 refresh 원문으로 {@link TokenService#rotate}를 호출하는 얇은
      * 위임 메서드다(기존 refresh 회수 + 새 토큰 쌍 발급). 토큰 회전 자체는 트랜잭션이 필요하므로
      * 여기서는 별도 {@code @Transactional}을 두지 않고 TokenService에 위임한다.
      *
@@ -285,7 +312,11 @@ public class AuthService {
     }
 
     /**
-     * 로그아웃. 제시된 refresh를 무효화하도록 {@link TokenService#revoke}에 위임한다(없으면 조용히 무시).
+     * 기능: 로그아웃 — 제시된 refresh 토큰 무효화(TokenService.revoke 위임)
+     * Request: rawRefreshToken — 무효화할 refresh 원문
+     * Response: 없음(void)
+     *
+     * <p>[기존 주석] 로그아웃. 제시된 refresh를 무효화하도록 {@link TokenService#revoke}에 위임한다(없으면 조용히 무시).
      *
      * @param rawRefreshToken 무효화할 refresh 원문
      */

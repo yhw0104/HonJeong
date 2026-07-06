@@ -23,7 +23,10 @@ import com.honjeong.place.dto.PlaceSearchResponse;
 import com.honjeong.place.repository.PlaceRepository;
 
 /**
- * 장소 도메인 서비스. 세 가지 책임을 가진다.
+ * 1. 기능: 장소(식당) 단건 조회·이름 검색·주변 반경 조회(ACTIVE 혼밥러 수 오버레이) 비즈니스 로직
+ * 2. 사용 Controller: PlaceController (그 외 CheckInService·FavoriteService·ReviewService가 getById로 사용)
+ *
+ * <p>[기존 주석] 장소 도메인 서비스. 세 가지 책임을 가진다.
  *
  * <ul>
  *   <li><b>단건 조회</b> — {@link #getById}로 placeId를 내부 엔티티로 변환한다(없으면 PLACE_NOT_FOUND).</li>
@@ -53,7 +56,11 @@ public class PlaceService {
     }
 
     /**
-     * 내부 placeId로 장소 엔티티를 조회한다. 없으면 {@link ErrorCode#PLACE_NOT_FOUND}(404)를 던진다.
+     * 기능: 내부 placeId로 장소 엔티티 단건 조회(다른 도메인 서비스에서 placeId 검증 겸용)
+     * Request: placeId — 우리 DB의 장소 PK
+     * Response: Place — 해당 장소 엔티티 (없으면 PLACE_NOT_FOUND 예외)
+     *
+     * <p>[기존 주석] 내부 placeId로 장소 엔티티를 조회한다. 없으면 {@link ErrorCode#PLACE_NOT_FOUND}(404)를 던진다.
      *
      * @param placeId 우리 DB의 장소 PK
      * @return 해당 장소 엔티티
@@ -66,7 +73,11 @@ public class PlaceService {
     }
 
     /**
-     * 내부 placeId로 장소 상세(기본 정보)를 조회해 응답 DTO로 반환한다.
+     * 기능: 장소 상세(기본 정보)를 조회해 응답 DTO로 변환
+     * Request: placeId — 우리 DB의 장소 PK
+     * Response: PlaceDetailResponse — 식당 상세 기본 정보 (없으면 PLACE_NOT_FOUND 예외)
+     *
+     * <p>[기존 주석] 내부 placeId로 장소 상세(기본 정보)를 조회해 응답 DTO로 반환한다.
      *
      * @param placeId 우리 DB의 장소 PK
      * @return 식당 상세 응답 DTO
@@ -78,7 +89,11 @@ public class PlaceService {
     }
 
     /**
-     * 검색어로 우리 DB(영업 중인 장소)를 조회해 페이지 엔벨로프로 반환한다.
+     * 기능: 검색어로 영업 중인 장소를 이름 부분일치 조회(이름순 페이지)
+     * Request: query — 검색어(공백 불가), page — 0-base 페이지 번호, size — 페이지 크기(최대 50 클램프)
+     * Response: {@code PageResponse<PlaceSearchResponse>} — 검색 결과 페이지 엔벨로프
+     *
+     * <p>[기존 주석] 검색어로 우리 DB(영업 중인 장소)를 조회해 페이지 엔벨로프로 반환한다.
      *
      * @param query 검색어(공백 불가, trim 적용됨)
      * @param page  0-base 페이지 번호(0 이상)
@@ -108,7 +123,11 @@ public class PlaceService {
     }
 
     /**
-     * 요청 위치에서 반경 {@code radius}m 이내의 영업 중인 장소를 거리순으로 반환하고 ACTIVE 혼밥러 수를 오버레이한다.
+     * 기능: 반경 내 영업 중인 장소를 거리순으로 조회하고 장소별 ACTIVE 혼밥러 수를 오버레이
+     * Request: lat — 요청 위도(필수), lng — 요청 경도(필수), radius — 반경(m, 1~10000 클램프), page — 0-base 페이지 번호, size — 페이지 크기(최대 50 클램프)
+     * Response: {@code PageResponse<PlaceNearbyResponse>} — 거리순 주변 장소 페이지 엔벨로프(거리·혼밥러 수 포함)
+     *
+     * <p>[기존 주석] 요청 위치에서 반경 {@code radius}m 이내의 영업 중인 장소를 거리순으로 반환하고 ACTIVE 혼밥러 수를 오버레이한다.
      *
      * <p>바운딩박스 1차 필터 후 Haversine으로 원형 반경 보정·거리 정렬하고, 혼밥러 수는
      * {@link CheckInRepository#countActiveByPlaceIds}로 일괄 조회해 오버레이한다(없으면 0).
@@ -172,7 +191,11 @@ public class PlaceService {
         return PageResponse.of(content, page, clampedSize, total);
     }
 
-    /** Haversine 공식으로 두 위경도 좌표 간 거리를 미터 단위로 반환한다. */
+    /**
+     * 기능: 두 위경도 좌표 간 거리를 Haversine 공식으로 계산(m)
+     *
+     * <p>[기존 주석] Haversine 공식으로 두 위경도 좌표 간 거리를 미터 단위로 반환한다.
+     */
     private static double haversine(double lat1, double lng1, double lat2, double lng2) {
         double dLat = Math.toRadians(lat2 - lat1);
         double dLng = Math.toRadians(lng2 - lng1);

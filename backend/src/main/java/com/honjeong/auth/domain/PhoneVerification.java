@@ -15,8 +15,11 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * 휴대폰 인증 발송 기록. 회원과 무관한 발송도 있어 phone 기준(FK 없음).
- * created_at만 가지므로 BaseTimeEntity(updated 포함) 대신 @CreatedDate만 둔다.
+ * 휴대폰 인증번호 발송 1건의 기록(코드·만료·시도횟수·성공여부)을 나타내는 엔티티.
+ * (엔티티: 매핑 테이블 phone_verifications)
+ *
+ * <p>[기존 주석] 휴대폰 인증 발송 기록. 회원과 무관한 발송도 있어 phone 기준(FK 없음).
+ * created_at만 가지므로 BaseTimeEntity(updated 포함) 대신 {@code @CreatedDate}만 둔다.
  * 인증번호는 단기(3분)·rate-limit 대상이라 P1에서는 평문 저장(추후 해시 하드닝 가능).
  */
 @Entity
@@ -27,33 +30,35 @@ import jakarta.persistence.Table;
 @DynamicUpdate
 public class PhoneVerification {
 
-    // PK. DB auto-increment(IDENTITY).
+    /** PK. DB auto-increment(IDENTITY). */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 인증 대상 휴대폰 번호. 회원과 무관하게 번호 단위로 기록(FK 없음). NOT NULL.
+    /** 인증 대상 휴대폰 번호. 회원과 무관하게 번호 단위로 기록(FK 없음). NOT NULL. */
     @Column(nullable = false)
     private String phone;
 
-    // 발송한 인증번호. 단기·rate-limit 대상이라 P1에서는 평문 저장. NOT NULL.
+    /** 발송한 인증번호. 단기·rate-limit 대상이라 P1에서는 평문 저장. NOT NULL. */
     @Column(nullable = false)
     private String code;
 
-    // 인증번호 만료 시각(보통 발송 후 3분). expires_at 컬럼.
+    /** 인증번호 만료 시각(보통 발송 후 3분). expires_at 컬럼. */
     @Column(nullable = false)
     private LocalDateTime expiresAt;
 
-    // 인증 성공 처리 여부. 기본 false, 검증 통과 시 true. NOT NULL.
+    /** 인증 성공 처리 여부. 기본 false, 검증 통과 시 true. NOT NULL. */
     @Column(nullable = false)
     private boolean verified = false;
 
-    // 인증번호 입력 시도 횟수(무차별 대입 방어용 카운터). 기본 0. NOT NULL.
+    /** 인증번호 입력 시도 횟수(무차별 대입 방어용 카운터). 기본 0. NOT NULL. */
     @Column(nullable = false)
     private int attempts = 0;
 
-    // 생성 시각. updated가 필요 없어 BaseTimeEntity 대신 @CreatedDate만 둔다.
-    // AuditingEntityListener가 INSERT 시 자동 주입하며, updatable=false로 이후 수정되지 않게 고정.
+    /**
+     * 생성 시각. updated가 필요 없어 BaseTimeEntity 대신 @CreatedDate만 둔다.
+     * AuditingEntityListener가 INSERT 시 자동 주입하며, updatable=false로 이후 수정되지 않게 고정.
+     */
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

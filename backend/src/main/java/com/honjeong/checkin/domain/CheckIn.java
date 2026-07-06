@@ -18,7 +18,10 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 /**
- * 혼밥 체크인(핵심 데이터). 사용자가 선택한 식당에 "혼밥 중"을 등록한 기록이며, 통계·지도·혼밥러 목록의 원천이다.
+ * 사용자가 식당에 "혼밥 중"을 등록한 혼밥 체크인 기록 — 통계·지도·혼밥러 목록의 원천 데이터
+ * (매핑 테이블 check_ins)
+ *
+ * <p>[기존 주석] 혼밥 체크인(핵심 데이터). 사용자가 선택한 식당에 "혼밥 중"을 등록한 기록이며, 통계·지도·혼밥러 목록의 원천이다.
  * 사용자당 ACTIVE+TOGETHER 합쳐 최대 1개 제약은 DB 부분 유니크 인덱스(uq_check_ins_current_user)가 보장한다.
  *
  * <p>{@code check_ins}는 {@code created_at}만 있고 {@code updated_at}이 없어 {@code BaseTimeEntity}를 상속하지 않고
@@ -32,40 +35,49 @@ import jakarta.persistence.Table;
 @Table(name = "check_ins")
 public class CheckIn {
 
+    /** 체크인 PK (id, auto-increment) */
     // PK. IDENTITY 전략 → DB의 auto-increment에 위임해 INSERT 시 채워진다.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** 체크인한 회원 (FK: user_id) */
     // 체크인한 회원. LAZY — 혼밥러 목록에서 fetch join으로 닉네임만 가져온다.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    /** 체크인한 식당 (FK: place_id) */
     // 체크인한 식당. LAZY — 지도 집계는 프로젝션, 응답엔 id만 필요.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "place_id", nullable = false)
     private Place place;
 
+    /** 체크인 상태 (status: ACTIVE|TOGETHER|ENDED|CANCELLED) */
     // 상태(ACTIVE|TOGETHER|ENDED|CANCELLED). 문자열 enum으로 저장.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private CheckInStatus status;
 
+    /** 체크인 시작 시각 (started_at, NOT NULL) */
     // 체크인 시작 시각. NOT NULL.
     @Column(nullable = false)
     private LocalDateTime startedAt;
 
+    /** 체크인 종료 시각 (ended_at, 진행 중이면 null) */
     // 종료 시각. ACTIVE 동안 null.
     private LocalDateTime endedAt;
 
+    /** 레코드 생성 시각 (created_at, INSERT 후 불변) */
     // 생성 시각. INSERT 시 한 번 채워지고 갱신되지 않는다.
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /** 같이먹기 매칭 시각 (matched_at, 솔로 체크인이면 null) */
     // 매칭 시각(TOGETHER TTL 기준). 솔로면 null.
     private LocalDateTime matchedAt;
 
+    /** 매칭된 같이먹기 신청 ID (FK: meal_request_id, 솔로면 null) */
     // 매칭된 같이먹기 신청 id(쌍 링크). 엔티티 관계 아닌 plain Long — checkin→meal 순환 회피. 솔로면 null.
     @Column(name = "meal_request_id")
     private Long mealRequestId;

@@ -10,7 +10,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * 장소(식당) 엔티티. V3 이후 공공데이터 마스터만 사용한다({@code external_id} 컬럼은 V3 마이그레이션으로 제거됨).
+ * 공공데이터에서 적재한 장소(식당) 마스터 데이터 (매핑 테이블 places)
+ *
+ * <p>[기존 주석] 장소(식당) 엔티티. V3 이후 공공데이터 마스터만 사용한다({@code external_id} 컬럼은 V3 마이그레이션으로 제거됨).
  *
  * <p>컬럼명은 기본 스네이크케이스 전략으로 매핑된다.
  */
@@ -18,42 +20,53 @@ import jakarta.persistence.Table;
 @Table(name = "places")
 public class Place extends BaseTimeEntity {
 
+    /** 장소 PK */
     // PK. IDENTITY 전략 → DB의 auto-increment에 위임해 INSERT 시 채워진다.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** 데이터 출처 식별자 (예: PUBLIC_DATA) */
     // 데이터 출처 식별자. 'PUBLIC_DATA' 또는 향후 추가 출처. NOT NULL.
     @Column(nullable = false)
     private String source;
 
+    /** 출처별 관리번호 — (source, source_id) UNIQUE */
     // 출처별 관리번호. 공공데이터 적재 행의 식별 키 (source, source_id) UNIQUE.
     private String sourceId;
 
+    /** 가게명 */
     // 가게명. NOT NULL.
     @Column(nullable = false)
     private String name;
 
+    /** 카테고리 (예: 한식, nullable) */
     // 카테고리(예: 한식). nullable.
     private String category;
 
+    /** 지번 주소 (nullable) */
     // 지번 주소. nullable.
     private String address;
 
+    /** 도로명 주소 (nullable) */
     // 도로명 주소. nullable.
     private String roadAddress;
 
+    /** 위도 */
     // 위도. NOT NULL.
     @Column(nullable = false)
     private double latitude;
 
+    /** 경도 */
     // 경도. NOT NULL.
     @Column(nullable = false)
     private double longitude;
 
+    /** 전화번호 (nullable) */
     // 전화번호. nullable.
     private String phone;
 
+    /** 영업 상태 (예: '영업', '폐업', nullable) */
     // 영업 상태 (예: '영업', '폐업'). nullable.
     private String businessStatus;
 

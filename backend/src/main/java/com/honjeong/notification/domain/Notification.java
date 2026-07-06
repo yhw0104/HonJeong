@@ -5,13 +5,17 @@ import com.honjeong.user.domain.User;
 import jakarta.persistence.*;
 
 /**
- * 인앱 알림 한 건. 받는 사람(user) 기준으로 쌓이고, 문구는 저장하지 않는다 —
+ * 인앱 알림 한 건을 나타내는 엔티티.
+ * (엔티티면: 매핑 테이블 notifications)
+ *
+ * <p>[기존 주석] 인앱 알림 한 건. 받는 사람(user) 기준으로 쌓이고, 문구는 저장하지 않는다 —
  * 앱이 type + actor 닉네임으로 조립한다(문구 변경이 과거 알림에도 적용되도록).
  */
 @Entity
 @Table(name = "notifications")
 public class Notification {
 
+    /** 알림 id (PK). */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -26,13 +30,16 @@ public class Notification {
     @JoinColumn(name = "actor_user_id")
     private User actor;
 
+    /** 알림 종류. */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private NotificationType type;
 
+    /** 읽음 여부. */
     @Column(nullable = false)
     private boolean isRead;
 
+    /** 발생(생성) 시각. */
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

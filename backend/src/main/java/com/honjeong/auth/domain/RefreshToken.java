@@ -12,31 +12,34 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * 저장된 refresh 토큰(원문 대신 해시). 재발급 시 회전(기존 revoke + 신규 발급),
+ * 서버가 보관하는 리프레시 토큰(원문이 아닌 SHA-256 해시)을 나타내는 엔티티.
+ * (엔티티: 매핑 테이블 refresh_tokens)
+ *
+ * <p>[기존 주석] 저장된 refresh 토큰(원문 대신 해시). 재발급 시 회전(기존 revoke + 신규 발급),
  * 로그아웃/탈취 시 revoke로 무효화. user_id는 단순 컬럼으로 매핑(연관관계 없이 결합도↓).
  */
 @Entity
 @Table(name = "refresh_tokens")
 public class RefreshToken extends BaseTimeEntity {
 
-    // PK. DB auto-increment에 위임(IDENTITY).
+    /** PK. DB auto-increment에 위임(IDENTITY). */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 토큰 소유 회원 식별자. User와 연관관계(@ManyToOne) 없이 단순 Long 컬럼(user_id)으로 둬 결합도를 낮춘다.
+    /** 토큰 소유 회원 식별자. User와 연관관계(@ManyToOne) 없이 단순 Long 컬럼(user_id)으로 둬 결합도를 낮춘다. */
     @Column(nullable = false)
     private Long userId;
 
-    // 토큰 원문이 아니라 해시값을 저장(DB 유출 시에도 원문 복원을 막기 위함). NOT NULL.
+    /** 토큰 원문이 아니라 해시값을 저장(DB 유출 시에도 원문 복원을 막기 위함). NOT NULL. */
     @Column(nullable = false)
     private String tokenHash;
 
-    // 만료 시각. 이 시각 이후로는 사용 불가. expires_at 컬럼으로 매핑.
+    /** 만료 시각. 이 시각 이후로는 사용 불가. expires_at 컬럼으로 매핑. */
     @Column(nullable = false)
     private LocalDateTime expiresAt;
 
-    // 회수(무효화) 여부. 로그아웃·재발급 회전·탈취 대응 시 true가 된다. 기본 false.
+    /** 회수(무효화) 여부. 로그아웃·재발급 회전·탈취 대응 시 true가 된다. 기본 false. */
     @Column(nullable = false)
     private boolean revoked = false;
 

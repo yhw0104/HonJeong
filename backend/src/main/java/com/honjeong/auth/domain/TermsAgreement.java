@@ -10,38 +10,41 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * 약관 동의(사용자당 1행, UNIQUE(user_id)). 필수 3종(service·privacy·location) + 선택(marketing).
+ * 온보딩 시 사용자의 약관 동의 내역(필수 3종 + 선택 마케팅)을 나타내는 엔티티.
+ * (엔티티: 매핑 테이블 terms_agreements)
+ *
+ * <p>[기존 주석] 약관 동의(사용자당 1행, UNIQUE(user_id)). 필수 3종(service·privacy·location) + 선택(marketing).
  */
 @Entity
 @Table(name = "terms_agreements")
 public class TermsAgreement {
 
-    // PK. DB auto-increment(IDENTITY).
+    /** PK. DB auto-increment(IDENTITY). */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 동의 주체 회원 id. 사용자당 1행이라 user_id에 UNIQUE 제약(Flyway 스키마)이 걸린다. 연관관계 없이 Long.
+    /** 동의 주체 회원 id. 사용자당 1행이라 user_id에 UNIQUE 제약(Flyway 스키마)이 걸린다. 연관관계 없이 Long. */
     @Column(nullable = false)
     private Long userId;
 
-    // 서비스 이용약관 동의(필수). NOT NULL.
+    /** 서비스 이용약관 동의(필수). NOT NULL. */
     @Column(nullable = false)
     private boolean service;
 
-    // 개인정보 처리방침 동의(필수). NOT NULL.
+    /** 개인정보 처리방침 동의(필수). NOT NULL. */
     @Column(nullable = false)
     private boolean privacy;
 
-    // 위치기반 서비스 동의(필수). NOT NULL.
+    /** 위치기반 서비스 동의(필수). NOT NULL. */
     @Column(nullable = false)
     private boolean location;
 
-    // 마케팅 정보 수신 동의(선택). NOT NULL.
+    /** 마케팅 정보 수신 동의(선택). NOT NULL. */
     @Column(nullable = false)
     private boolean marketing;
 
-    // 동의 시각. agreed_at 컬럼.
+    /** 동의 시각. agreed_at 컬럼. */
     @Column(nullable = false)
     private LocalDateTime agreedAt;
 

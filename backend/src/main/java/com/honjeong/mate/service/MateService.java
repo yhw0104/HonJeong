@@ -19,6 +19,10 @@ import com.honjeong.meal.repository.MealRequestRepository;
 import com.honjeong.meal.repository.MealRequestRepository.MealPairRow;
 import com.honjeong.user.domain.User;
 
+/**
+ * 1. 기능: 내 메이트 목록 조회(온라인 상태·통계 합성)와 메이트 해제 비즈니스 로직
+ * 2. 사용 Controller: MateController
+ */
 @Service
 public class MateService {
 
@@ -33,6 +37,11 @@ public class MateService {
         this.mealRequestRepository = mealRequestRepository;
     }
 
+    /**
+     * 기능: 내 메이트 목록을 최신순 조회 — 각 메이트의 현재 체크인(온라인)·누적 체크인 수·함께 먹은 횟수를 일괄 조회로 합성(N+1 방지)
+     * Request: userId — 사용자 ID
+     * Response: List<MateResponse> — 메이트 목록(없으면 빈 목록)
+     */
     @Transactional(readOnly = true)
     public List<MateResponse> getMyMates(Long userId) {
         List<Mate> mates = mateRepository.findMatesWithUserByUserId(userId);
@@ -72,6 +81,11 @@ public class MateService {
         }).toList();
     }
 
+    /**
+     * 기능: 메이트 해제 — 내 방향 관계 삭제(없으면 MATE_NOT_FOUND) 후 역방향 관계도 있으면 함께 삭제
+     * Request: userId — 요청 사용자 ID, mateUserId — 해제할 상대 사용자 ID
+     * Response: 없음(void)
+     */
     @Transactional
     public void deleteMate(Long userId, Long mateUserId) {
         Mate forward = mateRepository.findByUser_IdAndMateUser_Id(userId, mateUserId)

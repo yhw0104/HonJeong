@@ -20,7 +20,10 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 
 /**
- * 자체 발급 JWT(access·onboarding)의 생성·검증을 담당한다.
+ * 1. 기능: 자체 발급 JWT(access·onboarding)의 생성·검증 담당 — HS256 대칭키 서명, typ 클레임으로 토큰 종류 구분
+ * 2. 사용처: SecurityConfig(빈 등록·JwtDecoder 노출), AuthService·TokenService(토큰 발급)
+ *
+ * <p>[기존 주석] 자체 발급 JWT(access·onboarding)의 생성·검증을 담당한다.
  *
  * <p>HS256(HMAC) 대칭키 서명. 토큰 종류는 {@code typ} 클레임으로 구분하며
  * ({@link #TYPE_ACCESS}/{@link #TYPE_ONBOARDING}), 이 값이 Security 권한(ROLE_*)으로 매핑된다.
@@ -40,7 +43,11 @@ public class JwtProvider {
     private final Clock clock;          // 발급/만료 시각 계산용(테스트에서 고정 가능)
 
     /**
-     * 대칭키와 TTL, Clock으로 발급기/검증기를 구성한다.
+     * 기능: 대칭키·TTL·Clock으로 JWT 발급기(인코더)/검증기(디코더)를 구성한다 — 인코더·디코더가 같은 HmacSHA256 키 사용
+     * Request: secret — HS256 서명용 대칭키 문자열, accessTtlSeconds — 액세스 토큰 TTL(초), onboardingTtlSeconds — 온보딩 토큰 TTL(초), clock — 발급/만료 시각 기준 Clock
+     * Response: 없음(생성자)
+     *
+     * <p>[기존 주석] 대칭키와 TTL, Clock으로 발급기/검증기를 구성한다.
      * 시크릿 문자열의 UTF-8 바이트로 HmacSHA256 키를 만들어 인코더·디코더(HS256) 모두 같은 키를 쓰게 한다.
      *
      * @param secret HS256 서명용 대칭키 문자열
@@ -58,7 +65,11 @@ public class JwtProvider {
     }
 
     /**
-     * 정식 로그인용 액세스 토큰을 발급한다(typ=access → 인가 시 ROLE_USER).
+     * 기능: 정식 로그인용 액세스 토큰 발급(typ=access → 인가 시 ROLE_USER)
+     * Request: userId — sub 클레임에 담을 사용자 id
+     * Response: String — 서명된 JWT 문자열
+     *
+     * <p>[기존 주석] 정식 로그인용 액세스 토큰을 발급한다(typ=access → 인가 시 ROLE_USER).
      *
      * @param userId sub 클레임에 담을 사용자 id
      * @return 서명된 JWT 문자열
@@ -68,7 +79,11 @@ public class JwtProvider {
     }
 
     /**
-     * 가입 진행 중에만 쓰는 온보딩 임시 토큰을 발급한다(typ=onboarding → 인가 시 ROLE_ONBOARDING).
+     * 기능: 가입 진행 중에만 쓰는 온보딩 임시 토큰 발급(typ=onboarding → 인가 시 ROLE_ONBOARDING)
+     * Request: userId — sub 클레임에 담을 사용자 id
+     * Response: String — 서명된 JWT 문자열(온보딩 단계 엔드포인트에서만 통용)
+     *
+     * <p>[기존 주석] 가입 진행 중에만 쓰는 온보딩 임시 토큰을 발급한다(typ=onboarding → 인가 시 ROLE_ONBOARDING).
      * 약관 동의·프로필 완료 단계 엔드포인트에서만 통용되고 일반 API는 통과하지 못한다.
      *
      * @param userId sub 클레임에 담을 사용자 id
@@ -79,7 +94,11 @@ public class JwtProvider {
     }
 
     /**
-     * 토큰의 서명과 만료를 검증하고 파싱된 클레임을 반환한다.
+     * 기능: 토큰의 서명·만료를 검증하고 파싱된 클레임을 반환한다
+     * Request: token — 검증할 JWT 문자열
+     * Response: Jwt — 검증에 성공한 토큰(sub·typ 등 클레임 포함) / 위조·만료 시 JwtException
+     *
+     * <p>[기존 주석] 토큰의 서명과 만료를 검증하고 파싱된 클레임을 반환한다.
      *
      * @param token 검증할 JWT 문자열
      * @return 검증에 성공한 {@link Jwt}(sub·typ 등 클레임 포함)
@@ -89,13 +108,21 @@ public class JwtProvider {
         return decoder.decode(token);
     }
 
-    /** 리소스 서버(oauth2ResourceServer().jwt())에 등록해 들어온 토큰을 검증하게 할 디코더를 반환한다. */
+    /**
+     * 기능: 내부 JwtDecoder 노출 — 발급과 같은 키로 검증하도록 리소스 서버에 등록하기 위함
+     * Request: 없음
+     * Response: JwtDecoder — HS256 대칭키 디코더
+     *
+     * <p>[기존 주석] 리소스 서버(oauth2ResourceServer().jwt())에 등록해 들어온 토큰을 검증하게 할 디코더를 반환한다.
+     */
     public JwtDecoder getDecoder() {
         return decoder;
     }
 
     /**
-     * 공통 토큰 생성 로직 — sub·발급시각·만료·typ 클레임을 구성해 HS256으로 서명한다.
+     * 기능: 공통 토큰 생성 로직 — sub·발급시각·만료·typ 클레임을 구성해 HS256으로 서명한다(createAccessToken/createOnboardingToken이 typ·TTL만 바꿔 호출)
+     *
+     * <p>[기존 주석] 공통 토큰 생성 로직 — sub·발급시각·만료·typ 클레임을 구성해 HS256으로 서명한다.
      * createAccessToken/createOnboardingToken이 typ와 TTL만 바꿔 호출한다.
      *
      * @param userId sub 클레임에 넣을 사용자 id

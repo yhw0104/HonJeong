@@ -22,7 +22,10 @@ import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
 /**
- * 유저 차단 도메인 서비스. 차단 생성 시 기존 관계를 한 트랜잭션에서 자동 정리한다 —
+ * 1. 기능: 유저 차단 생성/해제/내 차단 목록 조회 — 차단 생성 시 기존 관계(메이트·신청·같이먹기)까지 자동 정리
+ * 2. 사용 Controller: BlockController
+ *
+ * <p>[기존 주석] 유저 차단 도메인 서비스. 차단 생성 시 기존 관계를 한 트랜잭션에서 자동 정리한다 —
  * ① 메이트 양방향 해제 ② PENDING 메이트 신청 종결(보낸 것 CANCELED/받은 것 DECLINED)
  * ③ PENDING 같이먹기 신청 방향 무관 DECLINED ④ 차단 상대와 TOGETHER 매칭 중이면 양쪽 종료.
  * 정리 과정에서 알림은 발행하지 않는다(거절 알림 미발행 관례).
@@ -52,6 +55,11 @@ public class BlockService {
         this.clock = clock;
     }
 
+    /**
+     * 기능: 대상 유저를 차단하고 기존 관계를 같은 트랜잭션에서 정리 (자기 차단 시 BLOCK_SELF, 중복 차단 시 BLOCK_ALREADY, 대상 없으면 USER_NOT_FOUND)
+     * Request: blockerId — 차단하는 유저 ID, targetUserId — 차단할 유저 ID
+     * Response: 없음(void)
+     */
     @Transactional
     public void block(Long blockerId, Long targetUserId) {
         if (blockerId.equals(targetUserId)) {
@@ -68,7 +76,11 @@ public class BlockService {
         cleanUpRelations(blockerId, targetUserId, now);
     }
 
-    /** 차단과 함께 기존 관계를 정리한다. 각 단계는 존재할 때만 수행(멱등). */
+    /**
+     * 기능: 차단 직후 기존 관계(메이트 해제·PENDING 신청 종결·TOGETHER 매칭 종료) 일괄 정리
+     *
+     * <p>[기존 주석] 차단과 함께 기존 관계를 정리한다. 각 단계는 존재할 때만 수행(멱등).
+     */
     private void cleanUpRelations(Long blockerId, Long targetUserId, LocalDateTime now) {
         // ① 메이트 양방향 해제(관계 없으면 no-op — deleteMate와 달리 404를 던지지 않는다)
         mateRepository.findByUser_IdAndMateUser_Id(blockerId, targetUserId).ifPresent(mateRepository::delete);
@@ -92,6 +104,11 @@ public class BlockService {
                 });
     }
 
+    /**
+     * 기능: 내가 건 차단을 해제 (해당 차단이 없으면 BLOCK_NOT_FOUND)
+     * Request: blockerId — 차단을 건 유저 ID, targetUserId — 차단 해제할 유저 ID
+     * Response: 없음(void)
+     */
     @Transactional
     public void unblock(Long blockerId, Long targetUserId) {
         Block block = blockRepository.findByBlocker_IdAndBlocked_Id(blockerId, targetUserId)
@@ -99,6 +116,11 @@ public class BlockService {
         blockRepository.delete(block);
     }
 
+    /**
+     * 기능: 내가 차단한 유저 목록을 최신순으로 조회
+     * Request: userId — 요청 사용자 ID
+     * Response: List&lt;BlockedUserResponse&gt; — 차단당한 유저 요약 + 차단 시각 목록
+     */
     @Transactional(readOnly = true)
     public List<BlockedUserResponse> getMyBlocks(Long userId) {
         return blockRepository.findAllWithBlockedByBlocker(userId).stream()
@@ -106,6 +128,7 @@ public class BlockService {
                 .toList();
     }
 
+    /** 기능: 주입된 Clock 기준 현재 시각을 KST LocalDateTime으로 변환 */
     private LocalDateTime now() {
         return LocalDateTime.ofInstant(clock.instant(), KST);
     }

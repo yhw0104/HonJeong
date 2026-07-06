@@ -22,6 +22,10 @@ import com.honjeong.user.domain.UserStatus;
 import com.honjeong.user.repository.UserFoodPreferenceRepository;
 import com.honjeong.user.repository.UserRepository;
 
+/**
+ * 1. 기능: 사용자 닉네임 검색과 공개 프로필(메이트 관점 관계상태 포함) 조회 비즈니스 로직
+ * 2. 사용 Controller: UserController
+ */
 @Service
 public class MateProfileService {
 
@@ -46,6 +50,11 @@ public class MateProfileService {
         this.blockRepository = blockRepository;
     }
 
+    /**
+     * 기능: 닉네임 부분일치로 활성 사용자 최대 20명 검색 (본인·차단 상대 제외, 메이트 여부·신청 관계상태 포함)
+     * Request: viewerId — 검색하는 사용자 ID, q — 닉네임 검색어(공백이면 빈 목록 반환)
+     * Response: List<UserSearchResponse> — 검색 결과 목록
+     */
     @Transactional(readOnly = true)
     public List<UserSearchResponse> searchUsers(Long viewerId, String q) {
         if (q == null || q.isBlank()) {
@@ -65,6 +74,11 @@ public class MateProfileService {
                 .toList();
     }
 
+    /**
+     * 기능: 다른 사용자의 공개 프로필 조회 — 차단 관계면 404로 존재 은닉, 현재 체크인(온라인)·선호 음식·함께 먹은 횟수 합성
+     * Request: viewerId — 조회하는 사용자 ID, targetId — 조회 대상 사용자 ID
+     * Response: PublicProfileResponse — 공개 프로필(메이트 여부·신청 관계상태 포함)
+     */
     @Transactional(readOnly = true)
     public PublicProfileResponse getPublicProfile(Long viewerId, Long targetId) {
         User t = userRepository.findById(targetId)
@@ -102,6 +116,7 @@ public class MateProfileService {
                 isMate, requestStatus(viewerId, targetId));
     }
 
+    /** 기능: 두 사용자 사이 PENDING 신청의 방향으로 관계상태(PENDING_SENT/PENDING_RECEIVED/NONE) 판정 */
     private String requestStatus(Long viewerId, Long targetId) {
         if (mateRequestRepository
                 .findByFromUser_IdAndToUser_IdAndStatus(viewerId, targetId, MateRequestStatus.PENDING).isPresent()) {

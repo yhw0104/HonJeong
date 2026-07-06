@@ -6,7 +6,10 @@ import org.springframework.stereotype.Component;
 import com.honjeong.auth.domain.Provider;
 
 /**
- * 개발용 Mock 구현. 실제 카카오/애플 서버에 검증 요청을 보내지 않고, 받은 idToken을 그대로 이용해
+ * 1. 기능: 개발용 Mock OAuth 검증기 — 외부 호출 없이 idToken으로 결정론적 신원 생성(honjeong.oauth.mode=mock 또는 미지정 시 활성)
+ * 2. 사용처: AuthService(oauthLogin) — OAuthVerifier 구현체로 주입
+ *
+ * <p>[기존 주석] 개발용 Mock 구현. 실제 카카오/애플 서버에 검증 요청을 보내지 않고, 받은 idToken을 그대로 이용해
  * <b>결정론적</b> 공급자 식별자를 만들어 낸다("mock-{공급자}-{idToken}"). 같은 idToken을 주면 항상 같은
  * 식별자가 나오므로, 같은 회원으로 매핑되어 반복 로그인 테스트가 손쉽다.
  *
@@ -19,7 +22,11 @@ import com.honjeong.auth.domain.Provider;
 public class MockOAuthVerifier implements OAuthVerifier {
 
     /**
-     * 실제 검증 없이 idToken으로 결정론적 신원을 만든다. 이메일은 제공하지 않으므로 null이다.
+     * 기능: 실제 검증 없이 "mock-{공급자소문자}-{idToken}" 형식의 결정론적 신원 생성
+     * Request: provider — 소셜 공급자, idToken — 공급자 발급 ID 토큰(식별자 합성에만 사용)
+     * Response: OAuthIdentity — 합성 식별자, 이메일 null
+     *
+     * <p>[기존 주석] 실제 검증 없이 idToken으로 결정론적 신원을 만든다. 이메일은 제공하지 않으므로 null이다.
      *
      * @param provider 소셜 공급자
      * @param idToken  검증할 ID 토큰(실제 검증 없이 식별자 생성에 그대로 사용)

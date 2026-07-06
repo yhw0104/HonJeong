@@ -5,6 +5,8 @@ package com.honjeong.auth.domain;
  * (provider, providerUserId) 조합으로 회원을 식별한다.
  */
 public enum Provider {
-    KAKAO, // 카카오 로그인
-    APPLE  // 애플 로그인
+    /** 카카오 로그인 */
+    KAKAO,
+    /** 애플 로그인 */
+    APPLE
 }

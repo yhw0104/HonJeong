@@ -17,6 +17,10 @@ import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.service.PlaceService;
 
+/**
+ * 1. 기능: 개별 즐겨찾기(그룹-장소 매핑)의 상태 조회·담기·빼기 비즈니스 로직
+ * 2. 사용 Controller: FavoriteController, FavoriteGroupController
+ */
 @Service
 public class FavoriteService {
 
@@ -31,6 +35,11 @@ public class FavoriteService {
         this.placeService = placeService;
     }
 
+    /**
+     * 기능: 특정 장소에 대해 사용자의 전체 그룹 목록과 각 그룹의 담김 여부를 조회
+     * Request: userId — 요청 사용자 ID, placeId — 장소 ID
+     * Response: FavoriteStatusResponse — 즐겨찾기 여부(saved) + 그룹별 포함 여부 목록
+     */
     @Transactional(readOnly = true)
     public FavoriteStatusResponse getStatus(Long userId, Long placeId) {
         List<FavoriteGroup> groups = groupRepository.findByUser_IdOrderByCreatedAtAsc(userId);
@@ -42,6 +51,11 @@ public class FavoriteService {
         return new FavoriteStatusResponse(!contained.isEmpty(), mapped);
     }
 
+    /**
+     * 기능: 소유 검증 후 그룹에 장소를 담기(이미 담겨 있으면 아무것도 안 함 — 멱등)
+     * Request: userId — 요청 사용자 ID, groupId — 대상 그룹 ID, placeId — 담을 장소 ID
+     * Response: 없음(void)
+     */
     @Transactional
     public void addPlace(Long userId, Long groupId, Long placeId) {
         FavoriteGroup group = loadOwned(userId, groupId);
@@ -52,12 +66,18 @@ public class FavoriteService {
         favoriteRepository.save(Favorite.of(group, place));
     }
 
+    /**
+     * 기능: 소유 검증 후 그룹에서 장소를 빼기
+     * Request: userId — 요청 사용자 ID, groupId — 대상 그룹 ID, placeId — 뺄 장소 ID
+     * Response: 없음(void)
+     */
     @Transactional
     public void removePlace(Long userId, Long groupId, Long placeId) {
         loadOwned(userId, groupId);
         favoriteRepository.deleteByGroup_IdAndPlace_Id(groupId, placeId);
     }
 
+    /** 기능: 그룹 조회 후 요청 사용자 소유가 아니면 FORBIDDEN, 없으면 FAVORITE_GROUP_NOT_FOUND 예외 */
     private FavoriteGroup loadOwned(Long userId, Long groupId) {
         FavoriteGroup group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FAVORITE_GROUP_NOT_FOUND));

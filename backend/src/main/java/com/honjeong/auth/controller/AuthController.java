@@ -24,7 +24,11 @@ import com.honjeong.global.security.CurrentUserId;
 import jakarta.validation.Valid;
 
 /**
- * 인증 REST 컨트롤러 — 회원가입/로그인 진입부터 온보딩 완료, 토큰 재발급·로그아웃까지의 HTTP 엔드포인트를 담당한다.
+ * 인증(휴대폰 SMS 인증·소셜 로그인·온보딩·토큰 재발급/로그아웃) 컨트롤러.
+ *
+ * <p>기본 경로: /api/auth
+ *
+ * <p>[기존 주석] 인증 REST 컨트롤러 — 회원가입/로그인 진입부터 온보딩 완료, 토큰 재발급·로그아웃까지의 HTTP 엔드포인트를 담당한다.
  *
  * <p>모든 경로는 클래스의 {@code @RequestMapping("/api/auth")}가 접두사라서 {@code /api/auth/...} 형태가 된다.
  * 컨트롤러는 얇게 유지하는 게 원칙이라, 여기서는 ① 요청 본문 검증({@code @Valid}) ② DTO ↔ 서비스 입력 변환
@@ -55,7 +59,12 @@ public class AuthController {
     }
 
     /**
-     * 소셜 로그인(카카오/애플) 진입.
+     * 1. API 주소: POST /api/auth/oauth/{provider}
+     * 2. 사용 화면: (앱 미사용 — 백엔드 내부용; 시작 화면(Welcome)의 카카오/애플 버튼은 아직 API 미연동 목업)
+     * 3. Request: provider(경로) — 소셜 공급자(kakao/apple) / OAuthLoginRequest(바디) — idToken(공급자 발급 ID 토큰)
+     * 4. Response: AuthResultResponse — 신규/미완이면 onboarding=true+onboardingToken, 기존 ACTIVE 회원이면 access/refresh/expiresIn
+     *
+     * <p>[기존 주석] 소셜 로그인(카카오/애플) 진입.
      *
      * <p><b>요청:</b> {@code POST /api/auth/oauth/{provider}} — 경로변수 {@code provider}는 {@code kakao}/{@code apple}
      * 같은 공급자 문자열이고, 본문은 {@link OAuthLoginRequest}(소셜에서 받은 {@code idToken}). {@code @Valid}로 idToken
@@ -78,7 +87,12 @@ public class AuthController {
     }
 
     /**
-     * 휴대폰 인증번호 발송.
+     * 1. API 주소: POST /api/auth/phone/send-code
+     * 2. 사용 화면: 휴대폰 번호 입력(PhoneAuth) — 인증번호 요청 / 인증번호 입력(VerifyCode) — 재전송 버튼
+     * 3. Request: PhoneSendRequest(바디) — phone(인증번호 받을 휴대폰 번호)
+     * 4. Response: 없음(Void) — 성공 여부만 응답 봉투로 전달
+     *
+     * <p>[기존 주석] 휴대폰 인증번호 발송.
      *
      * <p><b>요청:</b> {@code POST /api/auth/phone/send-code}, 본문은 {@link PhoneSendRequest}(받는 휴대폰번호 {@code phone}).
      * {@code @Valid}로 phone 공백 여부를 검증한다.
@@ -99,7 +113,12 @@ public class AuthController {
     }
 
     /**
-     * 휴대폰 인증번호 확인(휴대폰 방식의 로그인/회원가입 진입).
+     * 1. API 주소: POST /api/auth/phone/verify
+     * 2. 사용 화면: 인증번호 입력(VerifyCode) — 입력한 인증번호 확인 후 로그인/온보딩 분기
+     * 3. Request: PhoneVerifyRequest(바디) — phone(휴대폰 번호), code(입력한 인증번호)
+     * 4. Response: AuthResultResponse — 신규/미완이면 onboarding=true+onboardingToken, 기존 ACTIVE 회원이면 access/refresh/expiresIn
+     *
+     * <p>[기존 주석] 휴대폰 인증번호 확인(휴대폰 방식의 로그인/회원가입 진입).
      *
      * <p><b>요청:</b> {@code POST /api/auth/phone/verify}, 본문은 {@link PhoneVerifyRequest}({@code phone} + 입력한
      * 인증번호 {@code code}). {@code @Valid}로 두 값의 공백 여부를 검증한다.
@@ -119,7 +138,12 @@ public class AuthController {
     }
 
     /**
-     * 약관 동의(온보딩 1단계).
+     * 1. API 주소: POST /api/auth/terms
+     * 2. 사용 화면: 프로필 설정(ProfileSetup) — 가입 완료 제출 시 약관 동의 전송(온보딩 1단계)
+     * 3. Request: TermsRequest(바디) — service/privacy/location/marketing(약관별 동의 여부) / 인증 사용자(@CurrentUserId, 온보딩 토큰)
+     * 4. Response: 없음(Void) — 성공 여부만 응답 봉투로 전달
+     *
+     * <p>[기존 주석] 약관 동의(온보딩 1단계).
      *
      * <p><b>요청:</b> {@code POST /api/auth/terms}, 본문은 {@link TermsRequest}(약관별 동의 여부 4종:
      * service/privacy/location/marketing). 필수 3종이 모두 true인지는 서비스 계층에서 검증한다.
@@ -139,7 +163,12 @@ public class AuthController {
     }
 
     /**
-     * 프로필 완료(온보딩 2단계) → 가입 확정 및 정식 토큰 발급.
+     * 1. API 주소: POST /api/auth/complete
+     * 2. 사용 화면: 프로필 설정(ProfileSetup) — 닉네임 등 프로필 제출로 가입 확정(온보딩 2단계)
+     * 3. Request: CompleteProfileRequest(바디) — nickname(필수)·gender·ageGroup·introduction·region·regionLat/Lng·diningStyle·profileImageUrl·favoriteFoods / 인증 사용자(@CurrentUserId, 온보딩 토큰)
+     * 4. Response: TokenResponse — accessToken, refreshToken, expiresIn(초)
+     *
+     * <p>[기존 주석] 프로필 완료(온보딩 2단계) → 가입 확정 및 정식 토큰 발급.
      *
      * <p><b>요청:</b> {@code POST /api/auth/complete}, 본문은 {@link CompleteProfileRequest}(닉네임 등 프로필 필드).
      * {@code @Valid}로 닉네임 공백 여부를 검증한다.
@@ -160,7 +189,12 @@ public class AuthController {
     }
 
     /**
-     * 액세스 토큰 재발급(리프레시 토큰 회전).
+     * 1. API 주소: POST /api/auth/refresh
+     * 2. 사용 화면: 앱 전역 인증 컨텍스트(AuthContext) — 앱 시작/토큰 만료 시 세션 자동 복구(특정 화면 아님)
+     * 3. Request: RefreshRequest(바디) — refreshToken(보유 중인 리프레시 토큰 원문)
+     * 4. Response: TokenResponse — 새 accessToken, refreshToken, expiresIn(초)
+     *
+     * <p>[기존 주석] 액세스 토큰 재발급(리프레시 토큰 회전).
      *
      * <p><b>요청:</b> {@code POST /api/auth/refresh}, 본문은 {@link RefreshRequest}(보유 중인 {@code refreshToken}).
      *
@@ -178,7 +212,12 @@ public class AuthController {
     }
 
     /**
-     * 로그아웃 — 제시된 리프레시 토큰 무효화.
+     * 1. API 주소: POST /api/auth/logout
+     * 2. 사용 화면: 더보기(More) — 로그아웃 버튼(실 호출은 앱 전역 인증 컨텍스트 AuthContext.signOut)
+     * 3. Request: RefreshRequest(바디) — refreshToken(무효화할 리프레시 토큰 원문)
+     * 4. Response: 없음(Void) — 성공 여부만 응답 봉투로 전달
+     *
+     * <p>[기존 주석] 로그아웃 — 제시된 리프레시 토큰 무효화.
      *
      * <p><b>요청:</b> {@code POST /api/auth/logout}, 본문은 {@link RefreshRequest}(무효화할 {@code refreshToken}).
      *
@@ -197,7 +236,9 @@ public class AuthController {
     }
 
     /**
-     * 경로변수의 공급자 문자열을 {@link Provider} enum으로 변환한다.
+     * 기능: 경로변수의 공급자 문자열(kakao/apple 등)을 {@link Provider} enum으로 변환(미지원 값이면 INVALID_INPUT 400)
+     *
+     * <p>[기존 주석] 경로변수의 공급자 문자열을 {@link Provider} enum으로 변환한다.
      *
      * <p>대소문자를 가리지 않도록 {@code toUpperCase()} 후 {@code Provider.valueOf(...)}로 매칭하며, 일치하는 enum이 없으면
      * {@code valueOf}가 던지는 {@link IllegalArgumentException}을 잡아 {@code INVALID_INPUT}({@link BusinessException})으로

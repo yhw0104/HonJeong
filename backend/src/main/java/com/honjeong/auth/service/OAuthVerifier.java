@@ -3,7 +3,10 @@ package com.honjeong.auth.service;
 import com.honjeong.auth.domain.Provider;
 
 /**
- * 소셜 로그인 검증의 책임을 정의하는 인터페이스. 공급자(카카오·애플 등)가 발급한 idToken을 검증해,
+ * 1. 기능: 소셜 공급자 idToken 검증 → 공급자 측 신원(OAuthIdentity) 추출의 책임을 정의하는 인터페이스
+ * 2. 사용처: AuthService(oauthLogin) — 구현체: 개발용 MockOAuthVerifier(운영 real 구현은 추후 교체)
+ *
+ * <p>[기존 주석] 소셜 로그인 검증의 책임을 정의하는 인터페이스. 공급자(카카오·애플 등)가 발급한 idToken을 검증해,
  * 그 토큰이 가리키는 공급자 측 신원({@link OAuthIdentity})을 돌려준다. 공급자 토큰 자체는 저장하지 않고
  * 검증에만 쓴다.
  *
@@ -14,7 +17,11 @@ import com.honjeong.auth.domain.Provider;
 public interface OAuthVerifier {
 
     /**
-     * 공급자 토큰을 검증해 신원을 추출한다.
+     * 기능: 공급자 토큰을 검증해 신원 추출
+     * Request: provider — 소셜 공급자(KAKAO/APPLE), idToken — 공급자 발급 ID 토큰
+     * Response: OAuthIdentity — 검증된 공급자 측 신원(식별자·이메일)
+     *
+     * <p>[기존 주석] 공급자 토큰을 검증해 신원을 추출한다.
      *
      * @param provider 소셜 공급자(KAKAO·APPLE 등)
      * @param idToken  공급자가 발급한 ID 토큰
