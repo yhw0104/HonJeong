@@ -75,14 +75,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     long countByUser_IdAndCheckInIsNotNull(Long userId);
 
     /**
-     * 사용자의 전체 리뷰 수.
-     *
-     * @param userId 회원 id
-     * @return 총 리뷰 건수
-     */
-    long countByUser_Id(Long userId);
-
-    /**
      * 해당 체크인에 이미 리뷰가 있는지. 한 방문(체크인)=한 리뷰 제약(부분 유니크)의 사전 검사용.
      *
      * @param checkInId 체크인 id

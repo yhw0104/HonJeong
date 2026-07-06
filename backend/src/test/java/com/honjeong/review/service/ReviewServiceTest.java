@@ -593,7 +593,6 @@ class ReviewServiceTest {
         var res = service.getDiningHistory(1L);
 
         assertThat(res.summary().totalReviews()).isEqualTo(2L);
-        verify(reviewRepository, never()).countByUser_Id(org.mockito.ArgumentMatchers.anyLong());
     }
 
     private static Long eqL(long v) { return org.mockito.ArgumentMatchers.eq(v); }

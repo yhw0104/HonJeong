@@ -5,7 +5,7 @@ package com.honjeong.user.dto;
  * 지표 추가 시 필드 한 줄 추가로 끝난다(필드 추가는 하위호환).
  *
  * @param checkInCount 사용자의 전체 체크인 수(혼밥 횟수)
- * @param reviewCount 사용자가 작성한 리뷰(혼밥일기) 수
+ * @param reviewCount 사용자가 작성한 인증 리뷰(체크인 기반 혼밥일기) 수 — 혼밥 기록 화면 기준과 일치
  * @param favoriteCount 사용자가 담은 고유 식당 수(즐겨찾기)
  * @param mateCount 메이트 수 — 메이트 도메인 도입 전까지 항상 0
  */

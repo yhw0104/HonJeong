@@ -39,7 +39,7 @@ public class UserActivityService {
     @Transactional(readOnly = true)
     public ActivitySummaryResponse getActivitySummary(long userId) {
         long checkInCount = checkInRepository.countByUser_IdAndStatusNot(userId, CheckInStatus.CANCELLED);
-        long reviewCount = reviewRepository.countByUser_Id(userId);
+        long reviewCount = reviewRepository.countByUser_IdAndCheckInIsNotNull(userId);  // 더보기 '내 혼밥 기록' 디테일 — 혼밥기록 화면(인증 일기만)과 기준 일치
         long favoriteCount = favoriteRepository.countDistinctPlaceByUserId(userId);
         long mateCount = mateRepository.countByUser_Id(userId);
         return new ActivitySummaryResponse(checkInCount, reviewCount, favoriteCount, mateCount);

@@ -27,10 +27,10 @@ class UserActivityServiceTest {
     @InjectMocks private UserActivityService service;
 
     @Test
-    @DisplayName("getActivitySummary: 체크인·리뷰·즐겨찾기·메이트 카운트를 모두 실데이터로 집계")
+    @DisplayName("getActivitySummary: 체크인·인증 리뷰·즐겨찾기·메이트 카운트를 모두 실데이터로 집계")
     void getActivitySummary_aggregates_withMateCount() {
         when(checkInRepository.countByUser_IdAndStatusNot(1L, CheckInStatus.CANCELLED)).thenReturn(12L);
-        when(reviewRepository.countByUser_Id(1L)).thenReturn(8L);
+        when(reviewRepository.countByUser_IdAndCheckInIsNotNull(1L)).thenReturn(8L);
         when(favoriteRepository.countDistinctPlaceByUserId(1L)).thenReturn(5L);
         when(mateRepository.countByUser_Id(1L)).thenReturn(3L);
 
