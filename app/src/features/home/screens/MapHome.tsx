@@ -19,6 +19,7 @@ import type { MainTabScreenProps } from '@/navigation/types';
 // 하단 시트 스냅 높이(접힘/펼침). 펼치면 화면의 82%까지 올라와 전체 리스트가 보인다.
 const SHEET_COLLAPSED = 300;
 const SHEET_EXPANDED = Math.round(Dimensions.get('window').height * 0.82);
+const SOURCE_RANK = { default: 0, region: 1, gps: 2 } as const;
 
 export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const insets = useSafeAreaInsets();
@@ -28,13 +29,15 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const { coord, source, permission, requestAgain } = useLocation({ watch: true });
 
   // 검색 기준점(anchor): 주변 목록·마커·지도 center는 이것만 본다. 실시간 coord는 파란 점 전용.
-  // 최초 좌표로 초기화하고, 폴백→GPS 첫 승격 때 한 번 따라 올린다(기존 'GPS 잡히면 지도 이동' 체감 유지).
+  // 최초 좌표로 초기화하고, 위치 출처가 더 나은 단계로 승격될 때(기본→내동네→GPS) 한 번씩 따라 올린다
+  // (기존 'GPS 잡히면 지도 이동' 체감 유지 + 권한 거부 상태에서 내동네가 늦게 로드되는 경우 포함).
   const [anchor, setAnchor] = useState<Coord | null>(null);
-  const prevSourceRef = useRef(source);
+  const prevRankRef = useRef(SOURCE_RANK[source]);
   useEffect(() => {
-    const wasGps = prevSourceRef.current === 'gps';
-    prevSourceRef.current = source;
-    setAnchor((a) => (a == null || (!wasGps && source === 'gps') ? coord : a));
+    const prevRank = prevRankRef.current;
+    const rank = SOURCE_RANK[source];
+    prevRankRef.current = rank;
+    setAnchor((a) => (a == null || rank > prevRank ? coord : a));
   }, [coord, source]);
   const searchAt = anchor ?? coord;
 
