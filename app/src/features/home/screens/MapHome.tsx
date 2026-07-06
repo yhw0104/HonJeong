@@ -1,7 +1,7 @@
 // MapHome — 지도/홈. 실제 카카오맵 위에 실데이터(마커·주변 리스트·혼밥 시작/종료·전체 카운트)를 올린다.
 // 하단 탭바는 MainTabs 네비게이터가 렌더하므로 여기서는 그리지 않는다.
-import React, { useRef, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Animated, PanResponder, Dimensions } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Animated, PanResponder, Dimensions, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HonjeongMap, Icon, HonbabStatusBar } from '@/shared/components';
 import type { HonjeongMapHandle } from '@/shared/components';
@@ -9,6 +9,8 @@ import { T2 } from '@/shared/theme';
 import { BellButton } from '@/features/notifications/BellButton';
 import { useLocation } from '@/shared/location/useLocation';
 import { useNearby } from '@/features/place/queries';
+import { shouldOfferResearch } from '@/shared/location/research';
+import type { Coord } from '@/shared/location/pickLocation';
 import { useMap, useMyCheckIn, useStats, useStartCheckIn } from '@/features/checkin/queries';
 import { usePromptEndCheckIn } from '@/features/checkin/usePromptEndCheckIn';
 import { formatDistance } from '@/shared/format';
@@ -23,10 +25,22 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const [picking, setPicking] = useState(false);
   const mapRef = useRef<HonjeongMapHandle>(null);
 
-  const { coord, source, permission, requestAgain } = useLocation();
+  const { coord, source, permission, requestAgain } = useLocation({ watch: true });
+
+  // 검색 기준점(anchor): 주변 목록·마커·지도 center는 이것만 본다. 실시간 coord는 파란 점 전용.
+  // 최초 좌표로 초기화하고, 폴백→GPS 첫 승격 때 한 번 따라 올린다(기존 'GPS 잡히면 지도 이동' 체감 유지).
+  const [anchor, setAnchor] = useState<Coord | null>(null);
+  const prevSourceRef = useRef(source);
+  useEffect(() => {
+    const wasGps = prevSourceRef.current === 'gps';
+    prevSourceRef.current = source;
+    setAnchor((a) => (a == null || (!wasGps && source === 'gps') ? coord : a));
+  }, [coord, source]);
+  const searchAt = anchor ?? coord;
+
   const stats = useStats();
-  const markers = useMap(coord);
-  const nearby = useNearby(coord);
+  const markers = useMap(searchAt);
+  const nearby = useNearby(searchAt, 1000, true, false); // 폴링 없음 — 재검색 버튼으로 갱신
   const myCheckIn = useMyCheckIn();
   const startMut = useStartCheckIn();
   const promptEnd = usePromptEndCheckIn();
@@ -55,6 +69,10 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     if (source === 'gps') mapRef.current?.recenter();
     else requestAgain();
   };
+
+  // 기준점에서 200m 이상 이동(진짜 GPS일 때만)하면 '이 위치에서 재검색' 노출.
+  const offerResearch = anchor != null && shouldOfferResearch(coord, anchor, source);
+  const researchHere = () => setAnchor(coord); // queryKey 변경 → 목록·마커 재조회 + 지도 center 이동
 
   // 드래그로 펼치는 하단 시트: 핸들/헤더를 위로 끌면 펼침, 아래로 끌면 접힘.
   const sheetH = useRef(new Animated.Value(SHEET_COLLAPSED)).current;
@@ -88,7 +106,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     <View style={styles.root}>
       <HonjeongMap
         ref={mapRef}
-        center={coord}
+        center={searchAt}
         // '내 위치' 파란 점은 진짜 GPS일 때만 — 폴백 좌표(연남동 기본 등)를 내 위치처럼 보이게 하지 않는다.
         myLocation={source === 'gps' ? coord : null}
         markers={(markers.data ?? []).map((m) => ({
@@ -142,6 +160,19 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           <Text style={styles.zoomText}>◎</Text>
         </Pressable>
       </View>
+
+      {/* 이동 감지 시 지도 하단 가운데 '이 위치에서 재검색' */}
+      {offerResearch && (
+        <View style={styles.researchWrap} pointerEvents="box-none">
+          <Pressable style={styles.researchBtn} onPress={researchHere} disabled={nearby.isFetching}>
+            {nearby.isFetching ? (
+              <ActivityIndicator size="small" color={T2.brand} />
+            ) : (
+              <Text style={styles.researchText}>↻ 이 위치에서 재검색</Text>
+            )}
+          </Pressable>
+        </View>
+      )}
 
       {/* 하단 시트 (핸들·헤더를 위로 드래그하면 펼쳐져 전체 리스트가 보임) */}
       <Animated.View style={[styles.sheet, { height: sheetH }]}>
@@ -309,6 +340,20 @@ const styles = StyleSheet.create({
   zoomBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   zoomDivider: { borderBottomWidth: 1, borderBottomColor: T2.border },
   zoomText: { fontSize: 18, color: T2.text },
+
+  researchWrap: { position: 'absolute', left: 0, right: 0, bottom: SHEET_COLLAPSED + 12, alignItems: 'center' },
+  researchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 150,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#fff',
+    ...shadow,
+  },
+  researchText: { fontSize: 13, fontWeight: '700', color: T2.brand, letterSpacing: -0.3 },
 
   sheet: {
     position: 'absolute',
