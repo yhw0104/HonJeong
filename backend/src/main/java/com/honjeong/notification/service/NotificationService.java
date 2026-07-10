@@ -34,12 +34,14 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final Clock clock;
+    private final NotificationSettingsService notificationSettingsService;
 
     public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository,
-            Clock clock) {
+            Clock clock, NotificationSettingsService notificationSettingsService) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.clock = clock;
+        this.notificationSettingsService = notificationSettingsService;
     }
 
     /**
@@ -55,6 +57,10 @@ public class NotificationService {
      */
     @Transactional
     public void publish(Long recipientId, NotificationType type, Long actorId) {
+        // 수신자가 이 종류 알림을 껐으면 생성하지 않는다(발행 시점 게이팅, 한 곳).
+        if (!notificationSettingsService.isEnabled(recipientId, type)) {
+            return;
+        }
         notificationRepository.save(Notification.create(
                 userRepository.getReferenceById(recipientId),
                 actorId == null ? null : userRepository.getReferenceById(actorId),

@@ -28,9 +28,10 @@ class NotificationServiceTest {
 
     private final NotificationRepository notificationRepository = mock(NotificationRepository.class);
     private final UserRepository userRepository = mock(UserRepository.class);
+    private final NotificationSettingsService notificationSettingsService = mock(NotificationSettingsService.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-04T03:00:00Z"), ZoneOffset.UTC);
     private final NotificationService service =
-            new NotificationService(notificationRepository, userRepository, clock);
+            new NotificationService(notificationRepository, userRepository, clock, notificationSettingsService);
 
     private User user(Long id, String nickname) {
         User u = mock(User.class);
@@ -42,6 +43,7 @@ class NotificationServiceTest {
     @Test
     @DisplayName("publish: 수신자·주체 참조로 알림을 저장한다")
     void publish_saves() {
+        when(notificationSettingsService.isEnabled(1L, NotificationType.MEAL_REQUEST_RECEIVED)).thenReturn(true);
         User recipient = user(1L, "나");
         User actor = user(2L, "상대");
         when(userRepository.getReferenceById(1L)).thenReturn(recipient);
@@ -55,6 +57,30 @@ class NotificationServiceTest {
         assertThat(captor.getValue().getActor()).isSameAs(actor);
         assertThat(captor.getValue().getType()).isEqualTo(NotificationType.MEAL_REQUEST_RECEIVED);
         assertThat(captor.getValue().isRead()).isFalse();
+    }
+
+    @Test
+    @DisplayName("publish: 수신자가 그 종류 알림을 껐으면 저장하지 않는다")
+    void publish_gatedOff_doesNotSave() {
+        when(notificationSettingsService.isEnabled(1L, NotificationType.MEAL_REQUEST_RECEIVED)).thenReturn(false);
+
+        service.publish(1L, NotificationType.MEAL_REQUEST_RECEIVED, 2L);
+
+        verify(notificationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("publish: 설정이 켜져 있으면 저장한다(메이트)")
+    void publish_gatedOn_saves() {
+        when(notificationSettingsService.isEnabled(1L, NotificationType.MATE_REQUEST_RECEIVED)).thenReturn(true);
+        User recipient = user(1L, "나");
+        User actor = user(2L, "상대");
+        when(userRepository.getReferenceById(1L)).thenReturn(recipient);
+        when(userRepository.getReferenceById(2L)).thenReturn(actor);
+
+        service.publish(1L, NotificationType.MATE_REQUEST_RECEIVED, 2L);
+
+        verify(notificationRepository).save(any());
     }
 
     @Test
