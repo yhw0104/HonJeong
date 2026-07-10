@@ -18,3 +18,16 @@ export const fetchNotifications = () => apiGet<NotificationItem[]>('/notificatio
 export const fetchUnreadCount = () => apiGet<{ count: number }>('/notifications/unread-count');
 export const markNotificationRead = (id: number) => apiPatch<null>(`/notifications/${id}/read`);
 export const markAllNotificationsRead = () => apiPatch<null>('/notifications/read-all');
+
+export type NotificationSettings = {
+  meal: boolean;
+  mate: boolean;
+  notice: boolean;
+  marketing: boolean;
+};
+
+export const fetchNotificationSettings = () =>
+  apiGet<NotificationSettings>('/notifications/settings');
+
+export const updateNotificationSettings = (settings: NotificationSettings) =>
+  apiPatch<NotificationSettings>('/notifications/settings', settings);
