@@ -6,12 +6,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { usePlaceSearch } from '@/features/place/queries';
+import { useRecentSearches } from '@/features/place/recentSearches';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSearch'>) {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const { data, isFetching, isError } = usePlaceSearch(query);
+  const { recent, add, remove, clear } = useRecentSearches();
   const q = query.trim();
   const results = data?.content ?? [];
 
@@ -45,12 +47,35 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
 
       {/* 본문 */}
       {q.length === 0 ? (
-        <View style={styles.center}>
-          <View style={styles.hintIcon}>
-            <Icon name="search" size={30} color={T2.textMute} />
+        recent.length > 0 ? (
+          <View style={styles.recentWrap}>
+            <View style={styles.recentHeader}>
+              <Text style={styles.recentTitle}>최근 검색어</Text>
+              <Pressable onPress={clear} hitSlop={8}>
+                <Text style={styles.recentClear}>전체 삭제</Text>
+              </Pressable>
+            </View>
+            <View style={styles.chips}>
+              {recent.map((term) => (
+                <View key={term} style={styles.chip}>
+                  <Pressable onPress={() => setQuery(term)} hitSlop={6}>
+                    <Text style={styles.chipText}>{term}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => remove(term)} hitSlop={6} style={styles.chipX}>
+                    <Text style={styles.chipXText}>✕</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
           </View>
-          <Text style={styles.hintText}>식당 이름으로 검색해보세요</Text>
-        </View>
+        ) : (
+          <View style={styles.center}>
+            <View style={styles.hintIcon}>
+              <Icon name="search" size={30} color={T2.textMute} />
+            </View>
+            <Text style={styles.hintText}>식당 이름으로 검색해보세요</Text>
+          </View>
+        )
       ) : isError ? (
         <View style={styles.center}>
           <Text style={styles.msg}>검색에 실패했어요.{'\n'}잠시 후 다시 시도해주세요.</Text>
@@ -67,7 +92,10 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
           renderItem={({ item }) => (
             <Pressable
               style={styles.card}
-              onPress={() => navigation.navigate('RestaurantDetail', { placeId: item.placeId, name: item.name })}
+              onPress={() => {
+                add(q); // 결과를 탭한 검색어만 최근 검색어로 기록
+                navigation.navigate('RestaurantDetail', { placeId: item.placeId, name: item.name });
+              }}
             >
               <View style={styles.cardIcon}>
                 <Text style={styles.cardEmoji}>🍽</Text>
@@ -153,4 +181,25 @@ const styles = StyleSheet.create({
   hintIcon: { marginBottom: 14 },
   hintText: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
   msg: { fontSize: 14, color: T2.textSub, textAlign: 'center', lineHeight: 21, marginTop: 24 },
+
+  recentWrap: { paddingHorizontal: 20, paddingTop: 8 },
+  recentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  recentTitle: { fontSize: 13, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
+  recentClear: { fontSize: 12, color: T2.textMute, letterSpacing: -0.2 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: T2.surface,
+    borderWidth: 1,
+    borderColor: T2.border,
+    borderRadius: 18,
+    paddingLeft: 14,
+    paddingRight: 10,
+    paddingVertical: 8,
+  },
+  chipText: { fontSize: 13, color: T2.text, letterSpacing: -0.2 },
+  chipX: { width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
+  chipXText: { fontSize: 10, color: T2.textMute, fontWeight: '700', lineHeight: 12 },
 });
