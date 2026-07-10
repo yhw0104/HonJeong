@@ -43,7 +43,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
 
   const stats = useStats();
   const markers = useMap(searchAt);
-  const nearby = useNearby(searchAt, 1000, true, false); // 폴링 없음 — 재검색 버튼으로 갱신
+  const nearby = useNearby(searchAt, 1000, true, true); // 마커(useMap)와 동일하게 anchor를 폴링 — 카운트만 갱신되고, anchor 고정이라 파란 점이 움직여도 목록은 안 튐(재검색 버튼으로만 기준점 이동)
   const myCheckIn = useMyCheckIn();
   const startMut = useStartCheckIn();
   const promptEnd = usePromptEndCheckIn();
