@@ -10,6 +10,7 @@ import { useRecentSearches } from '@/features/place/recentSearches';
 import { nearbyDiningPlaces } from '@/features/place/nearbyDining';
 import { useLocation } from '@/shared/location/useLocation';
 import { formatDistance } from '@/shared/location/distance';
+import { useMyCheckIn } from '@/features/checkin/queries';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSearch'>) {
@@ -20,7 +21,11 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
   const { coord, source } = useLocation();
   // 주변 혼밥은 실제 GPS가 있을 때만(내 동네·기본좌표면 '주변'이 아니라 숨김). 폴링 없음.
   const nearbyQuery = useNearby(coord, 1000, source === 'gps', false);
-  const nearby = source === 'gps' ? nearbyDiningPlaces(nearbyQuery.data?.content ?? [], 5) : [];
+  const myCheckIn = useMyCheckIn(); // 내가 혼밥 중인 식당은 인원에서 나만 뺀다(activeCount에 내가 포함돼 있어서)
+  const nearby =
+    source === 'gps'
+      ? nearbyDiningPlaces(nearbyQuery.data?.content ?? [], 5, myCheckIn.data?.placeId ?? null)
+      : [];
   const q = query.trim();
   const results = data?.content ?? [];
 

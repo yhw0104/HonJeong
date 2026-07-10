@@ -28,8 +28,28 @@ test('최대 limit개까지만, 가까운 순으로 자른다', () => {
   expect(got.map((p) => p.placeId)).toEqual([2, 4]);
 });
 
-test('입력 배열을 변형하지 않는다', () => {
-  const items = [item(1, 300, 1), item(2, 100, 1)];
-  nearbyDiningPlaces(items, 5);
+test('본인 체크인 식당은 식당을 남기되 인원에서 본인만 뺀다(activeCount-1)', () => {
+  const got = nearbyDiningPlaces([item(1, 100, 3), item(2, 200, 1)], 5, 1);
+  expect(got.map((p) => [p.placeId, p.activeCount])).toEqual([
+    [1, 2], // 3명 중 본인 제외 → 2명(다른 사람은 그대로 보임)
+    [2, 1],
+  ]);
+});
+
+test('본인만 있던 식당(activeCount 1)은 본인 제외 후 0명이라 사라진다', () => {
+  const got = nearbyDiningPlaces([item(1, 100, 1), item(2, 200, 2)], 5, 1);
+  expect(got.map((p) => p.placeId)).toEqual([2]);
+});
+
+test('selfPlaceId가 없으면(null/미지정) 인원을 그대로 둔다', () => {
+  const items = [item(1, 100, 1), item(2, 200, 1)];
+  expect(nearbyDiningPlaces(items, 5).map((p) => p.placeId)).toEqual([1, 2]);
+  expect(nearbyDiningPlaces(items, 5, null).map((p) => p.placeId)).toEqual([1, 2]);
+});
+
+test('입력 배열·객체를 변형하지 않는다', () => {
+  const items = [item(1, 300, 2), item(2, 100, 1)];
+  nearbyDiningPlaces(items, 5, 1);
   expect(items.map((p) => p.placeId)).toEqual([1, 2]); // 원본 순서 그대로
+  expect(items[0].activeCount).toBe(2); // 원본 인원은 감소하지 않음
 });
