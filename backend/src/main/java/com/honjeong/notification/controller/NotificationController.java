@@ -5,8 +5,11 @@ import org.springframework.web.bind.annotation.*;
 import com.honjeong.global.common.ApiResponse;
 import com.honjeong.global.security.CurrentUserId;
 import com.honjeong.notification.dto.NotificationResponse;
+import com.honjeong.notification.dto.NotificationSettingsRequest;
+import com.honjeong.notification.dto.NotificationSettingsResponse;
 import com.honjeong.notification.dto.UnreadCountResponse;
 import com.honjeong.notification.service.NotificationService;
+import com.honjeong.notification.service.NotificationSettingsService;
 
 /**
  * 인앱 알림함(목록·안읽음 개수·읽음 처리) 컨트롤러.
@@ -20,9 +23,12 @@ import com.honjeong.notification.service.NotificationService;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final NotificationSettingsService notificationSettingsService;
 
-    public NotificationController(NotificationService notificationService) {
+    public NotificationController(NotificationService notificationService,
+            NotificationSettingsService notificationSettingsService) {
         this.notificationService = notificationService;
+        this.notificationSettingsService = notificationSettingsService;
     }
 
     /**
@@ -77,5 +83,28 @@ public class NotificationController {
     public ApiResponse<Void> markAllRead(@CurrentUserId Long userId) {
         notificationService.markAllRead(userId);
         return ApiResponse.<Void>success(null);
+    }
+
+    /**
+     * 1. API 주소: GET /api/notifications/settings
+     * 2. 사용 화면: 더보기 > 알림 설정(NotificationSettingsScreen) — 토글 초기값
+     * 3. Request: 인증 사용자(@CurrentUserId)
+     * 4. Response: NotificationSettingsResponse — 같이먹기·메이트·공지·이벤트혜택 수신 여부(행 없으면 기본값)
+     */
+    @GetMapping("/settings")
+    public ApiResponse<NotificationSettingsResponse> getSettings(@CurrentUserId Long userId) {
+        return ApiResponse.success(notificationSettingsService.getSettings(userId));
+    }
+
+    /**
+     * 1. API 주소: PATCH /api/notifications/settings
+     * 2. 사용 화면: 알림 설정(NotificationSettingsScreen) — 토글 변경 시 저장
+     * 3. Request: NotificationSettingsRequest(4필드 전체 교체) / 인증 사용자(@CurrentUserId)
+     * 4. Response: NotificationSettingsResponse — 갱신된 설정
+     */
+    @PatchMapping("/settings")
+    public ApiResponse<NotificationSettingsResponse> updateSettings(@CurrentUserId Long userId,
+            @RequestBody NotificationSettingsRequest request) {
+        return ApiResponse.success(notificationSettingsService.updateSettings(userId, request));
     }
 }
