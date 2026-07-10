@@ -93,23 +93,31 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
             {nearby.length > 0 && (
               <View style={styles.nearbyWrap}>
                 <Text style={styles.nearbyTitle}>지금 주변에서 혼밥 중</Text>
-                {nearby.map((p) => (
-                  <Pressable
-                    key={p.placeId}
-                    style={styles.nearbyRow}
-                    onPress={() => navigation.navigate('RestaurantDetail', { placeId: p.placeId, name: p.name })}
-                  >
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.nearbyName} numberOfLines={1}>{p.name}</Text>
-                      <Text style={styles.nearbyMeta} numberOfLines={1}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={styles.nearbyScroll}
+                >
+                  {nearby.map((p) => (
+                    <Pressable
+                      key={p.placeId}
+                      style={styles.nearbyCard}
+                      onPress={() => navigation.navigate('RestaurantDetail', { placeId: p.placeId, name: p.name })}
+                    >
+                      <View style={styles.nearbyAvatar}>
+                        <Text style={styles.nearbyEmoji}>🍽</Text>
+                      </View>
+                      <Text style={styles.nearbyCardName} numberOfLines={1}>{p.name}</Text>
+                      <Text style={styles.nearbyCardMeta} numberOfLines={1}>
                         {[p.category, formatDistance(p.distanceMeters)].filter(Boolean).join(' · ')}
                       </Text>
-                    </View>
-                    <View style={styles.countBadge}>
-                      <Text style={styles.countText}>{p.activeCount}명</Text>
-                    </View>
-                  </Pressable>
-                ))}
+                      <View style={styles.countBadge}>
+                        <Text style={styles.countText}>{p.activeCount}명 혼밥</Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                </ScrollView>
               </View>
             )}
           </ScrollView>
@@ -243,22 +251,34 @@ const styles = StyleSheet.create({
   chipX: { width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
   chipXText: { fontSize: 10, color: T2.textMute, fontWeight: '700', lineHeight: 12 },
 
-  nearbyWrap: { paddingHorizontal: 20, paddingTop: 24 },
-  nearbyTitle: { fontSize: 13, fontWeight: '700', color: T2.text, letterSpacing: -0.3, marginBottom: 12 },
-  nearbyRow: {
-    flexDirection: 'row',
+  nearbyWrap: { paddingTop: 24 },
+  nearbyTitle: { fontSize: 13, fontWeight: '700', color: T2.text, letterSpacing: -0.3, marginBottom: 12, paddingHorizontal: 20 },
+  nearbyScroll: { paddingHorizontal: 20, gap: 12 },
+  nearbyCard: {
+    width: 150,
     alignItems: 'center',
-    gap: 10,
     backgroundColor: T2.surface,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: T2.border,
+    paddingVertical: 18,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 8,
+    ...shadow,
   },
-  nearbyName: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
-  nearbyMeta: { fontSize: 12, color: T2.textSub, marginTop: 3, letterSpacing: -0.2 },
-  countBadge: { backgroundColor: T2.brand, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5 },
-  countText: { fontSize: 12, fontWeight: '800', color: '#fff', letterSpacing: -0.2 },
+  nearbyAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: T2.bg,
+    borderWidth: 1,
+    borderColor: T2.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  nearbyEmoji: { fontSize: 24 },
+  nearbyCardName: { fontSize: 14, fontWeight: '700', color: T2.text, letterSpacing: -0.3, textAlign: 'center' },
+  nearbyCardMeta: { fontSize: 11, color: T2.textSub, marginTop: 3, textAlign: 'center', letterSpacing: -0.2 },
+  countBadge: { backgroundColor: T2.brand, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, marginTop: 12 },
+  countText: { fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: -0.2 },
 });
