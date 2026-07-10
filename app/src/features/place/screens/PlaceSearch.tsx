@@ -1,12 +1,15 @@
 // PlaceSearch — 식당 이름 검색 화면. 앱 디자인 톤(웜 오프화이트 배경 + 흰 카드 + 그림자)에 맞춤.
 // 상단: 뒤로가기 + 둥근 검색바. 본문: 입력 전 안내 / 결과 카드 리스트 / 빈·실패 상태.
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, FlatList, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, FlatList, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
-import { usePlaceSearch } from '@/features/place/queries';
+import { usePlaceSearch, useNearby } from '@/features/place/queries';
 import { useRecentSearches } from '@/features/place/recentSearches';
+import { nearbyDiningPlaces } from '@/features/place/nearbyDining';
+import { useLocation } from '@/shared/location/useLocation';
+import { formatDistance } from '@/shared/location/distance';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSearch'>) {
@@ -14,6 +17,10 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
   const [query, setQuery] = useState('');
   const { data, isFetching, isError } = usePlaceSearch(query);
   const { recent, add, remove, clear } = useRecentSearches();
+  const { coord, source } = useLocation();
+  // 주변 혼밥은 실제 GPS가 있을 때만(내 동네·기본좌표면 '주변'이 아니라 숨김). 폴링 없음.
+  const nearbyQuery = useNearby(coord, 1000, source === 'gps', false);
+  const nearby = source === 'gps' ? nearbyDiningPlaces(nearbyQuery.data?.content ?? [], 5) : [];
   const q = query.trim();
   const results = data?.content ?? [];
 
@@ -47,34 +54,60 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
 
       {/* 본문 */}
       {q.length === 0 ? (
-        recent.length > 0 ? (
-          <View style={styles.recentWrap}>
-            <View style={styles.recentHeader}>
-              <Text style={styles.recentTitle}>최근 검색어</Text>
-              <Pressable onPress={clear} hitSlop={8}>
-                <Text style={styles.recentClear}>전체 삭제</Text>
-              </Pressable>
-            </View>
-            <View style={styles.chips}>
-              {recent.map((term) => (
-                <View key={term} style={styles.chip}>
-                  <Pressable onPress={() => setQuery(term)} hitSlop={6}>
-                    <Text style={styles.chipText}>{term}</Text>
-                  </Pressable>
-                  <Pressable onPress={() => remove(term)} hitSlop={6} style={styles.chipX}>
-                    <Text style={styles.chipXText}>✕</Text>
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : (
+        recent.length === 0 && nearby.length === 0 ? (
           <View style={styles.center}>
             <View style={styles.hintIcon}>
               <Icon name="search" size={30} color={T2.textMute} />
             </View>
             <Text style={styles.hintText}>식당 이름으로 검색해보세요</Text>
           </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.emptyScroll} keyboardShouldPersistTaps="handled">
+            {recent.length > 0 && (
+              <View style={styles.recentWrap}>
+                <View style={styles.recentHeader}>
+                  <Text style={styles.recentTitle}>최근 검색어</Text>
+                  <Pressable onPress={clear} hitSlop={8}>
+                    <Text style={styles.recentClear}>전체 삭제</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.chips}>
+                  {recent.map((term) => (
+                    <View key={term} style={styles.chip}>
+                      <Pressable onPress={() => setQuery(term)} hitSlop={6}>
+                        <Text style={styles.chipText}>{term}</Text>
+                      </Pressable>
+                      <Pressable onPress={() => remove(term)} hitSlop={6} style={styles.chipX}>
+                        <Text style={styles.chipXText}>✕</Text>
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+            {nearby.length > 0 && (
+              <View style={styles.nearbyWrap}>
+                <Text style={styles.nearbyTitle}>지금 주변에서 혼밥 중</Text>
+                {nearby.map((p) => (
+                  <Pressable
+                    key={p.placeId}
+                    style={styles.nearbyRow}
+                    onPress={() => navigation.navigate('RestaurantDetail', { placeId: p.placeId, name: p.name })}
+                  >
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.nearbyName} numberOfLines={1}>{p.name}</Text>
+                      <Text style={styles.nearbyMeta} numberOfLines={1}>
+                        {[p.category, formatDistance(p.distanceMeters)].filter(Boolean).join(' · ')}
+                      </Text>
+                    </View>
+                    <View style={styles.countBadge}>
+                      <Text style={styles.countText}>{p.activeCount}명</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </ScrollView>
         )
       ) : isError ? (
         <View style={styles.center}>
@@ -182,6 +215,8 @@ const styles = StyleSheet.create({
   hintText: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
   msg: { fontSize: 14, color: T2.textSub, textAlign: 'center', lineHeight: 21, marginTop: 24 },
 
+  emptyScroll: { paddingBottom: 24 },
+
   recentWrap: { paddingHorizontal: 20, paddingTop: 8 },
   recentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   recentTitle: { fontSize: 13, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
@@ -202,4 +237,23 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, color: T2.text, letterSpacing: -0.2 },
   chipX: { width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
   chipXText: { fontSize: 10, color: T2.textMute, fontWeight: '700', lineHeight: 12 },
+
+  nearbyWrap: { paddingHorizontal: 20, paddingTop: 24 },
+  nearbyTitle: { fontSize: 13, fontWeight: '700', color: T2.text, letterSpacing: -0.3, marginBottom: 12 },
+  nearbyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: T2.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: T2.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
+  },
+  nearbyName: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
+  nearbyMeta: { fontSize: 12, color: T2.textSub, marginTop: 3, letterSpacing: -0.2 },
+  countBadge: { backgroundColor: T2.brand, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5 },
+  countText: { fontSize: 12, fontWeight: '800', color: '#fff', letterSpacing: -0.2 },
 });
