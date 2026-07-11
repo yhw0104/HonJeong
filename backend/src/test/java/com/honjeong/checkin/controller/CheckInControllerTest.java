@@ -233,13 +233,14 @@ class CheckInControllerTest {
     @DisplayName("GET /map: 200 + 마커 배열")
     void map_200() throws Exception {
         when(checkInService.getMap(any(), any(), anyInt()))
-                .thenReturn(List.of(new MapMarkerResponse(3L, "혼밥식당", 37.5, 127.0, 3)));
+                .thenReturn(List.of(new MapMarkerResponse(3L, "혼밥식당", 37.5, 127.0, 3, 2)));
 
         mockMvc.perform(get("/api/check-ins/map").header("Authorization", userToken())
                         .param("lat", "37.5").param("lng", "127.0"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].placeId").value(3))
-                .andExpect(jsonPath("$.data[0].activeCount").value(3));
+                .andExpect(jsonPath("$.data[0].activeCount").value(3))
+                .andExpect(jsonPath("$.data[0].seekingCount").value(2));
     }
 
     @Test

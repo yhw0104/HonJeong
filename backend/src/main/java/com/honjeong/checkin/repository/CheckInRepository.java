@@ -94,25 +94,33 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     long countDistinctUsersStartedSince(@Param("start") LocalDateTime start);
 
     /**
-     * 기능: 위경도 박스 안의 식당별 현재 ACTIVE 혼밥러 수를 마커 DTO로 집계
-     * 쿼리: SELECT p.id, p.name, p.latitude, p.longitude, COUNT(c.id) FROM check_ins c JOIN places p ON c.place_id = p.id
-     *       WHERE c.status = 'ACTIVE' AND p.latitude BETWEEN :latMin AND :latMax AND p.longitude BETWEEN :lngMin AND :lngMax
-     *       GROUP BY p.id, p.name, p.latitude, p.longitude (INNER JOIN이라 ACTIVE가 있는 식당만 반환)
+     * 기능: 위경도 박스 안의 식당별 현재 ACTIVE·SEEKING 혼밥러 수를 각각 마커 DTO로 집계
+     * 쿼리: SELECT p.id, p.name, p.latitude, p.longitude,
+     *       SUM(CASE WHEN status='ACTIVE' THEN 1 ELSE 0 END), SUM(CASE WHEN status='SEEKING' THEN 1 ELSE 0 END)
+     *       FROM check_ins c JOIN places p ON c.place_id = p.id
+     *       WHERE c.status IN ('SEEKING','ACTIVE') AND p.latitude BETWEEN :latMin AND :latMax
+     *       AND p.longitude BETWEEN :lngMin AND :lngMax GROUP BY p.id, p.name, p.latitude, p.longitude
+     *       (INNER JOIN이라 ACTIVE 또는 SEEKING이 있는 식당만 반환)
      * Request: latMin·latMax — 위도 하한·상한, lngMin·lngMax — 경도 하한·상한 / Response: List&lt;MapMarkerResponse&gt; — 박스 내 식당별 마커
      *
-     * <p>[기존 주석] 위경도 박스 안의 식당별 현재 ACTIVE 혼밥러 수. ACTIVE가 있는 식당만(INNER JOIN) 반환한다.
+     * <p>[기존 주석] 위경도 박스 안의 식당별 현재 ACTIVE·SEEKING 혼밥러 수를 조건부 SUM으로 각각 집계한다.
+     * ACTIVE 또는 SEEKING이 있는 식당만(INNER JOIN + WHERE IN) 반환한다 — 모집중만 있는 식당도 이제 마커에 나온다.
      * 원형 반경 보정·거리정렬은 서비스가 Haversine로 수행한다.
      *
      * @param latMin 위도 하한
      * @param latMax 위도 상한
      * @param lngMin 경도 하한
      * @param lngMax 경도 상한
-     * @return 박스 내 식당별 마커(활성 수 포함)
+     * @return 박스 내 식당별 마커(ACTIVE·SEEKING 수 포함)
      */
     @Query("""
-            SELECT new com.honjeong.checkin.dto.MapMarkerResponse(p.id, p.name, p.latitude, p.longitude, COUNT(c.id))
+            SELECT new com.honjeong.checkin.dto.MapMarkerResponse(
+                p.id, p.name, p.latitude, p.longitude,
+                SUM(CASE WHEN c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE THEN 1 ELSE 0 END),
+                SUM(CASE WHEN c.status = com.honjeong.checkin.domain.CheckInStatus.SEEKING THEN 1 ELSE 0 END))
             FROM CheckIn c JOIN c.place p
-            WHERE c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE
+            WHERE c.status IN (com.honjeong.checkin.domain.CheckInStatus.SEEKING,
+                               com.honjeong.checkin.domain.CheckInStatus.ACTIVE)
               AND p.latitude BETWEEN :latMin AND :latMax
               AND p.longitude BETWEEN :lngMin AND :lngMax
             GROUP BY p.id, p.name, p.latitude, p.longitude

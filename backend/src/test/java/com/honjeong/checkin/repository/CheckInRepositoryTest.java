@@ -146,6 +146,28 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
+    @DisplayName("지도 마커는 식당별 ACTIVE·SEEKING 수를 각각 집계한다")
+    void 마커_ACTIVE_SEEKING_분리집계() {
+        User user = persistUser("01000000001", "A");
+        User user2 = persistUser("01000000002", "B");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn active = CheckIn.startSeeking(user, place, NOW);
+        active.dineAlone(NOW);
+        checkInRepository.save(active);
+        checkInRepository.save(CheckIn.startSeeking(user2, place, NOW)); // 같은 place 모집중
+        checkInRepository.flush();
+
+        var markers = checkInRepository.countActiveByPlaceWithinBounds(
+                place.getLatitude() - 0.01, place.getLatitude() + 0.01,
+                place.getLongitude() - 0.01, place.getLongitude() + 0.01);
+
+        assertThat(markers).singleElement().satisfies(m -> {
+            assertThat(m.activeCount()).isEqualTo(1);
+            assertThat(m.seekingCount()).isEqualTo(1);
+        });
+    }
+
+    @Test
     @DisplayName("findActiveWithUserByPlace: 식당의 ACTIVE 혼밥러를 startedAt 오름차순, user fetch")
     void activeDiners() {
         User u1 = persistUser("01000000001", "먼저온사람");
