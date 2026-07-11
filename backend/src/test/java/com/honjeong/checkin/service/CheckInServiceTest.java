@@ -150,6 +150,23 @@ class CheckInServiceTest {
     }
 
     @Test
+    @DisplayName("createCheckIn: 이미 ACTIVE면 같은 장소여도 CHECKIN_ALREADY_ACTIVE(409) — 멱등 반환 아님")
+    void create_samePlace_activeConflict() {
+        // given: 기존이 ACTIVE(혼밥중)이고 요청 placeId도 같은 3L. SEEKING만 멱등이므로 409여야 한다.
+        Place place = place(3L);
+        when(placeService.getById(3L)).thenReturn(place);
+        CheckIn existing = CheckIn.start(userRef(1L), place, nowKst);
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.of(existing));
+
+        // when & then
+        assertThatThrownBy(() -> service.createCheckIn(1L, new CheckInRequest(3L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.CHECKIN_ALREADY_ACTIVE));
+        verify(checkInRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("createCheckIn: 다른 장소에 이미 활성(SEEKING/ACTIVE/TOGETHER)이면 CHECKIN_ALREADY_ACTIVE(409)")
     void create_differentPlace_conflict() {
         // given: 기존 활성 place id=4, 새 요청 place id=3
