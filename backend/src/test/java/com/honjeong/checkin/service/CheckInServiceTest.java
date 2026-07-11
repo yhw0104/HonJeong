@@ -81,52 +81,83 @@ class CheckInServiceTest {
     }
 
     @Test
-    @DisplayName("createCheckIn: 기존 ACTIVE 없으면 새 체크인을 저장하고 응답을 반환한다")
+    @DisplayName("createCheckIn: 기존 활성(SEEKING/ACTIVE/TOGETHER) 없으면 새 SEEKING 체크인을 저장하고 응답을 반환한다")
     void create_new() {
-        // given: placeId=3 장소 조회 결과, 기존 ACTIVE 없음, save는 인자를 그대로 반환
+        // given: placeId=3 장소 조회 결과, 기존 활성 없음, save는 인자를 그대로 반환
         Place place = place(3L);
         when(placeService.getById(3L)).thenReturn(place);
-        when(checkInRepository.findByUser_IdAndStatus(1L, CheckInStatus.ACTIVE)).thenReturn(Optional.empty());
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.empty());
         when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
         when(checkInRepository.save(any(CheckIn.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // when
         CheckInResponse res = service.createCheckIn(1L, request());
 
-        // then: ACTIVE·placeId·startedAt(KST now) 매핑, 저장 호출됨
-        assertThat(res.status()).isEqualTo("ACTIVE");
+        // then: SEEKING·placeId·startedAt(KST now) 매핑, 저장 호출됨
+        assertThat(res.status()).isEqualTo("SEEKING");
         assertThat(res.placeId()).isEqualTo(3L);
         assertThat(res.startedAt()).isEqualTo(nowKst);
         verify(checkInRepository).save(any(CheckIn.class));
     }
 
     @Test
-    @DisplayName("createCheckIn: 같은 장소에 이미 ACTIVE면 기존을 멱등 반환하고 저장하지 않는다")
-    void create_samePlace_idempotent() {
-        // given: 기존 ACTIVE의 place와 새 요청의 place가 같은 id=3
+    @DisplayName("createCheckIn은 SEEKING 상태 체크인을 만든다")
+    void 체크인_생성은_모집중() {
         Place place = place(3L);
         when(placeService.getById(3L)).thenReturn(place);
-        CheckIn existing = CheckIn.start(mock(User.class), place, nowKst);
-        when(checkInRepository.findByUser_IdAndStatus(1L, CheckInStatus.ACTIVE)).thenReturn(Optional.of(existing));
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.empty());
+        User user = userRef(1L);
+        when(userRepository.getReferenceById(1L)).thenReturn(user);
+        when(checkInRepository.save(any(CheckIn.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CheckInResponse res = service.createCheckIn(1L, new CheckInRequest(3L));
+
+        assertThat(res.status()).isEqualTo("SEEKING");
+    }
+
+    @Test
+    @DisplayName("이미 모집중이면 다른 장소 재요청은 409")
+    void 활동중_다른장소_409() {
+        Place place = place(3L);
+        Place place2 = place(4L);
+        when(placeService.getById(4L)).thenReturn(place2);   // 다른 장소
+        CheckIn existing = CheckIn.startSeeking(userRef(1L), place, nowKst);
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection()))
+                .thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> service.createCheckIn(1L, new CheckInRequest(4L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.CHECKIN_ALREADY_ACTIVE));
+    }
+
+    @Test
+    @DisplayName("createCheckIn: 같은 장소에 이미 SEEKING이면 기존을 멱등 반환하고 저장하지 않는다")
+    void create_samePlace_idempotent() {
+        // given: 기존 SEEKING의 place와 새 요청의 place가 같은 id=3
+        Place place = place(3L);
+        when(placeService.getById(3L)).thenReturn(place);
+        CheckIn existing = CheckIn.startSeeking(mock(User.class), place, nowKst);
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.of(existing));
 
         // when
         CheckInResponse res = service.createCheckIn(1L, request());
 
         // then: 기존 반환, 저장 없음
         assertThat(res.placeId()).isEqualTo(3L);
-        assertThat(res.status()).isEqualTo("ACTIVE");
+        assertThat(res.status()).isEqualTo("SEEKING");
         verify(checkInRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("createCheckIn: 다른 장소에 이미 ACTIVE면 CHECKIN_ALREADY_ACTIVE(409)")
+    @DisplayName("createCheckIn: 다른 장소에 이미 활성(SEEKING/ACTIVE/TOGETHER)이면 CHECKIN_ALREADY_ACTIVE(409)")
     void create_differentPlace_conflict() {
-        // given: 기존 ACTIVE place id=4, 새 요청 place id=3
+        // given: 기존 활성 place id=4, 새 요청 place id=3
         Place requestedPlace = place(3L);
         Place existingPlace = place(4L);
         when(placeService.getById(3L)).thenReturn(requestedPlace);
-        CheckIn existing = CheckIn.start(mock(User.class), existingPlace, nowKst);
-        when(checkInRepository.findByUser_IdAndStatus(1L, CheckInStatus.ACTIVE)).thenReturn(Optional.of(existing));
+        CheckIn existing = CheckIn.startSeeking(mock(User.class), existingPlace, nowKst);
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.of(existing));
 
         // when & then
         assertThatThrownBy(() -> service.createCheckIn(1L, request()))
@@ -141,7 +172,7 @@ class CheckInServiceTest {
     void create_raceConflict() {
         Place place = place(3L);
         when(placeService.getById(3L)).thenReturn(place);
-        when(checkInRepository.findByUser_IdAndStatus(1L, CheckInStatus.ACTIVE)).thenReturn(Optional.empty());
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.empty());
         when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
         when(checkInRepository.save(any())).thenThrow(new DataIntegrityViolationException("uq violation"));
 
@@ -222,6 +253,18 @@ class CheckInServiceTest {
     @DisplayName("cancelCheckIn: 소유자의 ACTIVE를 CANCELLED로 전이한다")
     void cancelCheckIn_cancelsActive() {
         CheckIn c = CheckIn.start(userRef(1L), place(10L), nowKst);
+        when(checkInRepository.findById(3L)).thenReturn(Optional.of(c));
+
+        CheckInResponse res = service.cancelCheckIn(1L, 3L);
+
+        assertThat(res.status()).isEqualTo("CANCELLED");
+        assertThat(c.getStatus()).isEqualTo(CheckInStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("cancelCheckIn: 소유자의 SEEKING도 CANCELLED로 전이한다")
+    void cancelCheckIn_cancelsSeeking() {
+        CheckIn c = CheckIn.startSeeking(userRef(1L), place(10L), nowKst);
         when(checkInRepository.findById(3L)).thenReturn(Optional.of(c));
 
         CheckInResponse res = service.cancelCheckIn(1L, 3L);

@@ -68,11 +68,12 @@ public class CheckInService {
     }
 
     /**
-     * 기능: 혼밥 체크인을 시작한다(같은 장소 멱등 반환, 다른 장소 409, 경쟁 시 인덱스 위반을 409로 변환)
+     * 기능: 혼밥 체크인(모집중)을 시작한다(같은 장소 멱등 반환, 다른 장소/이미 활동 중이면 409, 경쟁 시 인덱스 위반을 409로 변환)
      * Request: userId — 체크인하는 회원 ID, request — CheckInRequest(placeId)
-     * Response: CheckInResponse — 새로 만들었거나 멱등 반환한 기존 체크인
+     * Response: CheckInResponse — 새로 만들었거나 멱등 반환한 기존 체크인(SEEKING)
      *
-     * <p>[기존 주석] 혼밥 체크인을 시작한다. placeId로 장소를 조회한 뒤, 기존 ACTIVE가 있으면 같은 장소는 멱등 반환, 다른 장소는 409.
+     * <p>[기존 주석] 혼밥 체크인을 시작한다. placeId로 장소를 조회한 뒤, 기존 활성(SEEKING/ACTIVE/TOGETHER)이 있으면
+     * 같은 장소로 아직 SEEKING인 경우만 멱등 반환하고, 그 외(다른 장소이거나 이미 ACTIVE/TOGETHER로 진행 중)는 409.
      * 경쟁으로 단일활성 인덱스가 위반되면 {@link DataIntegrityViolationException}을 409로 변환한다.
      *
      * @param userId  체크인하는 회원 id
@@ -83,20 +84,22 @@ public class CheckInService {
     public CheckInResponse createCheckIn(Long userId, CheckInRequest request) {
         Place place = placeService.getById(request.placeId());
 
-        Optional<CheckIn> active = checkInRepository.findByUser_IdAndStatus(userId, CheckInStatus.ACTIVE);
-        if (active.isPresent()) {
-            CheckIn existing = active.get();
-            if (existing.getPlace().getId().equals(place.getId())) {
-                return CheckInResponse.from(existing);                       // 같은 장소 → 멱등
+        Optional<CheckIn> current = checkInRepository.findByUser_IdAndStatusIn(
+                userId, List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE, CheckInStatus.TOGETHER));
+        if (current.isPresent()) {
+            CheckIn existing = current.get();
+            if (existing.getStatus() == CheckInStatus.SEEKING
+                    && existing.getPlace().getId().equals(place.getId())) {
+                return CheckInResponse.from(existing);                        // 같은 장소 모집 → 멱등
             }
-            throw new BusinessException(ErrorCode.CHECKIN_ALREADY_ACTIVE);   // 다른 장소 → 409
+            throw new BusinessException(ErrorCode.CHECKIN_ALREADY_ACTIVE);    // 이미 활동 중 → 409
         }
 
         try {
             User userRef = userRepository.getReferenceById(userId);
-            CheckIn saved = checkInRepository.save(CheckIn.start(userRef, place, now()));
+            CheckIn saved = checkInRepository.save(CheckIn.startSeeking(userRef, place, now()));
             return CheckInResponse.from(saved);
-        } catch (DataIntegrityViolationException e) {                        // 경쟁 상황(인덱스 위반)
+        } catch (DataIntegrityViolationException e) {                         // 경쟁(인덱스 위반)
             throw new BusinessException(ErrorCode.CHECKIN_ALREADY_ACTIVE);
         }
     }
@@ -132,11 +135,11 @@ public class CheckInService {
     }
 
     /**
-     * 기능: 체크인을 취소(CANCELLED)한다 — 짧은 혼밥 오집계 방지용, 소유자의 ACTIVE만 가능
+     * 기능: 체크인을 취소(CANCELLED)한다 — 짧은 혼밥/모집 포기 오집계 방지용, 소유자의 SEEKING·ACTIVE만 가능
      * Request: userId — 요청 회원 ID, checkInId — 취소할 체크인 ID
      * Response: CheckInResponse — 취소된 체크인
      *
-     * <p>[기존 주석] 체크인을 취소(CANCELLED)한다. 짧은 혼밥 오집계 방지용 — 소유자의 ACTIVE만 취소 가능하다.
+     * <p>[기존 주석] 체크인을 취소(CANCELLED)한다. 짧은 혼밥/모집 포기 오집계 방지용 — 소유자의 SEEKING·ACTIVE만 취소 가능하다.
      *
      * @param userId    요청 회원 id
      * @param checkInId 취소할 체크인 id
@@ -149,7 +152,8 @@ public class CheckInService {
         if (!checkIn.isOwnedBy(userId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
-        if (checkIn.getStatus() != CheckInStatus.ACTIVE) {
+        if (checkIn.getStatus() != CheckInStatus.SEEKING
+                && checkIn.getStatus() != CheckInStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.CHECKIN_NOT_ACTIVE);
         }
         checkIn.cancel(now());
