@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Coord } from '@/shared/location/pickLocation';
 import { LIVE_REFETCH_MS } from '@/shared/realtime';
 import {
-  fetchMyCheckIn, startCheckIn, endCheckIn, cancelCheckIn, fetchStats, fetchMap, fetchActiveDiners,
+  fetchMyCheckIn, startCheckIn, endCheckIn, cancelCheckIn, dineAlone, fetchStats, fetchMap, fetchSeekers,
 } from './api';
 import { startCheckInWithRecovery } from './recovery';
 
@@ -20,10 +20,10 @@ export function useMap(coord: Coord, radius = 1000) {
     refetchInterval: LIVE_REFETCH_MS,
   });
 }
-export function useActiveDiners(placeId: number) {
+export function useSeekers(placeId: number) {
   return useQuery({
-    queryKey: ['place', placeId, 'diners'],
-    queryFn: () => fetchActiveDiners(placeId),
+    queryKey: ['place', placeId, 'seekers'],
+    queryFn: () => fetchSeekers(placeId),
     refetchInterval: LIVE_REFETCH_MS,
   });
 }
@@ -59,6 +59,14 @@ export function useCancelCheckIn() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (checkInId: number) => cancelCheckIn(checkInId),
+    onSuccess: () => invalidateLoop(qc),
+  });
+}
+
+export function useDineAlone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (checkInId: number) => dineAlone(checkInId),
     onSuccess: () => invalidateLoop(qc),
   });
 }
