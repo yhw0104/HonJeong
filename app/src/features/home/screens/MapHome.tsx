@@ -120,6 +120,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           latitude: m.latitude,
           longitude: m.longitude,
           activeCount: m.activeCount,
+          seekingCount: m.seekingCount,
         }))}
         onMarkerPress={(placeId) => goDetail(placeId)}
       />
