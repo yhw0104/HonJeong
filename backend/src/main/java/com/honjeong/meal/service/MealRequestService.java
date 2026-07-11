@@ -60,11 +60,11 @@ public class MealRequestService {
     }
 
     /**
-     * 기능: 같이먹기 신청 생성 — 대상 체크인 ACTIVE 검증, 자기 자신·수신 거부(opt-in)·차단 관계·중복 신청 차단 후 PENDING 신청 저장 + 수신자에게 알림 발행
+     * 기능: 같이먹기 신청 생성 — 대상 체크인 SEEKING(모집중) 검증, 자기 자신·수신 거부(opt-in)·차단 관계·중복 신청 차단 후 PENDING 신청 저장 + 수신자에게 알림 발행
      * Request: userId — 신청자 사용자 ID, request — MealRequestCreateRequest(toCheckInId 대상 체크인 id, message 인사 한마디)
      * Response: MealRequestResponse — 생성된 신청(신청 id·대상 체크인 id·인사말·상태 PENDING)
      *
-     * <p>[기존 주석] 같이먹기 신청을 생성한다. 대상 체크인이 ACTIVE가 아니면 404, 자기 자신이면 409, 수신 거부면 403,
+     * <p>[기존 주석] 같이먹기 신청을 생성한다. 대상 체크인이 SEEKING(모집중)이 아니면 404, 자기 자신이면 409, 수신 거부면 403,
      * 중복(유니크 위반)이면 409로 처리한다. place_id는 대상 체크인의 장소에서 파생한다.
      *
      * @param userId  신청자 id
@@ -74,7 +74,7 @@ public class MealRequestService {
     @Transactional
     public MealRequestResponse create(Long userId, MealRequestCreateRequest request) {
         CheckIn target = checkInRepository.findById(request.toCheckInId())
-                .filter(c -> c.getStatus() == CheckInStatus.ACTIVE)
+                .filter(c -> c.getStatus() == CheckInStatus.SEEKING)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TARGET_CHECKIN_NOT_AVAILABLE));
 
         User receiver = target.getUser();
@@ -102,13 +102,13 @@ public class MealRequestService {
     }
 
     /**
-     * 기능: 신청 수락 — 상태를 ACCEPTED로 전이하고 수신자 체크인 ACTIVE→TOGETHER, 발신자에게 새 TOGETHER 체크인 생성, 같은 대상의 나머지 PENDING 자동 거절 + 발신자에게 수락 알림 발행
+     * 기능: 신청 수락 — 상태를 ACCEPTED로 전이하고 수신자 체크인 SEEKING→TOGETHER, 발신자에게 새 TOGETHER 체크인 생성, 같은 대상의 나머지 PENDING 자동 거절 + 발신자에게 수락 알림 발행
      * Request: userId — 요청 사용자 ID(수신자여야 함), id — 신청 ID
      * Response: MealRequestStatusResponse — 수락 결과(신청 id·상태 ACCEPTED·응답 시각)
      *
-     * <p>[기존 주석] 신청을 수락한다. 없으면 404, 수신자가 아니면 403, 이미 응답했으면 409, 대상이 이미 혼밥을 끝냈으면
-     * MEALREQUEST_TARGET_ENDED(409). 수락 시 매칭 전이가 함께 일어난다 — 수신자 체크인은 ACTIVE→TOGETHER로
-     * 바뀌고, 발신자에게는 새 TOGETHER 체크인이 insert된다(발신자가 기존에 다른 곳 ACTIVE면 먼저 종료하고,
+     * <p>[기존 주석] 신청을 수락한다. 없으면 404, 수신자가 아니면 403, 이미 응답했으면 409, 대상이 더는 모집중이 아니면
+     * MEALREQUEST_TARGET_ENDED(409). 수락 시 매칭 전이가 함께 일어난다 — 수신자 체크인은 SEEKING→TOGETHER로
+     * 바뀌고, 발신자에게는 새 TOGETHER 체크인이 insert된다(발신자가 기존에 다른 곳 SEEKING이면 취소하고 ACTIVE면 종료,
      * 이미 TOGETHER면 MEALREQUEST_SENDER_BUSY). 같은 대상으로 온 나머지 PENDING 신청은 자동 DECLINED 처리한다.
      *
      * @param userId 요청 회원 id(수신자여야 함)
@@ -120,22 +120,26 @@ public class MealRequestService {
         MealRequest mr = loadPendingForReceiver(userId, id);
 
         CheckIn target = mr.getToCheckIn();
-        if (target.getStatus() != CheckInStatus.ACTIVE) {
+        if (target.getStatus() != CheckInStatus.SEEKING) {
             throw new BusinessException(ErrorCode.MEALREQUEST_TARGET_ENDED);
         }
 
         LocalDateTime now = now();
         mr.accept(now);
-        target.matchTogether(mr.getId(), now);              // 수신자 ACTIVE → TOGETHER
+        target.matchTogether(mr.getId(), now);              // 수신자 SEEKING → TOGETHER
 
         Long senderId = mr.getFromUser().getId();
         checkInRepository.findByUser_IdAndStatusIn(senderId,
-                        List.of(CheckInStatus.ACTIVE, CheckInStatus.TOGETHER))
+                        List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE, CheckInStatus.TOGETHER))
                 .ifPresent(existing -> {
                     if (existing.getStatus() == CheckInStatus.TOGETHER) {
                         throw new BusinessException(ErrorCode.MEALREQUEST_SENDER_BUSY);
                     }
-                    existing.end(now);                       // 발신자 기존 ACTIVE 종료
+                    if (existing.getStatus() == CheckInStatus.SEEKING) {
+                        existing.cancel(now);                // 발신자 모집 의도는 취소(이력 미집계)
+                    } else {
+                        existing.end(now);                    // 발신자가 혼밥중이었으면 그 식사는 종료
+                    }
                     checkInRepository.flush();               // INSERT 전 UPDATE 반영(유니크 인덱스)
                 });
 

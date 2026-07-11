@@ -73,7 +73,7 @@ class MealRequestServiceTest {
         when(place.getId()).thenReturn(placeId);
         CheckIn ci = mock(CheckIn.class);
         when(ci.getId()).thenReturn(checkInId);
-        when(ci.getStatus()).thenReturn(CheckInStatus.ACTIVE);
+        when(ci.getStatus()).thenReturn(CheckInStatus.SEEKING); // create의 대상 SEEKING 필터를 통과시킨다.
         when(ci.getUser()).thenReturn(owner);
         when(ci.getPlace()).thenReturn(place);
         return ci;
@@ -91,7 +91,7 @@ class MealRequestServiceTest {
         CheckIn ci = mock(CheckIn.class);
         when(ci.getId()).thenReturn(3L);
         when(ci.getUser()).thenReturn(receiver);
-        when(ci.getStatus()).thenReturn(CheckInStatus.ACTIVE); // accept의 대상 ACTIVE 가드를 통과시킨다.
+        when(ci.getStatus()).thenReturn(CheckInStatus.SEEKING); // accept의 대상 SEEKING 가드를 통과시킨다.
         when(ci.getPlace()).thenReturn(mock(Place.class));
         return MealRequest.create(sender, ci, mock(Place.class), "msg", nowKst);
     }
@@ -159,6 +159,21 @@ class MealRequestServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.TARGET_CHECKIN_NOT_AVAILABLE));
+    }
+
+    @Test
+    @DisplayName("create: 대상 체크인이 SEEKING이 아니면(혼밥중=ACTIVE) TARGET_CHECKIN_NOT_AVAILABLE(404)")
+    void create_targetNotSeeking_throwsTargetCheckInNotAvailable() {
+        CheckIn activeTarget = CheckIn.startSeeking(userRef(2L), place(3L), nowKst);
+        activeTarget.dineAlone(nowKst);                      // ACTIVE(혼밥중) — 모집중 아님
+        setId(activeTarget, 10L);
+        when(checkInRepository.findById(10L)).thenReturn(Optional.of(activeTarget));
+
+        assertThatThrownBy(() -> service.create(1L, request(10L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.TARGET_CHECKIN_NOT_AVAILABLE));
+        verify(mealRequestRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -286,11 +301,11 @@ class MealRequestServiceTest {
     }
 
     @Test
-    @DisplayName("accept: 수신자 ACTIVE→TOGETHER 전이 + 발신자 TOGETHER insert + 다른 PENDING 정리")
+    @DisplayName("accept: 수신자 SEEKING→TOGETHER 전이 + 발신자 TOGETHER insert + 다른 PENDING 정리")
     void accept_matches() {
-        // given: 수신자(2L)의 ACTIVE 체크인 대상 + 수락자=수신자(2L), 발신자=1L
+        // given: 수신자(2L)의 SEEKING(모집중) 체크인 대상 + 수락자=수신자(2L), 발신자=1L
         Place p = place(10L);
-        CheckIn target = CheckIn.start(userRef(2L), p, nowKst);              // 수신자 체크인(ACTIVE)
+        CheckIn target = CheckIn.startSeeking(userRef(2L), p, nowKst);       // 수신자 체크인(SEEKING)
         MealRequest mr = MealRequest.create(userRef(1L), target, p, "hi", nowKst); // 발신자 1L → target
         setId(mr, 5L);
         setId(target, 3L);                                                  // 테스트 헬퍼로 id 주입
@@ -312,11 +327,11 @@ class MealRequestServiceTest {
     }
 
     @Test
-    @DisplayName("accept: 수신자 체크인이 더는 ACTIVE가 아니면 MEALREQUEST_TARGET_ENDED")
+    @DisplayName("accept: 수신자 체크인이 더는 SEEKING(모집중)이 아니면 MEALREQUEST_TARGET_ENDED")
     void accept_targetEnded() {
         Place p = place(10L);
         CheckIn target = CheckIn.start(userRef(2L), p, nowKst);
-        target.end(nowKst); // 이미 종료
+        target.end(nowKst); // 이미 종료(ACTIVE에서 시작해 end로 ENDED — SEEKING이면 end가 no-op이라 여기선 ACTIVE 경유가 맞다)
         MealRequest mr = MealRequest.create(userRef(1L), target, p, null, nowKst);
         setId(mr, 5L);
         when(mealRequestRepository.findWithReceiverById(5L)).thenReturn(Optional.of(mr));
@@ -331,7 +346,7 @@ class MealRequestServiceTest {
     @DisplayName("accept: 발신자가 이미 TOGETHER면 MEALREQUEST_SENDER_BUSY")
     void accept_senderBusy() {
         Place p = place(10L);
-        CheckIn target = CheckIn.start(userRef(2L), p, nowKst);
+        CheckIn target = CheckIn.startSeeking(userRef(2L), p, nowKst);
         MealRequest mr = MealRequest.create(userRef(1L), target, p, null, nowKst);
         setId(mr, 5L);
         CheckIn senderTogether = CheckIn.startTogether(userRef(1L), place(99L), 8L, nowKst);
@@ -349,7 +364,7 @@ class MealRequestServiceTest {
     @DisplayName("accept: 발신자가 다른 곳 ACTIVE면 그 ACTIVE를 종료하고 TOGETHER insert")
     void accept_endsSenderActive() {
         Place p = place(10L);
-        CheckIn target = CheckIn.start(userRef(2L), p, nowKst);
+        CheckIn target = CheckIn.startSeeking(userRef(2L), p, nowKst);
         MealRequest mr = MealRequest.create(userRef(1L), target, p, null, nowKst);
         setId(mr, 5L);
         setId(target, 3L);
@@ -364,6 +379,28 @@ class MealRequestServiceTest {
         assertThat(senderActive.getStatus()).isEqualTo(CheckInStatus.ENDED);
         // flush가 save(INSERT)보다 먼저 호출돼야 한다 — 그래야 유니크 인덱스(uq_check_ins_current_user)
         // 위반 없이 기존 ACTIVE 종료(UPDATE)가 새 TOGETHER(INSERT)보다 먼저 DB에 반영된다.
+        InOrder inOrder = inOrder(checkInRepository);
+        inOrder.verify(checkInRepository).flush();
+        inOrder.verify(checkInRepository).save(any(CheckIn.class));
+    }
+
+    @Test
+    @DisplayName("accept: 발신자가 기존 SEEKING(모집중)이면 취소(CANCELLED)하고 새 TOGETHER insert")
+    void accept_cancelsSenderSeeking() {
+        Place p = place(10L);
+        CheckIn target = CheckIn.startSeeking(userRef(2L), p, nowKst);
+        MealRequest mr = MealRequest.create(userRef(1L), target, p, null, nowKst);
+        setId(mr, 5L);
+        setId(target, 3L);
+        CheckIn senderSeeking = CheckIn.startSeeking(userRef(1L), place(99L), nowKst);
+        when(mealRequestRepository.findWithReceiverById(5L)).thenReturn(Optional.of(mr));
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection()))
+                .thenReturn(Optional.of(senderSeeking));
+        when(userRepository.getReferenceById(1L)).thenReturn(userRef(1L));
+
+        service.accept(2L, 5L);
+
+        assertThat(senderSeeking.getStatus()).isEqualTo(CheckInStatus.CANCELLED);
         InOrder inOrder = inOrder(checkInRepository);
         inOrder.verify(checkInRepository).flush();
         inOrder.verify(checkInRepository).save(any(CheckIn.class));
