@@ -4,7 +4,7 @@ import { focusManager } from '@tanstack/react-query';
 /**
  * 라이브(실시간) 쿼리 폴링 주기(ms).
  * "지금 누가 어디서 혼밥중인지"처럼 다른 사용자의 변화가 곧바로 보여야 하는
- * 쿼리(useStats·useMap·useNearby·useActiveDiners)에 `refetchInterval`로 사용한다.
+ * 쿼리(useStats·useMap·useNearby·useSeekers)에 `refetchInterval`로 사용한다.
  */
 export const LIVE_REFETCH_MS = 15_000;
 

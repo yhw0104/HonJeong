@@ -237,10 +237,10 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                   <Text style={styles.listMeta}>
                     {[r.category, formatDistance(r.distanceMeters)].filter(Boolean).join(' · ')}
                   </Text>
-                  {r.activeCount > 0 && (
+                  {r.seekingCount > 0 && (
                     <>
                       <Text style={styles.dot}>·</Text>
-                      <Text style={[styles.listTag, { color: T2.brand, fontWeight: '700' }]}>● 혼밥 {r.activeCount}</Text>
+                      <Text style={[styles.listTag, { color: T2.brand, fontWeight: '700' }]}>● 모집 {r.seekingCount}</Text>
                     </>
                   )}
                 </View>
