@@ -186,6 +186,54 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
+    @DisplayName("모집중 목록: 제외 id 목록의 유저는 빠진다")
+    void findSeekingWithUserByPlace_excludesBlocked() {
+        User userA = persistUser("01000000001", "A");
+        User userB = persistUser("01000000002", "B");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        em.persist(CheckIn.startSeeking(userA, place, NOW));
+        em.persist(CheckIn.startSeeking(userB, place, NOW.plusMinutes(1)));
+        em.flush();
+        em.clear();
+
+        List<CheckIn> result = checkInRepository.findSeekingWithUserByPlace(place.getId(), List.of(userB.getId()));
+
+        assertThat(result).extracting(c -> c.getUser().getId()).containsExactly(userA.getId());
+    }
+
+    @Test
+    @DisplayName("모집중 목록: user를 fetch join해 영속성 컨텍스트를 비워도 닉네임 접근이 지연로딩 없이 통과한다")
+    void findSeekingWithUserByPlace_fetchesUser() {
+        User user = persistUser("01000000001", "모집중사람");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        em.persist(CheckIn.startSeeking(user, place, NOW));
+        em.flush();
+        em.clear(); // fetch join 실제 동작 확인(영속성 컨텍스트 비움)
+
+        List<CheckIn> result = checkInRepository.findSeekingWithUserByPlace(place.getId(), List.of(-1L));
+
+        assertThat(result).singleElement()
+                .satisfies(c -> assertThat(c.getUser().getNickname()).isEqualTo("모집중사람"));
+    }
+
+    @Test
+    @DisplayName("모집중 목록: SEEKING 체크인을 startedAt 오름차순으로 반환한다")
+    void findSeekingWithUserByPlace_ordersByStartedAt() {
+        User u1 = persistUser("01000000001", "먼저온사람");
+        User u2 = persistUser("01000000002", "나중온사람");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        em.persist(CheckIn.startSeeking(u1, place, NOW));
+        em.persist(CheckIn.startSeeking(u2, place, NOW.plusMinutes(10)));
+        em.flush();
+        em.clear();
+
+        List<CheckIn> result = checkInRepository.findSeekingWithUserByPlace(place.getId(), List.of(-1L));
+
+        assertThat(result).extracting(c -> c.getUser().getNickname())
+                .containsExactly("먼저온사람", "나중온사람");
+    }
+
+    @Test
     @DisplayName("endActiveStartedBefore: 임계 이전 ACTIVE만 ENDED, 이후는 보존")
     void ttlBulkEnd() {
         User u1 = persistUser("01000000001", "오래된");
