@@ -720,10 +720,10 @@ function NearbyTab({
                   <Text style={styles.nearbyDist}>{formatDistance(r.distanceMeters)}</Text>
                 </View>
               </View>
-              {r.activeCount > 0 ? (
+              {r.seekingCount > 0 ? (
                 <View style={styles.nearbyActive}>
                   <View style={styles.nearbyActiveDot} />
-                  <Text style={styles.nearbyActiveText}>혼밥 {r.activeCount}</Text>
+                  <Text style={styles.nearbyActiveText}>모집 {r.seekingCount}</Text>
                 </View>
               ) : null}
             </Pressable>
