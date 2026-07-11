@@ -168,53 +168,21 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
-    @DisplayName("findActiveWithUserByPlace: 식당의 ACTIVE 혼밥러를 startedAt 오름차순, user fetch")
-    void activeDiners() {
-        User u1 = persistUser("01000000001", "먼저온사람");
-        User u2 = persistUser("01000000002", "나중온사람");
+    @DisplayName("모집중 목록은 SEEKING만, ACTIVE(혼밥중)는 제외한다")
+    void 모집중_목록_SEEKING만() {
+        User user = persistUser("01000000001", "모집중사람");
+        User user2 = persistUser("01000000002", "혼밥중사람");
         Place place = persistPlace("ext-1", 37.5, 127.0);
-        em.persist(CheckIn.start(u1, place, NOW));
-        em.persist(CheckIn.start(u2, place, NOW.plusMinutes(10)));
-        em.flush();
-        em.clear(); // fetch join 실제 동작 확인(영속성 컨텍스트 비움)
+        checkInRepository.save(CheckIn.startSeeking(user, place, NOW));         // 모집중
+        CheckIn eating = CheckIn.startSeeking(user2, place, NOW);
+        eating.dineAlone(NOW);
+        checkInRepository.save(eating);                                         // 혼밥중(제외)
+        checkInRepository.flush();
 
-        var diners = checkInRepository.findActiveWithUserByPlace(place.getId(), List.of(-1L));
+        var seekers = checkInRepository.findSeekingWithUserByPlace(place.getId(), List.of(-1L));
 
-        assertThat(diners).hasSize(2);
-        assertThat(diners.get(0).getUser().getNickname()).isEqualTo("먼저온사람");
-        assertThat(diners.get(1).getUser().getNickname()).isEqualTo("나중온사람");
-    }
-
-    @Test
-    @DisplayName("혼밥러 목록: 제외 id 목록의 유저는 빠진다")
-    void findActiveWithUserByPlace_excludesBlocked() {
-        User userA = persistUser("01000000001", "A");
-        User userB = persistUser("01000000002", "B");
-        Place place = persistPlace("ext-1", 37.5, 127.0);
-        em.persist(CheckIn.start(userA, place, NOW));
-        em.persist(CheckIn.start(userB, place, NOW.plusMinutes(1)));
-        em.flush();
-        em.clear();
-
-        List<CheckIn> result = checkInRepository.findActiveWithUserByPlace(place.getId(), List.of(userB.getId()));
-
-        assertThat(result).extracting(c -> c.getUser().getId()).containsExactly(userA.getId());
-    }
-
-    @Test
-    @DisplayName("혼밥러 목록: 센티널(-1)만 있으면 전원 노출")
-    void findActiveWithUserByPlace_sentinelShowsAll() {
-        User userA = persistUser("01000000001", "A");
-        User userB = persistUser("01000000002", "B");
-        Place place = persistPlace("ext-1", 37.5, 127.0);
-        em.persist(CheckIn.start(userA, place, NOW));
-        em.persist(CheckIn.start(userB, place, NOW.plusMinutes(1)));
-        em.flush();
-        em.clear();
-
-        List<CheckIn> result = checkInRepository.findActiveWithUserByPlace(place.getId(), List.of(-1L));
-
-        assertThat(result).hasSize(2);
+        assertThat(seekers).singleElement()
+                .satisfies(c -> assertThat(c.getUser().getId()).isEqualTo(user.getId()));
     }
 
     @Test

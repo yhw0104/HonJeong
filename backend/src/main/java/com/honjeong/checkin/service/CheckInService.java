@@ -31,10 +31,10 @@ import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
 /**
- * 1. 기능: 혼밥 체크인 비즈니스 로직 — 시작(단일 활성 제약)·종료·취소·내 체크인 조회·사회적 증거 통계·지도 마커·혼밥러 목록·TTL 자동 만료
+ * 1. 기능: 혼밥 체크인 비즈니스 로직 — 시작(단일 활성 제약)·종료·취소·내 체크인 조회·사회적 증거 통계·지도 마커·모집중(SEEKING) 목록·TTL 자동 만료
  * 2. 사용 Controller: CheckInController, PlaceCheckInController (그 외 CheckInExpiryScheduler·MealRequestService에서도 사용)
  *
- * <p>[기존 주석] 체크인 도메인 서비스. 단일 활성 제약(같은 장소 멱등 / 다른 장소 409)·종료·내 체크인·통계·지도·혼밥러 목록·TTL 만료를 담당한다.
+ * <p>[기존 주석] 체크인 도메인 서비스. 단일 활성 제약(같은 장소 멱등 / 다른 장소 409)·종료·내 체크인·통계·지도·모집중 목록·TTL 만료를 담당한다.
  *
  * <p>모든 시각은 주입된 {@link Clock}의 instant를 Asia/Seoul로 환산해 KST로 통일한다 — 통계 "오늘" 경계와 저장
  * 시각의 기준을 일치시켜 경계 어긋남을 막는다(전역 Clock 빈의 zone과 무관).
@@ -274,22 +274,22 @@ public class CheckInService {
     }
 
     /**
-     * 기능: 식당의 현재 혼밥러 목록을 조회한다(차단 관계 상호 은닉, 경과분 계산 포함)
+     * 기능: 식당의 현재 모집중(SEEKING) 목록을 조회한다(같이먹기 신청 대상, 차단 관계 상호 은닉, 경과분 계산 포함)
      * Request: viewerId — 조회하는 회원 ID(차단 필터 기준), placeId — 식당 ID
-     * Response: List&lt;CheckInUserResponse&gt; — 현재 ACTIVE 혼밥러 목록(startedAt 오름차순)
+     * Response: List&lt;CheckInUserResponse&gt; — 현재 SEEKING 목록(startedAt 오름차순)
      *
-     * <p>[기존 주석] 식당의 현재 혼밥러 목록을 반환한다. 경과분은 now−startedAt. 프라이버시상 닉네임·시작시각·경과만 노출한다.
-     * 차단 관계(양방향) 유저는 혼밥러 목록에서 상호 은닉한다(FR-108).
+     * <p>[기존 주석] 식당의 현재 모집중(SEEKING) 목록을 반환한다. 경과분은 now−startedAt. 프라이버시상 닉네임·시작시각·경과만 노출한다.
+     * 차단 관계(양방향) 유저는 목록에서 상호 은닉한다(FR-108).
      *
      * @param viewerId 조회하는 회원 id(차단 필터 기준)
      * @param placeId  식당 id
-     * @return 현재 ACTIVE 혼밥러 목록(startedAt 오름차순, 차단 상대 제외)
+     * @return 현재 SEEKING 목록(startedAt 오름차순, 차단 상대 제외)
      */
     @Transactional(readOnly = true)
-    public List<CheckInUserResponse> getActiveDiners(Long viewerId, Long placeId) {
+    public List<CheckInUserResponse> getSeekers(Long viewerId, Long placeId) {
         List<Long> excluded = blockRepository.findExclusionIds(viewerId);
         LocalDateTime now = now();
-        return checkInRepository.findActiveWithUserByPlace(placeId, excluded).stream()
+        return checkInRepository.findSeekingWithUserByPlace(placeId, excluded).stream()
                 .map(c -> new CheckInUserResponse(
                         c.getId(),
                         c.getUser().getId(),

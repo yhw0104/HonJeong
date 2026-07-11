@@ -40,13 +40,13 @@ import com.honjeong.support.AbstractPostgresTest;
  * <ol>
  *   <li>두 회원이 휴대폰 온보딩을 끝까지 마치고 정식 토큰을 받는다(신청자 Alice·수신자 Bob).</li>
  *   <li>장소를 DB에 직접 시드하고 그 placeId로 Bob이 혼밥 체크인한다(체크인의 정문은 SEEKING·모집중).</li>
- *   <li>Alice가 Bob의 체크인(SEEKING)을 대상으로 같이먹기를 신청한다.</li>
+ *   <li>Alice가 같은 식당의 모집중 목록(GET /api/places/{placeId}/check-ins)에서 Bob을 발견한다.</li>
+ *   <li>Alice가 그 목록에서 찾은 Bob의 체크인(SEEKING)을 대상으로 같이먹기를 신청한다.</li>
  *   <li>Bob이 받은 신청 목록에서 확인하고 수락한다(수신자 SEEKING→TOGETHER 매칭).</li>
  * </ol>
  *
- * <p>혼밥러 목록(GET /api/places/{placeId}/check-ins)은 아직 ACTIVE(혼밥중)만 노출한다 — SEEKING(모집중)
- * 대상을 보여주는 목록으로의 전환은 이 재설계 플랜의 후속 태스크(모집중 목록 조회) 몫이라 이 해피패스에서는
- * 그 중간 발견 단계를 검증하지 않는다(Alice는 체크인 응답으로 받은 bobCheckInId를 바로 사용한다).
+ * <p>혼밥러 목록(GET /api/places/{placeId}/check-ins)은 이제 SEEKING(모집중) 대상을 노출한다 — 같은
+ * 식당에서 모집중인 상대를 발견해 같이먹기를 신청하는 흐름 전체를 이 해피패스에서 검증한다.
  *
  * <p>추가로 {@code accept_whenSenderHasExistingActiveElsewhere_endsItAndInsertsNewTogether}는 발신자가
  * 이미 다른 식당에 ACTIVE 체크인을 가진 상태에서 수락되는 경로를 실 Postgres로 검증한다 —
@@ -101,11 +101,17 @@ class CheckInMealHappyPathE2eTest extends AbstractPostgresTest {
         long bobCheckInId = checkIn.path("data").path("checkInId").asLong();
         assertThat(checkIn.path("data").path("placeId").asLong()).isEqualTo(placeId);
 
-        // when: Alice가 Bob의 체크인(SEEKING)을 대상으로 같이먹기를 신청하면
-        // (혼밥러 목록 GET /api/places/{placeId}/check-ins은 아직 ACTIVE 전용이라 SEEKING인 Bob이 보이지
-        //  않는다 — 모집중 목록으로의 전환은 후속 태스크 몫. 여기서는 체크인 응답의 checkInId를 바로 쓴다.)
+        // when: Alice가 같은 식당의 모집중 목록을 조회하면
+        JsonNode seekers = perform(get("/api/places/" + placeId + "/check-ins"), aliceToken, 200);
+        // then: Bob의 SEEKING 체크인이 그 목록에 보인다(같이먹기 신청 대상 발견).
+        long discoveredCheckInId = findCheckInId(seekers.path("data"), bobCheckInId);
+        assertThat(discoveredCheckInId)
+                .withFailMessage("Alice가 모집중 목록에서 Bob의 체크인을 발견해야 한다")
+                .isEqualTo(bobCheckInId);
+
+        // when: Alice가 그 목록에서 발견한 Bob의 체크인(SEEKING)을 대상으로 같이먹기를 신청하면
         JsonNode created = perform(jsonPost("/api/meal-requests", Map.of(
-                "toCheckInId", bobCheckInId, "message", "같이 드실래요?")), aliceToken, 201);
+                "toCheckInId", discoveredCheckInId, "message", "같이 드실래요?")), aliceToken, 201);
         // then: PENDING 상태의 신청이 생성된다.
         assertThat(created.path("data").path("status").asText()).isEqualTo("PENDING");
         long mealRequestId = created.path("data").path("mealRequestId").asLong();
@@ -303,5 +309,15 @@ class CheckInMealHappyPathE2eTest extends AbstractPostgresTest {
             }
         }
         return false;
+    }
+
+    /** 모집중 목록(data 배열)에서 주어진 checkInId를 찾아 그대로 반환한다(없으면 -1 — 발견 실패를 단언에서 드러낸다). */
+    private long findCheckInId(JsonNode dataArray, long checkInId) {
+        for (JsonNode node : dataArray) {
+            if (node.path("checkInId").asLong() == checkInId) {
+                return node.path("checkInId").asLong();
+            }
+        }
+        return -1L;
     }
 }

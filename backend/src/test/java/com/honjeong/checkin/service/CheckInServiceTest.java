@@ -439,38 +439,38 @@ class CheckInServiceTest {
     }
 
     @Test
-    @DisplayName("getActiveDiners: 닉네임·경과분(now−startedAt) 매핑")
-    void diners_elapsed() {
+    @DisplayName("getSeekers: 닉네임·경과분(now−startedAt) 매핑")
+    void seekers_elapsed() {
         // clock now = 2026-06-15T12:00 KST. 11:45 시작 → 경과 15분
         User user = mock(User.class);
         when(user.getId()).thenReturn(5L);
         when(user.getNickname()).thenReturn("혼밥러");
-        CheckIn ci = CheckIn.start(user, place(3L), nowKst.minusMinutes(15));
+        CheckIn ci = CheckIn.startSeeking(user, place(3L), nowKst.minusMinutes(15));
         when(blockRepository.findExclusionIds(1L)).thenReturn(List.of(-1L));
-        when(checkInRepository.findActiveWithUserByPlace(3L, List.of(-1L))).thenReturn(List.of(ci));
+        when(checkInRepository.findSeekingWithUserByPlace(3L, List.of(-1L))).thenReturn(List.of(ci));
 
-        var diners = service.getActiveDiners(1L, 3L);
+        var seekers = service.getSeekers(1L, 3L);
 
-        assertThat(diners).hasSize(1);
-        assertThat(diners.get(0).userId()).isEqualTo(5L);
-        assertThat(diners.get(0).nickname()).isEqualTo("혼밥러");
-        assertThat(diners.get(0).elapsedMinutes()).isEqualTo(15L);
+        assertThat(seekers).hasSize(1);
+        assertThat(seekers.get(0).userId()).isEqualTo(5L);
+        assertThat(seekers.get(0).nickname()).isEqualTo("혼밥러");
+        assertThat(seekers.get(0).elapsedMinutes()).isEqualTo(15L);
     }
 
     @Test
-    @DisplayName("getActiveDiners: 차단 상호 은닉 — blockRepository의 제외 id를 리포지토리에 그대로 전달한다")
-    void diners_passesExclusionIdsFromBlockRepository() {
+    @DisplayName("getSeekers: 차단 상호 은닉 — blockRepository의 제외 id를 리포지토리에 그대로 전달한다")
+    void seekers_passesExclusionIdsFromBlockRepository() {
         User user = mock(User.class);
         when(user.getId()).thenReturn(5L);
         when(user.getNickname()).thenReturn("혼밥러");
-        CheckIn ci = CheckIn.start(user, place(3L), nowKst.minusMinutes(15));
+        CheckIn ci = CheckIn.startSeeking(user, place(3L), nowKst.minusMinutes(15));
         when(blockRepository.findExclusionIds(1L)).thenReturn(List.of(9L, 10L));
-        when(checkInRepository.findActiveWithUserByPlace(3L, List.of(9L, 10L))).thenReturn(List.of(ci));
+        when(checkInRepository.findSeekingWithUserByPlace(3L, List.of(9L, 10L))).thenReturn(List.of(ci));
 
-        var diners = service.getActiveDiners(1L, 3L);
+        var seekers = service.getSeekers(1L, 3L);
 
-        assertThat(diners).hasSize(1);
-        verify(checkInRepository).findActiveWithUserByPlace(3L, List.of(9L, 10L));
+        assertThat(seekers).hasSize(1);
+        verify(checkInRepository).findSeekingWithUserByPlace(3L, List.of(9L, 10L));
     }
 
     @Test

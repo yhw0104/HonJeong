@@ -130,26 +130,27 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             @Param("lngMin") double lngMin, @Param("lngMax") double lngMax);
 
     /**
-     * 기능: 식당의 현재 ACTIVE 체크인을 사용자(닉네임)와 함께 시작시각 오름차순으로 조회
+     * 기능: 식당의 현재 SEEKING(모집중) 체크인을 사용자(닉네임)와 함께 시작시각 오름차순으로 조회(같이먹기 신청 대상)
      * 쿼리: SELECT c.*, u.* FROM check_ins c JOIN users u ON c.user_id = u.id
-     *       WHERE c.place_id = :placeId AND c.status = 'ACTIVE' AND c.user_id NOT IN (:excludedUserIds)
+     *       WHERE c.place_id = :placeId AND c.status = 'SEEKING' AND c.user_id NOT IN (:excludedUserIds)
      *       ORDER BY c.started_at (user를 fetch join해 N+1 방지)
-     * Request: placeId — 식당 ID, excludedUserIds — 제외할 사용자 ID 목록 / Response: List&lt;CheckIn&gt; — ACTIVE 체크인 목록(user 로딩됨)
+     * Request: placeId — 식당 ID, excludedUserIds — 제외할 사용자 ID 목록 / Response: List&lt;CheckIn&gt; — SEEKING 체크인 목록(user 로딩됨)
      *
-     * <p>[기존 주석] 식당의 현재 ACTIVE 체크인을 startedAt 오름차순으로 조회한다. 닉네임을 위해 user를 fetch join한다(N+1 방지).
-     * 차단 관계(양방향) 유저는 상호 은닉하기 위해 {@code excludedUserIds}로 걸러낸다(FR-108).
+     * <p>[기존 주석] 식당의 현재 SEEKING(모집중) 체크인을 startedAt 오름차순으로 조회한다. 같이먹기 신청 대상 목록이다.
+     * 닉네임을 위해 user를 fetch join한다(N+1 방지). 차단 관계(양방향) 유저는 상호 은닉하기 위해
+     * {@code excludedUserIds}로 걸러낸다(FR-108).
      *
      * @param placeId         식당 id
      * @param excludedUserIds 제외할 사용자 id 목록(차단 상호 은닉용, 항상 non-empty — 빈 IN 방지는 호출 측 책임)
-     * @return ACTIVE 체크인 목록(user 로딩됨, 제외 대상 제외)
+     * @return SEEKING 체크인 목록(user 로딩됨, 제외 대상 제외)
      */
     @Query("""
             SELECT c FROM CheckIn c JOIN FETCH c.user
-            WHERE c.place.id = :placeId AND c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE
+            WHERE c.place.id = :placeId AND c.status = com.honjeong.checkin.domain.CheckInStatus.SEEKING
               AND c.user.id NOT IN :excludedUserIds
             ORDER BY c.startedAt
             """)
-    List<CheckIn> findActiveWithUserByPlace(@Param("placeId") Long placeId,
+    List<CheckIn> findSeekingWithUserByPlace(@Param("placeId") Long placeId,
             @Param("excludedUserIds") List<Long> excludedUserIds);
 
     /**
