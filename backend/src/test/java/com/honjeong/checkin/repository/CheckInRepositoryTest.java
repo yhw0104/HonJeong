@@ -253,6 +253,23 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
+    @DisplayName("TTL 초과 SEEKING은 CANCELLED로 정리된다(ENDED 아님)")
+    void 모집_TTL_만료() {
+        User user = persistUser("01000000001", "모집중사람");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn old = CheckIn.startSeeking(user, place, NOW.minusHours(4)); // 4h 전 모집
+        checkInRepository.save(old);
+        checkInRepository.flush();
+        em.clear(); // 벌크 @Modifying 후 1차 캐시 stale 방지(findById 재조회 보장)
+
+        int n = checkInRepository.cancelSeekingStartedBefore(NOW.minusHours(3), NOW);
+
+        assertThat(n).isEqualTo(1);
+        assertThat(checkInRepository.findById(old.getId()).get().getStatus())
+                .isEqualTo(CheckInStatus.CANCELLED);
+    }
+
+    @Test
     @DisplayName("확장 유니크 인덱스: 한 사용자가 ACTIVE와 TOGETHER를 동시에 가질 수 없다")
     void currentUserUnique_blocksActivePlusTogether() {
         // given: 사용자 u가 ACTIVE 체크인 보유, meal_request_id FK를 만족할 실제 신청 1건

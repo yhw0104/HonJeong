@@ -277,6 +277,25 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     int endActiveStartedBefore(@Param("threshold") LocalDateTime threshold, @Param("now") LocalDateTime now);
 
     /**
+     * 기능: startedAt이 기준 이전인 SEEKING 체크인을 일괄 CANCELLED 처리(모집 TTL 만료)
+     * 쿼리: UPDATE check_ins SET status = 'CANCELLED', ended_at = :now WHERE status = 'SEEKING' AND started_at < :threshold
+     * Request: threshold — 만료 기준 시각, now — 종료 시각으로 기록할 현재 시각 / Response: int — 정리된 건수
+     *
+     * <p>[기존 주석] startedAt이 기준 이전인 SEEKING을 일괄 CANCELLED 처리한다(모집 TTL — 안 먹었으므로 이력 제외).
+     * 실제로 먹은 것이 아니므로 ENDED가 아니라 CANCELLED로 보내 이력·누적 집계에서 제외한다.
+     *
+     * @param threshold 이 시각 이전 시작된 SEEKING이 정리 대상
+     * @param now       종료 시각으로 기록할 현재 시각
+     * @return 정리된 건수
+     */
+    @Modifying
+    @Query("""
+            UPDATE CheckIn c SET c.status = com.honjeong.checkin.domain.CheckInStatus.CANCELLED, c.endedAt = :now
+            WHERE c.status = com.honjeong.checkin.domain.CheckInStatus.SEEKING AND c.startedAt < :threshold
+            """)
+    int cancelSeekingStartedBefore(@Param("threshold") LocalDateTime threshold, @Param("now") LocalDateTime now);
+
+    /**
      * 기능: 사용자의 전체 체크인 이력을 장소와 함께 최신순으로 조회(타임라인용) — CANCELLED·SEEKING 제외
      * 쿼리: SELECT c.*, p.* FROM check_ins c JOIN places p ON c.place_id = p.id
      *       WHERE c.user_id = :userId AND c.status NOT IN ('CANCELLED', 'SEEKING') ORDER BY c.started_at DESC (place fetch join)

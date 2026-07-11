@@ -300,21 +300,23 @@ public class CheckInService {
     }
 
     /**
-     * 기능: TTL을 초과한 방치 체크인(ACTIVE·TOGETHER)을 일괄 ENDED 처리한다(스케줄러 호출용)
+     * 기능: TTL을 초과한 방치 체크인(ACTIVE·TOGETHER·SEEKING)을 일괄 정리한다(스케줄러 호출용)
      * Request: 없음
-     * Response: int — 만료된 체크인 수(ACTIVE + TOGETHER)
+     * Response: int — 정리된 체크인 수(ACTIVE + TOGETHER + SEEKING)
      *
      * <p>[기존 주석] 방치된 ACTIVE 체크인(ttlHours 초과, startedAt 기준)과 방치된 TOGETHER 체크인(togetherTtlHours 초과,
-     * matchedAt 기준)을 각각 일괄 ENDED 처리하고 합산 만료 건수를 반환한다.
+     * matchedAt 기준)을 각각 일괄 ENDED 처리하고, 방치된 SEEKING 체크인(seekingTtlHours 초과, startedAt 기준)은
+     * 안 먹은 모집이므로 CANCELLED로 처리한 뒤 합산 건수를 반환한다.
      *
-     * @return 만료된 체크인 수(ACTIVE + TOGETHER)
+     * @return 정리된 체크인 수(ACTIVE + TOGETHER + SEEKING)
      */
     @Transactional
     public int expireStaleCheckIns() {
         LocalDateTime now = now();
         int endedActive = checkInRepository.endActiveStartedBefore(now.minusHours(props.ttlHours()), now);
         int endedTogether = checkInRepository.endTogetherMatchedBefore(now.minusHours(props.togetherTtlHours()), now);
-        return endedActive + endedTogether;
+        int cancelledSeeking = checkInRepository.cancelSeekingStartedBefore(now.minusHours(props.seekingTtlHours()), now);
+        return endedActive + endedTogether + cancelledSeeking;
     }
 
     /** 기능: 현재 시각을 KST LocalDateTime으로 반환한다(Clock instant를 Asia/Seoul로 환산). */

@@ -52,7 +52,7 @@ class CheckInServiceTest {
     private final BlockRepository blockRepository = mock(BlockRepository.class);
     // KST 12:00 = UTC 03:00 으로 고정. now()는 ofInstant(instant, KST) = 2026-06-15T12:00.
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneOffset.UTC);
-    private final HonjeongCheckInProperties props = new HonjeongCheckInProperties(3, 300_000L, 3);
+    private final HonjeongCheckInProperties props = new HonjeongCheckInProperties(3, 300_000L, 3, 3);
     private final CheckInService service =
             new CheckInService(checkInRepository, placeService, userRepository, blockRepository, clock, props);
 
@@ -490,7 +490,7 @@ class CheckInServiceTest {
         // ttlHours=3, togetherTtlHours=5로 서로 다르게 구성한다. 공용 props(둘 다 3)를 쓰면 두 threshold가
         // 같은 값(09:00)이 되어 프로덕션이 두 인자를 뒤바꿔 써도 테스트가 통과해버린다(스왑 무방비).
         // 여기서는 ACTIVE→09:00, TOGETHER→07:00로 서로 다르게 만들어 스왑 시 반드시 실패하게 한다.
-        HonjeongCheckInProperties props2 = new HonjeongCheckInProperties(3, 300_000L, 5);
+        HonjeongCheckInProperties props2 = new HonjeongCheckInProperties(3, 300_000L, 5, 3);
         CheckInService service2 =
                 new CheckInService(checkInRepository, placeService, userRepository, blockRepository, clock, props2);
         when(checkInRepository.endActiveStartedBefore(any(), any())).thenReturn(2);
@@ -509,5 +509,27 @@ class CheckInServiceTest {
         // 뒤바뀌면(스왑) 아래 두 단언 중 하나가 실패한다.
         assertThat(activeThreshold.getValue()).isEqualTo(nowKst.minusHours(3));
         assertThat(togetherThreshold.getValue()).isEqualTo(nowKst.minusHours(5));
+    }
+
+    @Test
+    @DisplayName("expireStaleCheckIns: SEEKING 만료(CANCELLED)도 seekingTtlHours 기준으로 합산한다"
+            + "(threshold 스왑 방지 — 세 ttl을 서로 다른 값으로 구성)")
+    void expire_includesSeeking() {
+        // ttlHours=3, togetherTtlHours=5, seekingTtlHours=7로 서로 다르게 구성해 어느 한 쌍이 뒤바뀌어도 실패하게 한다.
+        HonjeongCheckInProperties props3 = new HonjeongCheckInProperties(3, 300_000L, 5, 7);
+        CheckInService service3 =
+                new CheckInService(checkInRepository, placeService, userRepository, blockRepository, clock, props3);
+        when(checkInRepository.endActiveStartedBefore(any(), any())).thenReturn(2);
+        when(checkInRepository.endTogetherMatchedBefore(any(), any())).thenReturn(1);
+        when(checkInRepository.cancelSeekingStartedBefore(any(), any())).thenReturn(4);
+
+        int n = service3.expireStaleCheckIns();
+
+        assertThat(n).isEqualTo(7); // 2 + 1 + 4
+
+        ArgumentCaptor<LocalDateTime> seekingThreshold = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(checkInRepository).cancelSeekingStartedBefore(seekingThreshold.capture(), eq(nowKst));
+        // seekingTtlHours=7 → now-7h(05:00). ttlHours(3)·togetherTtlHours(5)와 모두 달라 스왑 시 실패한다.
+        assertThat(seekingThreshold.getValue()).isEqualTo(nowKst.minusHours(7));
     }
 }
