@@ -401,6 +401,19 @@ class CheckInServiceTest {
     }
 
     @Test
+    @DisplayName("stats는 activeCount와 seekingCount를 함께 반환한다")
+    void 통계_모집중_포함() {
+        when(checkInRepository.countDistinctUsersStartedSince(any())).thenReturn(5L);
+        when(checkInRepository.countByStatus(CheckInStatus.ACTIVE)).thenReturn(2L);
+        when(checkInRepository.countByStatus(CheckInStatus.SEEKING)).thenReturn(3L);
+
+        CheckInStatsResponse res = service.getStats();
+
+        assertThat(res.activeCount()).isEqualTo(2L);
+        assertThat(res.seekingCount()).isEqualTo(3L);
+    }
+
+    @Test
     @DisplayName("getMap: lat/lng 누락이면 INVALID_INPUT(400)")
     void map_missingCoords() {
         assertThatThrownBy(() -> service.getMap(null, 127.0, 1000))

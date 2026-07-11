@@ -217,20 +217,22 @@ public class CheckInService {
     }
 
     /**
-     * 기능: 사회적 증거 통계(오늘 혼밥한 사람 수·현재 혼밥 중 수)를 집계한다
+     * 기능: 사회적 증거 통계(오늘 혼밥한 사람 수·현재 혼밥 중 수·현재 모집중 수)를 집계한다
      * Request: 없음
-     * Response: CheckInStatsResponse — todayCount(오늘 distinct 사용자), activeCount(현재 ACTIVE)
+     * Response: CheckInStatsResponse — todayCount(오늘 distinct 사용자), activeCount(현재 ACTIVE),
+     * seekingCount(현재 SEEKING)
      *
      * <p>[기존 주석] 사회적 증거 통계를 반환한다. "오늘"은 Asia/Seoul 자정 기준이다.
      *
-     * @return todayCount(오늘 distinct 사용자)·activeCount(현재 ACTIVE)
+     * @return todayCount(오늘 distinct 사용자)·activeCount(현재 ACTIVE)·seekingCount(현재 SEEKING)
      */
     @Transactional(readOnly = true)
     public CheckInStatsResponse getStats() {
         LocalDateTime todayStart = LocalDate.ofInstant(clock.instant(), KST).atStartOfDay();
         long today = checkInRepository.countDistinctUsersStartedSince(todayStart);
         long active = checkInRepository.countByStatus(CheckInStatus.ACTIVE);
-        return new CheckInStatsResponse(today, active);
+        long seeking = checkInRepository.countByStatus(CheckInStatus.SEEKING);
+        return new CheckInStatsResponse(today, active, seeking);
     }
 
     /**
