@@ -49,7 +49,7 @@ public class MateService {
             return List.of();
         }
         List<Long> mateIds = mates.stream().map(m -> m.getMateUser().getId()).toList();
-        Map<Long, CheckIn> activeByUser = checkInRepository.findActiveWithPlaceByUserIds(mateIds).stream()
+        Map<Long, CheckIn> activeByUser = checkInRepository.findSeekingOrActiveWithPlaceByUserIds(mateIds).stream()
                 .collect(Collectors.toMap(c -> c.getUser().getId(), Function.identity(), (a, b) -> a));
         Map<Long, Long> countByUser = checkInRepository.countByUserIds(mateIds).stream()
                 .collect(Collectors.toMap(CheckInCountRow::getUserId, CheckInCountRow::getCnt));

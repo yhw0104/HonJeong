@@ -94,7 +94,8 @@ class MateProfileServiceTest {
         when(place.getId()).thenReturn(7L);
         CheckIn active = mock(CheckIn.class);
         when(active.getPlace()).thenReturn(place);
-        when(checkInRepository.findByUser_IdAndStatus(2L, CheckInStatus.ACTIVE)).thenReturn(Optional.of(active));
+        when(checkInRepository.findByUser_IdAndStatusIn(2L, List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE)))
+                .thenReturn(Optional.of(active));
 
         PublicProfileResponse res = service.getPublicProfile(1L, 2L);
 
@@ -104,6 +105,34 @@ class MateProfileServiceTest {
         assertThat(res.currentPlaceId()).isEqualTo(7L);
         assertThat(res.requestStatus()).isEqualTo("NONE");
         assertThat(res.checkInCount()).isEqualTo(3L);
+    }
+
+    @Test
+    @DisplayName("getPublicProfile: 대상이 SEEKING(모집중)이어도 online=true·currentPlaceName·currentPlaceId 노출(모집중도 online)")
+    void publicProfile_seeking_onlineShown() {
+        User target = user(2L, "상대");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(target));
+        when(mateRepository.existsByUser_IdAndMateUser_Id(1L, 2L)).thenReturn(false);
+        when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(1L, 2L, MateRequestStatus.PENDING))
+                .thenReturn(Optional.empty());
+        when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(2L, 1L, MateRequestStatus.PENDING))
+                .thenReturn(Optional.empty());
+        when(checkInRepository.countCompletedByUser(2L)).thenReturn(0L);
+        when(foodRepository.findByUserId(2L)).thenReturn(Optional.empty());
+
+        Place place = mock(Place.class);
+        when(place.getName()).thenReturn("모집중식당");
+        when(place.getId()).thenReturn(9L);
+        CheckIn seeking = mock(CheckIn.class);
+        when(seeking.getPlace()).thenReturn(place);
+        when(checkInRepository.findByUser_IdAndStatusIn(2L, List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE)))
+                .thenReturn(Optional.of(seeking));
+
+        PublicProfileResponse res = service.getPublicProfile(1L, 2L);
+
+        assertThat(res.isOnline()).isTrue();
+        assertThat(res.currentPlaceName()).isEqualTo("모집중식당");
+        assertThat(res.currentPlaceId()).isEqualTo(9L);
     }
 
     @Test
@@ -118,7 +147,8 @@ class MateProfileServiceTest {
         when(place.getId()).thenReturn(42L);
         CheckIn active = mock(CheckIn.class);
         when(active.getPlace()).thenReturn(place);
-        when(checkInRepository.findByUser_IdAndStatus(2L, CheckInStatus.ACTIVE)).thenReturn(Optional.of(active));
+        when(checkInRepository.findByUser_IdAndStatusIn(2L, List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE)))
+                .thenReturn(Optional.of(active));
         when(checkInRepository.countCompletedByUser(2L)).thenReturn(5L);
 
         UserFoodPreference pref = mock(UserFoodPreference.class);
@@ -148,7 +178,8 @@ class MateProfileServiceTest {
         User target = user(2L, "상대");
         when(userRepository.findById(2L)).thenReturn(Optional.of(target));
         when(mateRepository.existsByUser_IdAndMateUser_Id(1L, 2L)).thenReturn(false);
-        when(checkInRepository.findByUser_IdAndStatus(2L, CheckInStatus.ACTIVE)).thenReturn(Optional.empty());
+        when(checkInRepository.findByUser_IdAndStatusIn(2L, List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE)))
+                .thenReturn(Optional.empty());
         when(checkInRepository.countCompletedByUser(2L)).thenReturn(8L);
         when(foodRepository.findByUserId(2L)).thenReturn(Optional.empty());
         when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(1L, 2L, MateRequestStatus.PENDING))

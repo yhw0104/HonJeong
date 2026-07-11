@@ -379,24 +379,27 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     List<Long> findVisitedPlaceIds(@Param("userId") Long userId, @Param("placeIds") List<Long> placeIds);
 
     /**
-     * 기능: 주어진 사용자 목록의 현재 ACTIVE 체크인을 장소와 함께 배치 조회(메이트 온라인 상태 표시용)
+     * 기능: 주어진 사용자 목록의 현재 SEEKING(모집중) 또는 ACTIVE(혼밥중) 체크인을 장소와 함께 배치 조회(메이트 온라인 상태 표시용)
      * 쿼리: SELECT c.*, p.* FROM check_ins c JOIN places p ON c.place_id = p.id
-     *       WHERE c.user_id IN (:userIds) AND c.status = 'ACTIVE' (place fetch join으로 N+1 방지)
-     * Request: userIds — 조회할 사용자 PK 목록 / Response: List&lt;CheckIn&gt; — 해당 사용자들의 ACTIVE 체크인(place 로딩됨)
+     *       WHERE c.user_id IN (:userIds) AND c.status IN ('SEEKING', 'ACTIVE') (place fetch join으로 N+1 방지)
+     * Request: userIds — 조회할 사용자 PK 목록 / Response: List&lt;CheckIn&gt; — 해당 사용자들의 SEEKING·ACTIVE 체크인(place 로딩됨)
      *
-     * <p>[기존 주석] 주어진 사용자 id 목록의 현재 ACTIVE 체크인을 place와 함께 배치 조회한다(메이트 온라인 상태 N+1 방지).
+     * <p>[기존 주석] 주어진 사용자 id 목록의 현재 SEEKING·ACTIVE 체크인을 place와 함께 배치 조회한다(메이트 온라인 상태 N+1 방지).
+     * online = 모집중(SEEKING) 또는 혼밥중(ACTIVE) — TOGETHER(매칭돼 함께 식사 중)는 이미 상대가 있는 상태이므로 온라인에서 제외한다.
      *
      * <p><b>주의:</b> userIds가 빈 리스트이면 JPQL {@code IN ()} 오류가 발생할 수 있으므로
      * 호출 전 반드시 빈 리스트 여부를 확인하고 단락 처리해야 한다.
      *
      * @param userIds 조회할 사용자 PK 목록
-     * @return 해당 사용자들의 ACTIVE 체크인(place fetch join 포함)
+     * @return 해당 사용자들의 SEEKING·ACTIVE 체크인(place fetch join 포함)
      */
     @Query("""
             SELECT c FROM CheckIn c JOIN FETCH c.place
-            WHERE c.user.id IN :userIds AND c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE
+            WHERE c.user.id IN :userIds AND c.status IN (
+                com.honjeong.checkin.domain.CheckInStatus.SEEKING,
+                com.honjeong.checkin.domain.CheckInStatus.ACTIVE)
             """)
-    List<CheckIn> findActiveWithPlaceByUserIds(@Param("userIds") List<Long> userIds);
+    List<CheckIn> findSeekingOrActiveWithPlaceByUserIds(@Param("userIds") List<Long> userIds);
 
     /**
      * 기능: 주어진 사용자 목록의 체크인 수(혼밥 횟수)를 사용자별로 배치 집계(메이트 목록 checkInCount용) — CANCELLED·SEEKING 제외

@@ -90,10 +90,13 @@ public class MateProfileService {
         boolean isMate = mateRepository.existsByUser_IdAndMateUser_Id(viewerId, targetId);
 
         // 온라인 상태는 메이트 여부와 무관하게 항상 공개(같이먹기는 누구나 신청 가능)
+        // online = 모집중(SEEKING) 또는 혼밥중(ACTIVE) — TOGETHER(이미 매칭돼 함께 식사 중)는 제외한다.
         boolean online = false;
         String currentPlaceName = null;
         Long currentPlaceId = null;
-        CheckIn active = checkInRepository.findByUser_IdAndStatus(targetId, CheckInStatus.ACTIVE).orElse(null);
+        CheckIn active = checkInRepository
+                .findByUser_IdAndStatusIn(targetId, List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE))
+                .orElse(null);
         if (active != null) {
             online = true;
             currentPlaceName = active.getPlace().getName();

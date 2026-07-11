@@ -84,7 +84,7 @@ class MateServiceTest {
         when(checkInA.getUser()).thenReturn(userA);
         when(checkInA.getPlace()).thenReturn(placeA);
         when(checkInA.getStartedAt()).thenReturn(startedAtA);
-        when(checkInRepository.findActiveWithPlaceByUserIds(List.of(10L, 20L)))
+        when(checkInRepository.findSeekingOrActiveWithPlaceByUserIds(List.of(10L, 20L)))
                 .thenReturn(List.of(checkInA));
         List<CheckInCountRow> countRows = List.of(countRow(10L, 5L), countRow(20L, 3L));
         when(checkInRepository.countByUserIds(List.of(10L, 20L))).thenReturn(countRows);
@@ -115,6 +115,40 @@ class MateServiceTest {
     }
 
     @Test
+    @DisplayName("getMyMates: 메이트가 SEEKING(모집중)이어도 online=true·현재장소 노출(모집중도 online)")
+    void getMyMates_seekingIsOnline() {
+        LocalDateTime matesSinceA = LocalDateTime.of(2026, 6, 1, 12, 0);
+        LocalDateTime startedAtA = LocalDateTime.of(2026, 7, 2, 11, 30);
+
+        User userA = mock(User.class);
+        when(userA.getId()).thenReturn(10L);
+
+        Mate mateA = mock(Mate.class);
+        when(mateA.getMateUser()).thenReturn(userA);
+        when(mateA.getCreatedAt()).thenReturn(matesSinceA);
+        when(mateRepository.findMatesWithUserByUserId(1L)).thenReturn(List.of(mateA));
+
+        Place placeA = mock(Place.class);
+        when(placeA.getId()).thenReturn(100L);
+        when(placeA.getName()).thenReturn("모집중식당");
+        CheckIn seekingA = mock(CheckIn.class);
+        when(seekingA.getUser()).thenReturn(userA);
+        when(seekingA.getPlace()).thenReturn(placeA);
+        when(seekingA.getStartedAt()).thenReturn(startedAtA);
+        when(checkInRepository.findSeekingOrActiveWithPlaceByUserIds(List.of(10L)))
+                .thenReturn(List.of(seekingA));
+        when(checkInRepository.countByUserIds(List.of(10L))).thenReturn(List.of());
+
+        List<MateResponse> result = service.getMyMates(1L);
+
+        assertThat(result).hasSize(1);
+        MateResponse a = result.get(0);
+        assertThat(a.isOnline()).isTrue();
+        assertThat(a.currentPlaceId()).isEqualTo(100L);
+        assertThat(a.currentPlaceName()).isEqualTo("모집중식당");
+    }
+
+    @Test
     @DisplayName("getMyMates: mealsTogether = 나↔각 메이트 수락 건수(양방향 합산, 비메이트 상대는 무시)")
     void getMyMates_mealsTogether() {
         User userA = mock(User.class);
@@ -126,7 +160,7 @@ class MateServiceTest {
         Mate mateB = mock(Mate.class);
         when(mateB.getMateUser()).thenReturn(userB);
         when(mateRepository.findMatesWithUserByUserId(1L)).thenReturn(List.of(mateA, mateB));
-        when(checkInRepository.findActiveWithPlaceByUserIds(List.of(10L, 20L))).thenReturn(List.of());
+        when(checkInRepository.findSeekingOrActiveWithPlaceByUserIds(List.of(10L, 20L))).thenReturn(List.of());
         when(checkInRepository.countByUserIds(List.of(10L, 20L))).thenReturn(List.of());
         // 나(1L)↔A(10L): 내가 신청 1 + A가 신청 1 = 2회, 나↔B: 0회, 나↔비메이트(99L): 1회(무시)
         List<MealPairRow> pairs = List.of(pair(1L, 10L), pair(10L, 1L), pair(1L, 99L));
