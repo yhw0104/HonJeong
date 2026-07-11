@@ -55,7 +55,7 @@ export function MealRequestScreen({ navigation, route }: RootStackScreenProps<'M
             <View style={styles.placeThumb}><Text style={{ fontSize: 22 }}>🍲</Text></View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.placeName}>{placeName}</Text>
-              <Text style={styles.placeMeta}>지금 혼밥 중 {list.length}명</Text>
+              <Text style={styles.placeMeta}>지금 모집 중 {list.length}명</Text>
             </View>
           </View>
 

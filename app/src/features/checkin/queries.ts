@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Alert } from 'react-native';
 import type { Coord } from '@/shared/location/pickLocation';
 import { LIVE_REFETCH_MS } from '@/shared/realtime';
 import {
@@ -44,6 +45,7 @@ export function useStartCheckIn() {
     mutationFn: (placeId: number) =>
       startCheckInWithRecovery(placeId, { start: startCheckIn, getMine: fetchMyCheckIn, end: endCheckIn }),
     onSuccess: () => invalidateLoop(qc),
+    onError: () => Alert.alert('잠깐요', '이미 다른 곳에서 모집/혼밥 중이에요. 먼저 끝내고 다시 시도해 주세요.'),
   });
 }
 

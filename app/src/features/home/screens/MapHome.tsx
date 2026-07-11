@@ -56,7 +56,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const myPlaceName =
     markers.data?.find((m) => m.placeId === myCheckIn.data?.placeId)?.name ??
     nearbyList.find((p) => p.placeId === myCheckIn.data?.placeId)?.name ??
-    '혼밥 중';
+    '내 식당';
 
   const goDetail = (placeId: number, name?: string) =>
     navigation.navigate('RestaurantDetail', { placeId, name });
@@ -66,7 +66,9 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     startMut.mutate(placeId);
   };
   const endHonbab = () => {
-    if (myCheckIn.data) promptEnd(myCheckIn.data);
+    if (!myCheckIn.data) return;
+    if (myCheckIn.data.status === 'SEEKING') return; // 모집중은 상태바의 혼자먹기/그만두기로만
+    promptEnd(myCheckIn.data);
   };
 
   // 내 위치로: 진짜 GPS가 있으면 지도 이동, 없으면(거부/실패) 권한을 다시 요청한다.
