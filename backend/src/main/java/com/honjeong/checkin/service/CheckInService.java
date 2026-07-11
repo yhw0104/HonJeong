@@ -161,6 +161,32 @@ public class CheckInService {
     }
 
     /**
+     * 기능: 모집중(SEEKING)을 혼밥중(ACTIVE)으로 전이한다 — 매칭 실패/포기 후 혼자 먹기 시작
+     * Request: userId — 요청 회원 ID, checkInId — 전이할 체크인 ID
+     * Response: CheckInResponse — 전이된 체크인 응답
+     *
+     * <p>[기존 주석] 모집중(SEEKING)을 혼밥중(ACTIVE)으로 전이한다 — 매칭 실패/포기 후 혼자 먹기 시작.
+     * 없으면 404, 본인 것이 아니면 403, SEEKING이 아니면 409(CHECKIN_NOT_SEEKING).
+     *
+     * @param userId    요청 회원 id
+     * @param checkInId 전이할 체크인 id
+     * @return 전이된 체크인 응답
+     */
+    @Transactional
+    public CheckInResponse dineAlone(Long userId, Long checkInId) {
+        CheckIn checkIn = checkInRepository.findById(checkInId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHECKIN_NOT_FOUND));
+        if (!checkIn.isOwnedBy(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        if (checkIn.getStatus() != CheckInStatus.SEEKING) {
+            throw new BusinessException(ErrorCode.CHECKIN_NOT_SEEKING);
+        }
+        checkIn.dineAlone(now());
+        return CheckInResponse.from(checkIn);
+    }
+
+    /**
      * 기능: 내 현재 체크인(ACTIVE 또는 TOGETHER)을 조회한다 — TOGETHER면 파트너 닉네임 포함
      * Request: userId — 회원 ID
      * Response: CheckInResponse — 현재 진행 중 체크인(없으면 null)

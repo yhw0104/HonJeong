@@ -86,6 +86,19 @@ public class CheckInController {
     }
 
     /**
+     * 1. API 주소: PATCH /api/check-ins/{id}/dine-alone
+     * 2. 사용 화면: 홈/식당상세 — 같이 먹을 사람 못 구해 "혼자 먹기" 선택
+     * 3. Request: id(경로) — 전이할 체크인 ID / 인증 사용자(@CurrentUserId)
+     * 4. Response: CheckInResponse — ACTIVE(혼밥중)로 전이된 체크인
+     *
+     * <p>[기존 주석] 모집중(SEEKING)을 혼밥중(ACTIVE)으로 전이한다 — 매칭 실패/포기 후 혼자 먹기 시작.
+     */
+    @PatchMapping("/{id}/dine-alone")
+    public ApiResponse<CheckInResponse> dineAlone(@CurrentUserId Long userId, @PathVariable Long id) {
+        return ApiResponse.success(checkInService.dineAlone(userId, id));
+    }
+
+    /**
      * 1. API 주소: GET /api/check-ins/me
      * 2. 사용 화면: 홈 지도(MapHome), 식당 상세(RestaurantDetail), 같이먹기 피드(TogetherFeed) — 현재 혼밥 상태 표시
      * 3. Request: 인증 사용자(@CurrentUserId) 외 없음

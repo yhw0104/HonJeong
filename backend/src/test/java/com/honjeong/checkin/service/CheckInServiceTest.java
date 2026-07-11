@@ -327,6 +327,28 @@ class CheckInServiceTest {
     }
 
     @Test
+    @DisplayName("dineAlone은 SEEKING을 ACTIVE(혼밥중)로 전이한다")
+    void 혼자먹기_시작() {
+        CheckIn seeking = CheckIn.startSeeking(userRef(1L), place(10L), nowKst);
+        when(checkInRepository.findById(10L)).thenReturn(Optional.of(seeking));
+
+        CheckInResponse res = service.dineAlone(1L, 10L);
+
+        assertThat(res.status()).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    @DisplayName("dineAlone은 SEEKING이 아니면 CHECKIN_NOT_SEEKING")
+    void 혼자먹기_비SEEKING_예외() {
+        CheckIn together = CheckIn.startTogether(userRef(1L), place(10L), 7L, nowKst);
+        when(checkInRepository.findById(10L)).thenReturn(Optional.of(together));
+
+        assertThatThrownBy(() -> service.dineAlone(1L, 10L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.CHECKIN_NOT_SEEKING);
+    }
+
+    @Test
     @DisplayName("getMyCurrentCheckIn: ACTIVE 있으면 응답(파트너 없음), 없으면 null")
     void myCurrent_active() {
         CheckIn ci = CheckIn.start(mock(User.class), place(3L), nowKst);
