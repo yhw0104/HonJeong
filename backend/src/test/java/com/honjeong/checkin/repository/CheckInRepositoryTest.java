@@ -378,7 +378,7 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         User sender = persistUser("01000000001", "신청자");
         User receiver = persistUser("01000000002", "수신자");
         Place p = persistPlace("ext-1", 37.5, 127.0);
-        CheckIn receiverCheckIn = em.persist(CheckIn.start(receiver, p, NOW));
+        CheckIn receiverCheckIn = em.persist(CheckIn.startSeeking(receiver, p, NOW));
         MealRequest mealRequest = em.persist(MealRequest.create(sender, receiverCheckIn, p, null, NOW));
         em.flush();
 
