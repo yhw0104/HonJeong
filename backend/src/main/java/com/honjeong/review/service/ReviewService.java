@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
-import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
@@ -258,7 +257,7 @@ public class ReviewService {
 
         LocalDateTime monthStart = LocalDate.ofInstant(clock.instant(), KST).withDayOfMonth(1).atStartOfDay();
         DiningHistoryResponse.Summary summary = new DiningHistoryResponse.Summary(
-                checkInRepository.countByUser_IdAndStatusNot(userId, CheckInStatus.CANCELLED),
+                checkInRepository.countCompletedByUser(userId),
                 reviewRepository.countByUser_IdAndCheckInIsNotNull(userId),  // 화면 목록(인증 일기만)과 기준 일치
                 checkInRepository.countDistinctPlacesByUser(userId),
                 checkInRepository.countByUserSince(userId, monthStart));

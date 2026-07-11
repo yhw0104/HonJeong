@@ -3,7 +3,6 @@ package com.honjeong.user.service;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.favorite.repository.FavoriteRepository;
 import com.honjeong.mate.repository.MateRepository;
@@ -45,7 +44,7 @@ public class UserActivityService {
      */
     @Transactional(readOnly = true)
     public ActivitySummaryResponse getActivitySummary(long userId) {
-        long checkInCount = checkInRepository.countByUser_IdAndStatusNot(userId, CheckInStatus.CANCELLED);
+        long checkInCount = checkInRepository.countCompletedByUser(userId);
         long reviewCount = reviewRepository.countByUser_IdAndCheckInIsNotNull(userId);  // 더보기 '내 혼밥 기록' 디테일 — 혼밥기록 화면(인증 일기만)과 기준 일치
         long favoriteCount = favoriteRepository.countDistinctPlaceByUserId(userId);
         long mateCount = mateRepository.countByUser_Id(userId);

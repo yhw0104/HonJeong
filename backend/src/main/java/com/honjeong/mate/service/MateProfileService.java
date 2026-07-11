@@ -109,7 +109,7 @@ public class MateProfileService {
                 t.getAgeGroup(),
                 t.getDiningStyle() == null ? null : t.getDiningStyle().name(),
                 foods,
-                checkInRepository.countByUser_IdAndStatusNot(targetId, CheckInStatus.CANCELLED),
+                checkInRepository.countCompletedByUser(targetId),
                 mealRequestRepository.countAcceptedBetween(viewerId, targetId),  // 함께 먹음(나↔대상 수락 건수)
                 0L,  // badgeCount — 뱃지 도메인 없음
                 online, currentPlaceName, currentPlaceId,

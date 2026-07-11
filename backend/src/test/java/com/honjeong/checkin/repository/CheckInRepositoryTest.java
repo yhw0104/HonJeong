@@ -54,6 +54,13 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
                 lat, lng, null, "영업"));
     }
 
+    /** ENDED(종료된) 체크인을 만들어 반환한다(영속화는 호출 측 책임). startedAt으로 시작해 곧바로 종료 처리한다. */
+    private CheckIn endedCheckIn(User user, Place place, LocalDateTime startedAt) {
+        CheckIn c = CheckIn.start(user, place, startedAt);
+        c.end(startedAt.plusMinutes(30));
+        return c;
+    }
+
     @Test
     @DisplayName("findByUser_IdAndStatus: 사용자의 ACTIVE 체크인을 찾고, 없으면 빈 Optional")
     void findActiveByUser() {
@@ -323,7 +330,7 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
-    @DisplayName("countByUser_IdAndStatusNot: CANCELLED를 제외한 총 체크인 수")
+    @DisplayName("countCompletedByUser: CANCELLED를 제외한 총 체크인 수")
     void countExcludingCancelled() {
         User u = persistUser("01000000001", "A");
         Place p = persistPlace("ext-1", 37.5, 127.0);
@@ -337,9 +344,36 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         em.persist(active);
         em.flush();
 
-        assertThat(checkInRepository.countByUser_IdAndStatusNot(u.getId(), CheckInStatus.CANCELLED))
-                .isEqualTo(2);
+        assertThat(checkInRepository.countCompletedByUser(u.getId())).isEqualTo(2);
         assertThat(checkInRepository.countByUser_Id(u.getId())).isEqualTo(3); // 기존 메서드는 그대로 총건수
+    }
+
+    @Test
+    @DisplayName("혼밥 횟수 집계는 SEEKING과 CANCELLED를 모두 제외한다")
+    void 이력집계_SEEKING_제외() {
+        User user = persistUser("01000000001", "A");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        Place place2 = persistPlace("ext-2", 37.6, 127.1);
+        em.persist(endedCheckIn(user, place, NOW));            // 종료된 식사(집계 대상)
+        em.persist(CheckIn.startSeeking(user, place2, NOW));   // 모집중(제외돼야)
+        em.flush();
+
+        long count = checkInRepository.countCompletedByUser(user.getId());
+
+        assertThat(count).isEqualTo(1); // SEEKING 제외 → 1
+    }
+
+    @Test
+    @DisplayName("오늘 N명 집계도 SEEKING을 제외한다")
+    void 오늘집계_SEEKING_제외() {
+        User user = persistUser("01000000001", "A");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        em.persist(CheckIn.startSeeking(user, place, NOW));    // 모집만
+        em.flush();
+
+        long today = checkInRepository.countDistinctUsersStartedSince(NOW.minusHours(1));
+
+        assertThat(today).isZero();
     }
 
     @Test
