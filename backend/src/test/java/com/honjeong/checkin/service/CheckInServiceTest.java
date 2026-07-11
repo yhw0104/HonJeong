@@ -387,6 +387,30 @@ class CheckInServiceTest {
     }
 
     @Test
+    @DisplayName("getMyCurrentCheckIn: SEEKING도 조회 대상(SEEKING/ACTIVE/TOGETHER)에 포함해 상태를 반환한다"
+            + "(재시작 후에도 진행 중 체크인을 복구할 수 있어야 함 — createCheckIn의 409 판단과 일치)")
+    void getMyCurrent_seeking() {
+        // given: 상태 목록을 정확히 SEEKING/ACTIVE/TOGETHER로 조회할 때만 값을 반환하도록 엄격히 스텁한다.
+        // anyCollection()을 쓰면 서비스가 실제로 어떤 목록을 넘기는지와 무관하게 통과해버려
+        // "/me가 SEEKING을 빠뜨린다"는 버그를 못 잡는다(응답 매핑 분기 자체는 이미 SEEKING을 처리하므로).
+        User user = userRef(1L);
+        Place place = place(3L);
+        CheckIn seeking = CheckIn.startSeeking(user, place, nowKst);
+        List<CheckInStatus> expectedStatuses =
+                List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE, CheckInStatus.TOGETHER);
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), eq(expectedStatuses)))
+                .thenReturn(Optional.of(seeking));
+
+        // when
+        CheckInResponse res = service.getMyCurrentCheckIn(1L);
+
+        // then
+        assertThat(res).isNotNull();
+        assertThat(res.status()).isEqualTo("SEEKING");
+        assertThat(res.partnerNickname()).isNull();
+    }
+
+    @Test
     @DisplayName("getStats: todayCount는 KST 자정 기준, activeCount는 ACTIVE 수")
     void stats() {
         // clock = 2026-06-15T12:00 KST → todayStart = 2026-06-15T00:00

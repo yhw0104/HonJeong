@@ -187,12 +187,15 @@ public class CheckInService {
     }
 
     /**
-     * 기능: 내 현재 체크인(ACTIVE 또는 TOGETHER)을 조회한다 — TOGETHER면 파트너 닉네임 포함
+     * 기능: 내 현재 체크인(SEEKING/ACTIVE/TOGETHER)을 조회한다 — TOGETHER면 파트너 닉네임 포함
      * Request: userId — 회원 ID
      * Response: CheckInResponse — 현재 진행 중 체크인(없으면 null)
      *
-     * <p>[기존 주석] 내 현재 체크인(ACTIVE 또는 TOGETHER)을 반환한다. 없으면 null.
+     * <p>[기존 주석] 내 현재 체크인(SEEKING/ACTIVE/TOGETHER)을 반환한다. 없으면 null.
      * TOGETHER면 파트너 닉네임을 함께 채워 앱이 "같이 먹는 중"을 렌더할 수 있게 한다.
+     * SEEKING을 빠뜨리면 체크인 직후(createCheckIn이 만드는 상태) /me가 null을 반환해
+     * "이미 활성"이라는 createCheckIn의 409 판단과 모순되고, 앱이 재시작 후 checkInId를
+     * 복구할 수 없게 되므로 단일 활성 제약(SEEKING/ACTIVE/TOGETHER)과 항상 같은 상태 집합을 조회해야 한다.
      *
      * @param userId 회원 id
      * @return 현재 체크인 응답 또는 null
@@ -200,7 +203,7 @@ public class CheckInService {
     @Transactional(readOnly = true)
     public CheckInResponse getMyCurrentCheckIn(Long userId) {
         Optional<CheckIn> current = checkInRepository.findByUser_IdAndStatusIn(
-                userId, List.of(CheckInStatus.ACTIVE, CheckInStatus.TOGETHER));
+                userId, List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE, CheckInStatus.TOGETHER));
         if (current.isEmpty()) {
             return null;
         }
