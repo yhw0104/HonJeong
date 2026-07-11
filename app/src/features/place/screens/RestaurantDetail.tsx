@@ -10,9 +10,10 @@ import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H } from '@
 import { T2 } from '@/shared/theme';
 import { usePlaceDetail, useNearby } from '@/features/place/queries';
 import { formatDistance, walkingMinutes } from '@/shared/location/distance';
-import { useActiveDiners, useMyCheckIn, useStartCheckIn } from '@/features/checkin/queries';
+import { useSeekers, useMyCheckIn, useStartCheckIn, useDineAlone, useCancelCheckIn } from '@/features/checkin/queries';
 import { usePromptEndCheckIn } from '@/features/checkin/usePromptEndCheckIn';
-import type { ActiveDiner } from '@/features/checkin/api';
+import { checkInMode } from '@/features/checkin/statusView';
+import type { Seeker } from '@/features/checkin/api';
 import { formatElapsed, addressHead } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { usePlaceReviews, usePlaceReviewSummary, useDeleteReview, usePlacePhotos } from '@/features/review/queries';
@@ -78,10 +79,12 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const [addrExpanded, setAddrExpanded] = useState(false);
   const placeId = route.params.placeId;
   const detail = usePlaceDetail(placeId);
-  const diners = useActiveDiners(placeId);
+  const seekers = useSeekers(placeId);
   const myCheckIn = useMyCheckIn();
   const startMut = useStartCheckIn();
   const promptEnd = usePromptEndCheckIn();
+  const dineAloneMut = useDineAlone();
+  const cancelMut = useCancelCheckIn();
   const name = detail.data?.name ?? route.params.name ?? '식당';
   const fullAddr = detail.data?.roadAddress ?? detail.data?.address ?? '주소 정보 없음';
   const addrHead = addressHead(fullAddr); // 시·도~구·군까지(기본 표시)
@@ -119,8 +122,12 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const goMealRequest = () => navigation.navigate('MealRequest', { placeId, placeName: name });
   const goDinerProfile = (userId: number) => navigation.navigate('MateProfile', { userId });
   const toggleHonbab = () => {
-    if (honbabOn && myCheckIn.data) promptEnd(myCheckIn.data);
-    else startMut.mutate(placeId);
+    if (honbabOn && myCheckIn.data) {
+      if (myCheckIn.data.status !== 'SEEKING') promptEnd(myCheckIn.data);
+      // SEEKING이면 상태바의 '혼자 먹기/그만두기'로 처리 — CTA 탭은 무시
+      return;
+    }
+    startMut.mutate(placeId);
   };
 
   return (
@@ -191,7 +198,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
             })}
           </View>
 
-          {stab === 'home' && <HomeTab diners={diners.data ?? []} onMeal={goMealRequest} onDinerPress={goDinerProfile} summary={summary.data} />}
+          {stab === 'home' && <HomeTab seekers={seekers.data ?? []} onMeal={goMealRequest} onDinerPress={goDinerProfile} summary={summary.data} />}
           {stab === 'menu' && <MenuTab />}
           {stab === 'review' && (
             <ReviewTab
@@ -248,23 +255,27 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
               <View style={styles.ctaHalo} />
               <View style={styles.ctaDot} />
             </View>
-            <Text style={styles.ctaHonbabOnText}>혼밥 중</Text>
+            <Text style={styles.ctaHonbabOnText}>
+              {myCheckIn.data?.status === 'TOGETHER' ? '같이 먹는 중' : myCheckIn.data?.status === 'SEEKING' ? '모집 중' : '혼밥 중'}
+            </Text>
           </Pressable>
         ) : (
           <Pressable style={styles.ctaHonbab} onPress={toggleHonbab}>
-            <Text style={styles.ctaHonbabText}>혼밥 시작</Text>
+            <Text style={styles.ctaHonbabText}>같이 먹을 사람 구하기</Text>
           </Pressable>
         )}
       </View>
 
       {/* 혼밥 중 상태 카드 — 켜져 있으면 최상단에 띄움 */}
-      {honbabOn && (
+      {honbabOn && myCheckIn.data && (
         <View style={[styles.honbabFloat, { top: insets.top + 8 }]}>
           <HonbabStatusBar
+            mode={checkInMode(myCheckIn.data.status)}
             place={name}
-            together={myCheckIn.data?.status === 'TOGETHER'}
-            partnerNickname={myCheckIn.data?.partnerNickname}
-            onEnd={toggleHonbab}
+            partnerNickname={myCheckIn.data.partnerNickname}
+            onEnd={() => promptEnd(myCheckIn.data!)}
+            onDineAlone={() => dineAloneMut.mutate(myCheckIn.data!.checkInId)}
+            onQuit={() => cancelMut.mutate(myCheckIn.data!.checkInId)}
           />
         </View>
       )}
@@ -275,7 +286,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
 }
 
 /* ── 홈 탭 ───────────────────────────────────────── */
-function HomeTab({ diners, onMeal, onDinerPress, summary }: { diners: ActiveDiner[]; onMeal: () => void; onDinerPress: (userId: number) => void; summary: PlaceReviewSummary | undefined }) {
+function HomeTab({ seekers, onMeal, onDinerPress, summary }: { seekers: Seeker[]; onMeal: () => void; onDinerPress: (userId: number) => void; summary: PlaceReviewSummary | undefined }) {
   return (
     <View>
       {/* 혼밥 친화도 카드 */}
@@ -333,20 +344,20 @@ function HomeTab({ diners, onMeal, onDinerPress, summary }: { diners: ActiveDine
         ) : null}
       </View>
 
-      {/* 지금 여기서 혼밥 중 (실데이터: 닉네임·경과만) */}
+      {/* 지금 여기서 같이 먹을 사람 구하는 중 (실데이터: 닉네임·경과만) */}
       <View style={styles.mealCard}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <View style={styles.liveDot} />
-          <Text style={[styles.liveLabel, { flex: 1 }]}>지금 여기서 혼밥 중 · {diners.length}명</Text>
+          <Text style={[styles.liveLabel, { flex: 1 }]}>지금 여기서 같이 먹을 사람 구하는 중 · {seekers.length}명</Text>
           <Pressable style={styles.mealCardBtn} onPress={onMeal} accessibilityRole="button">
             <Text style={styles.mealCardBtnText}>같이 먹기</Text>
           </Pressable>
         </View>
-        {diners.length === 0 ? (
-          <Text style={[styles.mealText, { marginTop: 12 }]}>아직 혼밥 중인 사람이 없어요.</Text>
+        {seekers.length === 0 ? (
+          <Text style={[styles.mealText, { marginTop: 12 }]}>아직 같이 먹을 사람을 구하는 이가 없어요.</Text>
         ) : (
           <View style={{ marginTop: 12, gap: 10 }}>
-            {diners.map((d) => (
+            {seekers.map((d) => (
               <Pressable
                 key={d.checkInId}
                 accessibilityRole="button"
