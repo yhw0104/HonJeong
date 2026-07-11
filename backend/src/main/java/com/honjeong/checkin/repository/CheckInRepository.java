@@ -175,6 +175,29 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     List<PlaceActiveCount> countActiveByPlaceIds(@Param("placeIds") List<Long> placeIds);
 
     /**
+     * 기능: 주어진 장소 ID 목록의 현재 SEEKING(모집중) 체크인 수를 장소별로 배치 집계
+     * 쿼리: SELECT place_id, COUNT(id) FROM check_ins WHERE place_id IN (:placeIds) AND status = 'SEEKING' GROUP BY place_id
+     * Request: placeIds — 조회할 장소 PK 목록 / Response: List&lt;PlaceActiveCount&gt; — 장소별 SEEKING 수(SEEKING 있는 장소만)
+     *
+     * <p>[기존 주석] 주어진 장소 ID 목록에 대해 현재 SEEKING(모집중) 체크인 수를 장소별로 집계한다.
+     * SEEKING이 없는 장소는 결과에 포함되지 않는다(카운트 0은 서비스에서 기본값으로 처리).
+     * {@link PlaceActiveCount}를 재사용하며, 이 경우 {@code activeCount} 필드에는 SEEKING 수가 담긴다.
+     *
+     * <p><b>주의:</b> placeIds가 빈 리스트이면 JPQL {@code IN ()} 오류가 발생할 수 있으므로
+     * 호출 전 반드시 빈 리스트 여부를 확인하고 단락 처리해야 한다. 빈 리스트 방지는 호출 측 책임이다.
+     *
+     * @param placeIds 조회할 장소 PK 목록
+     * @return 장소별 SEEKING(모집중) 수(SEEKING이 있는 장소만 포함)
+     */
+    @Query("""
+            SELECT new com.honjeong.checkin.dto.PlaceActiveCount(c.place.id, COUNT(c.id))
+            FROM CheckIn c
+            WHERE c.place.id IN :placeIds AND c.status = com.honjeong.checkin.domain.CheckInStatus.SEEKING
+            GROUP BY c.place.id
+            """)
+    List<PlaceActiveCount> countSeekingByPlaceIds(@Param("placeIds") List<Long> placeIds);
+
+    /**
      * 기능: 리뷰 인증 자동연결용 — 해당 식당에 대한 사용자의 최근 솔로 체크인(ACTIVE 또는 since 이후 ENDED) 1건 조회
      * 쿼리: SELECT * FROM check_ins WHERE user_id = :userId AND place_id = :placeId AND matched_at IS NULL
      *       AND (status = 'ACTIVE' OR (status = 'ENDED' AND ended_at >= :since)) ORDER BY started_at DESC LIMIT 1
