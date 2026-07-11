@@ -8,13 +8,13 @@ import { apiGet } from '@/shared/api/client';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
-  // 지금 혼밥 중인 사람 수(사회적 증거). 비로그인 공개 통계라 로그인 전에도 호출 가능. 실패/로딩 시 '–'.
-  const [activeCount, setActiveCount] = useState<number | null>(null);
+  // 모집중·혼밥중 카운트(사회적 증거). 비로그인 공개 통계라 로그인 전에도 호출 가능. 실패/로딩 시 '–'.
+  const [counts, setCounts] = useState<{ seekingCount: number; activeCount: number } | null>(null);
 
   useEffect(() => {
     let alive = true;
-    apiGet<{ todayCount: number; activeCount: number }>('/check-ins/stats')
-      .then((stats) => { if (alive) setActiveCount(stats.activeCount); })
+    apiGet<{ todayCount: number; activeCount: number; seekingCount: number }>('/check-ins/stats')
+      .then((stats) => { if (alive) setCounts({ seekingCount: stats.seekingCount, activeCount: stats.activeCount }); })
       .catch(() => { /* 연결 실패 시 폴백('–') 유지 */ });
     return () => { alive = false; };
   }, []);
@@ -46,9 +46,10 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
             <Text style={styles.indicatorLabel}>지금 이 순간,</Text>
           </View>
           <View style={styles.countRow}>
-            <Text style={styles.countNum}>{activeCount ?? '–'}</Text>
-            <Text style={styles.countUnit}>명의 혼밥러들</Text>
+            <Text style={styles.countNum}>{counts?.seekingCount ?? '–'}</Text>
+            <Text style={styles.countUnit}>명이 같이 먹을 사람 찾는 중</Text>
           </View>
+          <Text style={styles.countSub}>· {counts?.activeCount ?? '–'}명 혼밥 중</Text>
         </View>
 
         {/* 하단 CTA */}
@@ -106,6 +107,7 @@ const styles = StyleSheet.create({
   countRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 8, paddingLeft: 18 },
   countNum: { fontSize: 56, fontWeight: '800', color: T2.brand, letterSpacing: -3, lineHeight: 56 },
   countUnit: { fontSize: 21, fontWeight: '800', color: T2.text, letterSpacing: -1 },
+  countSub: { fontSize: 15, fontWeight: '600', color: T2.textSub, letterSpacing: -0.3, marginTop: 6, paddingLeft: 18 },
 
   cta: { paddingBottom: 24, gap: 8 },
   btn: {
