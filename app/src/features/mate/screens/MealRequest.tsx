@@ -1,5 +1,5 @@
 // MealRequest — 같이 먹기 신청 (식당상세에서 모달 진입)
-// 실제 혼밥러 목록(useActiveDiners)에서 한 명 선택 + 인사말 → POST /meal-requests.
+// 모집중(같이 먹을 사람 구하는 중) 목록(useSeekers)에서 한 명 선택 + 인사말 → POST /meal-requests.
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, Pressable, ScrollView, ActivityIndicator,
@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { Screen } from '@/shared/components';
 import { T2 } from '@/shared/theme';
-import { useActiveDiners } from '@/features/checkin/queries';
+import { useSeekers } from '@/features/checkin/queries';
 import { useCreateMealRequest } from '@/features/meal/queries';
 import { mealErrorMessage } from '@/features/meal/mealCopy';
 import { formatElapsed } from '@/shared/format';
@@ -18,12 +18,12 @@ const MAX = 40;
 
 export function MealRequestScreen({ navigation, route }: RootStackScreenProps<'MealRequest'>) {
   const { placeId, placeName } = route.params;
-  const diners = useActiveDiners(placeId);
+  const seekers = useSeekers(placeId);
   const create = useCreateMealRequest();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [greeting, setGreeting] = useState(QUICK[1]);
 
-  const list = diners.data ?? [];
+  const list = seekers.data ?? [];
   const send = () => {
     if (selectedId == null) return;
     create.mutate(
@@ -61,12 +61,12 @@ export function MealRequestScreen({ navigation, route }: RootStackScreenProps<'M
 
           <View style={{ marginTop: 26 }}>
             <Text style={styles.label}>누구에게</Text>
-            {diners.isLoading ? (
+            {seekers.isLoading ? (
               <ActivityIndicator style={{ marginTop: 16 }} color={T2.brand} />
-            ) : diners.isError ? (
-              <Text style={styles.stateText}>혼밥러 목록을 불러오지 못했어요.</Text>
+            ) : seekers.isError ? (
+              <Text style={styles.stateText}>모집중 목록을 불러오지 못했어요.</Text>
             ) : list.length === 0 ? (
-              <Text style={styles.stateText}>지금 혼밥 중인 사람이 없어요.</Text>
+              <Text style={styles.stateText}>지금 모집 중인 사람이 없어요.</Text>
             ) : (
               <View style={{ gap: 10, marginTop: 12 }}>
                 {list.map((d) => {
