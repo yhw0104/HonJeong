@@ -257,4 +257,52 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
         assertThat(found.isReceivedBy(from.getId())).isFalse();
         assertThat(mealRequestRepository.findWithReceiverById(-1L)).isEmpty();
     }
+
+    @Test
+    @DisplayName("declinePendingByToCheckIn: 대상 체크인의 PENDING만 DECLINED, 다른 체크인 신청은 불변")
+    void declinePendingByToCheckIn_declinesOnlyTarget() {
+        User seeker = persistUser("01000000001", "모집자");
+        User seeker2 = persistUser("01000000002", "다른모집자");
+        User applicant = persistUser("01000000003", "신청자A");
+        User applicant2 = persistUser("01000000004", "신청자B");
+        Place place = persistPlace("ext-1");
+        CheckIn target = em.persist(CheckIn.startSeeking(seeker, place, NOW));
+        CheckIn other = em.persist(CheckIn.startSeeking(seeker2, place, NOW));
+        MealRequest toTarget = em.persist(MealRequest.create(applicant, target, place, "대기", NOW));  // 정리 대상
+        MealRequest toOther = em.persist(MealRequest.create(applicant2, other, place, "대기", NOW));   // 불변
+        em.flush();
+
+        int n = mealRequestRepository.declinePendingByToCheckIn(target.getId(), NOW.plusMinutes(1));
+        em.clear();
+
+        assertThat(n).isEqualTo(1);
+        assertThat(mealRequestRepository.findById(toTarget.getId()).orElseThrow().getStatus())
+                .isEqualTo(MealRequestStatus.DECLINED);
+        assertThat(mealRequestRepository.findById(toOther.getId()).orElseThrow().getStatus())
+                .isEqualTo(MealRequestStatus.PENDING); // 다른 체크인 신청은 불변
+    }
+
+    @Test
+    @DisplayName("declinePendingForEndedTargets: SEEKING이 아닌 대상의 PENDING만 정리(모집중 대상 신청은 유지)")
+    void declinePendingForEndedTargets_declinesNonSeeking() {
+        User applicant = persistUser("01000000001", "신청자");
+        User stillSeeking = persistUser("01000000002", "계속모집");
+        User endedUser = persistUser("01000000003", "만료됨");
+        Place place = persistPlace("ext-1");
+        CheckIn seekingTarget = em.persist(CheckIn.startSeeking(stillSeeking, place, NOW));
+        CheckIn endedTarget = em.persist(CheckIn.startSeeking(endedUser, place, NOW));
+        MealRequest toSeeking = em.persist(MealRequest.create(applicant, seekingTarget, place, "대기", NOW));
+        MealRequest toEnded = em.persist(MealRequest.create(applicant, endedTarget, place, "대기", NOW));
+        endedTarget.cancel(NOW.plusMinutes(1)); // 대상이 모집(SEEKING)을 벗어남
+        em.flush();
+
+        int n = mealRequestRepository.declinePendingForEndedTargets(NOW.plusMinutes(2));
+        em.clear();
+
+        assertThat(n).isEqualTo(1);
+        assertThat(mealRequestRepository.findById(toSeeking.getId()).orElseThrow().getStatus())
+                .isEqualTo(MealRequestStatus.PENDING); // 아직 모집중 대상 → 유지
+        assertThat(mealRequestRepository.findById(toEnded.getId()).orElseThrow().getStatus())
+                .isEqualTo(MealRequestStatus.DECLINED); // 모집 벗어난 대상 → 정리
+    }
 }

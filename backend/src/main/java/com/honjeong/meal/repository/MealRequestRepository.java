@@ -133,4 +133,48 @@ public interface MealRequestRepository extends JpaRepository<MealRequest, Long> 
                         (SELECT c.id FROM CheckIn c WHERE c.user.id = :a)))
             """)
     int declinePendingBetween(@Param("a") Long a, @Param("b") Long b, @Param("now") LocalDateTime now);
+
+    /**
+     * 기능: 대상 체크인으로 온 모든 PENDING 신청 일괄 거절 — 대상이 모집(SEEKING)을 벗어날 때(혼자먹기·그만두기) 자동 정리용
+     * 쿼리: UPDATE meal_requests SET status = 'DECLINED', responded_at = :now WHERE to_check_in_id = :checkInId AND status = 'PENDING'
+     * Request: checkInId — 대상 체크인 ID, now — 응답 시각 / Response: int — 거절 처리된 행 수
+     *
+     * <p>[의도] 같이먹기 신청은 대상이 SEEKING일 때만 수락 가능하다. 대상이 혼자먹기(ACTIVE)나 그만두기(CANCELLED)로
+     * SEEKING을 벗어나면 남은 PENDING은 영영 수락 불가한 좀비가 되므로 즉시 DECLINED로 정리한다({@link #declineOtherPending}의
+     * exceptId 없는 버전).
+     *
+     * @param checkInId 대상 체크인 id
+     * @param now       응답 시각
+     * @return 거절 처리된 행 수
+     */
+    @Modifying
+    @Query("""
+            UPDATE MealRequest mr
+            SET mr.status = com.honjeong.meal.domain.MealRequestStatus.DECLINED, mr.respondedAt = :now
+            WHERE mr.toCheckIn.id = :checkInId
+              AND mr.status = com.honjeong.meal.domain.MealRequestStatus.PENDING
+            """)
+    int declinePendingByToCheckIn(@Param("checkInId") Long checkInId, @Param("now") LocalDateTime now);
+
+    /**
+     * 기능: 더는 모집(SEEKING) 상태가 아닌 대상 체크인에 걸린 PENDING 신청을 일괄 거절 — 만료 스케줄러의 catch-all 정리용
+     * 쿼리: UPDATE meal_requests SET status = 'DECLINED', responded_at = :now WHERE status = 'PENDING'
+     *       AND to_check_in_id IN (SELECT id FROM check_ins WHERE status &lt;&gt; 'SEEKING')
+     * Request: now — 응답 시각 / Response: int — 거절 처리된 행 수
+     *
+     * <p>[의도] TTL 만료로 SEEKING이 CANCELLED가 되는 등 상호작용 경로를 놓친 잔여 PENDING까지 쓸어담는 안전망이다.
+     * PENDING은 원래 SEEKING 대상에만 존재해야 하므로, 대상이 SEEKING이 아니면 정리 대상이다.
+     *
+     * @param now 응답 시각
+     * @return 거절 처리된 행 수
+     */
+    @Modifying
+    @Query("""
+            UPDATE MealRequest mr
+            SET mr.status = com.honjeong.meal.domain.MealRequestStatus.DECLINED, mr.respondedAt = :now
+            WHERE mr.status = com.honjeong.meal.domain.MealRequestStatus.PENDING
+              AND mr.toCheckIn.id IN (SELECT c.id FROM CheckIn c
+                    WHERE c.status <> com.honjeong.checkin.domain.CheckInStatus.SEEKING)
+            """)
+    int declinePendingForEndedTargets(@Param("now") LocalDateTime now);
 }

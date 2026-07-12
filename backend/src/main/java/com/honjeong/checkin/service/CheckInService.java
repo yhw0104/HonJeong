@@ -25,6 +25,7 @@ import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.config.HonjeongCheckInProperties;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
+import com.honjeong.meal.repository.MealRequestRepository;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.service.PlaceService;
 import com.honjeong.user.domain.User;
@@ -53,16 +54,19 @@ public class CheckInService {
     private final PlaceService placeService;
     private final UserRepository userRepository;
     private final BlockRepository blockRepository;
+    private final MealRequestRepository mealRequestRepository;
     private final Clock clock;
     private final HonjeongCheckInProperties props;
 
     public CheckInService(CheckInRepository checkInRepository, PlaceService placeService,
-            UserRepository userRepository, BlockRepository blockRepository, Clock clock,
+            UserRepository userRepository, BlockRepository blockRepository,
+            MealRequestRepository mealRequestRepository, Clock clock,
             HonjeongCheckInProperties props) {
         this.checkInRepository = checkInRepository;
         this.placeService = placeService;
         this.userRepository = userRepository;
         this.blockRepository = blockRepository;
+        this.mealRequestRepository = mealRequestRepository;
         this.clock = clock;
         this.props = props;
     }
@@ -156,7 +160,10 @@ public class CheckInService {
                 && checkIn.getStatus() != CheckInStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.CHECKIN_NOT_ACTIVE);
         }
-        checkIn.cancel(now());
+        LocalDateTime now = now();
+        checkIn.cancel(now);
+        // 모집을 접었으므로(그만두기) 이 체크인에 걸린 대기 신청은 수락 불가한 좀비 — 자동 정리
+        mealRequestRepository.declinePendingByToCheckIn(checkInId, now);
         return CheckInResponse.from(checkIn);
     }
 
@@ -182,7 +189,10 @@ public class CheckInService {
         if (checkIn.getStatus() != CheckInStatus.SEEKING) {
             throw new BusinessException(ErrorCode.CHECKIN_NOT_SEEKING);
         }
-        checkIn.dineAlone(now());
+        LocalDateTime now = now();
+        checkIn.dineAlone(now);
+        // 혼자 먹기로 전환하면 모집이 끝나므로, 이 체크인에 걸린 대기 신청을 자동 정리(SEEKING만 수락 가능하므로 좀비 방지)
+        mealRequestRepository.declinePendingByToCheckIn(checkInId, now);
         return CheckInResponse.from(checkIn);
     }
 
@@ -319,6 +329,8 @@ public class CheckInService {
         int endedActive = checkInRepository.endActiveStartedBefore(now.minusHours(props.ttlHours()), now);
         int endedTogether = checkInRepository.endTogetherMatchedBefore(now.minusHours(props.togetherTtlHours()), now);
         int cancelledSeeking = checkInRepository.cancelSeekingStartedBefore(now.minusHours(props.seekingTtlHours()), now);
+        // 방금 SEEKING을 벗어난(만료된) 체크인에 걸려 있던 대기 신청까지 catch-all로 정리
+        mealRequestRepository.declinePendingForEndedTargets(now);
         return endedActive + endedTogether + cancelledSeeking;
     }
 
