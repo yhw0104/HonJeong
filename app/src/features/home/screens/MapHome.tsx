@@ -117,13 +117,16 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         center={searchAt}
         // '내 위치' 파란 점은 진짜 GPS일 때만 — 폴백 좌표(연남동 기본 등)를 내 위치처럼 보이게 하지 않는다.
         myLocation={source === 'gps' ? coord : null}
-        markers={(markers.data ?? []).map((m) => ({
-          placeId: m.placeId,
-          latitude: m.latitude,
-          longitude: m.longitude,
-          activeCount: m.activeCount,
-          seekingCount: m.seekingCount,
-        }))}
+        // 마커는 '같이 먹을 사람(모집중)'을 표시 — 모집중 0명(혼밥중만)인 식당은 마커를 띄우지 않는다.
+        markers={(markers.data ?? [])
+          .filter((m) => m.seekingCount > 0)
+          .map((m) => ({
+            placeId: m.placeId,
+            latitude: m.latitude,
+            longitude: m.longitude,
+            activeCount: m.activeCount,
+            seekingCount: m.seekingCount,
+          }))}
         onMarkerPress={(placeId) => goDetail(placeId)}
       />
 
@@ -220,7 +223,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           ) : (
             <Pressable style={styles.honbabBtn} onPress={() => setPicking(true)}>
               <Text style={styles.honbabEmoji}>🍚</Text>
-              <Text style={styles.honbabBtnText}>같이 먹을 사람 구하기</Text>
+              <Text style={styles.honbabBtnText}>같이 먹기</Text>
             </Pressable>
           )}
           </View>
