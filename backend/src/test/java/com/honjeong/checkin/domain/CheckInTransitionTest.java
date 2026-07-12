@@ -57,4 +57,14 @@ class CheckInTransitionTest {
         c.end(T1);
         assertThat(c.getStatus()).isEqualTo(CheckInStatus.SEEKING); // 변화 없음
     }
+
+    @Test
+    @DisplayName("cancel은 TOGETHER를 취소하지 못한다(매칭된 식사는 취소 불가 — matchedAt≠null은 절대 CANCELLED가 아님, 같이먹음 집계 무결성)")
+    void cancel은_TOGETHER_무시() {
+        CheckIn together = CheckIn.startSeeking(null, null, T0);
+        together.matchTogether(7L, T0);
+        together.cancel(T1);
+        assertThat(together.getStatus()).isEqualTo(CheckInStatus.TOGETHER); // 변화 없음
+        assertThat(together.getMatchedAt()).isEqualTo(T0); // matchedAt 유지 → together 집계에서 안 사라짐
+    }
 }
