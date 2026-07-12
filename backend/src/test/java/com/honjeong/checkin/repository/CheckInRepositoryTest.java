@@ -462,6 +462,60 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
+    @DisplayName("countSoloCompletedByUser: 매칭 안 되고 혼자 먹은 완료 체크인만 센다(matchedAt null, SEEKING→dineAlone→ENDED)")
+    void soloCompleted_countsUnmatchedOnly() {
+        User user = persistUser("01000000001", "혼밥러A");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn solo = CheckIn.startSeeking(user, place, NOW);
+        solo.dineAlone(NOW.plusMinutes(5));
+        solo.end(NOW.plusMinutes(35));
+        em.persist(solo);
+        em.flush();
+
+        assertThat(checkInRepository.countSoloCompletedByUser(user.getId())).isEqualTo(1);
+        assertThat(checkInRepository.countTogetherByUser(user.getId())).isZero();
+    }
+
+    @Test
+    @DisplayName("countTogetherByUser: 매칭돼 같이 먹은(matchedAt 설정된) 체크인만 센다")
+    void togetherCompleted_countsMatchedOnly() {
+        User user = persistUser("01000000001", "혼밥러A");
+        User other = persistUser("01000000002", "혼밥러B");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn seeking = em.persist(CheckIn.startSeeking(user, place, NOW));
+        em.persist(CheckIn.start(other, place, NOW));
+        MealRequest mealRequest = em.persist(MealRequest.create(other, seeking, place, null, NOW));
+        em.flush();
+        seeking.matchTogether(mealRequest.getId(), NOW.plusMinutes(1));
+        checkInRepository.saveAndFlush(seeking);
+
+        assertThat(checkInRepository.countSoloCompletedByUser(user.getId())).isZero();
+        assertThat(checkInRepository.countTogetherByUser(user.getId())).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("solo + together == countCompletedByUser(총합)와 정확히 일치한다")
+    void soloPlusTogether_equalsTotal() {
+        User user = persistUser("01000000001", "혼밥러A");
+        User other = persistUser("01000000002", "혼밥러B");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        em.persist(endedCheckIn(user, place, NOW.minusDays(1))); // 혼자 먹은 완료 1건
+        CheckIn otherCheckIn = em.persist(CheckIn.startSeeking(other, place, NOW));
+        MealRequest mealRequest = em.persist(MealRequest.create(user, otherCheckIn, place, null, NOW));
+        em.flush();
+        checkInRepository.saveAndFlush(CheckIn.startTogether(user, place, mealRequest.getId(), NOW)); // 매칭돼 같이 먹은 1건
+
+        long solo = checkInRepository.countSoloCompletedByUser(user.getId());
+        long together = checkInRepository.countTogetherByUser(user.getId());
+        long total = checkInRepository.countCompletedByUser(user.getId());
+
+        assertThat(solo).isEqualTo(1);
+        assertThat(together).isEqualTo(1);
+        assertThat(solo + together).isEqualTo(total);
+        assertThat(total).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("findTogetherByMealRequestId: 같은 매칭의 TOGETHER 쌍을 user와 함께 반환한다")
     void findTogetherPair() {
         User sender = persistUser("01000000001", "신청자");

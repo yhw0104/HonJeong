@@ -65,6 +65,34 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     long countCompletedByUser(@Param("userId") Long userId);
 
     /**
+     * 기능: 혼밥(혼자 먹은) 완료 체크인 수 집계 — CANCELLED·SEEKING 제외 + 매칭 안 됨(matchedAt IS NULL)
+     * 쿼리: SELECT COUNT(*) FROM check_ins WHERE user_id = :userId AND status NOT IN ('CANCELLED', 'SEEKING') AND matched_at IS NULL
+     * Request: userId — 회원 ID / Response: long — 건수
+     *
+     * <p>[기존 주석] 혼밥(혼자 먹은) 완료 수 — CANCELLED·SEEKING 제외 + 매칭 안 됨(matchedAt IS NULL).
+     *
+     * @param userId 회원 id
+     * @return 건수
+     */
+    @Query("SELECT COUNT(c) FROM CheckIn c WHERE c.user.id = :userId "
+            + "AND c.status NOT IN (com.honjeong.checkin.domain.CheckInStatus.CANCELLED, "
+            + "com.honjeong.checkin.domain.CheckInStatus.SEEKING) AND c.matchedAt IS NULL")
+    long countSoloCompletedByUser(@Param("userId") Long userId);
+
+    /**
+     * 기능: 같이먹음(매칭돼 같이 먹은) 체크인 수 집계 — matchedAt IS NOT NULL
+     * 쿼리: SELECT COUNT(*) FROM check_ins WHERE user_id = :userId AND matched_at IS NOT NULL
+     * Request: userId — 회원 ID / Response: long — 건수
+     *
+     * <p>[기존 주석] 같이먹음(매칭돼 같이 먹은) 수 — matchedAt IS NOT NULL(TOGETHER 또는 그로부터 종료된 것).
+     *
+     * @param userId 회원 id
+     * @return 건수
+     */
+    @Query("SELECT COUNT(c) FROM CheckIn c WHERE c.user.id = :userId AND c.matchedAt IS NOT NULL")
+    long countTogetherByUser(@Param("userId") Long userId);
+
+    /**
      * 기능: 해당 상태의 전체 체크인 수 집계
      * 쿼리: SELECT COUNT(*) FROM check_ins WHERE status = :status
      * Request: status — 셀 상태 / Response: long — 건수

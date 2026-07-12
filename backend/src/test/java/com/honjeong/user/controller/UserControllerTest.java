@@ -228,7 +228,7 @@ class UserControllerTest {
     @DisplayName("GET /me/activity-summary: access 토큰이면 200 + 카운트")
     void getActivitySummary_ok() throws Exception {
         when(userActivityService.getActivitySummary(1L))
-                .thenReturn(new ActivitySummaryResponse(12L, 8L, 5L, 0L));
+                .thenReturn(new ActivitySummaryResponse(12L, 8L, 5L, 0L, 4L));
         String token = jwtProvider.createAccessToken(1L);
 
         mockMvc.perform(get("/api/users/me/activity-summary").header("Authorization", "Bearer " + token))
@@ -236,7 +236,8 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.data.checkInCount").value(12))
                 .andExpect(jsonPath("$.data.reviewCount").value(8))
                 .andExpect(jsonPath("$.data.favoriteCount").value(5))
-                .andExpect(jsonPath("$.data.mateCount").value(0));
+                .andExpect(jsonPath("$.data.mateCount").value(0))
+                .andExpect(jsonPath("$.data.togetherCount").value(4));
     }
 
     @Test
