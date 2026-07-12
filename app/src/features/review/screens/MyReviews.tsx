@@ -60,7 +60,7 @@ export function MyReviewsScreen({ navigation }: RootStackScreenProps<'MyReviews'
                   <Text style={styles.place}>{r.placeName}</Text>
                   {r.authenticated && (
                     <View style={styles.authBadge}>
-                      <Text style={styles.authBadgeText}>✓ 인증</Text>
+                      <Text style={styles.authBadgeText}>✓ 혼밥</Text>
                     </View>
                   )}
                 </View>

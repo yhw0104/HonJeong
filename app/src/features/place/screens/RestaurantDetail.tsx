@@ -470,7 +470,7 @@ function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete, onR
           <View key={r.reviewId} style={[styles.reviewCard, i < arr.length - 1 && styles.reviewDivider]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 14, fontWeight: '700', color: T2.text }}>{r.user.nickname}</Text>
-              {r.authenticated ? <Text style={{ fontSize: 11, color: T2.brand }}>✔ 인증</Text> : null}
+              {r.authenticated ? <Text style={{ fontSize: 11, color: T2.brand }}>✔ 혼밥</Text> : null}
               {!r.mine && (
                 <Pressable hitSlop={8} style={{ marginLeft: 'auto' }} onPress={() => onReport(r)}>
                   <Text style={styles.reviewReport}>신고</Text>
