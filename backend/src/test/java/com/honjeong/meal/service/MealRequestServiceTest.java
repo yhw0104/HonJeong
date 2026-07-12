@@ -239,7 +239,7 @@ class MealRequestServiceTest {
         assertThat(res.status()).isEqualTo("ACCEPTED");
         assertThat(res.respondedAt()).isEqualTo(nowKst);
         verify(checkInRepository).save(any(CheckIn.class));
-        verify(mealRequestRepository).declineOtherPending(eq(3L), any(), eq(nowKst));
+        verify(mealRequestRepository).expireOtherPending(eq(3L), any(), eq(nowKst));
         verify(notificationService).publish(1L, NotificationType.MEAL_REQUEST_ACCEPTED, 2L);
     }
 
@@ -323,7 +323,7 @@ class MealRequestServiceTest {
         verify(checkInRepository).save(saved.capture());
         assertThat(saved.getValue().getStatus()).isEqualTo(CheckInStatus.TOGETHER);
         assertThat(saved.getValue().getMealRequestId()).isEqualTo(5L);
-        verify(mealRequestRepository).declineOtherPending(3L, 5L, nowKst);
+        verify(mealRequestRepository).expireOtherPending(3L, 5L, nowKst);
     }
 
     @Test

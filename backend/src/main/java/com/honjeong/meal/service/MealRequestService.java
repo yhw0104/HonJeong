@@ -150,7 +150,7 @@ public class MealRequestService {
             throw new BusinessException(ErrorCode.MEALREQUEST_SENDER_BUSY);
         }
 
-        mealRequestRepository.declineOtherPending(target.getId(), mr.getId(), now); // 다른 PENDING 정리
+        mealRequestRepository.expireOtherPending(target.getId(), mr.getId(), now); // 다른 PENDING은 자리가 차서 만료
         notificationService.publish(senderId, NotificationType.MEAL_REQUEST_ACCEPTED, userId);
         return MealRequestStatusResponse.from(mr);
     }

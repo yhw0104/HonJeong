@@ -213,8 +213,8 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
-    @DisplayName("declinePendingBetween: 두 유저 사이 양방향 PENDING을 모두 DECLINED, 제3자는 불변")
-    void declinePendingBetween_bulkDeclines() {
+    @DisplayName("expirePendingBetween: 두 유저 사이 양방향 PENDING을 모두 EXPIRED(차단 자동정리), 제3자는 불변")
+    void expirePendingBetween_bulkExpires() {
         User a = persistUser("01000000001", "A");
         User b = persistUser("01000000002", "B");
         User stranger = persistUser("01000000003", "제3자");
@@ -229,14 +229,14 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
         em.flush();
         em.clear();
 
-        int updated = mealRequestRepository.declinePendingBetween(a.getId(), b.getId(), NOW.plusMinutes(5));
+        int updated = mealRequestRepository.expirePendingBetween(a.getId(), b.getId(), NOW.plusMinutes(5));
 
         assertThat(updated).isEqualTo(2);
         em.clear();
         assertThat(mealRequestRepository.findById(aToB.getId()).orElseThrow().getStatus())
-                .isEqualTo(MealRequestStatus.DECLINED);
+                .isEqualTo(MealRequestStatus.EXPIRED);
         assertThat(mealRequestRepository.findById(bToA.getId()).orElseThrow().getStatus())
-                .isEqualTo(MealRequestStatus.DECLINED);
+                .isEqualTo(MealRequestStatus.EXPIRED);
         assertThat(mealRequestRepository.findById(strangerToA.getId()).orElseThrow().getStatus())
                 .isEqualTo(MealRequestStatus.PENDING);
     }
@@ -259,8 +259,8 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
-    @DisplayName("declinePendingByToCheckIn: 대상 체크인의 PENDING만 DECLINED, 다른 체크인 신청은 불변")
-    void declinePendingByToCheckIn_declinesOnlyTarget() {
+    @DisplayName("expirePendingByToCheckIn: 대상 체크인의 PENDING만 EXPIRED, 다른 체크인 신청은 불변")
+    void expirePendingByToCheckIn_expiresOnlyTarget() {
         User seeker = persistUser("01000000001", "모집자");
         User seeker2 = persistUser("01000000002", "다른모집자");
         User applicant = persistUser("01000000003", "신청자A");
@@ -272,19 +272,19 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
         MealRequest toOther = em.persist(MealRequest.create(applicant2, other, place, "대기", NOW));   // 불변
         em.flush();
 
-        int n = mealRequestRepository.declinePendingByToCheckIn(target.getId(), NOW.plusMinutes(1));
+        int n = mealRequestRepository.expirePendingByToCheckIn(target.getId(), NOW.plusMinutes(1));
         em.clear();
 
         assertThat(n).isEqualTo(1);
         assertThat(mealRequestRepository.findById(toTarget.getId()).orElseThrow().getStatus())
-                .isEqualTo(MealRequestStatus.DECLINED);
+                .isEqualTo(MealRequestStatus.EXPIRED);
         assertThat(mealRequestRepository.findById(toOther.getId()).orElseThrow().getStatus())
                 .isEqualTo(MealRequestStatus.PENDING); // 다른 체크인 신청은 불변
     }
 
     @Test
-    @DisplayName("declinePendingForEndedTargets: SEEKING이 아닌 대상의 PENDING만 정리(모집중 대상 신청은 유지)")
-    void declinePendingForEndedTargets_declinesNonSeeking() {
+    @DisplayName("expirePendingForEndedTargets: SEEKING이 아닌 대상의 PENDING만 EXPIRED(모집중 대상 신청은 유지)")
+    void expirePendingForEndedTargets_expiresNonSeeking() {
         User applicant = persistUser("01000000001", "신청자");
         User stillSeeking = persistUser("01000000002", "계속모집");
         User endedUser = persistUser("01000000003", "만료됨");
@@ -296,13 +296,13 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
         endedTarget.cancel(NOW.plusMinutes(1)); // 대상이 모집(SEEKING)을 벗어남
         em.flush();
 
-        int n = mealRequestRepository.declinePendingForEndedTargets(NOW.plusMinutes(2));
+        int n = mealRequestRepository.expirePendingForEndedTargets(NOW.plusMinutes(2));
         em.clear();
 
         assertThat(n).isEqualTo(1);
         assertThat(mealRequestRepository.findById(toSeeking.getId()).orElseThrow().getStatus())
                 .isEqualTo(MealRequestStatus.PENDING); // 아직 모집중 대상 → 유지
         assertThat(mealRequestRepository.findById(toEnded.getId()).orElseThrow().getStatus())
-                .isEqualTo(MealRequestStatus.DECLINED); // 모집 벗어난 대상 → 정리
+                .isEqualTo(MealRequestStatus.EXPIRED); // 모집 벗어난 대상 → 만료
     }
 }

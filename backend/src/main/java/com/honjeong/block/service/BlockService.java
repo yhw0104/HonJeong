@@ -89,7 +89,7 @@ public class BlockService {
         mateRequestRepository.resolvePendingBetween(blockerId, targetUserId, MateRequestStatus.CANCELED, now);
         mateRequestRepository.resolvePendingBetween(targetUserId, blockerId, MateRequestStatus.DECLINED, now);
         // ③ PENDING 같이먹기 신청 — MealRequestStatus에 CANCELED가 없어 방향 무관 DECLINED 통일
-        mealRequestRepository.declinePendingBetween(blockerId, targetUserId, now);
+        mealRequestRepository.expirePendingBetween(blockerId, targetUserId, now);
         // ④ 차단 상대와 같이 먹는 중이면 양쪽 종료("차단했는데 같이 먹는 중" 모순 방지)
         checkInRepository.findByUser_IdAndStatusIn(blockerId, List.of(CheckInStatus.TOGETHER))
                 .filter(c -> c.getMealRequestId() != null)

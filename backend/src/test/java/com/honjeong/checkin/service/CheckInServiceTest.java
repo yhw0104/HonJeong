@@ -291,7 +291,7 @@ class CheckInServiceTest {
 
         assertThat(res.status()).isEqualTo("CANCELLED");
         assertThat(c.getStatus()).isEqualTo(CheckInStatus.CANCELLED);
-        verify(mealRequestRepository).declinePendingByToCheckIn(3L, nowKst); // 그만두면 대기 신청은 좀비 → 정리
+        verify(mealRequestRepository).expirePendingByToCheckIn(3L, nowKst); // 그만두면 대기 신청은 좀비 → 만료
     }
 
     @Test
@@ -339,7 +339,7 @@ class CheckInServiceTest {
         CheckInResponse res = service.dineAlone(1L, 10L);
 
         assertThat(res.status()).isEqualTo("ACTIVE");
-        verify(mealRequestRepository).declinePendingByToCheckIn(10L, nowKst); // 혼자 먹기 시작 → 대기 신청 정리
+        verify(mealRequestRepository).expirePendingByToCheckIn(10L, nowKst); // 혼자 먹기 시작 → 대기 신청 만료
     }
 
     @Test
@@ -563,6 +563,6 @@ class CheckInServiceTest {
         // seekingTtlHours=7 → now-7h(05:00). ttlHours(3)·togetherTtlHours(5)와 모두 달라 스왑 시 실패한다.
         assertThat(seekingThreshold.getValue()).isEqualTo(nowKst.minusHours(7));
         // 만료로 SEEKING을 벗어난 체크인에 걸린 대기 신청까지 catch-all로 정리한다
-        verify(mealRequestRepository).declinePendingForEndedTargets(nowKst);
+        verify(mealRequestRepository).expirePendingForEndedTargets(nowKst);
     }
 }

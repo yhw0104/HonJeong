@@ -162,8 +162,8 @@ public class CheckInService {
         }
         LocalDateTime now = now();
         checkIn.cancel(now);
-        // 모집을 접었으므로(그만두기) 이 체크인에 걸린 대기 신청은 수락 불가한 좀비 — 자동 정리
-        mealRequestRepository.declinePendingByToCheckIn(checkInId, now);
+        // 모집을 접었으므로(그만두기) 이 체크인에 걸린 대기 신청은 수락 불가한 좀비 — 만료 처리
+        mealRequestRepository.expirePendingByToCheckIn(checkInId, now);
         return CheckInResponse.from(checkIn);
     }
 
@@ -191,8 +191,8 @@ public class CheckInService {
         }
         LocalDateTime now = now();
         checkIn.dineAlone(now);
-        // 혼자 먹기로 전환하면 모집이 끝나므로, 이 체크인에 걸린 대기 신청을 자동 정리(SEEKING만 수락 가능하므로 좀비 방지)
-        mealRequestRepository.declinePendingByToCheckIn(checkInId, now);
+        // 혼자 먹기로 전환하면 모집이 끝나므로, 이 체크인에 걸린 대기 신청을 만료 처리(SEEKING만 수락 가능하므로 좀비 방지)
+        mealRequestRepository.expirePendingByToCheckIn(checkInId, now);
         return CheckInResponse.from(checkIn);
     }
 
@@ -329,8 +329,8 @@ public class CheckInService {
         int endedActive = checkInRepository.endActiveStartedBefore(now.minusHours(props.ttlHours()), now);
         int endedTogether = checkInRepository.endTogetherMatchedBefore(now.minusHours(props.togetherTtlHours()), now);
         int cancelledSeeking = checkInRepository.cancelSeekingStartedBefore(now.minusHours(props.seekingTtlHours()), now);
-        // 방금 SEEKING을 벗어난(만료된) 체크인에 걸려 있던 대기 신청까지 catch-all로 정리
-        mealRequestRepository.declinePendingForEndedTargets(now);
+        // 방금 SEEKING을 벗어난(만료된) 체크인에 걸려 있던 대기 신청까지 catch-all로 만료
+        mealRequestRepository.expirePendingForEndedTargets(now);
         return endedActive + endedTogether + cancelledSeeking;
     }
 
