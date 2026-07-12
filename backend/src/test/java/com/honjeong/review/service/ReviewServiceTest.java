@@ -148,6 +148,25 @@ class ReviewServiceTest {
     }
 
     @Test
+    @DisplayName("checkInId가 같이 먹은(matched) 체크인이면 인증 없는 일반 리뷰로 저장 — 혼밥 뱃지는 솔로만")
+    void create_ignoresMatchedCheckIn() {
+        Place p = place(3L);
+        when(placeService.getById(3L)).thenReturn(p);
+        when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
+        when(reviewRepository.saveAndFlush(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CheckIn matched = mock(CheckIn.class);
+        when(matched.isOwnedBy(1L)).thenReturn(true);
+        when(matched.getMatchedAt()).thenReturn(LocalDateTime.of(2026, 6, 25, 12, 0)); // 같이 먹음(matched)
+        when(checkInRepository.findById(99L)).thenReturn(Optional.of(matched));
+
+        ReviewResponse res = service.createReview(1L, req(99L, List.of()));
+
+        assertThat(res.authenticated()).isFalse(); // matched → 연결 안 함(일반 리뷰)
+        assertThat(res.checkInId()).isNull();
+    }
+
+    @Test
     @DisplayName("그 체크인에 이미 인증 리뷰가 있으면 차단 않고 인증 없는 일반 리뷰로 저장")
     void create_degradesToGeneralWhenCheckInAlreadyReviewed() {
         Place p = place(3L);
@@ -232,17 +251,15 @@ class ReviewServiceTest {
 
         when(checkInRepository.findHistoryWithPlaceByUser(1L)).thenReturn(java.util.List.of(c1, c2));
         when(reviewRepository.findByUserWithCheckIn(1L)).thenReturn(java.util.List.of(r1));
-        when(checkInRepository.countCompletedByUser(1L)).thenReturn(5L);
-        when(reviewRepository.countByUser_IdAndCheckInIsNotNull(1L)).thenReturn(3L);
-        when(checkInRepository.countDistinctPlacesByUser(1L)).thenReturn(2L);
-        when(checkInRepository.countByUserSince(org.mockito.ArgumentMatchers.eq(1L), any())).thenReturn(4L);
+        // 요약은 이력(솔로) 목록에서 직접 계산된다 — 별도 카운트 쿼리 스텁 불필요
 
         var res = service.getDiningHistory(1L);
 
-        assertThat(res.summary().totalCheckIns()).isEqualTo(5L);
-        assertThat(res.summary().totalReviews()).isEqualTo(3L);
-        assertThat(res.summary().distinctPlaces()).isEqualTo(2L);
-        assertThat(res.summary().thisMonthCheckIns()).isEqualTo(4L);
+        // c1(6/25, 리뷰 有)·c2(6/24, 리뷰 無), 둘 다 place3·6월(clock 6/25) → 총2·일기1·식당1·이번달2
+        assertThat(res.summary().totalCheckIns()).isEqualTo(2L);
+        assertThat(res.summary().totalReviews()).isEqualTo(1L);
+        assertThat(res.summary().distinctPlaces()).isEqualTo(1L);
+        assertThat(res.summary().thisMonthCheckIns()).isEqualTo(2L);
         assertThat(res.entries()).hasSize(2);
         assertThat(res.entries().get(0).review().reviewId()).isEqualTo(42L); // c1 has review
         assertThat(res.entries().get(1).review()).isNull();                  // c2 none
@@ -492,10 +509,6 @@ class ReviewServiceTest {
 
         when(checkInRepository.findHistoryWithPlaceByUser(1L)).thenReturn(List.of(c1));
         when(reviewRepository.findByUserWithCheckIn(1L)).thenReturn(List.of(r1));
-        when(checkInRepository.countCompletedByUser(1L)).thenReturn(1L);
-        when(reviewRepository.countByUser_IdAndCheckInIsNotNull(1L)).thenReturn(1L);
-        when(checkInRepository.countDistinctPlacesByUser(1L)).thenReturn(1L);
-        when(checkInRepository.countByUserSince(org.mockito.ArgumentMatchers.eq(1L), any())).thenReturn(1L);
 
         // when
         var res = service.getDiningHistory(1L);
@@ -585,14 +598,12 @@ class ReviewServiceTest {
 
         when(checkInRepository.findHistoryWithPlaceByUser(1L)).thenReturn(List.of(c1, c2));
         when(reviewRepository.findByUserWithCheckIn(1L)).thenReturn(List.of(r1));
-        when(checkInRepository.countCompletedByUser(1L)).thenReturn(5L);
-        when(reviewRepository.countByUser_IdAndCheckInIsNotNull(1L)).thenReturn(2L);
-        when(checkInRepository.countDistinctPlacesByUser(1L)).thenReturn(2L);
-        when(checkInRepository.countByUserSince(org.mockito.ArgumentMatchers.eq(1L), any())).thenReturn(4L);
 
         var res = service.getDiningHistory(1L);
 
-        assertThat(res.summary().totalReviews()).isEqualTo(2L);
+        // c1만 리뷰 有, c2는 리뷰 無 → 총 방문 2건이어도 일기(인증)는 1건만 센다
+        assertThat(res.summary().totalCheckIns()).isEqualTo(2L);
+        assertThat(res.summary().totalReviews()).isEqualTo(1L);
     }
 
     private static Long eqL(long v) { return org.mockito.ArgumentMatchers.eq(v); }

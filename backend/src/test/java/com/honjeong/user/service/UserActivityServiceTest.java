@@ -30,7 +30,7 @@ class UserActivityServiceTest {
     void getActivitySummary_aggregates_withMateCount() {
         when(checkInRepository.countSoloCompletedByUser(1L)).thenReturn(12L);
         when(checkInRepository.countTogetherByUser(1L)).thenReturn(4L);
-        when(reviewRepository.countByUser_IdAndCheckInIsNotNull(1L)).thenReturn(8L);
+        when(reviewRepository.countSoloAuthenticatedByUser(1L)).thenReturn(8L);
         when(favoriteRepository.countDistinctPlaceByUserId(1L)).thenReturn(5L);
         when(mateRepository.countByUser_Id(1L)).thenReturn(3L);
 

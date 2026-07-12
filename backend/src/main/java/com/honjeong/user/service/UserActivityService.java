@@ -48,7 +48,7 @@ public class UserActivityService {
     public ActivitySummaryResponse getActivitySummary(long userId) {
         long checkInCount = checkInRepository.countSoloCompletedByUser(userId);
         long togetherCount = checkInRepository.countTogetherByUser(userId);
-        long reviewCount = reviewRepository.countByUser_IdAndCheckInIsNotNull(userId);  // 더보기 '내 혼밥 기록' 디테일 — 혼밥기록 화면(인증 일기만)과 기준 일치
+        long reviewCount = reviewRepository.countSoloAuthenticatedByUser(userId);  // 더보기 '내 혼밥 기록' 디테일 — 혼밥기록 화면(솔로 인증 일기)과 기준 일치
         long favoriteCount = favoriteRepository.countDistinctPlaceByUserId(userId);
         long mateCount = mateRepository.countByUser_Id(userId);
         return new ActivitySummaryResponse(checkInCount, reviewCount, favoriteCount, mateCount, togetherCount);

@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Import;
 
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.global.config.JpaConfig;
+import com.honjeong.meal.domain.MealRequest;
 import com.honjeong.place.domain.Place;
 import com.honjeong.review.domain.Review;
 import com.honjeong.review.domain.ReviewPhoto;
@@ -249,24 +250,35 @@ class ReviewRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
-    @DisplayName("인증 리뷰 카운트: checkIn 연결된 것만")
-    void countByUser_IdAndCheckInIsNotNull_countsOnlyAuthenticated() {
-        // given: userA의 인증 리뷰 1(체크인 연결)·일반 리뷰 1(checkIn null), userB의 리뷰 1
+    @DisplayName("혼밥 인증 리뷰 카운트: 솔로 체크인 연결만 — 같이 먹은(matched)·일반(null)·타인은 제외")
+    void countSoloAuthenticatedByUser_countsOnlySolo() {
         User userA = persistUser("01000000042", "복합러2");
         User userB = persistUser("01000000043", "타인러2");
+        User partner = persistUser("01000000044", "파트너2");
         Place place = persistPlace("ext-mine-count");
-        CheckIn checkIn = persistCheckIn(userA, place);
 
-        Review authenticated = Review.create(userA, checkIn, place, NOW, 5, 5, "인증 리뷰");
-        em.persist(authenticated);
-        Review general = Review.create(userA, null, place, NOW, 4, 4, "일반 리뷰");
-        em.persist(general);
-        Review others = Review.create(userB, null, place, NOW, 3, 3, "타인 리뷰");
-        em.persist(others);
+        // 솔로(matchedAt null) 체크인 + 인증 리뷰 → 카운트 대상
+        CheckIn solo = CheckIn.start(userA, place, NOW);
+        solo.end(NOW.plusMinutes(30));
+        em.persist(solo);
+        em.persist(Review.create(userA, solo, place, NOW, 5, 5, "혼밥 인증 리뷰"));
+
+        // 같이 먹은(matched) 체크인 + 리뷰 → 솔로 카운트에서 제외
+        CheckIn partnerSeeking = em.persist(CheckIn.startSeeking(partner, place, NOW));
+        MealRequest mr = em.persist(MealRequest.create(userA, partnerSeeking, place, null, NOW));
+        em.flush();
+        CheckIn matched = CheckIn.startTogether(userA, place, mr.getId(), NOW);
+        matched.end(NOW.plusMinutes(30));
+        em.persist(matched);
+        em.persist(Review.create(userA, matched, place, NOW, 5, 5, "같이 먹은 리뷰"));
+
+        // 일반 리뷰(checkIn null) + 타인 리뷰 → 제외
+        em.persist(Review.create(userA, null, place, NOW, 4, 4, "일반 리뷰"));
+        em.persist(Review.create(userB, null, place, NOW, 3, 3, "타인 리뷰"));
         em.flush();
         em.clear();
 
-        assertThat(reviewRepository.countByUser_IdAndCheckInIsNotNull(userA.getId())).isEqualTo(1L);
+        assertThat(reviewRepository.countSoloAuthenticatedByUser(userA.getId())).isEqualTo(1L); // 솔로 인증만
     }
 
     // --- helpers (MealRequestRepositoryTest와 동일 도메인 팩토리 사용) ---

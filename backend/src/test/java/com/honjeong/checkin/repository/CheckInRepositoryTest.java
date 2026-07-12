@@ -541,9 +541,10 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
-    @DisplayName("findHistoryWithPlaceByUser: CANCELLED는 이력에서 제외한다")
-    void history_excludesCancelled() {
+    @DisplayName("findHistoryWithPlaceByUser: CANCELLED와 같이 먹은(matched) 체크인은 이력에서 제외한다 — 진짜 혼밥만")
+    void history_excludesCancelledAndMatched() {
         User u = persistUser("01000000001", "A");
+        User partner = persistUser("01000000002", "B");
         Place p = persistPlace("ext-1", 37.5, 127.0);
         CheckIn cancelled = CheckIn.start(u, p, NOW.minusDays(1));
         cancelled.cancel(NOW.minusDays(1));
@@ -551,47 +552,15 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         CheckIn ended = CheckIn.start(u, p, NOW.minusHours(2));
         ended.end(NOW.minusHours(1));
         em.persist(ended);
+        persistEndedTogetherPair(u, partner, p, NOW.minusHours(4)); // u의 같이 먹은(matched) 완료 → 제외돼야
         em.flush();
         em.clear();
 
         List<CheckIn> history = checkInRepository.findHistoryWithPlaceByUser(u.getId());
 
-        assertThat(history).hasSize(1);
+        assertThat(history).hasSize(1); // 솔로 ENDED 1건만(CANCELLED·matched 제외)
         assertThat(history.get(0).getStatus()).isEqualTo(CheckInStatus.ENDED);
-    }
-
-    @Test
-    @DisplayName("countDistinctPlacesByUser: CANCELLED만 있는 방문지는 제외한다")
-    void distinctPlaces_excludesCancelled() {
-        User u = persistUser("01000000001", "A");
-        Place p1 = persistPlace("ext-1", 37.5, 127.0);
-        Place p2 = persistPlace("ext-2", 37.6, 127.1);
-        CheckIn cancelledAtP2 = CheckIn.start(u, p2, NOW.minusDays(1));
-        cancelledAtP2.cancel(NOW.minusDays(1));
-        em.persist(cancelledAtP2);
-        CheckIn endedAtP1 = CheckIn.start(u, p1, NOW.minusHours(2));
-        endedAtP1.end(NOW.minusHours(1));
-        em.persist(endedAtP1);
-        em.flush();
-
-        assertThat(checkInRepository.countDistinctPlacesByUser(u.getId())).isEqualTo(1);
-    }
-
-    @Test
-    @DisplayName("countByUserSince: 기준 이후 체크인 중 CANCELLED는 제외한다")
-    void countSince_excludesCancelled() {
-        User u = persistUser("01000000001", "A");
-        Place p = persistPlace("ext-1", 37.5, 127.0);
-        LocalDateTime monthStart = NOW.minusDays(5);
-        CheckIn cancelled = CheckIn.start(u, p, NOW.minusDays(1));
-        cancelled.cancel(NOW.minusDays(1));
-        em.persist(cancelled);
-        CheckIn ended = CheckIn.start(u, p, NOW.minusHours(2));
-        ended.end(NOW.minusHours(1));
-        em.persist(ended);
-        em.flush();
-
-        assertThat(checkInRepository.countByUserSince(u.getId(), monthStart)).isEqualTo(1);
+        assertThat(history.get(0).getMatchedAt()).isNull();
     }
 
     @Test
