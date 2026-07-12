@@ -1,13 +1,33 @@
 import { ApiError } from '@/shared/api/client';
 import type { MealRequestStatus } from './api';
 
-/** 보낸 신청 상태 → 사용자 표시 라벨. */
-export function mealStatusLabel(status: MealRequestStatus): string {
+/**
+ * 받은 신청 상태 → 라벨(수신자 관점: 내가 처리한 것).
+ * 내가 직접 누른 것만 수락함/거절함, 자동 정리(상대 다른 수락·그만두기·혼자먹기·시간만료·차단)는 만료됨.
+ */
+export function mealStatusLabelReceived(status: MealRequestStatus): string {
+  switch (status) {
+    case 'ACCEPTED':
+      return '수락함';
+    case 'DECLINED':
+      return '거절함';
+    case 'EXPIRED':
+      return '만료됨';
+    case 'PENDING':
+    default:
+      return '응답 대기 중';
+  }
+}
+
+/** 보낸 신청 상태 → 라벨(신청자 관점: 상대가 처리한 것). */
+export function mealStatusLabelSent(status: MealRequestStatus): string {
   switch (status) {
     case 'ACCEPTED':
       return '수락됨';
     case 'DECLINED':
       return '거절됨';
+    case 'EXPIRED':
+      return '만료됨';
     case 'PENDING':
     default:
       return '응답 대기 중';

@@ -1,6 +1,6 @@
 import { apiGet, apiPost, apiPatch } from '@/shared/api/client';
 
-export type MealRequestStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
+export type MealRequestStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
 
 export type MealRequestListItem = {
   mealRequestId: number;

@@ -6,7 +6,7 @@ import { Screen, MoreHeader, EmojiCircle, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { useReceivedRequests, useAcceptMealRequest, useDeclineMealRequest } from '@/features/meal/queries';
-import { mealStatusLabel, mealErrorMessage } from '@/features/meal/mealCopy';
+import { mealStatusLabelReceived, mealErrorMessage } from '@/features/meal/mealCopy';
 
 export function ReceivedRequestsScreen({ navigation }: RootStackScreenProps<'ReceivedRequests'>) {
   const received = useReceivedRequests();
@@ -76,7 +76,7 @@ export function ReceivedRequestsScreen({ navigation }: RootStackScreenProps<'Rec
                       <Text style={styles.pastName}>{p.fromUser.nickname}</Text>
                       <Text style={styles.pastPlace}>{p.placeName}</Text>
                     </View>
-                    <Text style={styles.pastState}>{mealStatusLabel(p.status)}</Text>
+                    <Text style={styles.pastState}>{mealStatusLabelReceived(p.status)}</Text>
                   </Pressable>
                 ))}
               </View>
