@@ -19,7 +19,6 @@ import com.honjeong.mate.dto.PublicProfileResponse;
 import com.honjeong.mate.dto.UserSearchResponse;
 import com.honjeong.mate.repository.MateRepository;
 import com.honjeong.mate.repository.MateRequestRepository;
-import com.honjeong.meal.repository.MealRequestRepository;
 import com.honjeong.place.domain.Place;
 import com.honjeong.user.domain.DiningStyle;
 import com.honjeong.user.domain.User;
@@ -34,11 +33,10 @@ class MateProfileServiceTest {
     private final MateRequestRepository mateRequestRepository = mock(MateRequestRepository.class);
     private final CheckInRepository checkInRepository = mock(CheckInRepository.class);
     private final UserFoodPreferenceRepository foodRepository = mock(UserFoodPreferenceRepository.class);
-    private final MealRequestRepository mealRequestRepository = mock(MealRequestRepository.class);
     private final BlockRepository blockRepository = mock(BlockRepository.class);
     private final MateProfileService service = new MateProfileService(
             userRepository, mateRepository, mateRequestRepository, checkInRepository, foodRepository,
-            mealRequestRepository, blockRepository);
+            blockRepository);
 
     @Test
     @DisplayName("searchUsers: 본인 제외 + 내가 보낸 PENDING이면 requestStatus=PENDING_SENT")
@@ -173,7 +171,7 @@ class MateProfileServiceTest {
     }
 
     @Test
-    @DisplayName("getPublicProfile: mealsTogether = 나↔대상 수락된 같이먹기 건수(countAcceptedBetween)")
+    @DisplayName("getPublicProfile: mealsTogether = 나↔대상 실제 매칭 체크인 pairwise(countTogetherBetween)")
     void publicProfile_mealsTogether() {
         User target = user(2L, "상대");
         when(userRepository.findById(2L)).thenReturn(Optional.of(target));
@@ -186,7 +184,7 @@ class MateProfileServiceTest {
                 .thenReturn(Optional.empty());
         when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(2L, 1L, MateRequestStatus.PENDING))
                 .thenReturn(Optional.empty());
-        when(mealRequestRepository.countAcceptedBetween(1L, 2L)).thenReturn(4L);
+        when(checkInRepository.countTogetherBetween(1L, 2L)).thenReturn(4L);
 
         PublicProfileResponse res = service.getPublicProfile(1L, 2L);
 

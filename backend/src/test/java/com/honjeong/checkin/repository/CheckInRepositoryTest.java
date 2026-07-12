@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -634,5 +636,66 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         Optional<CheckIn> found = checkInRepository.findRecentForReview(u.getId(), p.getId(), NOW.minusHours(3));
         assertThat(found).isPresent();
         assertThat(found.get().getId()).isEqualTo(solo.getId());
+    }
+
+    @Test
+    @DisplayName("countTogetherBetween: 나↔특정 상대와 실제로 함께 먹은 pairwise 횟수만(다른 상대와 먹은 건 제외, 방향 무관)")
+    void countTogetherBetween_pairwiseOnly() {
+        User me = persistUser("01000000001", "나");
+        User b = persistUser("01000000002", "B");
+        User c = persistUser("01000000003", "C");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        // 나↔B 함께 2번, 나↔C 함께 1번
+        persistEndedTogetherPair(me, b, place, NOW.minusHours(6));
+        persistEndedTogetherPair(me, b, place, NOW.minusHours(4));
+        persistEndedTogetherPair(me, c, place, NOW.minusHours(2));
+        // 나 혼자 먹은 완료 1건(매칭 아님 → pairwise·together에 안 잡힘)
+        em.persist(endedCheckIn(me, place, NOW.minusHours(1)));
+        em.flush();
+
+        assertThat(checkInRepository.countTogetherBetween(me.getId(), b.getId())).isEqualTo(2);
+        assertThat(checkInRepository.countTogetherBetween(me.getId(), c.getId())).isEqualTo(1);
+        assertThat(checkInRepository.countTogetherBetween(b.getId(), c.getId())).isZero(); // B↔C는 함께 먹은 적 없음
+        assertThat(checkInRepository.countTogetherBetween(b.getId(), me.getId())).isEqualTo(2); // 방향 무관(대칭)
+        // 본인 전체 같이먹음(3) ≠ 특정 상대와의 pairwise — 본인 프로필과 메이트 프로필은 서로 다른 지표다
+        assertThat(checkInRepository.countTogetherByUser(me.getId())).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("countTogetherPairsForUser: 내가 각 상대와 함께 먹은 횟수를 상대별로 배치 집계한다")
+    void countTogetherPairsForUser_groupsByPartner() {
+        User me = persistUser("01000000001", "나");
+        User b = persistUser("01000000002", "B");
+        User c = persistUser("01000000003", "C");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        persistEndedTogetherPair(me, b, place, NOW.minusHours(6));
+        persistEndedTogetherPair(me, b, place, NOW.minusHours(4));
+        persistEndedTogetherPair(me, c, place, NOW.minusHours(2));
+        em.flush();
+
+        Map<Long, Long> byPartner = checkInRepository.countTogetherPairsForUser(me.getId()).stream()
+                .collect(Collectors.toMap(CheckInRepository.TogetherPairRow::getPartnerId,
+                        CheckInRepository.TogetherPairRow::getCnt));
+
+        assertThat(byPartner).hasSize(2)
+                .containsEntry(b.getId(), 2L)
+                .containsEntry(c.getId(), 1L);
+    }
+
+    /**
+     * A와 B가 같은 매칭(meal_request)으로 함께 먹고 종료한 쌍(양쪽 matched 체크인)을 영속화한다.
+     * 확장 유니크 인덱스상 사용자당 현재 체크인 1개라, 같은 사람과 여러 번 함께 먹으려면 각 건을 종료(ENDED)까지 처리한다.
+     * matchedAt·mealRequestId는 end() 후에도 유지되므로 pairwise 집계에 그대로 잡힌다.
+     */
+    private void persistEndedTogetherPair(User a, User b, Place place, LocalDateTime at) {
+        CheckIn bCheckIn = em.persist(CheckIn.startSeeking(b, place, at));
+        MealRequest mr = em.persist(MealRequest.create(a, bCheckIn, place, null, at));
+        em.flush();
+        CheckIn aTogether = CheckIn.startTogether(a, place, mr.getId(), at);
+        aTogether.end(at.plusMinutes(30));
+        checkInRepository.saveAndFlush(aTogether);
+        bCheckIn.matchTogether(mr.getId(), at);
+        bCheckIn.end(at.plusMinutes(30));
+        checkInRepository.saveAndFlush(bCheckIn);
     }
 }

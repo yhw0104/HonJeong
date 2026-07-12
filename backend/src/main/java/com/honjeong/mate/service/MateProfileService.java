@@ -16,7 +16,6 @@ import com.honjeong.mate.dto.PublicProfileResponse;
 import com.honjeong.mate.dto.UserSearchResponse;
 import com.honjeong.mate.repository.MateRepository;
 import com.honjeong.mate.repository.MateRequestRepository;
-import com.honjeong.meal.repository.MealRequestRepository;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.domain.UserStatus;
 import com.honjeong.user.repository.UserFoodPreferenceRepository;
@@ -34,19 +33,16 @@ public class MateProfileService {
     private final MateRequestRepository mateRequestRepository;
     private final CheckInRepository checkInRepository;
     private final UserFoodPreferenceRepository foodRepository;
-    private final MealRequestRepository mealRequestRepository;
     private final BlockRepository blockRepository;
 
     public MateProfileService(UserRepository userRepository, MateRepository mateRepository,
             MateRequestRepository mateRequestRepository, CheckInRepository checkInRepository,
-            UserFoodPreferenceRepository foodRepository, MealRequestRepository mealRequestRepository,
-            BlockRepository blockRepository) {
+            UserFoodPreferenceRepository foodRepository, BlockRepository blockRepository) {
         this.userRepository = userRepository;
         this.mateRepository = mateRepository;
         this.mateRequestRepository = mateRequestRepository;
         this.checkInRepository = checkInRepository;
         this.foodRepository = foodRepository;
-        this.mealRequestRepository = mealRequestRepository;
         this.blockRepository = blockRepository;
     }
 
@@ -113,7 +109,7 @@ public class MateProfileService {
                 t.getDiningStyle() == null ? null : t.getDiningStyle().name(),
                 foods,
                 checkInRepository.countCompletedByUser(targetId),
-                mealRequestRepository.countAcceptedBetween(viewerId, targetId),  // 함께 먹음(나↔대상 수락 건수)
+                checkInRepository.countTogetherBetween(viewerId, targetId),  // 함께 먹음(나↔대상 실제 매칭 체크인 pairwise)
                 0L,  // badgeCount — 뱃지 도메인 없음
                 online, currentPlaceName, currentPlaceId,
                 isMate, requestStatus(viewerId, targetId));

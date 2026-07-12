@@ -93,6 +93,29 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     long countTogetherByUser(@Param("userId") Long userId);
 
     /**
+     * 기능: 두 사용자가 실제로 함께 먹은(pairwise) 횟수 집계 — 양쪽 모두 같은 매칭(meal_request_id)에 체크인이 있는 건만
+     * 쿼리: SELECT COUNT(DISTINCT c.meal_request_id) FROM check_ins c
+     *       WHERE c.user_id = :viewerId AND c.meal_request_id IS NOT NULL
+     *         AND EXISTS (SELECT 1 FROM check_ins o WHERE o.meal_request_id = c.meal_request_id AND o.user_id = :targetId)
+     * Request: viewerId — 조회자(나) ID, targetId — 상대 ID / Response: long — 두 사람이 함께 먹은 횟수
+     *
+     * <p>[의도] 메이트 프로필 "함께 먹음"은 <b>나↔이 사람</b>이 실제로 같이 먹은 pairwise 횟수다. 신청 수락 건수가 아니라
+     * 실제 매칭 체크인(양쪽 모두 같은 meal_request_id) 기준으로 세야, 수락만 되고 매칭 체크인이 없는 유령 데이터가 부풀리지 않는다.
+     * 본인 프로필의 전체 같이먹음({@code countTogetherByUser})과는 다른 지표다(전체 vs 특정 상대와의 pairwise).
+     *
+     * @param viewerId 조회자(나) id
+     * @param targetId 상대 id
+     * @return 두 사람이 실제로 함께 먹은 횟수(양쪽 매칭 체크인이 있는 meal_request 수)
+     */
+    @Query("""
+            SELECT COUNT(DISTINCT c.mealRequestId) FROM CheckIn c
+            WHERE c.user.id = :viewerId AND c.mealRequestId IS NOT NULL
+              AND EXISTS (SELECT 1 FROM CheckIn o
+                          WHERE o.mealRequestId = c.mealRequestId AND o.user.id = :targetId)
+            """)
+    long countTogetherBetween(@Param("viewerId") Long viewerId, @Param("targetId") Long targetId);
+
+    /**
      * 기능: 해당 상태의 전체 체크인 수 집계
      * 쿼리: SELECT COUNT(*) FROM check_ins WHERE status = :status
      * Request: status — 셀 상태 / Response: long — 건수
@@ -454,12 +477,48 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             """)
     List<CheckInCountRow> countByUserIds(@Param("userIds") List<Long> userIds);
 
+    /**
+     * 기능: 내가 각 상대와 실제로 함께 먹은(pairwise) 횟수를 상대별로 배치 집계(메이트 목록 "함께 먹음" N+1 방지)
+     * 쿼리: SELECT o.user_id AS partnerId, COUNT(DISTINCT c.meal_request_id) AS cnt
+     *       FROM check_ins c, check_ins o
+     *       WHERE c.user_id = :viewerId AND c.meal_request_id IS NOT NULL
+     *         AND o.meal_request_id = c.meal_request_id AND o.user_id <> :viewerId
+     *       GROUP BY o.user_id
+     * Request: viewerId — 기준 사용자(나) ID / Response: List&lt;TogetherPairRow&gt; — 상대별 함께 먹은 횟수(함께 먹은 상대만)
+     *
+     * <p>[의도] 각 매칭(meal_request_id)에는 정확히 두 사용자의 체크인이 있다. 내 체크인(c)과 같은 매칭의 상대 체크인(o)을
+     * 짝지어 상대(o.user)별로 distinct 매칭 수를 센다 — 메이트 프로필 단건({@code countTogetherBetween})과 같은 기준이다.
+     * 수락만 되고 매칭 체크인이 없는 유령 건은 애초에 체크인이 없어 집계되지 않는다. 함께 먹은 적 없는 상대는 결과에 없다(기본값 0).
+     *
+     * <p><b>주의:</b> 특정 상대로 필터링하지 않는 전체 배치라 viewerId만 받는다. 호출 측은 파트너 id로 map을 만들어 조회한다.
+     *
+     * @param viewerId 기준 사용자(나) id
+     * @return 상대별 함께 먹은 횟수 행(함께 먹은 상대만 포함)
+     */
+    @Query("""
+            SELECT o.user.id AS partnerId, COUNT(DISTINCT c.mealRequestId) AS cnt
+            FROM CheckIn c, CheckIn o
+            WHERE c.user.id = :viewerId AND c.mealRequestId IS NOT NULL
+              AND o.mealRequestId = c.mealRequestId AND o.user.id <> :viewerId
+            GROUP BY o.user.id
+            """)
+    List<TogetherPairRow> countTogetherPairsForUser(@Param("viewerId") Long viewerId);
+
     /** 사용자별 체크인 수 한 행(사용자 id + 건수). */
     interface CheckInCountRow {
         /** 사용자 ID */
         Long getUserId();
 
         /** 유효 체크인 건수(CANCELLED·SEEKING 제외) */
+        long getCnt();
+    }
+
+    /** 나와 특정 상대가 함께 먹은 횟수 한 행(상대 id + 건수). */
+    interface TogetherPairRow {
+        /** 함께 먹은 상대 사용자 ID */
+        Long getPartnerId();
+
+        /** 그 상대와 함께 먹은 횟수(distinct meal_request_id) */
         long getCnt();
     }
 }

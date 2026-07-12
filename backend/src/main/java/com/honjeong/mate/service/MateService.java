@@ -1,6 +1,5 @@
 package com.honjeong.mate.service;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -10,13 +9,12 @@ import org.springframework.transaction.annotation.Transactional;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.checkin.repository.CheckInRepository.CheckInCountRow;
+import com.honjeong.checkin.repository.CheckInRepository.TogetherPairRow;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.mate.domain.Mate;
 import com.honjeong.mate.dto.MateResponse;
 import com.honjeong.mate.repository.MateRepository;
-import com.honjeong.meal.repository.MealRequestRepository;
-import com.honjeong.meal.repository.MealRequestRepository.MealPairRow;
 import com.honjeong.user.domain.User;
 
 /**
@@ -28,13 +26,10 @@ public class MateService {
 
     private final MateRepository mateRepository;
     private final CheckInRepository checkInRepository;
-    private final MealRequestRepository mealRequestRepository;
 
-    public MateService(MateRepository mateRepository, CheckInRepository checkInRepository,
-            MealRequestRepository mealRequestRepository) {
+    public MateService(MateRepository mateRepository, CheckInRepository checkInRepository) {
         this.mateRepository = mateRepository;
         this.checkInRepository = checkInRepository;
-        this.mealRequestRepository = mealRequestRepository;
     }
 
     /**
@@ -53,12 +48,9 @@ public class MateService {
                 .collect(Collectors.toMap(c -> c.getUser().getId(), Function.identity(), (a, b) -> a));
         Map<Long, Long> countByUser = checkInRepository.countByUserIds(mateIds).stream()
                 .collect(Collectors.toMap(CheckInCountRow::getUserId, CheckInCountRow::getCnt));
-        // 함께 먹음(나↔각 메이트 수락 건수)을 한 번의 조회로 집계한다(메이트별 count N+1 방지).
-        Map<Long, Long> togetherByUser = new HashMap<>();
-        for (MealPairRow row : mealRequestRepository.findAcceptedPairsForUser(userId)) {
-            Long otherId = row.getFromId().equals(userId) ? row.getToId() : row.getFromId();
-            togetherByUser.merge(otherId, 1L, Long::sum);
-        }
+        // 함께 먹음(나↔각 메이트 실제 매칭 체크인 pairwise)을 한 번의 조회로 집계한다(메이트별 count N+1 방지).
+        Map<Long, Long> togetherByUser = checkInRepository.countTogetherPairsForUser(userId).stream()
+                .collect(Collectors.toMap(TogetherPairRow::getPartnerId, TogetherPairRow::getCnt));
 
         return mates.stream().map(m -> {
             User mate = m.getMateUser();
