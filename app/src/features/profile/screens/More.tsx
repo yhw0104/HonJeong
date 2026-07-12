@@ -38,7 +38,7 @@ const SECTIONS: Section[] = [
     title: '메이트',
     items: [
       // 받은 신청 건수(d·badge)는 렌더 시 실데이터로 채운다(아래 menuDetail·menuBadge).
-      { l: '받은 같이 먹기 신청', icon: 'mate', route: 'ReceivedRequests' },
+      { l: '같이 먹기 신청', icon: 'mate', route: 'ReceivedRequests' },
       { l: '차단 / 신고 관리', icon: 'shield', route: 'BlockReport' },
     ],
   },
