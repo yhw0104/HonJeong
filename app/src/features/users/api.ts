@@ -29,12 +29,13 @@ export type UpdateProfileBody = {
 
 export const updateMyProfile = (body: UpdateProfileBody) => apiPatch<MyProfile>('/users/me', body);
 
-// GET /users/me/activity-summary — 프로필 카드 통계(혼밥·즐겨찾기·메이트 카운트).
+// GET /users/me/activity-summary — 프로필 카드 통계(혼밥·같이먹음·즐겨찾기·메이트 카운트).
 export type ActivitySummary = {
   checkInCount: number;
   reviewCount: number;
   favoriteCount: number;
   mateCount: number;
+  togetherCount: number;
 };
 
 export const fetchActivitySummary = () => apiGet<ActivitySummary>('/users/me/activity-summary');

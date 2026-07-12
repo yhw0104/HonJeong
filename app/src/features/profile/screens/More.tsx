@@ -64,10 +64,10 @@ export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
   const received = useReceivedRequests('PENDING');
   const pendingCount = received.data?.length;
   const num = (n?: number) => (n === undefined ? '–' : String(n));
-  const stats: { n: string; l: string; route: 'DiningHistory' | 'Mates' | 'Favorites' }[] = [
+  const stats: { n: string; l: string; route: 'DiningHistory' | 'Mates' }[] = [
     { n: num(summary?.checkInCount), l: '혼밥', route: 'DiningHistory' },
+    { n: num(summary?.togetherCount), l: '같이먹음', route: 'DiningHistory' },
     { n: num(summary?.mateCount), l: '메이트', route: 'Mates' },
-    { n: num(summary?.favoriteCount), l: '즐겨찾기', route: 'Favorites' },
   ];
   // '내 혼밥 기록'·'받은 같이 먹기 신청' detail은 실데이터, 나머지 메뉴는 정적 d 유지.
   const menuDetail = (it: MenuItem) => {
