@@ -1,5 +1,5 @@
 // SlideToConfirm — '밀어서 완료' 슬라이드 확인 컨트롤. 실수 탭 방지용(일부러 끝까지 밀어야 onConfirm).
-// 썸(원형 손잡이)을 오른쪽 끝 85%까지 밀면 확정, 그 전에 놓으면 처음으로 스프링백.
+// 썸(둥근 사각 손잡이)을 오른쪽 끝 75%까지 밀면 확정, 그 전에 놓으면 처음으로 스프링백.
 import React, { useRef } from 'react';
 import { View, Text, Animated, PanResponder, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { T2 } from '@/shared/theme';
@@ -28,7 +28,7 @@ export function SlideToConfirm({ label, onConfirm, style }: {
       onPanResponderRelease: (_, g) => {
         const max = maxXRef.current;
         const nx = Math.min(Math.max(0, g.dx), max);
-        if (max > 0 && nx >= max * 0.85) {
+        if (max > 0 && nx >= max * 0.75) {
           confirmedRef.current = true;
           Animated.timing(x, { toValue: max, duration: 110, useNativeDriver: false }).start(() => onConfirm());
         } else {
@@ -52,10 +52,10 @@ export function SlideToConfirm({ label, onConfirm, style }: {
 }
 
 const styles = StyleSheet.create({
-  track: { height: TRACK_H, borderRadius: TRACK_H / 2, backgroundColor: T2.brandSoft, justifyContent: 'center', overflow: 'hidden' },
+  track: { height: TRACK_H, borderRadius: 16, backgroundColor: T2.brandSoft, justifyContent: 'center', overflow: 'hidden' },
   label: { textAlign: 'center', color: T2.brand, fontWeight: '800', fontSize: 15, letterSpacing: -0.3 },
   thumb: {
-    position: 'absolute', left: PAD, top: PAD, width: THUMB, height: THUMB, borderRadius: THUMB / 2,
+    position: 'absolute', left: PAD, top: PAD, width: THUMB, height: THUMB, borderRadius: 12,
     backgroundColor: T2.brand, alignItems: 'center', justifyContent: 'center',
     shadowColor: T2.brand, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 6, elevation: 4,
   },
