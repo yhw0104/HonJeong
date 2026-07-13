@@ -165,7 +165,7 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
                 el.appendChild(pin);
                 addOverlay(pos, el, makeLabel(it.name));
               } else {
-                // 묶음 마커: 단독 핀처럼 동그란 원 안에 'N곳'. 그룹에 모집중이 하나라도 있으면 주황(채움), 없으면 흰 원(회색 글자).
+                // 묶음 마커: 단독 핀처럼 동그란 원 안에 겹침 개수(숫자). 그룹에 모집중이 하나라도 있으면 주황(채움), 없으면 흰 원(회색 글자).
                 var hasSeek = g.some(function(x){ return (x.seekingCount || 0) > 0; });
                 var ids = g.map(function(x){ return x.placeId; }).join(',');
                 var base = 'pointer-events:auto;cursor:pointer;box-sizing:border-box;min-width:20px;height:20px;border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 5px;font-weight:800;font-size:10px;line-height:1;';
@@ -174,7 +174,7 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
                 } else {
                   pin.style.cssText = base + 'background:#fff;color:#555;border:1.5px solid #B8B8B8;box-shadow:0 1px 4px rgba(0,0,0,0.22);';
                 }
-                pin.textContent = g.length + '곳';
+                pin.textContent = String(g.length); // 겹침 개수(숫자만) — 지도 클러스터 표준
                 pin.addEventListener('click', function(){ post('cluster:' + ids); });
                 el.appendChild(pin);
                 addOverlay(pos, el, null); // 'N곳'을 마커 안에 넣었으므로 하단 라벨 없음
