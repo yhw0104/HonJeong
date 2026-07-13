@@ -120,10 +120,9 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
             label.style.cssText = 'pointer-events:none;max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:800;color:#333;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff;';
             return label;
           }
-          // 마커 1개를 지도에 올리고 라벨을 등록한다(el = [핀] 위 + [라벨] 아래 세로 스택).
+          // 마커 1개를 지도에 올린다. label이 있으면 핀 아래에 붙이고 줌 토글 대상으로 등록(없으면 핀만).
           function addOverlay(pos, el, label){
-            el.appendChild(label);
-            window.__labels.push(label);
+            if (label) { el.appendChild(label); window.__labels.push(label); }
             var overlay = new kakao.maps.CustomOverlay({ position: pos, content: el, clickable: true });
             overlay.setMap(map);
             window.__markers.push(overlay);
@@ -166,18 +165,19 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
                 el.appendChild(pin);
                 addOverlay(pos, el, makeLabel(it.name));
               } else {
-                // 묶음 마커: 식당 개수 N(둥근 사각 배지 → 단독 핀과 구분). 그룹에 모집중이 하나라도 있으면 주황, 없으면 회색.
+                // 묶음 마커: 단독 핀처럼 동그란 원 안에 'N곳'. 그룹에 모집중이 하나라도 있으면 주황(채움), 없으면 흰 원(회색 글자).
                 var hasSeek = g.some(function(x){ return (x.seekingCount || 0) > 0; });
                 var ids = g.map(function(x){ return x.placeId; }).join(',');
+                var base = 'pointer-events:auto;cursor:pointer;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;line-height:1;';
                 if (hasSeek) {
-                  pin.style.cssText = 'pointer-events:auto;cursor:pointer;min-width:22px;text-align:center;background:#FF5A36;color:#fff;border:2px solid #fff;border-radius:9px;padding:3px 8px;font-weight:800;font-size:12px;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,0.28);';
+                  pin.style.cssText = base + 'background:#FF5A36;color:#fff;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.28);';
                 } else {
-                  pin.style.cssText = 'pointer-events:auto;cursor:pointer;min-width:22px;text-align:center;background:#fff;color:#555;border:1.5px solid #B8B8B8;border-radius:9px;padding:3px 8px;font-weight:800;font-size:12px;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,0.22);';
+                  pin.style.cssText = base + 'background:#fff;color:#555;border:1.5px solid #B8B8B8;box-shadow:0 1px 4px rgba(0,0,0,0.22);';
                 }
-                pin.textContent = String(g.length);
+                pin.textContent = g.length + '곳';
                 pin.addEventListener('click', function(){ post('cluster:' + ids); });
                 el.appendChild(pin);
-                addOverlay(pos, el, makeLabel(g.length + '곳'));
+                addOverlay(pos, el, null); // 'N곳'을 마커 안에 넣었으므로 하단 라벨 없음
               }
             });
             window.__updateLabels(); // 현재 줌 레벨에 맞춰 라벨 표시 여부 초기화
