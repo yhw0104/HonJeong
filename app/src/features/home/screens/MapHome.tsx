@@ -45,6 +45,11 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const searchAt = anchor ?? coord;
   // 목록 거리 표기는 검색 기준점(anchor)이 아니라 '내 위치(GPS)' 기준으로 — 진짜 GPS일 때만 '내 위치에서'.
   const myGps = source === 'gps' ? coord : null;
+  // 목록·식당선택 시트·묶음마커 시트 공통 거리 표기. GPS 있으면 '내 위치에서 Nkm', 없으면 검색기준(백엔드) 거리.
+  const distanceLabel = (p: { latitude: number; longitude: number; distanceMeters: number }) =>
+    myGps
+      ? `내 위치에서 ${formatDistance(distanceMeters(myGps, { lat: p.latitude, lng: p.longitude }))}`
+      : formatDistance(p.distanceMeters);
 
   const stats = useStats();
   // 사회적 증거: '지금 혼밥 중'은 지금 식당에서 혼자인 모두(모집중+혼밥중). 그 중 일부가 같이 먹을 사람을 찾는 중.
@@ -276,11 +281,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                 )}
                 {/* 거리(내 위치 기준) · 모집(거리 옆) */}
                 <View style={styles.listMetaRow}>
-                  <Text style={styles.listMeta}>
-                    {myGps
-                      ? `내 위치에서 ${formatDistance(distanceMeters(myGps, { lat: r.latitude, lng: r.longitude }))}`
-                      : formatDistance(r.distanceMeters)}
-                  </Text>
+                  <Text style={styles.listMeta}>{distanceLabel(r)}</Text>
                   {r.seekingCount > 0 && (
                     <>
                       <Text style={styles.dot}>·</Text>
@@ -329,7 +330,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.pickName}>{p.name}</Text>
-                    <Text style={styles.pickMeta}>{[p.category, formatDistance(p.distanceMeters)].filter(Boolean).join(' · ')}</Text>
+                    <Text style={styles.pickMeta}>{[p.category, distanceLabel(p)].filter(Boolean).join(' · ')}</Text>
                   </View>
                   <Icon name="chevronRight" size={18} color={T2.textMute} />
                 </Pressable>
@@ -373,7 +374,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.pickName}>{p.name}</Text>
                       <View style={styles.listMetaRow}>
-                        <Text style={styles.listMeta}>{[p.category, formatDistance(p.distanceMeters)].filter(Boolean).join(' · ')}</Text>
+                        <Text style={styles.listMeta}>{[p.category, distanceLabel(p)].filter(Boolean).join(' · ')}</Text>
                         {p.seekingCount > 0 && (
                           <>
                             <Text style={styles.dot}>·</Text>
