@@ -11,7 +11,7 @@ import { useLocation } from '@/shared/location/useLocation';
 import { useNearby } from '@/features/place/queries';
 import { shouldOfferResearch } from '@/shared/location/research';
 import type { Coord } from '@/shared/location/pickLocation';
-import { useMap, useMyCheckIn, useStats, useStartCheckIn, useDineAlone, useCancelCheckIn } from '@/features/checkin/queries';
+import { useMyCheckIn, useStats, useStartCheckIn, useDineAlone, useCancelCheckIn } from '@/features/checkin/queries';
 import { usePromptEndCheckIn } from '@/features/checkin/usePromptEndCheckIn';
 import { checkInMode } from '@/features/checkin/statusView';
 import { formatDistance } from '@/shared/format';
@@ -47,8 +47,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   // 사회적 증거: '지금 혼밥 중'은 지금 식당에서 혼자인 모두(모집중+혼밥중). 그 중 일부가 같이 먹을 사람을 찾는 중.
   const honbabTotal = stats.data ? stats.data.seekingCount + stats.data.activeCount : null;
   const seekingNow = stats.data?.seekingCount ?? 0;
-  const markers = useMap(searchAt);
-  const nearby = useNearby(searchAt, 1000, true, true); // 마커(useMap)와 동일하게 anchor를 폴링 — 카운트만 갱신되고, anchor 고정이라 파란 점이 움직여도 목록은 안 튐(재검색 버튼으로만 기준점 이동)
+  const nearby = useNearby(searchAt, 1000, true, true); // 마커·목록 공통 소스. anchor를 폴링해 카운트만 갱신, anchor 고정이라 파란 점이 움직여도 목록은 안 튐(재검색 버튼으로만 기준점 이동)
   const myCheckIn = useMyCheckIn();
   const startMut = useStartCheckIn();
   const dineAloneMut = useDineAlone();
@@ -58,7 +57,6 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const honbabOn = !!myCheckIn.data; // SEEKING/ACTIVE/TOGETHER — 종료/취소되면 null
   const nearbyList = nearby.data?.content ?? [];
   const myPlaceName =
-    markers.data?.find((m) => m.placeId === myCheckIn.data?.placeId)?.name ??
     nearbyList.find((p) => p.placeId === myCheckIn.data?.placeId)?.name ??
     '내 식당';
 
@@ -125,16 +123,14 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         center={searchAt}
         // '내 위치' 파란 점은 진짜 GPS일 때만 — 폴백 좌표(연남동 기본 등)를 내 위치처럼 보이게 하지 않는다.
         myLocation={source === 'gps' ? coord : null}
-        // 마커는 '같이 먹을 사람(모집중)'을 표시 — 모집중 0명(혼밥중만)인 식당은 마커를 띄우지 않는다.
-        markers={(markers.data ?? [])
-          .filter((m) => m.seekingCount > 0)
-          .map((m) => ({
-            placeId: m.placeId,
-            latitude: m.latitude,
-            longitude: m.longitude,
-            activeCount: m.activeCount,
-            seekingCount: m.seekingCount,
-          }))}
+        // 마커 = 하단 리스트(주변 식당)와 같은 집합. 모집중 있으면 숫자 배지, 없으면 작은 점.
+        markers={nearbyList.map((p) => ({
+          placeId: p.placeId,
+          latitude: p.latitude,
+          longitude: p.longitude,
+          activeCount: p.activeCount,
+          seekingCount: p.seekingCount,
+        }))}
         onMarkerPress={(placeId) => goDetail(placeId)}
         onCenterChange={setMapCenter}
       />

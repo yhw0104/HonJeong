@@ -109,11 +109,17 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
             window.__markers = [];
             (list || []).forEach(function(it){
               var pos = new kakao.maps.LatLng(it.latitude, it.longitude);
-              // 알약(타원) 마커: 동그라미 + 옆에 모집중 인원 수(모집중 우선 노출). 클릭하면 식당 상세로.
+              var seeking = it.seekingCount || 0;
               var el = document.createElement('div');
-              el.style.cssText = 'display:flex;align-items:center;gap:5px;background:#fff;border:2px solid #FF5A36;border-radius:999px;padding:3px 9px 3px 5px;box-shadow:0 2px 6px rgba(0,0,0,0.25);cursor:pointer;';
-              el.innerHTML = '<div style="width:14px;height:14px;border-radius:50%;background:#FF5A36;"></div>'
-                + '<span style="color:#FF5A36;font-weight:800;font-size:12px;line-height:1;">' + it.seekingCount + '</span>';
+              if (seeking > 0) {
+                // 모집중 있음: 주황 알약 + 인원 수(강조). 클릭하면 식당 상세로.
+                el.style.cssText = 'display:flex;align-items:center;gap:5px;background:#fff;border:2px solid #FF5A36;border-radius:999px;padding:3px 9px 3px 5px;box-shadow:0 2px 6px rgba(0,0,0,0.25);cursor:pointer;';
+                el.innerHTML = '<div style="width:14px;height:14px;border-radius:50%;background:#FF5A36;"></div>'
+                  + '<span style="color:#FF5A36;font-weight:800;font-size:12px;line-height:1;">' + seeking + '</span>';
+              } else {
+                // 모집중 없음: 작은 점(식당 위치만 표시, 덜 강조).
+                el.style.cssText = 'width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #B8B8B8;box-shadow:0 1px 4px rgba(0,0,0,0.2);cursor:pointer;';
+              }
               el.addEventListener('click', function(){ post('marker:' + it.placeId); });
               var overlay = new kakao.maps.CustomOverlay({ position: pos, content: el, clickable: true });
               overlay.setMap(map);
