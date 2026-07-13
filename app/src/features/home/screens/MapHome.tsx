@@ -14,6 +14,7 @@ import { useMyCheckIn, useStats, useStartCheckIn, useDineAlone, useCancelCheckIn
 import { usePromptEndCheckIn } from '@/features/checkin/usePromptEndCheckIn';
 import { checkInMode } from '@/features/checkin/statusView';
 import { formatDistance } from '@/shared/format';
+import { distanceMeters } from '@/shared/location/distance';
 import type { MainTabScreenProps } from '@/navigation/types';
 
 // 하단 시트 스냅 높이(접힘/펼침). 펼치면 화면의 82%까지 올라와 전체 리스트가 보인다.
@@ -42,6 +43,8 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     setAnchor((a) => (a == null || rank > prevRank ? coord : a));
   }, [coord, source]);
   const searchAt = anchor ?? coord;
+  // 목록 거리 표기는 검색 기준점(anchor)이 아니라 '내 위치(GPS)' 기준으로 — 진짜 GPS일 때만 '내 위치에서'.
+  const myGps = source === 'gps' ? coord : null;
 
   const stats = useStats();
   // 사회적 증거: '지금 혼밥 중'은 지금 식당에서 혼자인 모두(모집중+혼밥중). 그 중 일부가 같이 먹을 사람을 찾는 중.
@@ -271,9 +274,13 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                     <Text style={styles.ratingCount}>리뷰 {r.reviewCount}</Text>
                   </View>
                 )}
-                {/* 거리 · 모집(거리 옆) */}
+                {/* 거리(내 위치 기준) · 모집(거리 옆) */}
                 <View style={styles.listMetaRow}>
-                  <Text style={styles.listMeta}>{formatDistance(r.distanceMeters)}</Text>
+                  <Text style={styles.listMeta}>
+                    {myGps
+                      ? `내 위치에서 ${formatDistance(distanceMeters(myGps, { lat: r.latitude, lng: r.longitude }))}`
+                      : formatDistance(r.distanceMeters)}
+                  </Text>
                   {r.seekingCount > 0 && (
                     <>
                       <Text style={styles.dot}>·</Text>
