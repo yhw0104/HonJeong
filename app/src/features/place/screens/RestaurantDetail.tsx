@@ -11,9 +11,9 @@ import { T2 } from '@/shared/theme';
 import { usePlaceDetail, useNearby } from '@/features/place/queries';
 import { formatDistance, walkingMinutes } from '@/shared/location/distance';
 import { useSeekers, useMyCheckIn, useStartCheckIn, useDineAlone, useCancelCheckIn } from '@/features/checkin/queries';
-import { usePromptEndCheckIn } from '@/features/checkin/usePromptEndCheckIn';
+import { EndHonbabSheet } from '@/features/checkin/components/EndHonbabSheet';
 import { checkInMode } from '@/features/checkin/statusView';
-import type { Seeker } from '@/features/checkin/api';
+import type { Seeker, CheckIn } from '@/features/checkin/api';
 import { formatElapsed, addressHead } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { usePlaceReviews, usePlaceReviewSummary, useDeleteReview, usePlacePhotos } from '@/features/review/queries';
@@ -82,7 +82,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const seekers = useSeekers(placeId);
   const myCheckIn = useMyCheckIn();
   const startMut = useStartCheckIn();
-  const promptEnd = usePromptEndCheckIn();
+  const [ending, setEnding] = useState<CheckIn | null>(null); // 종료 시트(밀어서 완료) 대상
   const dineAloneMut = useDineAlone();
   const cancelMut = useCancelCheckIn();
   const name = detail.data?.name ?? route.params.name ?? '식당';
@@ -128,7 +128,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const goDinerProfile = (userId: number) => navigation.navigate('MateProfile', { userId });
   const toggleHonbab = () => {
     if (honbabOn && myCheckIn.data) {
-      if (myCheckIn.data.status !== 'SEEKING') promptEnd(myCheckIn.data);
+      if (myCheckIn.data.status !== 'SEEKING') setEnding(myCheckIn.data);
       // SEEKING이면 상태바의 '혼자 먹기/그만두기'로 처리 — CTA 탭은 무시
       return;
     }
@@ -278,7 +278,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
             mode={checkInMode(myCheckIn.data.status)}
             place={name}
             partnerNickname={myCheckIn.data.partnerNickname}
-            onEnd={() => promptEnd(myCheckIn.data!)}
+            onEnd={() => setEnding(myCheckIn.data!)}
             onDineAlone={() => dineAloneMut.mutate(myCheckIn.data!.checkInId)}
             onQuit={() => cancelMut.mutate(myCheckIn.data!.checkInId)}
           />
@@ -286,6 +286,9 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
       )}
 
       <FavoriteSheet placeId={placeId} visible={favSheet} onClose={() => setFavSheet(false)} />
+
+      {/* 혼밥/같이먹기 종료 — 밀어서 완료 시트 */}
+      <EndHonbabSheet checkIn={ending} onClose={() => setEnding(null)} />
     </View>
   );
 }

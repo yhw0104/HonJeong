@@ -11,7 +11,8 @@ import { useLocation } from '@/shared/location/useLocation';
 import { useNearby } from '@/features/place/queries';
 import type { Coord } from '@/shared/location/pickLocation';
 import { useMyCheckIn, useStats, useStartCheckIn, useDineAlone, useCancelCheckIn } from '@/features/checkin/queries';
-import { usePromptEndCheckIn } from '@/features/checkin/usePromptEndCheckIn';
+import { EndHonbabSheet } from '@/features/checkin/components/EndHonbabSheet';
+import type { CheckIn } from '@/features/checkin/api';
 import { checkInMode } from '@/features/checkin/statusView';
 import { formatDistance } from '@/shared/format';
 import { distanceMeters } from '@/shared/location/distance';
@@ -69,7 +70,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const startMut = useStartCheckIn();
   const dineAloneMut = useDineAlone();
   const cancelMut = useCancelCheckIn();
-  const promptEnd = usePromptEndCheckIn();
+  const [ending, setEnding] = useState<CheckIn | null>(null); // 종료 시트(밀어서 완료) 대상
 
   const honbabOn = !!myCheckIn.data; // SEEKING/ACTIVE/TOGETHER — 종료/취소되면 null
   const nearbyList = nearby.data?.content ?? [];
@@ -101,7 +102,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const endHonbab = () => {
     if (!myCheckIn.data) return;
     if (myCheckIn.data.status === 'SEEKING') return; // 모집중은 상태바의 혼자먹기/그만두기로만
-    promptEnd(myCheckIn.data);
+    setEnding(myCheckIn.data); // 밀어서 완료 시트 열기
   };
 
   // 내 위치로: 진짜 GPS가 있으면 지도 이동, 없으면(거부/실패) 권한을 다시 요청한다.
@@ -426,6 +427,9 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           </>
         );
       })()}
+
+      {/* 혼밥/같이먹기 종료 — 밀어서 완료 시트 */}
+      <EndHonbabSheet checkIn={ending} onClose={() => setEnding(null)} />
     </View>
   );
 }
