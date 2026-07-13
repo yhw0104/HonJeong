@@ -4,6 +4,7 @@ import React from 'react';
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { EmojiCircle, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
+import { formatTimeAgo } from '@/shared/format';
 import type { MealRequestListItem } from '@/features/meal/api';
 import { mealStatusLabelReceived, mealStatusLabelSent } from '@/features/meal/mealCopy';
 
@@ -57,6 +58,7 @@ export function MealRequestLists({
   declinePending: boolean;
   onOpenProfile: (userId: number) => void;
 }) {
+  const now = new Date(); // 보낸 시각을 상대표기('N분 전')로 — 목록 내 모든 항목 동일 기준
   if (tab === 'received') {
     if (receivedLoading) return <ActivityIndicator color={T2.brand} />;
     if (receivedError) return <Text style={styles.emptyInline}>신청을 불러오지 못했어요.</Text>;
@@ -69,7 +71,7 @@ export function MealRequestLists({
               <EmojiCircle emoji={r.fromUser.nickname[0] ?? '?'} size={46} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.recvName}>{r.fromUser.nickname}</Text>
-                <Text style={styles.recvMeta}>{r.status === 'PENDING' ? '새 신청' : mealStatusLabelReceived(r.status)}</Text>
+                <Text style={styles.recvMeta}>{(r.status === 'PENDING' ? '새 신청' : mealStatusLabelReceived(r.status)) + ' · ' + formatTimeAgo(r.createdAt, now)}</Text>
               </View>
             </Pressable>
             <View style={styles.recvPlace}>
@@ -110,7 +112,7 @@ export function MealRequestLists({
             <EmojiCircle emoji={s.toUser.nickname[0] ?? '?'} size={44} dimmed={closed} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.sentName, { color: closed ? T2.textMute : T2.text }]}>{s.toUser.nickname}</Text>
-              <Text style={styles.sentMeta} numberOfLines={1}>{s.placeName}</Text>
+              <Text style={styles.sentMeta} numberOfLines={1}>{s.placeName + ' · ' + formatTimeAgo(s.createdAt, now)}</Text>
             </View>
             <View style={[styles.sentPill, { backgroundColor: accepted ? T2.brandSoft : T2.bg, borderColor: accepted ? 'rgba(255,90,31,0.2)' : T2.border }]}>
               <Text style={[styles.sentPillText, { color: accepted ? T2.brand : T2.textMute }]}>{mealStatusLabelSent(s.status)}</Text>
