@@ -116,25 +116,8 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
             (window.__markers || []).forEach(function(o){ o.setMap(null); });
             window.__markers = [];
             window.__labels = [];
-            list = list || [];
-            // 위경도가 완전히 같은 식당들(같은 건물 등)은 겹치므로, 같은 좌표 그룹을 작은 원형으로 살짝 흩뿌린다(모두 보이고 클릭되게).
-            var byCoord = {}, seen = {};
-            list.forEach(function(it){
-              var key = Number(it.latitude).toFixed(6) + ',' + Number(it.longitude).toFixed(6);
-              (byCoord[key] = byCoord[key] || []).push(it);
-            });
-            list.forEach(function(it){
-              var key = Number(it.latitude).toFixed(6) + ',' + Number(it.longitude).toFixed(6);
-              var group = byCoord[key];
-              var lat = Number(it.latitude), lng = Number(it.longitude);
-              if (group.length > 1) {
-                var idx = seen[key] == null ? 0 : seen[key] + 1; seen[key] = idx;
-                var ang = (2 * Math.PI * idx) / group.length;
-                var R = 0.00006; // ≈6.6m 반경으로 방사
-                lat += R * Math.cos(ang);
-                lng += R * Math.sin(ang);
-              }
-              var pos = new kakao.maps.LatLng(lat, lng);
+            (list || []).forEach(function(it){
+              var pos = new kakao.maps.LatLng(it.latitude, it.longitude);
               var seeking = it.seekingCount || 0;
               // 세로 스택: [마커] 위 + [식당 이름] 아래.
               // 클릭 영역은 '핀'만(pointer-events) — 넓은 이름 라벨/여백은 클릭을 통과시켜 옆 식당 핀이 안 가려지게 한다.
