@@ -1,9 +1,9 @@
 // TogetherFeed — 같이 먹기 탭(하단바). 주변 혼밥 식당 + 받은/보낸 신청.
 import React, { useCallback, useState } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, Pressable, ScrollView, Alert, StyleSheet, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Screen, EmojiCircle, Icon } from '@/shared/components';
+import { Screen } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { MainTabScreenProps } from '@/navigation/types';
 import { useLocation } from '@/shared/location/useLocation';
@@ -12,12 +12,13 @@ import { formatDistance } from '@/shared/format';
 import {
   useReceivedRequests, useSentRequests, useAcceptMealRequest, useDeclineMealRequest,
 } from '@/features/meal/queries';
-import { mealStatusLabelReceived, mealStatusLabelSent, mealErrorMessage } from '@/features/meal/mealCopy';
+import { mealErrorMessage } from '@/features/meal/mealCopy';
+import { MealRequestSegments, MealRequestLists, type MealTab } from '@/features/meal/components/MealRequestList';
 import { fetchMyCheckIn } from '@/features/checkin/api';
 import { LIVE_REFETCH_MS } from '@/shared/realtime';
 
 export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherFeed'>) {
-  const [tab, setTab] = useState<'received' | 'sent'>('received');
+  const [tab, setTab] = useState<MealTab>('received');
   const { coord } = useLocation();
   const nearby = useNearby(coord);
   const received = useReceivedRequests();
@@ -57,21 +58,7 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
     <Screen bg={T2.bg} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.h1}>같이 먹기</Text>
-        <View style={styles.segRow}>
-          {([
-            { key: 'received' as const, label: '받은 신청', count: receivedList.length },
-            { key: 'sent' as const, label: '보낸 신청', count: sentList.length },
-          ]).map((s) => {
-            const on = tab === s.key;
-            return (
-              <Pressable key={s.key} style={styles.seg} onPress={() => setTab(s.key)} accessibilityRole="button">
-                <Text style={[styles.segLabel, { color: on ? T2.text : T2.textMute }]}>{s.label}</Text>
-                <Text style={[styles.segCount, { color: on ? T2.brand : T2.textMute }]}>{s.count}</Text>
-                {on && <View style={styles.segUnderline} />}
-              </Pressable>
-            );
-          })}
-        </View>
+        <MealRequestSegments tab={tab} onTab={setTab} receivedCount={receivedList.length} sentCount={sentList.length} />
       </View>
       <View style={styles.divider} />
 
@@ -105,65 +92,20 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
 
         <View style={styles.sectionDivider} />
 
-        {/* 받은 신청 */}
-        {tab === 'received' && (
-          received.isLoading ? <ActivityIndicator color={T2.brand} /> :
-          received.isError ? <Text style={styles.emptyInline}>신청을 불러오지 못했어요.</Text> :
-          receivedList.length === 0 ? <Text style={styles.emptyInline}>받은 신청이 없어요.</Text> : (
-            <View style={{ gap: 12 }}>
-              {receivedList.map((r) => (
-                <View key={r.mealRequestId} style={styles.recvCard}>
-                  <Pressable style={styles.recvTop} onPress={() => navigation.navigate('MateProfile', { userId: r.fromUser.userId })} accessibilityRole="button">
-                    <EmojiCircle emoji={r.fromUser.nickname[0] ?? '?'} size={46} />
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.recvName}>{r.fromUser.nickname}</Text>
-                      <Text style={styles.recvMeta}>{r.status === 'PENDING' ? '새 신청' : mealStatusLabelReceived(r.status)}</Text>
-                    </View>
-                  </Pressable>
-                  <View style={styles.recvPlace}>
-                    <Icon name="pin" size={14} color={T2.brand} />
-                    <Text style={styles.recvPlaceText}>{r.placeName}</Text>
-                  </View>
-                  {r.message ? <Text style={styles.recvMsg}>"{r.message}"</Text> : null}
-                  {r.status === 'PENDING' && (
-                    <View style={styles.recvBtns}>
-                      <Pressable style={[styles.recvBtn, styles.recvBtnReject]} disabled={decline.isPending}
-                        onPress={() => respond(decline, r.mealRequestId)} accessibilityRole="button">
-                        <Text style={styles.recvBtnRejectText}>거절</Text>
-                      </Pressable>
-                      <Pressable style={[styles.recvBtn, styles.recvBtnAccept]} disabled={accept.isPending}
-                        onPress={() => respond(accept, r.mealRequestId)} accessibilityRole="button">
-                        <Text style={styles.recvBtnAcceptText}>수락하기</Text>
-                      </Pressable>
-                    </View>
-                  )}
-                </View>
-              ))}
-            </View>
-          )
-        )}
-
-        {/* 보낸 신청 */}
-        {tab === 'sent' && (
-          sent.isLoading ? <ActivityIndicator color={T2.brand} /> :
-          sent.isError ? <Text style={styles.emptyInline}>신청을 불러오지 못했어요.</Text> :
-          sentList.length === 0 ? <Text style={styles.emptyInline}>보낸 신청이 없어요.</Text> : (
-            <View>
-              {sentList.map((s, i) => (
-                <Pressable key={s.mealRequestId} style={[styles.sentRow, i < sentList.length - 1 && styles.sentRowBorder]} onPress={() => navigation.navigate('MateProfile', { userId: s.toUser.userId })} accessibilityRole="button">
-                  <EmojiCircle emoji={s.toUser.nickname[0] ?? '?'} size={44} dimmed={s.status === 'DECLINED'} />
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.sentName, { color: s.status === 'DECLINED' ? T2.textMute : T2.text }]}>{s.toUser.nickname}</Text>
-                    <Text style={styles.sentMeta} numberOfLines={1}>{s.placeName}</Text>
-                  </View>
-                  <View style={[styles.sentPill, { backgroundColor: s.status === 'ACCEPTED' ? T2.brandSoft : T2.bg, borderColor: s.status === 'ACCEPTED' ? 'rgba(255,90,31,0.2)' : T2.border }]}>
-                    <Text style={[styles.sentPillText, { color: s.status === 'ACCEPTED' ? T2.brand : T2.textMute }]}>{mealStatusLabelSent(s.status)}</Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          )
-        )}
+        <MealRequestLists
+          tab={tab}
+          receivedList={receivedList}
+          receivedLoading={received.isLoading}
+          receivedError={received.isError}
+          sentList={sentList}
+          sentLoading={sent.isLoading}
+          sentError={sent.isError}
+          onAccept={(id) => respond(accept, id)}
+          onDecline={(id) => respond(decline, id)}
+          acceptPending={accept.isPending}
+          declinePending={decline.isPending}
+          onOpenProfile={(userId) => navigation.navigate('MateProfile', { userId })}
+        />
       </ScrollView>
     </Screen>
   );
@@ -172,11 +114,6 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 12 },
   h1: { fontSize: 28, fontWeight: '800', color: T2.text, letterSpacing: -1 },
-  segRow: { flexDirection: 'row', gap: 22, marginTop: 16 },
-  seg: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingBottom: 12 },
-  segLabel: { fontSize: 16, fontWeight: '800', letterSpacing: -0.3 },
-  segCount: { fontSize: 12, fontWeight: '700' },
-  segUnderline: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, backgroundColor: T2.brand },
   divider: { height: 1, backgroundColor: T2.border },
   scroll: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 },
   liveHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
@@ -193,23 +130,4 @@ const styles = StyleSheet.create({
   liveBadge: { alignSelf: 'flex-start', marginTop: 10, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 9, backgroundColor: T2.brandSoft },
   liveBadgeText: { fontSize: 12, fontWeight: '700', color: T2.brand, letterSpacing: -0.3 },
   sectionDivider: { height: 1, backgroundColor: T2.border, marginTop: 22, marginBottom: 18 },
-  recvCard: { padding: 18, backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: T2.border },
-  recvTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  recvName: { fontSize: 15, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
-  recvMeta: { fontSize: 11, color: T2.textMute, marginTop: 3 },
-  recvPlace: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 14, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: T2.brandSoft, alignSelf: 'flex-start' },
-  recvPlaceText: { fontSize: 12, fontWeight: '700', color: T2.brand, letterSpacing: -0.2 },
-  recvMsg: { fontSize: 13, color: T2.textSub, lineHeight: 21, marginTop: 12, letterSpacing: -0.3 },
-  recvBtns: { flexDirection: 'row', gap: 8, marginTop: 16 },
-  recvBtn: { paddingVertical: 13, borderRadius: 11, alignItems: 'center' },
-  recvBtnReject: { flex: 1, backgroundColor: T2.bg },
-  recvBtnRejectText: { fontSize: 14, fontWeight: '700', color: T2.textSub, letterSpacing: -0.3 },
-  recvBtnAccept: { flex: 2, backgroundColor: T2.brand },
-  recvBtnAcceptText: { fontSize: 14, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
-  sentRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15 },
-  sentRowBorder: { borderBottomWidth: 1, borderBottomColor: T2.border },
-  sentName: { fontSize: 14.5, fontWeight: '700', letterSpacing: -0.3 },
-  sentMeta: { fontSize: 12, color: T2.textMute, marginTop: 3 },
-  sentPill: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1 },
-  sentPillText: { fontSize: 12, fontWeight: '700', letterSpacing: -0.2 },
 });

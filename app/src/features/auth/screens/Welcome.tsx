@@ -46,10 +46,12 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
             <Text style={styles.indicatorLabel}>지금 이 순간,</Text>
           </View>
           <View style={styles.countRow}>
-            <Text style={styles.countNum}>{counts?.seekingCount ?? '–'}</Text>
-            <Text style={styles.countUnit}>명이 같이 먹을 사람 찾는 중</Text>
+            <Text style={styles.countNum}>{counts ? counts.seekingCount + counts.activeCount : '–'}</Text>
+            <Text style={styles.countUnit}>명 혼밥 중</Text>
           </View>
-          <Text style={styles.countSub}>· {counts?.activeCount ?? '–'}명 혼밥 중</Text>
+          {(counts?.seekingCount ?? 0) > 0 ? (
+            <Text style={styles.countSub}>· 그 중 {counts?.seekingCount}명은 같이 먹을 사람 찾는 중</Text>
+          ) : null}
         </View>
 
         {/* 하단 CTA */}
