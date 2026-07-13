@@ -381,6 +381,7 @@ class CheckInServiceTest {
 
         assertThat(res.status()).isEqualTo("TOGETHER");
         assertThat(res.partnerNickname()).isEqualTo("상대");
+        assertThat(res.partnerUserId()).isEqualTo(2L); // 노쇼 신고 대상 지정용
     }
 
     @Test

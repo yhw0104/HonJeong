@@ -9,7 +9,12 @@ import { T2 } from '@/shared/theme';
 import type { CheckIn } from '../api';
 import { useEndCheckIn, useCancelCheckIn } from '../queries';
 
-export function EndHonbabSheet({ checkIn, onClose }: { checkIn: CheckIn | null; onClose: () => void }) {
+export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
+  checkIn: CheckIn | null;
+  onClose: () => void;
+  /** 같이먹기에서 '상대가 안 나왔어요' 탭 → 부모가 상대 대상 신고 화면으로 이동. */
+  onReportNoShow: (partnerUserId: number, partnerNickname: string) => void;
+}) {
   const insets = useSafeAreaInsets();
   const end = useEndCheckIn();
   const cancel = useCancelCheckIn();
@@ -18,6 +23,11 @@ export function EndHonbabSheet({ checkIn, onClose }: { checkIn: CheckIn | null; 
   const together = checkIn.status === 'TOGETHER';
   const complete = () => { end.mutate(checkIn.checkInId); onClose(); };
   const discard = () => { cancel.mutate(checkIn.checkInId); onClose(); };
+  const reportNoShow = () => {
+    if (checkIn.partnerUserId == null) return;
+    onReportNoShow(checkIn.partnerUserId, checkIn.partnerNickname ?? '상대');
+    onClose();
+  };
 
   return (
     <>
@@ -30,9 +40,18 @@ export function EndHonbabSheet({ checkIn, onClose }: { checkIn: CheckIn | null; 
         <Text style={styles.title}>{together ? '같이 먹기를 끝낼까요?' : '혼밥을 끝낼까요?'}</Text>
         <Text style={styles.sub}>다 드셨으면 밀어서 완료하세요.</Text>
         <SlideToConfirm label="밀어서 완료" onConfirm={complete} style={styles.slide} />
-        <Pressable style={styles.discard} onPress={discard} hitSlop={6} accessibilityRole="button">
-          <Text style={styles.discardText}>안 먹었어요(기록 안 함)</Text>
-        </Pressable>
+        {together ? (
+          // 같이먹기: 취소(무효화)는 백엔드가 막으므로(CHECKIN_NOT_ACTIVE), 대신 상대 노쇼 신고를 제공.
+          checkIn.partnerUserId != null && (
+            <Pressable style={styles.discard} onPress={reportNoShow} hitSlop={6} accessibilityRole="button">
+              <Text style={styles.discardText}>상대가 안 나왔어요 · 신고</Text>
+            </Pressable>
+          )
+        ) : (
+          <Pressable style={styles.discard} onPress={discard} hitSlop={6} accessibilityRole="button">
+            <Text style={styles.discardText}>안 먹었어요(기록 안 함)</Text>
+          </Pressable>
+        )}
       </View>
     </>
   );

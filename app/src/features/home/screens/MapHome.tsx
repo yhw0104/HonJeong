@@ -429,7 +429,12 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
       })()}
 
       {/* 혼밥/같이먹기 종료 — 밀어서 완료 시트 */}
-      <EndHonbabSheet checkIn={ending} onClose={() => setEnding(null)} />
+      <EndHonbabSheet
+        checkIn={ending}
+        onClose={() => setEnding(null)}
+        onReportNoShow={(userId, nickname) =>
+          navigation.navigate('ReportForm', { targetType: 'USER', targetId: userId, targetNickname: nickname })}
+      />
     </View>
   );
 }

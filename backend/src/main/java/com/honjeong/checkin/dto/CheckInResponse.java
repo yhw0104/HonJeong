@@ -16,22 +16,23 @@ import com.honjeong.checkin.domain.CheckIn;
  * @param startedAt       시작 시각
  * @param endedAt         종료 시각(진행 중이면 null)
  * @param matchedAt       매칭 시각(솔로면 null)
+ * @param partnerUserId   같이먹기 파트너 사용자 id(TOGETHER /me 응답 전용, 그 외 null) — 노쇼 신고 대상 지정에 필요
  * @param partnerNickname 같이먹기 파트너 닉네임(TOGETHER /me 응답 전용, 그 외 null)
  */
 public record CheckInResponse(
         Long checkInId, Long placeId, String placeName, String status,
         LocalDateTime startedAt, LocalDateTime endedAt,
-        LocalDateTime matchedAt, String partnerNickname) {
+        LocalDateTime matchedAt, Long partnerUserId, String partnerNickname) {
 
     /** 파트너 없는 변환(ACTIVE/ENDED/CANCELLED/POST/end 공용). */
     public static CheckInResponse from(CheckIn c) {
-        return from(c, null);
+        return from(c, null, null);
     }
 
-    /** 파트너 닉네임을 포함한 변환(TOGETHER /me 응답). */
-    public static CheckInResponse from(CheckIn c, String partnerNickname) {
+    /** 파트너(userId·닉네임)를 포함한 변환(TOGETHER /me 응답). */
+    public static CheckInResponse from(CheckIn c, Long partnerUserId, String partnerNickname) {
         return new CheckInResponse(
                 c.getId(), c.getPlace().getId(), c.getPlace().getName(), c.getStatus().name(),
-                c.getStartedAt(), c.getEndedAt(), c.getMatchedAt(), partnerNickname);
+                c.getStartedAt(), c.getEndedAt(), c.getMatchedAt(), partnerUserId, partnerNickname);
     }
 }

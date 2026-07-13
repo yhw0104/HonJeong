@@ -5,9 +5,9 @@ test('신고 대상 타입 칩 라벨 — 유저는 메이트, 리뷰는 리뷰'
   expect(reportTypeLabel('REVIEW')).toBe('리뷰');
 });
 
-test('신고 사유는 5종 고정, 순서 유지', () => {
+test('신고 사유는 6종 고정, 순서 유지', () => {
   expect(REPORT_REASONS.map((r) => r.code)).toEqual([
-    'INAPPROPRIATE_MESSAGE', 'ABUSE', 'SPAM', 'FALSE_PROFILE', 'OTHER',
+    'INAPPROPRIATE_MESSAGE', 'ABUSE', 'SPAM', 'FALSE_PROFILE', 'NO_SHOW', 'OTHER',
   ]);
 });
 

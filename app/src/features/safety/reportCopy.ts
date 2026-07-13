@@ -5,6 +5,7 @@ export const REPORT_REASONS = [
   { code: 'ABUSE', label: '욕설 / 혐오 표현' },
   { code: 'SPAM', label: '광고 / 스팸' },
   { code: 'FALSE_PROFILE', label: '허위 프로필' },
+  { code: 'NO_SHOW', label: '노쇼 (약속 장소에 안 나타남)' },
   { code: 'OTHER', label: '기타' },
 ] as const;
 

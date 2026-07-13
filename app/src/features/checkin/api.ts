@@ -4,7 +4,7 @@ export type CheckInStatus = 'SEEKING' | 'ACTIVE' | 'TOGETHER' | 'ENDED' | 'CANCE
 export type CheckIn = {
   checkInId: number; placeId: number; placeName: string; status: CheckInStatus;
   startedAt: string; endedAt: string | null;
-  matchedAt: string | null; partnerNickname: string | null;
+  matchedAt: string | null; partnerUserId: number | null; partnerNickname: string | null;
 };
 export type CheckInStats = { todayCount: number; activeCount: number; seekingCount: number };
 export type MapMarker = {

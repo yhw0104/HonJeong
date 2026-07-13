@@ -221,12 +221,13 @@ public class CheckInService {
         if (c.getStatus() != CheckInStatus.TOGETHER) {
             return CheckInResponse.from(c);
         }
-        String partnerNickname = checkInRepository.findTogetherByMealRequestId(c.getMealRequestId()).stream()
+        CheckIn partner = checkInRepository.findTogetherByMealRequestId(c.getMealRequestId()).stream()
                 .filter(x -> !x.getUser().getId().equals(userId))
                 .findFirst()
-                .map(x -> x.getUser().getNickname())
                 .orElse(null);
-        return CheckInResponse.from(c, partnerNickname);
+        Long partnerUserId = partner != null ? partner.getUser().getId() : null;
+        String partnerNickname = partner != null ? partner.getUser().getNickname() : null;
+        return CheckInResponse.from(c, partnerUserId, partnerNickname);
     }
 
     /**
