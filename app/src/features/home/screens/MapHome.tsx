@@ -1,6 +1,6 @@
 // MapHome — 지도/홈. 실제 카카오맵 위에 실데이터(마커·주변 리스트·혼밥 시작/종료·전체 카운트)를 올린다.
 // 하단 탭바는 MainTabs 네비게이터가 렌더하므로 여기서는 그리지 않는다.
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Animated, PanResponder, Dimensions, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HonjeongMap, Icon, HonbabStatusBar } from '@/shared/components';
@@ -22,10 +22,19 @@ const SHEET_COLLAPSED = 300;
 const SHEET_EXPANDED = Math.round(Dimensions.get('window').height * 0.82);
 const SOURCE_RANK = { default: 0, region: 1, gps: 2 } as const;
 
+// 하단 주변 목록 정렬 옵션. rating은 맛 별점 기준(리뷰 수 → 거리로 tie-break).
+type SortKey = 'distance' | 'reviews' | 'rating';
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'distance', label: '거리순' },
+  { key: 'reviews', label: '리뷰 많은순' },
+  { key: 'rating', label: '별점순' },
+];
+
 export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const insets = useSafeAreaInsets();
   const [picking, setPicking] = useState(false);
   const [clusterIds, setClusterIds] = useState<number[] | null>(null); // 묶음 마커(같은 좌표 여러 식당) 탭 시 그 목록
+  const [sortKey, setSortKey] = useState<SortKey>('distance'); // 하단 목록 정렬(거리순/리뷰순/별점순)
   const mapRef = useRef<HonjeongMapHandle>(null);
 
   const { coord, source, permission, requestAgain } = useLocation({ watch: true });
@@ -64,6 +73,21 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
 
   const honbabOn = !!myCheckIn.data; // SEEKING/ACTIVE/TOGETHER — 종료/취소되면 null
   const nearbyList = nearby.data?.content ?? [];
+  // 하단 목록 정렬 — 반경 내 페이지(백엔드 거리순)를 선택 기준으로 재정렬. tie-break은 안정적인 백엔드 거리값(목록 안 튐).
+  const sortedList = useMemo(() => {
+    const arr = [...nearbyList];
+    if (sortKey === 'reviews') {
+      arr.sort((a, b) => b.reviewCount - a.reviewCount || a.distanceMeters - b.distanceMeters);
+    } else if (sortKey === 'rating') {
+      arr.sort((a, b) =>
+        (b.avgTasteRating ?? -1) - (a.avgTasteRating ?? -1)
+        || b.reviewCount - a.reviewCount
+        || a.distanceMeters - b.distanceMeters);
+    } else {
+      arr.sort((a, b) => a.distanceMeters - b.distanceMeters);
+    }
+    return arr;
+  }, [nearbyList, sortKey]);
   const myPlaceName =
     nearbyList.find((p) => p.placeId === myCheckIn.data?.placeId)?.name ??
     '내 식당';
@@ -252,8 +276,20 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           </View>
         </View>
 
+        {/* 정렬 필터 — 거리순 / 리뷰 많은순 / 별점순 */}
+        <View style={styles.sortRow}>
+          {SORT_OPTIONS.map((s) => {
+            const on = sortKey === s.key;
+            return (
+              <Pressable key={s.key} style={[styles.sortChip, on && styles.sortChipOn]} onPress={() => setSortKey(s.key)}>
+                <Text style={[styles.sortChipText, on && styles.sortChipTextOn]}>{s.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         <ScrollView style={styles.sheetList} showsVerticalScrollIndicator={false}>
-          {nearbyList.map((r, i) => (
+          {sortedList.map((r, i) => (
             <Pressable
               key={r.placeId}
               style={[styles.listRow, i === 0 && styles.listRowFirst]}
@@ -500,6 +536,11 @@ const styles = StyleSheet.create({
   },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E5E5', alignSelf: 'center', marginBottom: 16 },
   sheetList: { flex: 1 },
+  sortRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingBottom: 12 },
+  sortChip: { paddingVertical: 7, paddingHorizontal: 13, borderRadius: 999, backgroundColor: T2.bg, borderWidth: 1, borderColor: T2.border },
+  sortChipOn: { backgroundColor: T2.brandSoft, borderColor: 'rgba(255,90,31,0.3)' },
+  sortChipText: { fontSize: 12.5, fontWeight: '700', color: T2.textMute, letterSpacing: -0.2 },
+  sortChipTextOn: { color: T2.brand },
   pickList: { marginTop: 14, maxHeight: 340 },
   sheetHead: { paddingHorizontal: 20, paddingBottom: 12 },
   liveRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
