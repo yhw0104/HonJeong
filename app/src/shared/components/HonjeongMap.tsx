@@ -104,11 +104,37 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
           };
           // RN에서 주입할 마커 렌더 함수. 기존 마커를 지우고 새 목록으로 다시 그린다.
           window.__markers = [];
+          window.__labels = [];
+          var LABEL_MAX_LEVEL = 4; // 이 레벨 이하(확대)에서만 이름 표시 — 줌 아웃되면 라벨이 겹치지 않게 숨긴다.
+          window.__updateLabels = function(){
+            var show = map.getLevel() <= LABEL_MAX_LEVEL;
+            (window.__labels || []).forEach(function(l){ l.style.display = show ? '' : 'none'; });
+          };
+          kakao.maps.event.addListener(map, 'zoom_changed', window.__updateLabels);
+          // RN에서 주입할 마커 렌더 함수. 기존 마커를 지우고 새 목록으로 다시 그린다.
           window.__renderMarkers = function(list){
             (window.__markers || []).forEach(function(o){ o.setMap(null); });
             window.__markers = [];
-            (list || []).forEach(function(it){
-              var pos = new kakao.maps.LatLng(it.latitude, it.longitude);
+            window.__labels = [];
+            list = list || [];
+            // 위경도가 완전히 같은 식당들(같은 건물 등)은 겹치므로, 같은 좌표 그룹을 작은 원형으로 살짝 흩뿌린다(모두 보이고 클릭되게).
+            var byCoord = {}, seen = {};
+            list.forEach(function(it){
+              var key = Number(it.latitude).toFixed(6) + ',' + Number(it.longitude).toFixed(6);
+              (byCoord[key] = byCoord[key] || []).push(it);
+            });
+            list.forEach(function(it){
+              var key = Number(it.latitude).toFixed(6) + ',' + Number(it.longitude).toFixed(6);
+              var group = byCoord[key];
+              var lat = Number(it.latitude), lng = Number(it.longitude);
+              if (group.length > 1) {
+                var idx = seen[key] == null ? 0 : seen[key] + 1; seen[key] = idx;
+                var ang = (2 * Math.PI * idx) / group.length;
+                var R = 0.00006; // ≈6.6m 반경으로 방사
+                lat += R * Math.cos(ang);
+                lng += R * Math.sin(ang);
+              }
+              var pos = new kakao.maps.LatLng(lat, lng);
               var seeking = it.seekingCount || 0;
               // 세로 스택: [마커] 위 + [식당 이름] 아래. 클릭하면 식당 상세로.
               var el = document.createElement('div');
@@ -125,14 +151,17 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
               }
               var label = document.createElement('div');
               label.textContent = it.name || ''; // textContent = XSS 안전(식당명 그대로)
-              label.style.cssText = 'max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:700;color:#333;background:rgba(255,255,255,0.92);padding:1px 6px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.18);';
+              // 배경 박스 없이 — 흰색 외곽선(text-shadow)으로 지도 위에서 읽히게.
+              label.style.cssText = 'max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:800;color:#333;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff;';
               el.appendChild(pin);
               el.appendChild(label);
+              window.__labels.push(label);
               el.addEventListener('click', function(){ post('marker:' + it.placeId); });
               var overlay = new kakao.maps.CustomOverlay({ position: pos, content: el, clickable: true });
               overlay.setMap(map);
               window.__markers.push(overlay);
             });
+            window.__updateLabels(); // 현재 줌 레벨에 맞춰 이름 표시 여부 초기화
           };
           window.__renderMarkers([]);
           done = true;
