@@ -43,7 +43,7 @@ export function MealRequestLists({
   receivedList, receivedLoading, receivedError,
   sentList, sentLoading, sentError,
   onAccept, onDecline, acceptPending, declinePending,
-  onOpenProfile,
+  onOpenProfile, onOpenPlace,
 }: {
   tab: MealTab;
   receivedList: MealRequestListItem[];
@@ -57,6 +57,7 @@ export function MealRequestLists({
   acceptPending: boolean;
   declinePending: boolean;
   onOpenProfile: (userId: number) => void;
+  onOpenPlace: (placeId: number, name: string) => void;
 }) {
   const now = new Date(); // 보낸 시각을 상대표기('N분 전')로 — 목록 내 모든 항목 동일 기준
   if (tab === 'received') {
@@ -74,10 +75,11 @@ export function MealRequestLists({
                 <Text style={styles.recvMeta}>{(r.status === 'PENDING' ? '새 신청' : mealStatusLabelReceived(r.status)) + ' · ' + formatTimeAgo(r.createdAt, now)}</Text>
               </View>
             </Pressable>
-            <View style={styles.recvPlace}>
+            <Pressable style={styles.recvPlace} onPress={() => onOpenPlace(r.placeId, r.placeName)} accessibilityRole="button">
               <Icon name="pin" size={14} color={T2.brand} />
               <Text style={styles.recvPlaceText}>{r.placeName}</Text>
-            </View>
+              <Icon name="chevronRight" size={13} color={T2.brand} />
+            </Pressable>
             {r.message ? <Text style={styles.recvMsg}>"{r.message}"</Text> : null}
             {r.status === 'PENDING' && (
               <View style={styles.recvBtns}>

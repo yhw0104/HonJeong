@@ -105,6 +105,7 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
           acceptPending={accept.isPending}
           declinePending={decline.isPending}
           onOpenProfile={(userId) => navigation.navigate('MateProfile', { userId })}
+          onOpenPlace={(placeId, name) => navigation.navigate('RestaurantDetail', { placeId, name })}
         />
       </ScrollView>
     </Screen>
