@@ -21,7 +21,7 @@ export function FavoritesScreen({ navigation }: MainTabScreenProps<'Favorites'>)
 
   const onDeleteGroup = () => {
     if (!detail || detail.isDefault) return;
-    Alert.alert('그룹 삭제', `'${detail.name}' 그룹을 삭제할까요? 담긴 식당은 다른 그룹에 남아요.`, [
+    Alert.alert('그룹 삭제', `'${detail.name}' 이 그룹을 삭제할까요? `, [
       { text: '취소', style: 'cancel' },
       {
         text: '삭제',
