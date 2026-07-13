@@ -136,27 +136,28 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
               }
               var pos = new kakao.maps.LatLng(lat, lng);
               var seeking = it.seekingCount || 0;
-              // 세로 스택: [마커] 위 + [식당 이름] 아래. 클릭하면 식당 상세로.
+              // 세로 스택: [마커] 위 + [식당 이름] 아래.
+              // 클릭 영역은 '핀'만(pointer-events) — 넓은 이름 라벨/여백은 클릭을 통과시켜 옆 식당 핀이 안 가려지게 한다.
               var el = document.createElement('div');
-              el.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;';
+              el.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;';
               var pin = document.createElement('div');
               if (seeking > 0) {
                 // 모집중 있음: 주황 알약 + 인원 수(강조).
-                pin.style.cssText = 'display:flex;align-items:center;gap:5px;background:#fff;border:2px solid #FF5A36;border-radius:999px;padding:3px 9px 3px 5px;box-shadow:0 2px 6px rgba(0,0,0,0.25);';
+                pin.style.cssText = 'pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:5px;background:#fff;border:2px solid #FF5A36;border-radius:999px;padding:3px 9px 3px 5px;box-shadow:0 2px 6px rgba(0,0,0,0.25);';
                 pin.innerHTML = '<div style="width:14px;height:14px;border-radius:50%;background:#FF5A36;"></div>'
                   + '<span style="color:#FF5A36;font-weight:800;font-size:12px;line-height:1;">' + seeking + '</span>';
               } else {
                 // 모집중 없음: 주황 점(위치만 표시).
-                pin.style.cssText = 'width:14px;height:14px;border-radius:50%;background:#FF5A36;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);';
+                pin.style.cssText = 'pointer-events:auto;cursor:pointer;width:14px;height:14px;border-radius:50%;background:#FF5A36;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);';
               }
               var label = document.createElement('div');
               label.textContent = it.name || ''; // textContent = XSS 안전(식당명 그대로)
-              // 배경 박스 없이 — 흰색 외곽선(text-shadow)으로 지도 위에서 읽히게.
-              label.style.cssText = 'max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:800;color:#333;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff;';
+              // 배경 박스 없이 — 흰색 외곽선(text-shadow)으로 지도 위에서 읽히게. 이름은 클릭 대상 아님(pointer-events:none).
+              label.style.cssText = 'pointer-events:none;max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:800;color:#333;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff;';
               el.appendChild(pin);
               el.appendChild(label);
               window.__labels.push(label);
-              el.addEventListener('click', function(){ post('marker:' + it.placeId); });
+              pin.addEventListener('click', function(){ post('marker:' + it.placeId); });
               var overlay = new kakao.maps.CustomOverlay({ position: pos, content: el, clickable: true });
               overlay.setMap(map);
               window.__markers.push(overlay);
