@@ -112,12 +112,29 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
           };
           kakao.maps.event.addListener(map, 'zoom_changed', window.__updateLabels);
           // RN에서 주입할 마커 렌더 함수. 기존 마커를 지우고 새 목록으로 다시 그린다.
+          // 같은 좌표에 겹친 식당은 작은 그룹(2~FANOUT_MAX개)만 아주 살짝(반경 FANOUT_RADIUS_M m) 원형으로 벌려 각각 클릭되게 한다.
+          // 큰 그룹까지 벌리면 '동그란 원'처럼 보이므로 그대로 겹쳐 둔다(맨 위 핀만 선택됨).
+          var FANOUT_MAX = 4;
+          var FANOUT_RADIUS_M = 3;
           window.__renderMarkers = function(list){
             (window.__markers || []).forEach(function(o){ o.setMap(null); });
             window.__markers = [];
             window.__labels = [];
-            (list || []).forEach(function(it){
-              var pos = new kakao.maps.LatLng(it.latitude, it.longitude);
+            list = list || [];
+            var groups = {};
+            list.forEach(function(it){ var k = it.latitude + ',' + it.longitude; (groups[k] = groups[k] || []).push(it); });
+            list.forEach(function(it){
+              var g = groups[it.latitude + ',' + it.longitude];
+              var pos;
+              if (g.length >= 2 && g.length <= FANOUT_MAX) {
+                // 그룹 안 순번을 원 둘레에 배치 — 반경 FANOUT_RADIUS_M(m)를 위도/경도 도(度)로 환산.
+                var ang = (2 * Math.PI * g.indexOf(it)) / g.length;
+                var dLat = (FANOUT_RADIUS_M * Math.cos(ang)) / 111320;
+                var dLng = (FANOUT_RADIUS_M * Math.sin(ang)) / (111320 * Math.cos(it.latitude * Math.PI / 180));
+                pos = new kakao.maps.LatLng(it.latitude + dLat, it.longitude + dLng);
+              } else {
+                pos = new kakao.maps.LatLng(it.latitude, it.longitude);
+              }
               var seeking = it.seekingCount || 0;
               // 세로 스택: [마커] 위 + [식당 이름] 아래.
               // 클릭 영역은 '핀'만(pointer-events) — 넓은 이름 라벨/여백은 클릭을 통과시켜 옆 식당 핀이 안 가려지게 한다.
