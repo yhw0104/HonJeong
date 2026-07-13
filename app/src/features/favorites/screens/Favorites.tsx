@@ -144,10 +144,17 @@ function FavoritePlaceRow({
 }) {
   const { coord, source } = useLocation();
   const remove = useRemovePlaceFromGroup(place.placeId);
+  const fromMe = source === 'gps'; // 진짜 GPS일 때만 '내 위치에서' 표기
   const dist =
     source !== 'default'
       ? formatDistance(distanceMeters({ lat: coord.lat, lng: coord.lng }, { lat: place.latitude, lng: place.longitude }))
       : null;
+  // 삭제 전 확인 팝업 — 실수 삭제 방지.
+  const onRemove = () =>
+    Alert.alert('삭제', `'${place.name}'을(를) 이 그룹에서 삭제할까요?`, [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: () => remove.mutate(groupId) },
+    ]);
   return (
     <View style={styles.placeRow}>
       <Pressable style={styles.placeTap} onPress={onOpen}>
@@ -168,7 +175,7 @@ function FavoritePlaceRow({
         <View style={styles.metaRow}>
           {place.category ? <Text style={styles.metaSub}>{place.category}</Text> : null}
           {place.category && dist ? <Text style={styles.metaDot}>·</Text> : null}
-          {dist ? <Text style={styles.metaStrong}>{dist}</Text> : null}
+          {dist ? <Text style={styles.metaStrong}>{fromMe ? `내 위치에서 ${dist}` : dist}</Text> : null}
         </View>
         {place.address ? (
           <Text style={styles.placeAddr} numberOfLines={1}>
@@ -177,7 +184,7 @@ function FavoritePlaceRow({
         ) : null}
       </View>
       </Pressable>
-      <Pressable hitSlop={8} onPress={() => remove.mutate(groupId)} style={styles.removeBtn}>
+      <Pressable hitSlop={8} onPress={onRemove} style={styles.removeBtn}>
         <Text style={styles.removeX}>×</Text>
       </Pressable>
     </View>
