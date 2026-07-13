@@ -25,6 +25,7 @@ const SOURCE_RANK = { default: 0, region: 1, gps: 2 } as const;
 export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const insets = useSafeAreaInsets();
   const [picking, setPicking] = useState(false);
+  const [clusterIds, setClusterIds] = useState<number[] | null>(null); // 묶음 마커(같은 좌표 여러 식당) 탭 시 그 목록
   const mapRef = useRef<HonjeongMapHandle>(null);
 
   const { coord, source, permission, requestAgain } = useLocation({ watch: true });
@@ -133,6 +134,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           seekingCount: p.seekingCount,
         }))}
         onMarkerPress={(placeId) => goDetail(placeId)}
+        onClusterPress={setClusterIds}
         onCenterChange={setMapCenter}
       />
 
@@ -311,6 +313,49 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           </View>
         </>
       )}
+
+      {/* 묶음 마커 시트 — 같은 좌표(상가 건물)에 겹친 식당 목록에서 하나 선택 → 상세 이동 */}
+      {clusterIds && (() => {
+        const group = nearbyList.filter((p) => clusterIds.includes(p.placeId));
+        return (
+          <>
+            <Pressable style={styles.scrim} onPress={() => setClusterIds(null)} />
+            <View style={[styles.pickSheet, { paddingBottom: insets.bottom + 24 }]}>
+              <View style={styles.handle} />
+              <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
+                <Text style={styles.pickTitle}>여기 {group.length}곳</Text>
+                <Text style={styles.pickSub}>같은 자리(건물)에 있는 식당이에요</Text>
+              </View>
+              <ScrollView style={styles.pickList} showsVerticalScrollIndicator={false}>
+                {group.map((p, i) => (
+                  <Pressable
+                    key={p.placeId}
+                    style={[styles.pickRow, i === 0 && styles.pickRowFirst]}
+                    onPress={() => { setClusterIds(null); goDetail(p.placeId, p.name); }}
+                  >
+                    <View style={styles.pickIcon}>
+                      <Text style={styles.pickIconEmoji}>🍽</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.pickName}>{p.name}</Text>
+                      <View style={styles.listMetaRow}>
+                        <Text style={styles.listMeta}>{[p.category, formatDistance(p.distanceMeters)].filter(Boolean).join(' · ')}</Text>
+                        {p.seekingCount > 0 && (
+                          <>
+                            <Text style={styles.dot}>·</Text>
+                            <Text style={[styles.listTag, { color: T2.brand, fontWeight: '700' }]}>● 모집 {p.seekingCount}</Text>
+                          </>
+                        )}
+                      </View>
+                    </View>
+                    <Icon name="chevronRight" size={18} color={T2.textMute} />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          </>
+        );
+      })()}
     </View>
   );
 }
