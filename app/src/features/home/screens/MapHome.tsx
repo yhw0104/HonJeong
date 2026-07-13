@@ -126,6 +126,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         // 마커 = 하단 리스트(주변 식당)와 같은 집합. 모집중 있으면 숫자 배지, 없으면 작은 점.
         markers={nearbyList.map((p) => ({
           placeId: p.placeId,
+          name: p.name,
           latitude: p.latitude,
           longitude: p.longitude,
           activeCount: p.activeCount,

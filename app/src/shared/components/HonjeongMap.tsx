@@ -21,9 +21,9 @@ import {
 
 type LatLng = { lat: number; lng: number };
 
-/** 지도에 그릴 마커 1개: 식당 위치 + 현재 혼밥러 수 + 모집중 인원. */
+/** 지도에 그릴 마커 1개: 식당 위치·이름 + 현재 혼밥러 수 + 모집중 인원. */
 export type MapMarkerInput = {
-  placeId: number; latitude: number; longitude: number; activeCount: number; seekingCount: number;
+  placeId: number; name: string; latitude: number; longitude: number; activeCount: number; seekingCount: number;
 };
 
 /** 부모가 ref로 호출하는 명령형 핸들(줌 인/아웃·내 위치로 이동). */
@@ -110,16 +110,24 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
             (list || []).forEach(function(it){
               var pos = new kakao.maps.LatLng(it.latitude, it.longitude);
               var seeking = it.seekingCount || 0;
+              // 세로 스택: [마커] 위 + [식당 이름] 아래. 클릭하면 식당 상세로.
               var el = document.createElement('div');
+              el.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;';
+              var pin = document.createElement('div');
               if (seeking > 0) {
-                // 모집중 있음: 주황 알약 + 인원 수(강조). 클릭하면 식당 상세로.
-                el.style.cssText = 'display:flex;align-items:center;gap:5px;background:#fff;border:2px solid #FF5A36;border-radius:999px;padding:3px 9px 3px 5px;box-shadow:0 2px 6px rgba(0,0,0,0.25);cursor:pointer;';
-                el.innerHTML = '<div style="width:14px;height:14px;border-radius:50%;background:#FF5A36;"></div>'
+                // 모집중 있음: 주황 알약 + 인원 수(강조).
+                pin.style.cssText = 'display:flex;align-items:center;gap:5px;background:#fff;border:2px solid #FF5A36;border-radius:999px;padding:3px 9px 3px 5px;box-shadow:0 2px 6px rgba(0,0,0,0.25);';
+                pin.innerHTML = '<div style="width:14px;height:14px;border-radius:50%;background:#FF5A36;"></div>'
                   + '<span style="color:#FF5A36;font-weight:800;font-size:12px;line-height:1;">' + seeking + '</span>';
               } else {
-                // 모집중 없음: 작은 점(식당 위치만 표시, 덜 강조).
-                el.style.cssText = 'width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #B8B8B8;box-shadow:0 1px 4px rgba(0,0,0,0.2);cursor:pointer;';
+                // 모집중 없음: 주황 점(위치만 표시).
+                pin.style.cssText = 'width:14px;height:14px;border-radius:50%;background:#FF5A36;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);';
               }
+              var label = document.createElement('div');
+              label.textContent = it.name || ''; // textContent = XSS 안전(식당명 그대로)
+              label.style.cssText = 'max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:700;color:#333;background:rgba(255,255,255,0.92);padding:1px 6px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.18);';
+              el.appendChild(pin);
+              el.appendChild(label);
               el.addEventListener('click', function(){ post('marker:' + it.placeId); });
               var overlay = new kakao.maps.CustomOverlay({ position: pos, content: el, clickable: true });
               overlay.setMap(map);
