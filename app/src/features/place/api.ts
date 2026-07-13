@@ -11,6 +11,10 @@ export type PlaceNearbyItem = {
   placeId: number; name: string; category: string | null;
   roadAddress: string | null; latitude: number; longitude: number;
   distanceMeters: number; activeCount: number; seekingCount: number;
+  photoUrls: string[]; // 대표 사진(리뷰 사진 최신순 최대 N장). 없으면 빈 배열
+  reviewCount: number; // 리뷰 수(없으면 0)
+  avgTasteRating: number | null; // 맛 별점 평균(소수1자리). 리뷰 없으면 null
+  avgSoloFriendlyRating: number | null; // 혼밥 적합도 별점 평균(소수1자리). 리뷰 없으면 null
 };
 
 export type PlaceDetail = {

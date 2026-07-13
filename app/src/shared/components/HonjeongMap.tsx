@@ -21,9 +21,9 @@ import {
 
 type LatLng = { lat: number; lng: number };
 
-/** 지도에 그릴 마커 1개: 식당 위치 + 현재 혼밥러 수 + 모집중 인원. */
+/** 지도에 그릴 마커 1개: 식당 위치·이름 + 현재 혼밥러 수 + 모집중 인원. */
 export type MapMarkerInput = {
-  placeId: number; latitude: number; longitude: number; activeCount: number; seekingCount: number;
+  placeId: number; name: string; latitude: number; longitude: number; activeCount: number; seekingCount: number;
 };
 
 /** 부모가 ref로 호출하는 명령형 핸들(줌 인/아웃·내 위치로 이동). */
@@ -44,6 +44,10 @@ type Props = {
   markers?: MapMarkerInput[];
   /** 마커 탭 시 호출(식당 상세 이동 등). */
   onMarkerPress?: (placeId: number) => void;
+  /** 묶음 마커(같은 좌표에 여러 식당) 탭 시 호출 — 그 좌표의 placeId 목록. 부모가 목록 시트를 띄운다. */
+  onClusterPress?: (placeIds: number[]) => void;
+  /** 사용자가 지도를 드래그로 이동한 뒤 새 지도 중심. 재검색 판정용. */
+  onCenterChange?: (center: LatLng) => void;
   /** 내 위치(파란 점). null/미지정이면 표시 안 함. */
   myLocation?: LatLng | null;
 };
@@ -83,6 +87,11 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
             level: ${level}
           });
           window.__map = map;
+          // 사용자가 지도를 드래그해 끝냈을 때만 새 중심을 RN에 보고한다(프로그램적 setCenter는 dragend 미발화 → 피드백 루프 없음).
+          kakao.maps.event.addListener(map, 'dragend', function(){
+            var c = map.getCenter();
+            post('center:' + c.getLat() + ',' + c.getLng());
+          });
           // 내 위치(파란 점) 렌더 함수. lat/lng가 null이면 점을 제거한다.
           window.__myLoc = null;
           window.__renderMyLocation = function(lat, lng){
@@ -95,23 +104,83 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
             });
             window.__myLoc.setMap(map);
           };
-          // RN에서 주입할 마커 렌더 함수. 기존 마커를 지우고 새 목록으로 다시 그린다.
+          // 마커/라벨 상태 초기화 + 줌에 따른 이름 라벨 표시 토글.
           window.__markers = [];
+          window.__labels = [];
+          var LABEL_MAX_LEVEL = 4; // 이 레벨 이하(확대)에서만 이름 표시 — 줌 아웃되면 라벨이 겹치지 않게 숨긴다.
+          window.__updateLabels = function(){
+            var show = map.getLevel() <= LABEL_MAX_LEVEL;
+            (window.__labels || []).forEach(function(l){ l.style.display = show ? '' : 'none'; });
+          };
+          kakao.maps.event.addListener(map, 'zoom_changed', window.__updateLabels);
+          // 라벨 1개 생성(식당명/"N곳"). 배경 박스 없이 흰색 외곽선(text-shadow)으로 지도 위에서 읽히게. 클릭 대상 아님.
+          function makeLabel(text){
+            var label = document.createElement('div');
+            label.textContent = text || ''; // textContent = XSS 안전(식당명 그대로)
+            label.style.cssText = 'pointer-events:none;max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:800;color:#333;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff;';
+            return label;
+          }
+          // 마커 1개를 지도에 올린다. label이 있으면 핀 아래에 붙이고 줌 토글 대상으로 등록(없으면 핀만).
+          function addOverlay(pos, el, label){
+            if (label) { el.appendChild(label); window.__labels.push(label); }
+            var overlay = new kakao.maps.CustomOverlay({ position: pos, content: el, clickable: true });
+            overlay.setMap(map);
+            window.__markers.push(overlay);
+          }
+          // RN에서 주입할 마커 렌더 함수. 기존 마커를 지우고 새 목록으로 다시 그린다.
+          // 겹침 처리: 같은 좌표(상가 건물 등)에 여러 식당이 있으면 '묶음 마커(개수 N)' 하나로 표시하고,
+          // 탭하면 RN이 그 목록 시트를 띄운다(cluster:ids 메시지). 단독이면 기존 핀(모집 알약/점) + 식당명.
           window.__renderMarkers = function(list){
             (window.__markers || []).forEach(function(o){ o.setMap(null); });
             window.__markers = [];
-            (list || []).forEach(function(it){
-              var pos = new kakao.maps.LatLng(it.latitude, it.longitude);
-              // 알약(타원) 마커: 동그라미 + 옆에 모집중 인원 수(모집중 우선 노출). 클릭하면 식당 상세로.
-              var el = document.createElement('div');
-              el.style.cssText = 'display:flex;align-items:center;gap:5px;background:#fff;border:2px solid #FF5A36;border-radius:999px;padding:3px 9px 3px 5px;box-shadow:0 2px 6px rgba(0,0,0,0.25);cursor:pointer;';
-              el.innerHTML = '<div style="width:14px;height:14px;border-radius:50%;background:#FF5A36;"></div>'
-                + '<span style="color:#FF5A36;font-weight:800;font-size:12px;line-height:1;">' + it.seekingCount + '</span>';
-              el.addEventListener('click', function(){ post('marker:' + it.placeId); });
-              var overlay = new kakao.maps.CustomOverlay({ position: pos, content: el, clickable: true });
-              overlay.setMap(map);
-              window.__markers.push(overlay);
+            window.__labels = [];
+            list = list || [];
+            // 같은 좌표끼리 그룹핑(입력 순서 보존 — 거리순 유지).
+            var groups = {}; var order = [];
+            list.forEach(function(it){
+              var k = it.latitude + ',' + it.longitude;
+              if (!groups[k]) { groups[k] = []; order.push(k); }
+              groups[k].push(it);
             });
+            order.forEach(function(k){
+              var g = groups[k];
+              var pos = new kakao.maps.LatLng(g[0].latitude, g[0].longitude);
+              // 클릭 영역은 '핀'만(pointer-events) — 넓은 라벨/여백은 클릭을 통과시켜 옆 식당 핀이 안 가려지게 한다.
+              var el = document.createElement('div');
+              el.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;';
+              var pin = document.createElement('div');
+              if (g.length === 1) {
+                var it = g[0];
+                var seeking = it.seekingCount || 0;
+                if (seeking > 0) {
+                  // 모집중 있음: 주황 알약 + 인원 수(강조).
+                  pin.style.cssText = 'pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:5px;background:#fff;border:2px solid #FF5A36;border-radius:999px;padding:3px 9px 3px 5px;box-shadow:0 2px 6px rgba(0,0,0,0.25);';
+                  pin.innerHTML = '<div style="width:14px;height:14px;border-radius:50%;background:#FF5A36;"></div>'
+                    + '<span style="color:#FF5A36;font-weight:800;font-size:12px;line-height:1;">' + seeking + '</span>';
+                } else {
+                  // 모집중 없음: 주황 점(위치만 표시).
+                  pin.style.cssText = 'pointer-events:auto;cursor:pointer;width:14px;height:14px;border-radius:50%;background:#FF5A36;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);';
+                }
+                pin.addEventListener('click', function(){ post('marker:' + it.placeId); });
+                el.appendChild(pin);
+                addOverlay(pos, el, makeLabel(it.name));
+              } else {
+                // 묶음 마커: 단독 핀처럼 동그란 원 안에 겹침 개수(숫자). 그룹에 모집중이 하나라도 있으면 주황(채움), 없으면 흰 원(회색 글자).
+                var hasSeek = g.some(function(x){ return (x.seekingCount || 0) > 0; });
+                var ids = g.map(function(x){ return x.placeId; }).join(',');
+                var base = 'pointer-events:auto;cursor:pointer;box-sizing:border-box;min-width:20px;height:20px;border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 5px;font-weight:800;font-size:10px;line-height:1;';
+                if (hasSeek) {
+                  pin.style.cssText = base + 'background:#FF5A36;color:#fff;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.28);';
+                } else {
+                  pin.style.cssText = base + 'background:#fff;color:#555;border:1.5px solid #B8B8B8;box-shadow:0 1px 4px rgba(0,0,0,0.22);';
+                }
+                pin.textContent = String(g.length); // 겹침 개수(숫자만) — 지도 클러스터 표준
+                pin.addEventListener('click', function(){ post('cluster:' + ids); });
+                el.appendChild(pin);
+                addOverlay(pos, el, null); // 'N곳'을 마커 안에 넣었으므로 하단 라벨 없음
+              }
+            });
+            window.__updateLabels(); // 현재 줌 레벨에 맞춰 라벨 표시 여부 초기화
           };
           window.__renderMarkers([]);
           done = true;
@@ -132,6 +201,8 @@ export const HonjeongMap = forwardRef<HonjeongMapHandle, Props>(function Honjeon
   style,
   markers,
   onMarkerPress,
+  onClusterPress,
+  onCenterChange,
   myLocation,
 }: Props, ref) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -196,6 +267,12 @@ export const HonjeongMap = forwardRef<HonjeongMapHandle, Props>(function Honjeon
     } else if (msg.startsWith('marker:')) {
       const placeId = Number(msg.slice('marker:'.length));
       if (!Number.isNaN(placeId)) onMarkerPress?.(placeId);
+    } else if (msg.startsWith('cluster:')) {
+      const ids = msg.slice('cluster:'.length).split(',').map(Number).filter((n) => !Number.isNaN(n));
+      if (ids.length) onClusterPress?.(ids);
+    } else if (msg.startsWith('center:')) {
+      const [lat, lng] = msg.slice('center:'.length).split(',').map(Number);
+      if (!Number.isNaN(lat) && !Number.isNaN(lng)) onCenterChange?.({ lat, lng });
     } else if (msg.startsWith('console:') || msg.startsWith('jserr:')) {
       // 카카오가 도메인/키 오류를 console.error로 찍는다 → 가장 마지막 원문을 보존.
       setDetail(msg);

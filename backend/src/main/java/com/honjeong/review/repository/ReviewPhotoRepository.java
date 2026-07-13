@@ -44,6 +44,29 @@ public interface ReviewPhotoRepository extends JpaRepository<ReviewPhoto, Long> 
     List<ReviewPhotoRow> findByUserFlattened(@Param("userId") Long userId);
 
     /**
+     * 기능: 여러 식당의 리뷰 사진을 (식당별) 리뷰 최신순으로 한 번에 평탄화 조회 — 주변 목록 썸네일용 배치 조회.
+     * 쿼리: WHERE r.place_id IN :placeIds, 정렬은 place_id ASC → 리뷰 최신순 → sort_order ASC (호출측이 식당별로 상한 N장 절단)
+     * Request: placeIds — 식당 ID 목록(빈 목록 금지) / Response: List&lt;PlacePhotoRow&gt; — (식당 ID, 사진 URL) 행 목록
+     */
+    @Query("""
+            SELECT p.review.place.id AS placeId, p.imageUrl AS imageUrl
+            FROM ReviewPhoto p
+            WHERE p.review.place.id IN :placeIds
+            ORDER BY p.review.place.id ASC, p.review.visitedAt DESC, p.review.id DESC, p.sortOrder ASC
+            """)
+    List<PlacePhotoRow> findByPlaceIdsFlattened(@Param("placeIds") List<Long> placeIds);
+
+    /**
+     * 배치 평탄화 조회 결과 한 행(식당 ID + 사진 URL)을 나타내는 프로젝션.
+     */
+    interface PlacePhotoRow {
+        /** 사진이 속한 식당 ID */
+        Long getPlaceId();
+        /** 사진 이미지 URL */
+        String getImageUrl();
+    }
+
+    /**
      * 평탄화 조회 결과 한 행(리뷰 ID + 사진 URL)을 나타내는 프로젝션.
      *
      * <p>[기존 주석] 평탄화 사진 한 행(리뷰 id + 사진 url).

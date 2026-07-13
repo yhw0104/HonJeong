@@ -111,8 +111,10 @@ class PlaceControllerTest {
 
     private PageResponse<PlaceNearbyResponse> sampleNearbyPage() {
         List<PlaceNearbyResponse> content = List.of(
-                new PlaceNearbyResponse(10L, "혼밥집", "한식", "서울 도로명", 37.5001, 127.0001, 15L, 3L, 2L),
-                new PlaceNearbyResponse(11L, "먼집", "분식", "서울 도로명", 37.5050, 127.0050, 680L, 0L, 0L));
+                new PlaceNearbyResponse(10L, "혼밥집", "한식", "서울 도로명", 37.5001, 127.0001, 15L, 3L, 2L,
+                        List.of("https://img/1.jpg", "https://img/2.jpg"), 12L, 4.5, 4.0),
+                new PlaceNearbyResponse(11L, "먼집", "분식", "서울 도로명", 37.5050, 127.0050, 680L, 0L, 0L,
+                        List.of(), 0L, null, null));
         return PageResponse.of(content, 0, 20, 2L);
     }
 
@@ -132,6 +134,9 @@ class PlaceControllerTest {
                 .andExpect(jsonPath("$.data.content[0].placeId").value(10))
                 .andExpect(jsonPath("$.data.content[0].activeCount").value(3))
                 .andExpect(jsonPath("$.data.content[0].seekingCount").value(2))
+                .andExpect(jsonPath("$.data.content[0].reviewCount").value(12))
+                .andExpect(jsonPath("$.data.content[0].avgTasteRating").value(4.5))
+                .andExpect(jsonPath("$.data.content[1].reviewCount").value(0))
                 .andExpect(jsonPath("$.data.content[1].activeCount").value(0))
                 .andExpect(jsonPath("$.data.content[1].seekingCount").value(0))
                 .andExpect(jsonPath("$.data.totalElements").value(2));

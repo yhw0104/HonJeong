@@ -1,7 +1,7 @@
 // MapHome — 지도/홈. 실제 카카오맵 위에 실데이터(마커·주변 리스트·혼밥 시작/종료·전체 카운트)를 올린다.
 // 하단 탭바는 MainTabs 네비게이터가 렌더하므로 여기서는 그리지 않는다.
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Animated, PanResponder, Dimensions, ActivityIndicator } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Animated, PanResponder, Dimensions, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HonjeongMap, Icon, HonbabStatusBar } from '@/shared/components';
 import type { HonjeongMapHandle } from '@/shared/components';
@@ -9,12 +9,12 @@ import { T2 } from '@/shared/theme';
 import { BellButton } from '@/features/notifications/BellButton';
 import { useLocation } from '@/shared/location/useLocation';
 import { useNearby } from '@/features/place/queries';
-import { shouldOfferResearch } from '@/shared/location/research';
 import type { Coord } from '@/shared/location/pickLocation';
-import { useMap, useMyCheckIn, useStats, useStartCheckIn, useDineAlone, useCancelCheckIn } from '@/features/checkin/queries';
+import { useMyCheckIn, useStats, useStartCheckIn, useDineAlone, useCancelCheckIn } from '@/features/checkin/queries';
 import { usePromptEndCheckIn } from '@/features/checkin/usePromptEndCheckIn';
 import { checkInMode } from '@/features/checkin/statusView';
 import { formatDistance } from '@/shared/format';
+import { distanceMeters } from '@/shared/location/distance';
 import type { MainTabScreenProps } from '@/navigation/types';
 
 // 하단 시트 스냅 높이(접힘/펼침). 펼치면 화면의 82%까지 올라와 전체 리스트가 보인다.
@@ -22,9 +22,19 @@ const SHEET_COLLAPSED = 300;
 const SHEET_EXPANDED = Math.round(Dimensions.get('window').height * 0.82);
 const SOURCE_RANK = { default: 0, region: 1, gps: 2 } as const;
 
+// 하단 주변 목록 정렬 옵션. rating은 맛 별점 기준(리뷰 수 → 거리로 tie-break).
+type SortKey = 'distance' | 'reviews' | 'rating';
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'distance', label: '거리순' },
+  { key: 'reviews', label: '리뷰 많은순' },
+  { key: 'rating', label: '별점순' },
+];
+
 export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const insets = useSafeAreaInsets();
   const [picking, setPicking] = useState(false);
+  const [clusterIds, setClusterIds] = useState<number[] | null>(null); // 묶음 마커(같은 좌표 여러 식당) 탭 시 그 목록
+  const [sortKey, setSortKey] = useState<SortKey>('distance'); // 하단 목록 정렬(거리순/리뷰순/별점순)
   const mapRef = useRef<HonjeongMapHandle>(null);
 
   const { coord, source, permission, requestAgain } = useLocation({ watch: true });
@@ -33,6 +43,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   // 최초 좌표로 초기화하고, 위치 출처가 더 나은 단계로 승격될 때(기본→내동네→GPS) 한 번씩 따라 올린다
   // (기존 'GPS 잡히면 지도 이동' 체감 유지 + 권한 거부 상태에서 내동네가 늦게 로드되는 경우 포함).
   const [anchor, setAnchor] = useState<Coord | null>(null);
+  const [mapCenter, setMapCenter] = useState<Coord | null>(null); // 사용자가 드래그한 현재 지도 중심(재검색 판정용)
   const prevRankRef = useRef(SOURCE_RANK[source]);
   useEffect(() => {
     const prevRank = prevRankRef.current;
@@ -41,13 +52,19 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     setAnchor((a) => (a == null || rank > prevRank ? coord : a));
   }, [coord, source]);
   const searchAt = anchor ?? coord;
+  // 목록 거리 표기는 검색 기준점(anchor)이 아니라 '내 위치(GPS)' 기준으로 — 진짜 GPS일 때만 '내 위치에서'.
+  const myGps = source === 'gps' ? coord : null;
+  // 목록·식당선택 시트·묶음마커 시트 공통 거리 표기. GPS 있으면 '내 위치에서 Nkm', 없으면 검색기준(백엔드) 거리.
+  const distanceLabel = (p: { latitude: number; longitude: number; distanceMeters: number }) =>
+    myGps
+      ? `내 위치에서 ${formatDistance(distanceMeters(myGps, { lat: p.latitude, lng: p.longitude }))}`
+      : formatDistance(p.distanceMeters);
 
   const stats = useStats();
   // 사회적 증거: '지금 혼밥 중'은 지금 식당에서 혼자인 모두(모집중+혼밥중). 그 중 일부가 같이 먹을 사람을 찾는 중.
   const honbabTotal = stats.data ? stats.data.seekingCount + stats.data.activeCount : null;
   const seekingNow = stats.data?.seekingCount ?? 0;
-  const markers = useMap(searchAt);
-  const nearby = useNearby(searchAt, 1000, true, true); // 마커(useMap)와 동일하게 anchor를 폴링 — 카운트만 갱신되고, anchor 고정이라 파란 점이 움직여도 목록은 안 튐(재검색 버튼으로만 기준점 이동)
+  const nearby = useNearby(searchAt, 1000, true, true); // 마커·목록 공통 소스. anchor를 폴링해 카운트만 갱신, anchor 고정이라 파란 점이 움직여도 목록은 안 튐(재검색 버튼으로만 기준점 이동)
   const myCheckIn = useMyCheckIn();
   const startMut = useStartCheckIn();
   const dineAloneMut = useDineAlone();
@@ -56,8 +73,22 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
 
   const honbabOn = !!myCheckIn.data; // SEEKING/ACTIVE/TOGETHER — 종료/취소되면 null
   const nearbyList = nearby.data?.content ?? [];
+  // 하단 목록 정렬 — 반경 내 페이지(백엔드 거리순)를 선택 기준으로 재정렬. tie-break은 안정적인 백엔드 거리값(목록 안 튐).
+  const sortedList = useMemo(() => {
+    const arr = [...nearbyList];
+    if (sortKey === 'reviews') {
+      arr.sort((a, b) => b.reviewCount - a.reviewCount || a.distanceMeters - b.distanceMeters);
+    } else if (sortKey === 'rating') {
+      arr.sort((a, b) =>
+        (b.avgTasteRating ?? -1) - (a.avgTasteRating ?? -1)
+        || b.reviewCount - a.reviewCount
+        || a.distanceMeters - b.distanceMeters);
+    } else {
+      arr.sort((a, b) => a.distanceMeters - b.distanceMeters);
+    }
+    return arr;
+  }, [nearbyList, sortKey]);
   const myPlaceName =
-    markers.data?.find((m) => m.placeId === myCheckIn.data?.placeId)?.name ??
     nearbyList.find((p) => p.placeId === myCheckIn.data?.placeId)?.name ??
     '내 식당';
 
@@ -81,9 +112,14 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     else requestAgain();
   };
 
-  // 기준점에서 200m 이상 이동(진짜 GPS일 때만)하면 '이 위치에서 재검색' 노출.
-  const offerResearch = anchor != null && shouldOfferResearch(coord, anchor, source);
-  const researchHere = () => setAnchor(coord); // queryKey 변경 → 목록·마커 재조회 + 지도 center 이동
+  // 지도를 드래그해 지도를 움직이면(dragend) 곧바로 '이 위치에서 재검색' 노출(GPS 이동과 무관).
+  // mapCenter는 실제 드래그 끝에서만 갱신되고(프로그램적 setCenter는 dragend 미발화), 재검색/내주변 시 null로 정리된다.
+  const offerResearch = mapCenter != null && anchor != null;
+  const researchHere = () => { if (mapCenter) setAnchor(mapCenter); setMapCenter(null); }; // 지도 중심으로 재검색 + 버튼 숨김
+  // '내 주변': 내 GPS로 재검색 + 지도 이동(GPS 없으면 권한 재요청). setMapCenter(null)로 재검색 버튼도 정리.
+  const nearMe = () => {
+    if (source === 'gps') { setAnchor(coord); setMapCenter(null); } else { requestAgain(); }
+  };
 
   // 드래그로 펼치는 하단 시트: 핸들/헤더를 위로 끌면 펼침, 아래로 끌면 접힘.
   const sheetH = useRef(new Animated.Value(SHEET_COLLAPSED)).current;
@@ -120,17 +156,18 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         center={searchAt}
         // '내 위치' 파란 점은 진짜 GPS일 때만 — 폴백 좌표(연남동 기본 등)를 내 위치처럼 보이게 하지 않는다.
         myLocation={source === 'gps' ? coord : null}
-        // 마커는 '같이 먹을 사람(모집중)'을 표시 — 모집중 0명(혼밥중만)인 식당은 마커를 띄우지 않는다.
-        markers={(markers.data ?? [])
-          .filter((m) => m.seekingCount > 0)
-          .map((m) => ({
-            placeId: m.placeId,
-            latitude: m.latitude,
-            longitude: m.longitude,
-            activeCount: m.activeCount,
-            seekingCount: m.seekingCount,
-          }))}
+        // 마커 = 하단 리스트(주변 식당)와 같은 집합. 모집중 있으면 숫자 배지, 없으면 작은 점.
+        markers={nearbyList.map((p) => ({
+          placeId: p.placeId,
+          name: p.name,
+          latitude: p.latitude,
+          longitude: p.longitude,
+          activeCount: p.activeCount,
+          seekingCount: p.seekingCount,
+        }))}
         onMarkerPress={(placeId) => goDetail(placeId)}
+        onClusterPress={setClusterIds}
+        onCenterChange={setMapCenter}
       />
 
       {/* 상단 검색 + (위치 안내) + (혼밥 중 상태 카드) */}
@@ -166,16 +203,13 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         )}
       </View>
 
-      {/* 줌 +/− · 내 위치로 이동 */}
+      {/* 줌 +/− */}
       <View style={styles.zoom}>
         <Pressable style={[styles.zoomBtn, styles.zoomDivider]} onPress={() => mapRef.current?.zoomIn()}>
           <Text style={styles.zoomText}>+</Text>
         </Pressable>
-        <Pressable style={[styles.zoomBtn, styles.zoomDivider]} onPress={() => mapRef.current?.zoomOut()}>
+        <Pressable style={styles.zoomBtn} onPress={() => mapRef.current?.zoomOut()}>
           <Text style={styles.zoomText}>−</Text>
-        </Pressable>
-        <Pressable style={styles.zoomBtn} onPress={recenterToMe}>
-          <Text style={styles.zoomText}>◎</Text>
         </Pressable>
       </View>
 
@@ -191,6 +225,14 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           </Pressable>
         </View>
       )}
+
+      {/* 우하단 '내 주변' — 내 위치로 새로고침(재검색). GPS 없으면 권한 재요청. */}
+      <View style={styles.nearMeWrap} pointerEvents="box-none">
+        <Pressable style={styles.nearMeBtn} onPress={nearMe} disabled={nearby.isFetching}>
+          <Icon name="navigate" size={13} color={T2.brand} />
+          <Text style={styles.nearMeText}>내 주변</Text>
+        </Pressable>
+      </View>
 
       {/* 하단 시트 (핸들·헤더를 위로 드래그하면 펼쳐져 전체 리스트가 보임) */}
       <Animated.View style={[styles.sheet, { height: sheetH }]}>
@@ -234,19 +276,48 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           </View>
         </View>
 
+        {/* 정렬 필터 — 거리순 / 리뷰 많은순 / 별점순 */}
+        <View style={styles.sortRow}>
+          {SORT_OPTIONS.map((s) => {
+            const on = sortKey === s.key;
+            return (
+              <Pressable key={s.key} style={[styles.sortChip, on && styles.sortChipOn]} onPress={() => setSortKey(s.key)}>
+                <Text style={[styles.sortChipText, on && styles.sortChipTextOn]}>{s.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         <ScrollView style={styles.sheetList} showsVerticalScrollIndicator={false}>
-          {nearbyList.map((r, i) => (
+          {sortedList.map((r, i) => (
             <Pressable
               key={r.placeId}
               style={[styles.listRow, i === 0 && styles.listRowFirst]}
               onPress={() => goDetail(r.placeId, r.name)}
             >
               <View style={{ flex: 1 }}>
-                <Text style={styles.listName}>{r.name}</Text>
+                {/* 이름 + 카테고리(옆에) */}
+                <View style={styles.nameRow}>
+                  <Text style={styles.listName} numberOfLines={1}>{r.name}</Text>
+                  {!!r.category && <Text style={styles.listCategory}>{r.category}</Text>}
+                </View>
+                {/* 별점 두 개(맛·혼밥) + 리뷰 수 — 리뷰 있을 때만 */}
+                {r.reviewCount > 0 && (
+                  <View style={styles.ratingRow}>
+                    <View style={styles.ratingItem}>
+                      <Text style={styles.ratingLabel}>맛</Text>
+                      <Text style={styles.listStar}>★ {(r.avgTasteRating ?? 0).toFixed(1)}</Text>
+                    </View>
+                    <View style={styles.ratingItem}>
+                      <Text style={styles.ratingLabel}>혼밥</Text>
+                      <Text style={styles.listStar}>★ {(r.avgSoloFriendlyRating ?? 0).toFixed(1)}</Text>
+                    </View>
+                    <Text style={styles.ratingCount}>리뷰 {r.reviewCount}</Text>
+                  </View>
+                )}
+                {/* 거리(내 위치 기준) · 모집(거리 옆) */}
                 <View style={styles.listMetaRow}>
-                  <Text style={styles.listMeta}>
-                    {[r.category, formatDistance(r.distanceMeters)].filter(Boolean).join(' · ')}
-                  </Text>
+                  <Text style={styles.listMeta}>{distanceLabel(r)}</Text>
                   {r.seekingCount > 0 && (
                     <>
                       <Text style={styles.dot}>·</Text>
@@ -254,6 +325,19 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                     </>
                   )}
                 </View>
+                {/* 사진 있으면 이름·거리 아래에 가로 스크롤 스트립, 없으면 아무것도 안 그림(기존 모습 유지) */}
+                {(r.photoUrls?.length ?? 0) > 0 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.listPhotos}
+                    contentContainerStyle={styles.listPhotosContent}
+                  >
+                    {r.photoUrls.map((uri, idx) => (
+                      <Image key={`${uri}-${idx}`} source={{ uri }} style={styles.listPhoto} />
+                    ))}
+                  </ScrollView>
+                )}
               </View>
             </Pressable>
           ))}
@@ -282,7 +366,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.pickName}>{p.name}</Text>
-                    <Text style={styles.pickMeta}>{[p.category, formatDistance(p.distanceMeters)].filter(Boolean).join(' · ')}</Text>
+                    <Text style={styles.pickMeta}>{[p.category, distanceLabel(p)].filter(Boolean).join(' · ')}</Text>
                   </View>
                   <Icon name="chevronRight" size={18} color={T2.textMute} />
                 </Pressable>
@@ -300,6 +384,49 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           </View>
         </>
       )}
+
+      {/* 묶음 마커 시트 — 같은 좌표(상가 건물)에 겹친 식당 목록에서 하나 선택 → 상세 이동 */}
+      {clusterIds && (() => {
+        const group = nearbyList.filter((p) => clusterIds.includes(p.placeId));
+        return (
+          <>
+            <Pressable style={styles.scrim} onPress={() => setClusterIds(null)} />
+            <View style={[styles.pickSheet, { paddingBottom: insets.bottom + 24 }]}>
+              <View style={styles.handle} />
+              <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
+                <Text style={styles.pickTitle}>여기 {group.length}집</Text>
+                <Text style={styles.pickSub}>같은 자리(건물)에 있는 식당이에요</Text>
+              </View>
+              <ScrollView style={styles.pickList} showsVerticalScrollIndicator={false}>
+                {group.map((p, i) => (
+                  <Pressable
+                    key={p.placeId}
+                    style={[styles.pickRow, i === 0 && styles.pickRowFirst]}
+                    onPress={() => { setClusterIds(null); goDetail(p.placeId, p.name); }}
+                  >
+                    <View style={styles.pickIcon}>
+                      <Text style={styles.pickIconEmoji}>🍽</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.pickName}>{p.name}</Text>
+                      <View style={styles.listMetaRow}>
+                        <Text style={styles.listMeta}>{[p.category, distanceLabel(p)].filter(Boolean).join(' · ')}</Text>
+                        {p.seekingCount > 0 && (
+                          <>
+                            <Text style={styles.dot}>·</Text>
+                            <Text style={[styles.listTag, { color: T2.brand, fontWeight: '700' }]}>● 모집 {p.seekingCount}</Text>
+                          </>
+                        )}
+                      </View>
+                    </View>
+                    <Icon name="chevronRight" size={18} color={T2.textMute} />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          </>
+        );
+      })()}
     </View>
   );
 }
@@ -354,7 +481,7 @@ const styles = StyleSheet.create({
   zoom: {
     position: 'absolute',
     right: 16,
-    bottom: 320,
+    bottom: SHEET_COLLAPSED + 62, // '내 주변' 알약 위로 올림
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#fff',
@@ -363,6 +490,19 @@ const styles = StyleSheet.create({
   zoomBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   zoomDivider: { borderBottomWidth: 1, borderBottomColor: T2.border },
   zoomText: { fontSize: 18, color: T2.text },
+
+  nearMeWrap: { position: 'absolute', right: 16, bottom: SHEET_COLLAPSED + 12, alignItems: 'flex-end' },
+  nearMeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: '#fff',
+    ...shadow,
+  },
+  nearMeText: { fontSize: 13, fontWeight: '700', color: T2.brand, letterSpacing: -0.3 },
 
   researchWrap: { position: 'absolute', left: 0, right: 0, bottom: SHEET_COLLAPSED + 12, alignItems: 'center' },
   researchBtn: {
@@ -396,6 +536,11 @@ const styles = StyleSheet.create({
   },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E5E5', alignSelf: 'center', marginBottom: 16 },
   sheetList: { flex: 1 },
+  sortRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingBottom: 12 },
+  sortChip: { paddingVertical: 7, paddingHorizontal: 13, borderRadius: 999, backgroundColor: T2.bg, borderWidth: 1, borderColor: T2.border },
+  sortChipOn: { backgroundColor: T2.brandSoft, borderColor: 'rgba(255,90,31,0.3)' },
+  sortChipText: { fontSize: 12.5, fontWeight: '700', color: T2.textMute, letterSpacing: -0.2 },
+  sortChipTextOn: { color: T2.brand },
   pickList: { marginTop: 14, maxHeight: 340 },
   sheetHead: { paddingHorizontal: 20, paddingBottom: 12 },
   liveRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -417,11 +562,21 @@ const styles = StyleSheet.create({
     borderBottomColor: T2.border,
   },
   listRowFirst: { borderTopWidth: 1, borderTopColor: T2.border },
-  listName: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
+  nameRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7 },
+  listName: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3, flexShrink: 1 },
+  listCategory: { fontSize: 12, color: T2.textMute, fontWeight: '600', flexShrink: 0 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 5 },
+  ratingItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  ratingLabel: { fontSize: 11, color: T2.textMute, fontWeight: '600' },
+  ratingCount: { fontSize: 11, color: T2.textMute },
   listMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
   listMeta: { fontSize: 12, color: T2.textSub },
+  listStar: { fontSize: 12, color: '#F5A623', fontWeight: '700' },
   dot: { color: T2.textMute, fontSize: 12 },
   listTag: { fontSize: 12 },
+  listPhotos: { marginTop: 10 },
+  listPhotosContent: { gap: 6, paddingRight: 4 },
+  listPhoto: { width: 104, height: 104, borderRadius: 10, backgroundColor: T2.bg },
 
   // 시트 헤더 + 혼밥 시작 버튼
   sheetHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
