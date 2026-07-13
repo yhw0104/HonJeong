@@ -3,7 +3,7 @@
 // 메뉴 탭은 보류(데이터 출처 미정) — TABS에서 임시 숨김. MenuTab 컴포넌트/렌더는 복원 위해 보존.
 // 원본의 하단 MinTabBar는 제거(상세는 탭 위로 push되는 풀스크린이라 뒤로가기로 복귀).
 import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Alert, Image } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Alert, Image, Share } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H } from '@/shared/components';
@@ -120,6 +120,11 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
     setTimeout(() => setCopied(false), 1200);
   };
   const goMealRequest = () => navigation.navigate('MealRequest', { placeId, placeName: name });
+
+  // 공유 — 앱에 공개 URL/딥링크가 없어 가게명+주소 텍스트로 공유. 취소/실패는 조용히 무시.
+  const onShare = () => {
+    Share.share({ title: name, message: `${name}\n${fullAddr}\n\n🍚 혼정에서 공유` }).catch(() => {});
+  };
   const goDinerProfile = (userId: number) => navigation.navigate('MateProfile', { userId });
   const toggleHonbab = () => {
     if (honbabOn && myCheckIn.data) {
@@ -230,9 +235,9 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
           <Text style={styles.circleArrow}>←</Text>
         </Pressable>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <View style={styles.circleBtn}>
+          <Pressable style={styles.circleBtn} onPress={onShare} hitSlop={4}>
             <Icon name="share" size={15} color={T2.text} />
-          </View>
+          </Pressable>
           <Pressable style={styles.circleBtn} onPress={() => setFavSheet(true)} hitSlop={4}>
             <Icon name="heart" size={16} color={saved ? T2.brand : T2.text} />
           </Pressable>
