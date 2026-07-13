@@ -24,6 +24,11 @@ export const startCheckIn = (placeId: number) => apiPost<CheckIn>('/check-ins', 
 export const dineAlone = (checkInId: number) => apiPatch<CheckIn>(`/check-ins/${checkInId}/dine-alone`);
 export const endCheckIn = (checkInId: number) => apiPatch<CheckIn>(`/check-ins/${checkInId}/end`);
 export const cancelCheckIn = (checkInId: number) => apiPatch<CheckIn>(`/check-ins/${checkInId}/cancel`);
+
+export type LeaveMatchTo = 'ACTIVE' | 'SEEKING' | 'CANCELLED';
+/** 같이먹기 매칭 깨기 — to=ACTIVE(혼밥 계속)/SEEKING(다시 모집)/CANCELLED(취소). 상대는 서버가 SEEKING 복귀+알림 처리. */
+export const leaveMatch = (checkInId: number, to: LeaveMatchTo) =>
+  apiPatch<CheckIn>(`/check-ins/${checkInId}/leave-match`, { to });
 export const fetchStats = () => apiGet<CheckInStats>('/check-ins/stats');
 export const fetchMap = (lat: number, lng: number, radius = 1000) =>
   apiGet<MapMarker[]>(`/check-ins/map?lat=${lat}&lng=${lng}&radius=${radius}`);

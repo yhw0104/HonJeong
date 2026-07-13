@@ -4,6 +4,7 @@ import type { Coord } from '@/shared/location/pickLocation';
 import { LIVE_REFETCH_MS } from '@/shared/realtime';
 import {
   fetchMyCheckIn, startCheckIn, endCheckIn, cancelCheckIn, dineAlone, fetchStats, fetchMap, fetchSeekers,
+  leaveMatch, type LeaveMatchTo,
 } from './api';
 import { startCheckInWithRecovery } from './recovery';
 
@@ -69,6 +70,15 @@ export function useDineAlone() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (checkInId: number) => dineAlone(checkInId),
+    onSuccess: () => invalidateLoop(qc),
+  });
+}
+
+// 같이먹기 매칭 깨기(노쇼/취소 처리) — 내 상태를 to로, 상대는 서버가 SEEKING 복귀+알림.
+export function useLeaveMatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ checkInId, to }: { checkInId: number; to: LeaveMatchTo }) => leaveMatch(checkInId, to),
     onSuccess: () => invalidateLoop(qc),
   });
 }

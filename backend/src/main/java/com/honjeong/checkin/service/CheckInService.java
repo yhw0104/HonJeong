@@ -26,6 +26,8 @@ import com.honjeong.global.config.HonjeongCheckInProperties;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.meal.repository.MealRequestRepository;
+import com.honjeong.notification.domain.NotificationType;
+import com.honjeong.notification.service.NotificationService;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.service.PlaceService;
 import com.honjeong.user.domain.User;
@@ -55,18 +57,20 @@ public class CheckInService {
     private final UserRepository userRepository;
     private final BlockRepository blockRepository;
     private final MealRequestRepository mealRequestRepository;
+    private final NotificationService notificationService;
     private final Clock clock;
     private final HonjeongCheckInProperties props;
 
     public CheckInService(CheckInRepository checkInRepository, PlaceService placeService,
             UserRepository userRepository, BlockRepository blockRepository,
-            MealRequestRepository mealRequestRepository, Clock clock,
-            HonjeongCheckInProperties props) {
+            MealRequestRepository mealRequestRepository, NotificationService notificationService,
+            Clock clock, HonjeongCheckInProperties props) {
         this.checkInRepository = checkInRepository;
         this.placeService = placeService;
         this.userRepository = userRepository;
         this.blockRepository = blockRepository;
         this.mealRequestRepository = mealRequestRepository;
+        this.notificationService = notificationService;
         this.clock = clock;
         this.props = props;
     }
@@ -228,6 +232,49 @@ public class CheckInService {
         Long partnerUserId = partner != null ? partner.getUser().getId() : null;
         String partnerNickname = partner != null ? partner.getUser().getNickname() : null;
         return CheckInResponse.from(c, partnerUserId, partnerNickname);
+    }
+
+    /**
+     * 기능: 같이먹기(TOGETHER) 매칭을 깨고 내 체크인을 지정 상태로 전이 — 상대는 항상 SEEKING 복귀 + 알림.
+     * 내가 혼밥 계속(ACTIVE)/다시 모집(SEEKING)/취소(CANCELLED) 중 선택하고, 상대(노쇼자/취소자)는 SEEKING으로
+     * 복귀시킨 뒤 MEAL_MATCH_CANCELLED 알림을 발행한다. (상대 식별은 leaveMatch 전에 mealRequestId로 먼저 조회)
+     *
+     * @param userId    요청 사용자(체크인 소유자여야 함)
+     * @param checkInId 내 TOGETHER 체크인 id
+     * @param to        전이할 내 상태(ACTIVE/SEEKING/CANCELLED만 허용)
+     * @return 전이된 내 체크인 응답
+     * @throws BusinessException INVALID_INPUT(to 부적절)/CHECKIN_NOT_FOUND(404)/FORBIDDEN(403)/CHECKIN_NOT_TOGETHER(409)
+     */
+    @Transactional
+    public CheckInResponse leaveMatch(Long userId, Long checkInId, String toStr) {
+        CheckInStatus to;
+        try {
+            to = CheckInStatus.valueOf(toStr);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "to는 ACTIVE/SEEKING/CANCELLED만 가능합니다.");
+        }
+        if (to != CheckInStatus.ACTIVE && to != CheckInStatus.SEEKING && to != CheckInStatus.CANCELLED) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "to는 ACTIVE/SEEKING/CANCELLED만 가능합니다.");
+        }
+        CheckIn mine = checkInRepository.findById(checkInId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHECKIN_NOT_FOUND));
+        if (!mine.isOwnedBy(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        if (mine.getStatus() != CheckInStatus.TOGETHER) {
+            throw new BusinessException(ErrorCode.CHECKIN_NOT_TOGETHER);
+        }
+        LocalDateTime now = now();
+        // 상대(같은 매칭)는 SEEKING으로 복귀 + 알림 — mine.leaveMatch로 mealRequestId가 지워지기 전에 먼저 찾는다.
+        checkInRepository.findTogetherByMealRequestId(mine.getMealRequestId()).stream()
+                .filter(x -> !x.getUser().getId().equals(userId))
+                .findFirst()
+                .ifPresent(partner -> {
+                    partner.leaveMatch(CheckInStatus.SEEKING, now);
+                    notificationService.publish(partner.getUser().getId(), NotificationType.MEAL_MATCH_CANCELLED, userId);
+                });
+        mine.leaveMatch(to, now);
+        return CheckInResponse.from(mine);
     }
 
     /**

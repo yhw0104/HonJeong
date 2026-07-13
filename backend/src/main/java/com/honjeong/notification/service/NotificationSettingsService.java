@@ -48,7 +48,7 @@ public class NotificationSettingsService {
     public boolean isEnabled(Long userId, NotificationType type) {
         var opt = settingsRepository.findByUserId(userId);
         return switch (type) {
-            case MEAL_REQUEST_RECEIVED, MEAL_REQUEST_ACCEPTED ->
+            case MEAL_REQUEST_RECEIVED, MEAL_REQUEST_ACCEPTED, MEAL_MATCH_CANCELLED ->
                     opt.map(NotificationSettings::isMealEnabled).orElse(true);
             case MATE_REQUEST_RECEIVED, MATE_REQUEST_ACCEPTED ->
                     opt.map(NotificationSettings::isMateEnabled).orElse(true);

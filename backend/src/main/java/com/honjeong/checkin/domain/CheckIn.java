@@ -182,6 +182,29 @@ public class CheckIn {
         }
     }
 
+    /**
+     * TOGETHER 매칭을 깨고 주어진 상태로 전이한다(노쇼/취소 처리·상대 복귀 공용). TOGETHER가 아니면 무시(멱등).
+     * 매칭 정보(matchedAt·mealRequestId)를 비우고, ACTIVE/SEEKING이면 startedAt=now로 재설정(경과·TTL 새로 시작),
+     * CANCELLED면 endedAt=now.
+     *
+     * @param to  ACTIVE(혼밥 계속) / SEEKING(다시 모집) / CANCELLED(취소) 중 하나
+     * @param now 전이 시각
+     */
+    public void leaveMatch(CheckInStatus to, LocalDateTime now) {
+        if (status != CheckInStatus.TOGETHER) {
+            return;
+        }
+        this.matchedAt = null;
+        this.mealRequestId = null;
+        this.status = to;
+        if (to == CheckInStatus.ACTIVE || to == CheckInStatus.SEEKING) {
+            this.startedAt = now;
+            this.endedAt = null;
+        } else if (to == CheckInStatus.CANCELLED) {
+            this.endedAt = now;
+        }
+    }
+
     /** 이 체크인이 주어진 사용자 소유인지 여부. */
     public boolean isOwnedBy(Long userId) {
         return user.getId().equals(userId);

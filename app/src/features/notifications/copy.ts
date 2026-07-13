@@ -4,6 +4,7 @@ import type { NotificationType } from './api';
 const MESSAGE: Record<NotificationType, string> = {
   MEAL_REQUEST_RECEIVED: '님이 같이 먹기를 신청했어요',
   MEAL_REQUEST_ACCEPTED: '님이 같이 먹기를 수락했어요',
+  MEAL_MATCH_CANCELLED: '님이 같이 먹기 약속을 취소했어요',
   MATE_REQUEST_RECEIVED: '님이 메이트를 신청했어요',
   MATE_REQUEST_ACCEPTED: '님이 메이트를 수락했어요',
 };
@@ -15,7 +16,7 @@ export function notificationMessage(type: NotificationType, actorNickname: strin
 /** 알림 탭 시 이동할 화면. 같이먹기 수락은 '같이 먹는 중' 상태가 보이는 홈 지도로. */
 export function notificationTarget(type: NotificationType): 'ReceivedRequests' | 'MainTabs' | 'Mates' {
   if (type === 'MEAL_REQUEST_RECEIVED') return 'ReceivedRequests';
-  if (type === 'MEAL_REQUEST_ACCEPTED') return 'MainTabs';
+  if (type === 'MEAL_REQUEST_ACCEPTED' || type === 'MEAL_MATCH_CANCELLED') return 'MainTabs';
   return 'Mates';
 }
 

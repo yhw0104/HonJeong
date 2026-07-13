@@ -37,6 +37,8 @@ import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.meal.repository.MealRequestRepository;
 import com.honjeong.place.domain.Place;
+import com.honjeong.notification.domain.NotificationType;
+import com.honjeong.notification.service.NotificationService;
 import com.honjeong.place.service.PlaceService;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
@@ -52,12 +54,13 @@ class CheckInServiceTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     private final BlockRepository blockRepository = mock(BlockRepository.class);
     private final MealRequestRepository mealRequestRepository = mock(MealRequestRepository.class);
+    private final NotificationService notificationService = mock(NotificationService.class);
     // KST 12:00 = UTC 03:00 으로 고정. now()는 ofInstant(instant, KST) = 2026-06-15T12:00.
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneOffset.UTC);
     private final HonjeongCheckInProperties props = new HonjeongCheckInProperties(3, 300_000L, 3, 3);
     private final CheckInService service =
             new CheckInService(checkInRepository, placeService, userRepository, blockRepository,
-                    mealRequestRepository, clock, props);
+                    mealRequestRepository, notificationService, clock, props);
 
     private final LocalDateTime nowKst = LocalDateTime.of(2026, 6, 15, 12, 0);
 
@@ -385,6 +388,59 @@ class CheckInServiceTest {
     }
 
     @Test
+    @DisplayName("leaveMatch(ACTIVE): 내 TOGETHER를 혼밥(ACTIVE)로, 상대는 SEEKING 복귀 + 알림 발행")
+    void leaveMatch_toActive() {
+        CheckIn mine = CheckIn.startTogether(userRef(1L), place(10L), 50L, nowKst);
+        CheckIn partner = CheckIn.startTogether(userRef(2L, "상대"), place(10L), 50L, nowKst);
+        when(checkInRepository.findById(100L)).thenReturn(Optional.of(mine));
+        when(checkInRepository.findTogetherByMealRequestId(50L)).thenReturn(List.of(mine, partner));
+
+        CheckInResponse res = service.leaveMatch(1L, 100L, "ACTIVE");
+
+        assertThat(res.status()).isEqualTo("ACTIVE");
+        assertThat(mine.getStatus()).isEqualTo(CheckInStatus.ACTIVE);
+        assertThat(mine.getMealRequestId()).isNull();
+        assertThat(partner.getStatus()).isEqualTo(CheckInStatus.SEEKING);   // 상대는 다시 모집중으로 복귀
+        assertThat(partner.getMealRequestId()).isNull();
+        verify(notificationService).publish(2L, NotificationType.MEAL_MATCH_CANCELLED, 1L);
+    }
+
+    @Test
+    @DisplayName("leaveMatch(CANCELLED): 내 TOGETHER를 취소(CANCELLED)로, 상대는 SEEKING 복귀")
+    void leaveMatch_toCancelled() {
+        CheckIn mine = CheckIn.startTogether(userRef(1L), place(10L), 50L, nowKst);
+        CheckIn partner = CheckIn.startTogether(userRef(2L, "상대"), place(10L), 50L, nowKst);
+        when(checkInRepository.findById(100L)).thenReturn(Optional.of(mine));
+        when(checkInRepository.findTogetherByMealRequestId(50L)).thenReturn(List.of(mine, partner));
+
+        CheckInResponse res = service.leaveMatch(1L, 100L, "CANCELLED");
+
+        assertThat(res.status()).isEqualTo("CANCELLED");
+        assertThat(partner.getStatus()).isEqualTo(CheckInStatus.SEEKING);
+    }
+
+    @Test
+    @DisplayName("leaveMatch: to가 ACTIVE/SEEKING/CANCELLED가 아니면 INVALID_INPUT")
+    void leaveMatch_invalidTo() {
+        assertThatThrownBy(() -> service.leaveMatch(1L, 100L, "ENDED"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("leaveMatch: TOGETHER가 아니면 CHECKIN_NOT_TOGETHER")
+    void leaveMatch_notTogether() {
+        CheckIn active = CheckIn.start(userRef(1L), place(10L), nowKst); // ACTIVE
+        when(checkInRepository.findById(100L)).thenReturn(Optional.of(active));
+
+        assertThatThrownBy(() -> service.leaveMatch(1L, 100L, "SEEKING"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CHECKIN_NOT_TOGETHER);
+    }
+
+    @Test
     @DisplayName("getMyCurrentCheckIn: 현재 체크인이 없으면 null")
     void getMyCurrent_none() {
         when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection()))
@@ -523,7 +579,7 @@ class CheckInServiceTest {
         HonjeongCheckInProperties props2 = new HonjeongCheckInProperties(3, 300_000L, 5, 3);
         CheckInService service2 =
                 new CheckInService(checkInRepository, placeService, userRepository, blockRepository,
-                        mealRequestRepository, clock, props2);
+                        mealRequestRepository, notificationService, clock, props2);
         when(checkInRepository.endActiveStartedBefore(any(), any())).thenReturn(2);
         when(checkInRepository.endTogetherMatchedBefore(any(), any())).thenReturn(1);
 
@@ -550,7 +606,7 @@ class CheckInServiceTest {
         HonjeongCheckInProperties props3 = new HonjeongCheckInProperties(3, 300_000L, 5, 7);
         CheckInService service3 =
                 new CheckInService(checkInRepository, placeService, userRepository, blockRepository,
-                        mealRequestRepository, clock, props3);
+                        mealRequestRepository, notificationService, clock, props3);
         when(checkInRepository.endActiveStartedBefore(any(), any())).thenReturn(2);
         when(checkInRepository.endTogetherMatchedBefore(any(), any())).thenReturn(1);
         when(checkInRepository.cancelSeekingStartedBefore(any(), any())).thenReturn(4);

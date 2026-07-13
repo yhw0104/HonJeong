@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.honjeong.checkin.dto.CheckInRequest;
 import com.honjeong.checkin.dto.CheckInResponse;
+import com.honjeong.checkin.dto.LeaveMatchRequest;
 import com.honjeong.checkin.dto.CheckInStatsResponse;
 import com.honjeong.checkin.dto.MapMarkerResponse;
 import com.honjeong.checkin.service.CheckInService;
@@ -96,6 +97,20 @@ public class CheckInController {
     @PatchMapping("/{id}/dine-alone")
     public ApiResponse<CheckInResponse> dineAlone(@CurrentUserId Long userId, @PathVariable Long id) {
         return ApiResponse.success(checkInService.dineAlone(userId, id));
+    }
+
+    /**
+     * 1. API 주소: PATCH /api/check-ins/{id}/leave-match
+     * 2. 사용 화면: 같이먹기 종료 시트 — 상대 노쇼/취소 시 "혼밥 계속/다시 모집/취소" 선택
+     * 3. Request: id(경로) — 내 TOGETHER 체크인 / body { to: ACTIVE|SEEKING|CANCELLED } / 인증 사용자
+     * 4. Response: CheckInResponse — 전이된 내 체크인(상대는 SEEKING 복귀 + 알림)
+     *
+     * <p>[기존 주석] 같이먹기 매칭을 깨고 내 체크인을 지정 상태로 전이한다. 상대는 항상 SEEKING으로 복귀시키고 알림을 발행한다.
+     */
+    @PatchMapping("/{id}/leave-match")
+    public ApiResponse<CheckInResponse> leaveMatch(@CurrentUserId Long userId, @PathVariable Long id,
+            @Valid @RequestBody LeaveMatchRequest request) {
+        return ApiResponse.success(checkInService.leaveMatch(userId, id, request.to()));
     }
 
     /**

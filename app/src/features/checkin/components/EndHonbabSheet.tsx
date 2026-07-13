@@ -1,29 +1,35 @@
-// EndHonbabSheet — 혼밥/같이먹기 종료 시트. '밀어서 완료'(ENDED)가 기본, 작게 '취소'(CANCELLED).
-// 실수 탭 방지: 끝내기 탭은 이 시트를 열 뿐(무해), 완료는 일부러 슬라이드해야 확정된다.
-// checkIn=null이면 아무 것도 렌더하지 않는다(닫히면 언마운트 → 슬라이드 상태 초기화).
-import React from 'react';
+// EndHonbabSheet — 혼밥/같이먹기 종료 시트.
+// 혼밥(ACTIVE): '밀어서 완료'(ENDED) + '안 먹었어요'(CANCELLED).
+// 같이먹기(TOGETHER): '밀어서 완료'(양쪽 ENDED) + '상대가 안 나왔어요' → 노쇼 서브뷰
+//   (그래도 혼밥/다시 모집/안 먹고 감 = leaveMatch, 상대는 서버가 SEEKING 복귀+알림 / '이 사람 신고하기').
+// checkIn=null이면 렌더 안 함. 닫히면 서브뷰 상태 초기화(다음 열림 대비).
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SlideToConfirm } from '@/shared/components';
 import { T2 } from '@/shared/theme';
-import type { CheckIn } from '../api';
-import { useEndCheckIn, useCancelCheckIn } from '../queries';
+import type { CheckIn, LeaveMatchTo } from '../api';
+import { useEndCheckIn, useCancelCheckIn, useLeaveMatch } from '../queries';
 
 export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
   checkIn: CheckIn | null;
   onClose: () => void;
-  /** 같이먹기에서 '상대가 안 나왔어요' 탭 → 부모가 상대 대상 신고 화면으로 이동. */
+  /** 같이먹기에서 '이 사람 신고하기' 탭 → 부모가 상대 대상 신고 화면으로 이동. */
   onReportNoShow: (partnerUserId: number, partnerNickname: string) => void;
 }) {
   const insets = useSafeAreaInsets();
   const end = useEndCheckIn();
   const cancel = useCancelCheckIn();
+  const leave = useLeaveMatch();
+  const [noShow, setNoShow] = useState(false); // 같이먹기 '상대가 안 나왔어요' 서브뷰
+  useEffect(() => { if (!checkIn) setNoShow(false); }, [checkIn]); // 닫히면 초기화(컴포넌트는 언마운트 안 됨)
   if (!checkIn) return null;
 
   const together = checkIn.status === 'TOGETHER';
   const complete = () => { end.mutate(checkIn.checkInId); onClose(); };
   const discard = () => { cancel.mutate(checkIn.checkInId); onClose(); };
-  const reportNoShow = () => {
+  const leaveTo = (to: LeaveMatchTo) => { leave.mutate({ checkInId: checkIn.checkInId, to }); onClose(); };
+  const report = () => {
     if (checkIn.partnerUserId == null) return;
     onReportNoShow(checkIn.partnerUserId, checkIn.partnerNickname ?? '상대');
     onClose();
@@ -37,20 +43,42 @@ export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
           <Text style={styles.closeX}>×</Text>
         </Pressable>
         <View style={styles.handle} />
-        <Text style={styles.title}>{together ? '같이 먹기를 끝낼까요?' : '혼밥을 끝낼까요?'}</Text>
-        <Text style={styles.sub}>다 드셨으면 밀어서 완료하세요.</Text>
-        <SlideToConfirm label="밀어서 완료" onConfirm={complete} style={styles.slide} />
-        {together ? (
-          // 같이먹기: 취소(무효화)는 백엔드가 막으므로(CHECKIN_NOT_ACTIVE), 대신 상대 노쇼 신고를 제공.
-          checkIn.partnerUserId != null && (
-            <Pressable style={styles.discard} onPress={reportNoShow} hitSlop={6} accessibilityRole="button">
-              <Text style={styles.discardText}>상대가 안 나왔어요 · 신고</Text>
+
+        {together && noShow ? (
+          // ── 노쇼 서브뷰: 매칭 깨고 내 상태 선택(상대는 서버가 SEEKING 복귀+알림) ──
+          <>
+            <Text style={styles.title}>상대가 안 나왔어요</Text>
+            <Text style={styles.sub}>이제 어떻게 할까요?</Text>
+            <Pressable style={[styles.choice, styles.choicePrimary]} onPress={() => leaveTo('ACTIVE')} accessibilityRole="button">
+              <Text style={[styles.choiceText, { color: T2.brand }]}>그래도 혼밥할게요</Text>
             </Pressable>
-          )
+            <Pressable style={styles.choice} onPress={() => leaveTo('SEEKING')} accessibilityRole="button">
+              <Text style={styles.choiceText}>다른 사람 기다릴래요</Text>
+            </Pressable>
+            <Pressable style={styles.choice} onPress={() => leaveTo('CANCELLED')} accessibilityRole="button">
+              <Text style={styles.choiceText}>안 먹고 갈게요</Text>
+            </Pressable>
+            {checkIn.partnerUserId != null && (
+              <Pressable style={styles.discard} onPress={report} hitSlop={6} accessibilityRole="button">
+                <Text style={styles.discardText}>이 사람 신고하기</Text>
+              </Pressable>
+            )}
+          </>
         ) : (
-          <Pressable style={styles.discard} onPress={discard} hitSlop={6} accessibilityRole="button">
-            <Text style={styles.discardText}>안 먹었어요(기록 안 함)</Text>
-          </Pressable>
+          <>
+            <Text style={styles.title}>{together ? '같이 먹기를 끝낼까요?' : '혼밥을 끝낼까요?'}</Text>
+            <Text style={styles.sub}>다 드셨으면 밀어서 완료하세요.</Text>
+            <SlideToConfirm label="밀어서 완료" onConfirm={complete} style={styles.slide} />
+            {together ? (
+              <Pressable style={styles.discard} onPress={() => setNoShow(true)} hitSlop={6} accessibilityRole="button">
+                <Text style={styles.discardText}>상대가 안 나왔어요</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={styles.discard} onPress={discard} hitSlop={6} accessibilityRole="button">
+                <Text style={styles.discardText}>안 먹었어요(기록 안 함)</Text>
+              </Pressable>
+            )}
+          </>
         )}
       </View>
     </>
@@ -71,6 +99,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '800', color: T2.text, letterSpacing: -0.5 },
   sub: { fontSize: 13, color: T2.textMute, marginTop: 6, letterSpacing: -0.3 },
   slide: { marginTop: 20 },
+  choice: { marginTop: 10, paddingVertical: 15, borderRadius: 12, borderWidth: 1.5, borderColor: T2.border, alignItems: 'center' },
+  choicePrimary: { marginTop: 18, borderColor: T2.brand, backgroundColor: T2.brandSoft },
+  choiceText: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
   discard: { alignItems: 'center', paddingVertical: 14, marginTop: 8 },
   discardText: { fontSize: 13.5, fontWeight: '700', color: T2.textMute, letterSpacing: -0.3 },
 });
