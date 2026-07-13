@@ -252,17 +252,28 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
               onPress={() => goDetail(r.placeId, r.name)}
             >
               <View style={{ flex: 1 }}>
-                <Text style={styles.listName}>{r.name}</Text>
+                {/* 이름 + 카테고리(옆에) */}
+                <View style={styles.nameRow}>
+                  <Text style={styles.listName} numberOfLines={1}>{r.name}</Text>
+                  {!!r.category && <Text style={styles.listCategory}>{r.category}</Text>}
+                </View>
+                {/* 별점 두 개(맛·혼밥) + 리뷰 수 — 리뷰 있을 때만 */}
+                {r.reviewCount > 0 && (
+                  <View style={styles.ratingRow}>
+                    <View style={styles.ratingItem}>
+                      <Text style={styles.ratingLabel}>맛</Text>
+                      <Text style={styles.listStar}>★ {(r.avgTasteRating ?? 0).toFixed(1)}</Text>
+                    </View>
+                    <View style={styles.ratingItem}>
+                      <Text style={styles.ratingLabel}>혼밥</Text>
+                      <Text style={styles.listStar}>★ {(r.avgSoloFriendlyRating ?? 0).toFixed(1)}</Text>
+                    </View>
+                    <Text style={styles.ratingCount}>리뷰 {r.reviewCount}</Text>
+                  </View>
+                )}
+                {/* 거리 · 모집(거리 옆) */}
                 <View style={styles.listMetaRow}>
-                  {r.reviewCount > 0 && (
-                    <>
-                      <Text style={styles.listStar}>★ {(r.avgTasteRating ?? 0).toFixed(1)} ({r.reviewCount})</Text>
-                      <Text style={styles.dot}>·</Text>
-                    </>
-                  )}
-                  <Text style={styles.listMeta}>
-                    {[r.category, formatDistance(r.distanceMeters)].filter(Boolean).join(' · ')}
-                  </Text>
+                  <Text style={styles.listMeta}>{formatDistance(r.distanceMeters)}</Text>
                   {r.seekingCount > 0 && (
                     <>
                       <Text style={styles.dot}>·</Text>
@@ -502,7 +513,13 @@ const styles = StyleSheet.create({
     borderBottomColor: T2.border,
   },
   listRowFirst: { borderTopWidth: 1, borderTopColor: T2.border },
-  listName: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
+  nameRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7 },
+  listName: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3, flexShrink: 1 },
+  listCategory: { fontSize: 12, color: T2.textMute, fontWeight: '600', flexShrink: 0 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 5 },
+  ratingItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  ratingLabel: { fontSize: 11, color: T2.textMute, fontWeight: '600' },
+  ratingCount: { fontSize: 11, color: T2.textMute },
   listMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
   listMeta: { fontSize: 12, color: T2.textSub },
   listStar: { fontSize: 12, color: '#F5A623', fontWeight: '700' },
