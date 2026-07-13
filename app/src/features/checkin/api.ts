@@ -2,7 +2,7 @@ import { apiGet, apiPost, apiPatch } from '@/shared/api/client';
 
 export type CheckInStatus = 'SEEKING' | 'ACTIVE' | 'TOGETHER' | 'ENDED' | 'CANCELLED';
 export type CheckIn = {
-  checkInId: number; placeId: number; status: CheckInStatus;
+  checkInId: number; placeId: number; placeName: string; status: CheckInStatus;
   startedAt: string; endedAt: string | null;
   matchedAt: string | null; partnerNickname: string | null;
 };

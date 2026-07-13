@@ -11,6 +11,7 @@ import com.honjeong.checkin.domain.CheckIn;
  *
  * @param checkInId       체크인 id
  * @param placeId         식당 id
+ * @param placeName       식당 이름(상태바 표시용 — 목록에 의존하지 않게 응답에 동봉)
  * @param status          상태 문자열(ACTIVE|TOGETHER|ENDED|CANCELLED)
  * @param startedAt       시작 시각
  * @param endedAt         종료 시각(진행 중이면 null)
@@ -18,7 +19,7 @@ import com.honjeong.checkin.domain.CheckIn;
  * @param partnerNickname 같이먹기 파트너 닉네임(TOGETHER /me 응답 전용, 그 외 null)
  */
 public record CheckInResponse(
-        Long checkInId, Long placeId, String status,
+        Long checkInId, Long placeId, String placeName, String status,
         LocalDateTime startedAt, LocalDateTime endedAt,
         LocalDateTime matchedAt, String partnerNickname) {
 
@@ -30,7 +31,7 @@ public record CheckInResponse(
     /** 파트너 닉네임을 포함한 변환(TOGETHER /me 응답). */
     public static CheckInResponse from(CheckIn c, String partnerNickname) {
         return new CheckInResponse(
-                c.getId(), c.getPlace().getId(), c.getStatus().name(),
+                c.getId(), c.getPlace().getId(), c.getPlace().getName(), c.getStatus().name(),
                 c.getStartedAt(), c.getEndedAt(), c.getMatchedAt(), partnerNickname);
     }
 }

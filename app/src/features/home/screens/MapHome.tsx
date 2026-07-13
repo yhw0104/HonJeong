@@ -88,9 +88,8 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     }
     return arr;
   }, [nearbyList, sortKey]);
-  const myPlaceName =
-    nearbyList.find((p) => p.placeId === myCheckIn.data?.placeId)?.name ??
-    '내 식당';
+  // 체크인 응답이 식당 이름을 직접 담아준다 — 지도를 옮겨 주변 목록이 바뀌어도 상태바 이름이 '내 식당'으로 떨어지지 않게.
+  const myPlaceName = myCheckIn.data?.placeName ?? '내 식당';
 
   const goDetail = (placeId: number, name?: string) =>
     navigation.navigate('RestaurantDetail', { placeId, name });

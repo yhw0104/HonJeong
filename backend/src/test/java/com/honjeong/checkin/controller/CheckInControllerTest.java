@@ -62,7 +62,7 @@ class CheckInControllerTest {
     @DisplayName("POST /api/check-ins: USER면 201 + 체크인 응답")
     void create_201() throws Exception {
         when(checkInService.createCheckIn(eq(1L), any())).thenReturn(
-                new CheckInResponse(10L, 3L, "ACTIVE", LocalDateTime.of(2026, 6, 15, 12, 0), null, null, null));
+                new CheckInResponse(10L, 3L, "테스트식당", "ACTIVE", LocalDateTime.of(2026, 6, 15, 12, 0), null, null, null));
 
         mockMvc.perform(post("/api/check-ins").header("Authorization", userToken())
                         .contentType(MediaType.APPLICATION_JSON).content(body()))
@@ -70,6 +70,7 @@ class CheckInControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.checkInId").value(10))
                 .andExpect(jsonPath("$.data.placeId").value(3))
+                .andExpect(jsonPath("$.data.placeName").value("테스트식당"))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"));
     }
 
@@ -130,7 +131,7 @@ class CheckInControllerTest {
     @DisplayName("PATCH /api/check-ins/{id}/end: 200")
     void end_200() throws Exception {
         when(checkInService.endCheckIn(1L, 10L)).thenReturn(
-                new CheckInResponse(10L, 3L, "ENDED", LocalDateTime.of(2026, 6, 15, 12, 0),
+                new CheckInResponse(10L, 3L, "테스트식당", "ENDED", LocalDateTime.of(2026, 6, 15, 12, 0),
                         LocalDateTime.of(2026, 6, 15, 13, 0), null, null));
 
         mockMvc.perform(patch("/api/check-ins/10/end").header("Authorization", userToken()))
@@ -153,7 +154,7 @@ class CheckInControllerTest {
     @DisplayName("PATCH /check-ins/{id}/cancel → 200, CANCELLED 응답")
     void cancel_ok() throws Exception {
         when(checkInService.cancelCheckIn(eq(1L), eq(3L))).thenReturn(
-                new CheckInResponse(3L, 10L, "CANCELLED", LocalDateTime.of(2026, 6, 15, 12, 0),
+                new CheckInResponse(3L, 10L, "테스트식당", "CANCELLED", LocalDateTime.of(2026, 6, 15, 12, 0),
                         LocalDateTime.of(2026, 6, 15, 12, 0), null, null));
 
         mockMvc.perform(patch("/api/check-ins/3/cancel").header("Authorization", userToken()))
