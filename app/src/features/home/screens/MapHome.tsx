@@ -171,16 +171,13 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         )}
       </View>
 
-      {/* 줌 +/− · 내 위치로 이동 */}
+      {/* 줌 +/− */}
       <View style={styles.zoom}>
         <Pressable style={[styles.zoomBtn, styles.zoomDivider]} onPress={() => mapRef.current?.zoomIn()}>
           <Text style={styles.zoomText}>+</Text>
         </Pressable>
-        <Pressable style={[styles.zoomBtn, styles.zoomDivider]} onPress={() => mapRef.current?.zoomOut()}>
+        <Pressable style={styles.zoomBtn} onPress={() => mapRef.current?.zoomOut()}>
           <Text style={styles.zoomText}>−</Text>
-        </Pressable>
-        <Pressable style={styles.zoomBtn} onPress={recenterToMe}>
-          <Text style={styles.zoomText}>◎</Text>
         </Pressable>
       </View>
 
