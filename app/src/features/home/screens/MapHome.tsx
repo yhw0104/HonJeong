@@ -33,6 +33,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   // 최초 좌표로 초기화하고, 위치 출처가 더 나은 단계로 승격될 때(기본→내동네→GPS) 한 번씩 따라 올린다
   // (기존 'GPS 잡히면 지도 이동' 체감 유지 + 권한 거부 상태에서 내동네가 늦게 로드되는 경우 포함).
   const [anchor, setAnchor] = useState<Coord | null>(null);
+  const [mapCenter, setMapCenter] = useState<Coord | null>(null); // 사용자가 드래그한 현재 지도 중심(재검색 판정용)
   const prevRankRef = useRef(SOURCE_RANK[source]);
   useEffect(() => {
     const prevRank = prevRankRef.current;
@@ -81,9 +82,13 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     else requestAgain();
   };
 
-  // 기준점에서 200m 이상 이동(진짜 GPS일 때만)하면 '이 위치에서 재검색' 노출.
-  const offerResearch = anchor != null && shouldOfferResearch(coord, anchor, source);
-  const researchHere = () => setAnchor(coord); // queryKey 변경 → 목록·마커 재조회 + 지도 center 이동
+  // 지도를 드래그해 지도 중심이 기준점에서 200m 이상 벗어나면 '이 위치에서 재검색' 노출(GPS 이동과 무관).
+  const offerResearch = mapCenter != null && anchor != null && shouldOfferResearch(mapCenter, anchor);
+  const researchHere = () => { if (mapCenter) setAnchor(mapCenter); setMapCenter(null); }; // 지도 중심으로 재검색 + 버튼 숨김
+  // '내 주변': 내 GPS로 재검색 + 지도 이동(GPS 없으면 권한 재요청). setMapCenter(null)로 재검색 버튼도 정리.
+  const nearMe = () => {
+    if (source === 'gps') { setAnchor(coord); setMapCenter(null); } else { requestAgain(); }
+  };
 
   // 드래그로 펼치는 하단 시트: 핸들/헤더를 위로 끌면 펼침, 아래로 끌면 접힘.
   const sheetH = useRef(new Animated.Value(SHEET_COLLAPSED)).current;
@@ -131,6 +136,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
             seekingCount: m.seekingCount,
           }))}
         onMarkerPress={(placeId) => goDetail(placeId)}
+        onCenterChange={setMapCenter}
       />
 
       {/* 상단 검색 + (위치 안내) + (혼밥 중 상태 카드) */}
@@ -191,6 +197,14 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           </Pressable>
         </View>
       )}
+
+      {/* 우하단 '내 주변' — 내 위치로 새로고침(재검색). GPS 없으면 권한 재요청. */}
+      <View style={styles.nearMeWrap} pointerEvents="box-none">
+        <Pressable style={styles.nearMeBtn} onPress={nearMe} disabled={nearby.isFetching}>
+          <Icon name="navigate" size={13} color={T2.brand} />
+          <Text style={styles.nearMeText}>내 주변</Text>
+        </Pressable>
+      </View>
 
       {/* 하단 시트 (핸들·헤더를 위로 드래그하면 펼쳐져 전체 리스트가 보임) */}
       <Animated.View style={[styles.sheet, { height: sheetH }]}>
@@ -354,7 +368,7 @@ const styles = StyleSheet.create({
   zoom: {
     position: 'absolute',
     right: 16,
-    bottom: 320,
+    bottom: SHEET_COLLAPSED + 62, // '내 주변' 알약 위로 올림
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#fff',
@@ -363,6 +377,19 @@ const styles = StyleSheet.create({
   zoomBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   zoomDivider: { borderBottomWidth: 1, borderBottomColor: T2.border },
   zoomText: { fontSize: 18, color: T2.text },
+
+  nearMeWrap: { position: 'absolute', right: 16, bottom: SHEET_COLLAPSED + 12, alignItems: 'flex-end' },
+  nearMeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: '#fff',
+    ...shadow,
+  },
+  nearMeText: { fontSize: 13, fontWeight: '700', color: T2.brand, letterSpacing: -0.3 },
 
   researchWrap: { position: 'absolute', left: 0, right: 0, bottom: SHEET_COLLAPSED + 12, alignItems: 'center' },
   researchBtn: {

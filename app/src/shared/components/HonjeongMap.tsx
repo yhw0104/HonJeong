@@ -44,6 +44,8 @@ type Props = {
   markers?: MapMarkerInput[];
   /** 마커 탭 시 호출(식당 상세 이동 등). */
   onMarkerPress?: (placeId: number) => void;
+  /** 사용자가 지도를 드래그로 이동한 뒤 새 지도 중심. 재검색 판정용. */
+  onCenterChange?: (center: LatLng) => void;
   /** 내 위치(파란 점). null/미지정이면 표시 안 함. */
   myLocation?: LatLng | null;
 };
@@ -83,6 +85,11 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
             level: ${level}
           });
           window.__map = map;
+          // 사용자가 지도를 드래그해 끝냈을 때만 새 중심을 RN에 보고한다(프로그램적 setCenter는 dragend 미발화 → 피드백 루프 없음).
+          kakao.maps.event.addListener(map, 'dragend', function(){
+            var c = map.getCenter();
+            post('center:' + c.getLat() + ',' + c.getLng());
+          });
           // 내 위치(파란 점) 렌더 함수. lat/lng가 null이면 점을 제거한다.
           window.__myLoc = null;
           window.__renderMyLocation = function(lat, lng){
@@ -132,6 +139,7 @@ export const HonjeongMap = forwardRef<HonjeongMapHandle, Props>(function Honjeon
   style,
   markers,
   onMarkerPress,
+  onCenterChange,
   myLocation,
 }: Props, ref) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -196,6 +204,9 @@ export const HonjeongMap = forwardRef<HonjeongMapHandle, Props>(function Honjeon
     } else if (msg.startsWith('marker:')) {
       const placeId = Number(msg.slice('marker:'.length));
       if (!Number.isNaN(placeId)) onMarkerPress?.(placeId);
+    } else if (msg.startsWith('center:')) {
+      const [lat, lng] = msg.slice('center:'.length).split(',').map(Number);
+      if (!Number.isNaN(lat) && !Number.isNaN(lng)) onCenterChange?.({ lat, lng });
     } else if (msg.startsWith('console:') || msg.startsWith('jserr:')) {
       // 카카오가 도메인/키 오류를 console.error로 찍는다 → 가장 마지막 원문을 보존.
       setDetail(msg);
