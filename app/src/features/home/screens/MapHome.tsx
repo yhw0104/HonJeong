@@ -43,6 +43,9 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const searchAt = anchor ?? coord;
 
   const stats = useStats();
+  // 사회적 증거: '지금 혼밥 중'은 지금 식당에서 혼자인 모두(모집중+혼밥중). 그 중 일부가 같이 먹을 사람을 찾는 중.
+  const honbabTotal = stats.data ? stats.data.seekingCount + stats.data.activeCount : null;
+  const seekingNow = stats.data?.seekingCount ?? 0;
   const markers = useMap(searchAt);
   const nearby = useNearby(searchAt, 1000, true, true); // 마커(useMap)와 동일하게 anchor를 폴링 — 카운트만 갱신되고, anchor 고정이라 파란 점이 움직여도 목록은 안 튐(재검색 버튼으로만 기준점 이동)
   const myCheckIn = useMyCheckIn();
@@ -200,11 +203,13 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                 <View style={styles.pulseHaloSm} />
                 <View style={styles.pulseDotSm} />
               </View>
-              <Text style={styles.liveTag}>지금 · 실시간</Text>
+              <Text style={styles.liveTag}>실시간</Text>
             </View>
             <Text style={styles.sheetTitle}>
-              지금 <Text style={{ color: T2.brand }}>{stats.data?.seekingCount ?? '–'}명</Text>이 같이 먹을 사람 찾는 중{'\n'}
-              <Text style={styles.sheetSubInline}>· {stats.data?.activeCount ?? '–'}명 혼밥 중</Text>
+              지금 <Text style={{ color: T2.brand }}>{honbabTotal ?? '–'}명</Text> 혼밥 중
+              {seekingNow > 0 ? (
+                <Text style={styles.sheetSubInline}>{'\n'}· 그 중 {seekingNow}명은 같이 먹을 사람 찾는 중</Text>
+              ) : null}
             </Text>
             <Text style={styles.sheetSub}>내 주변 가게 {nearbyList.length}곳</Text>
           </View>
