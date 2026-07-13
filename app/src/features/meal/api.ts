@@ -1,6 +1,6 @@
 import { apiGet, apiPost, apiPatch } from '@/shared/api/client';
 
-export type MealRequestStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
+export type MealRequestStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | 'WITHDRAWN';
 
 export type MealRequestListItem = {
   mealRequestId: number;
@@ -39,3 +39,7 @@ export const acceptMealRequest = (id: number) =>
 
 export const declineMealRequest = (id: number) =>
   apiPatch<MealRequestStatusResult>(`/meal-requests/${id}/decline`);
+
+/** 신청자가 자신이 보낸 PENDING 신청을 철회(WITHDRAWN). */
+export const withdrawMealRequest = (id: number) =>
+  apiPatch<MealRequestStatusResult>(`/meal-requests/${id}/withdraw`);

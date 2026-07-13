@@ -43,6 +43,7 @@ export function MealRequestLists({
   receivedList, receivedLoading, receivedError,
   sentList, sentLoading, sentError,
   onAccept, onDecline, acceptPending, declinePending,
+  onWithdraw, withdrawPending,
   onOpenProfile, onOpenPlace,
 }: {
   tab: MealTab;
@@ -56,6 +57,8 @@ export function MealRequestLists({
   onDecline: (mealRequestId: number) => void;
   acceptPending: boolean;
   declinePending: boolean;
+  onWithdraw: (mealRequestId: number) => void;
+  withdrawPending: boolean;
   onOpenProfile: (userId: number) => void;
   onOpenPlace: (placeId: number, name: string) => void;
 }) {
@@ -106,7 +109,7 @@ export function MealRequestLists({
   return (
     <View>
       {sentList.map((s, i) => {
-        const closed = s.status === 'DECLINED' || s.status === 'EXPIRED';
+        const closed = s.status === 'DECLINED' || s.status === 'EXPIRED' || s.status === 'WITHDRAWN';
         const accepted = s.status === 'ACCEPTED';
         return (
           <Pressable key={s.mealRequestId} style={[styles.sentRow, i < sentList.length - 1 && styles.sentRowBorder]}
@@ -116,9 +119,16 @@ export function MealRequestLists({
               <Text style={[styles.sentName, { color: closed ? T2.textMute : T2.text }]}>{s.toUser.nickname}</Text>
               <Text style={styles.sentMeta} numberOfLines={1}>{s.placeName + ' · ' + formatTimeAgo(s.createdAt, now)}</Text>
             </View>
-            <View style={[styles.sentPill, { backgroundColor: accepted ? T2.brandSoft : T2.bg, borderColor: accepted ? 'rgba(255,90,31,0.2)' : T2.border }]}>
-              <Text style={[styles.sentPillText, { color: accepted ? T2.brand : T2.textMute }]}>{mealStatusLabelSent(s.status)}</Text>
-            </View>
+            {s.status === 'PENDING' ? (
+              <Pressable style={styles.withdrawBtn} disabled={withdrawPending}
+                onPress={() => onWithdraw(s.mealRequestId)} accessibilityRole="button">
+                <Text style={styles.withdrawText}>철회</Text>
+              </Pressable>
+            ) : (
+              <View style={[styles.sentPill, { backgroundColor: accepted ? T2.brandSoft : T2.bg, borderColor: accepted ? 'rgba(255,90,31,0.2)' : T2.border }]}>
+                <Text style={[styles.sentPillText, { color: accepted ? T2.brand : T2.textMute }]}>{mealStatusLabelSent(s.status)}</Text>
+              </View>
+            )}
           </Pressable>
         );
       })}
@@ -152,4 +162,6 @@ const styles = StyleSheet.create({
   sentMeta: { fontSize: 12, color: T2.textMute, marginTop: 3 },
   sentPill: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1 },
   sentPillText: { fontSize: 12, fontWeight: '700', letterSpacing: -0.2 },
+  withdrawBtn: { paddingVertical: 7, paddingHorizontal: 13, borderRadius: 999, borderWidth: 1, borderColor: T2.border, backgroundColor: T2.bg },
+  withdrawText: { fontSize: 12, fontWeight: '700', color: T2.textSub, letterSpacing: -0.2 },
 });

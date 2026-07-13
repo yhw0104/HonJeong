@@ -268,6 +268,41 @@ class MealRequestServiceTest {
     }
 
     @Test
+    @DisplayName("withdraw: 발신자가 PENDING 신청을 철회하면 WITHDRAWN")
+    void withdraw_success() {
+        MealRequest mr = pendingRequest(2L); // sender=1, receiver=2
+        when(mealRequestRepository.findById(7L)).thenReturn(Optional.of(mr));
+
+        MealRequestStatusResponse res = service.withdraw(1L, 7L);
+
+        assertThat(res.status()).isEqualTo("WITHDRAWN");
+        assertThat(res.respondedAt()).isEqualTo(nowKst);
+    }
+
+    @Test
+    @DisplayName("withdraw: 발신자가 아니면(수신자 등) FORBIDDEN")
+    void withdraw_notSender() {
+        MealRequest mr = pendingRequest(2L);
+        when(mealRequestRepository.findById(7L)).thenReturn(Optional.of(mr));
+        assertThatThrownBy(() -> service.withdraw(2L, 7L)) // 2L = 수신자(발신자 아님)
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    @DisplayName("withdraw: 이미 응답된 신청이면 MEALREQUEST_ALREADY_RESPONDED")
+    void withdraw_alreadyResponded() {
+        MealRequest mr = pendingRequest(2L);
+        mr.accept(nowKst.minusMinutes(5)); // 이미 ACCEPTED
+        when(mealRequestRepository.findById(7L)).thenReturn(Optional.of(mr));
+        assertThatThrownBy(() -> service.withdraw(1L, 7L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.MEALREQUEST_ALREADY_RESPONDED));
+    }
+
+    @Test
     @DisplayName("accept: 신청 없으면 MEALREQUEST_NOT_FOUND(404)")
     void accept_notFound() {
         when(mealRequestRepository.findWithReceiverById(7L)).thenReturn(Optional.empty());

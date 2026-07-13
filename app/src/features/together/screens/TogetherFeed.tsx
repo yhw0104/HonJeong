@@ -10,7 +10,7 @@ import { useLocation } from '@/shared/location/useLocation';
 import { useNearby } from '@/features/place/queries';
 import { formatDistance } from '@/shared/format';
 import {
-  useReceivedRequests, useSentRequests, useAcceptMealRequest, useDeclineMealRequest,
+  useReceivedRequests, useSentRequests, useAcceptMealRequest, useDeclineMealRequest, useWithdrawMealRequest,
 } from '@/features/meal/queries';
 import { mealErrorMessage } from '@/features/meal/mealCopy';
 import { MealRequestSegments, MealRequestLists, type MealTab } from '@/features/meal/components/MealRequestList';
@@ -25,6 +25,7 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
   const sent = useSentRequests();
   const accept = useAcceptMealRequest();
   const decline = useDeclineMealRequest();
+  const withdraw = useWithdrawMealRequest();
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -104,6 +105,8 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
           onDecline={(id) => respond(decline, id)}
           acceptPending={accept.isPending}
           declinePending={decline.isPending}
+          onWithdraw={(id) => respond(withdraw, id)}
+          withdrawPending={withdraw.isPending}
           onOpenProfile={(userId) => navigation.navigate('MateProfile', { userId })}
           onOpenPlace={(placeId, name) => navigation.navigate('RestaurantDetail', { placeId, name })}
         />

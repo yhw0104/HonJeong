@@ -174,6 +174,23 @@ public class MealRequestService {
     }
 
     /**
+     * 기능: 신청자가 자신이 보낸 PENDING 신청을 철회(WITHDRAWN) — 발신자 권한·PENDING 검사 후 전이.
+     * Request: userId — 요청 사용자 ID(발신자여야 함), id — 신청 ID
+     * Response: MealRequestStatusResponse — 철회 결과(신청 id·상태 WITHDRAWN·응답 시각)
+     *
+     * @param userId 요청 회원 id(발신자여야 함)
+     * @param id     신청 id
+     * @return 철회 결과
+     * @throws BusinessException MEALREQUEST_NOT_FOUND(404)/FORBIDDEN(비발신자 403)/MEALREQUEST_ALREADY_RESPONDED(409)
+     */
+    @Transactional
+    public MealRequestStatusResponse withdraw(Long userId, Long id) {
+        MealRequest mr = loadPendingForSender(userId, id);
+        mr.withdraw(now());
+        return MealRequestStatusResponse.from(mr);
+    }
+
+    /**
      * 기능: 응답(수락/거절) 가능한 PENDING 신청을 수신자 권한 검사와 함께 로드
      * <p>[기존 주석] 응답 가능한 신청을 로드한다 — 없음 404 / 비수신자 403 / 이미 응답 409.
      */
@@ -181,6 +198,21 @@ public class MealRequestService {
         MealRequest mr = mealRequestRepository.findWithReceiverById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEALREQUEST_NOT_FOUND));
         if (!mr.isReceivedBy(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        if (!mr.isPending()) {
+            throw new BusinessException(ErrorCode.MEALREQUEST_ALREADY_RESPONDED);
+        }
+        return mr;
+    }
+
+    /**
+     * 기능: 철회 가능한 PENDING 신청을 발신자 권한 검사와 함께 로드 — 없음 404 / 비발신자 403 / 이미 응답 409.
+     */
+    private MealRequest loadPendingForSender(Long userId, Long id) {
+        MealRequest mr = mealRequestRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MEALREQUEST_NOT_FOUND));
+        if (!mr.isSentBy(userId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
         if (!mr.isPending()) {

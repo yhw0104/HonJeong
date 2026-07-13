@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Screen, MoreHeader } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
-import { useReceivedRequests, useSentRequests, useAcceptMealRequest, useDeclineMealRequest } from '@/features/meal/queries';
+import { useReceivedRequests, useSentRequests, useAcceptMealRequest, useDeclineMealRequest, useWithdrawMealRequest } from '@/features/meal/queries';
 import { mealErrorMessage } from '@/features/meal/mealCopy';
 import { MealRequestSegments, MealRequestLists, type MealTab } from '@/features/meal/components/MealRequestList';
 
@@ -15,6 +15,7 @@ export function ReceivedRequestsScreen({ navigation }: RootStackScreenProps<'Rec
   const sent = useSentRequests();
   const accept = useAcceptMealRequest();
   const decline = useDeclineMealRequest();
+  const withdraw = useWithdrawMealRequest();
 
   useFocusEffect(useCallback(() => { received.refetch(); sent.refetch(); }, [received.refetch, sent.refetch]));
 
@@ -45,6 +46,8 @@ export function ReceivedRequestsScreen({ navigation }: RootStackScreenProps<'Rec
           onDecline={(id) => respond(decline, id)}
           acceptPending={accept.isPending}
           declinePending={decline.isPending}
+          onWithdraw={(id) => respond(withdraw, id)}
+          withdrawPending={withdraw.isPending}
           onOpenProfile={(userId) => navigation.navigate('MateProfile', { userId })}
           onOpenPlace={(placeId, name) => navigation.navigate('RestaurantDetail', { placeId, name })}
         />

@@ -109,6 +109,12 @@ public class MealRequest {
         this.respondedAt = now;
     }
 
+    /** 신청자가 스스로 철회한다(WITHDRAWN + respondedAt). PENDING 가드는 서비스가 한다. */
+    public void withdraw(LocalDateTime now) {
+        this.status = MealRequestStatus.WITHDRAWN;
+        this.respondedAt = now;
+    }
+
     /** 아직 응답 전(PENDING)인지. */
     public boolean isPending() {
         return status == MealRequestStatus.PENDING;
@@ -117,6 +123,11 @@ public class MealRequest {
     /** 이 신청의 수신자(대상 체크인 주인)가 주어진 사용자인지. */
     public boolean isReceivedBy(Long userId) {
         return toCheckIn.getUser().getId().equals(userId);
+    }
+
+    /** 이 신청의 발신자(신청자)가 주어진 사용자인지. */
+    public boolean isSentBy(Long userId) {
+        return fromUser.getId().equals(userId);
     }
 
     /** 내부 식별자(PK)를 반환한다. */

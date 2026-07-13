@@ -99,4 +99,17 @@ public class MealRequestController {
     public ApiResponse<MealRequestStatusResponse> decline(@CurrentUserId Long userId, @PathVariable Long id) {
         return ApiResponse.success(mealRequestService.decline(userId, id));
     }
+
+    /**
+     * 1. API 주소: PATCH /api/meal-requests/{id}/withdraw
+     * 2. 사용 화면: 같이먹기 피드·받은 신청(보낸 신청 탭) — 내가 보낸 PENDING 신청 '철회' 버튼
+     * 3. Request: id(경로) — 신청 id / 인증 사용자(@CurrentUserId, 발신자여야 함)
+     * 4. Response: MealRequestStatusResponse — 신청 id, 전이된 상태(WITHDRAWN), 응답 시각
+     *
+     * <p>[기존 주석] 신청자가 보낸 PENDING 신청을 스스로 철회한다.
+     */
+    @PatchMapping("/{id}/withdraw")
+    public ApiResponse<MealRequestStatusResponse> withdraw(@CurrentUserId Long userId, @PathVariable Long id) {
+        return ApiResponse.success(mealRequestService.withdraw(userId, id));
+    }
 }

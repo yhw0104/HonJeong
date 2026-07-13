@@ -13,13 +13,15 @@ export function mealStatusLabelReceived(status: MealRequestStatus): string {
       return '거절함';
     case 'EXPIRED':
       return '만료됨';
+    case 'WITHDRAWN':
+      return '철회됨';
     case 'PENDING':
     default:
       return '응답 대기 중';
   }
 }
 
-/** 보낸 신청 상태 → 라벨(신청자 관점: 상대가 처리한 것). */
+/** 보낸 신청 상태 → 라벨(신청자 관점: 상대가 처리한 것 · 내가 철회한 것). */
 export function mealStatusLabelSent(status: MealRequestStatus): string {
   switch (status) {
     case 'ACCEPTED':
@@ -28,6 +30,8 @@ export function mealStatusLabelSent(status: MealRequestStatus): string {
       return '거절됨';
     case 'EXPIRED':
       return '만료됨';
+    case 'WITHDRAWN':
+      return '철회함';
     case 'PENDING':
     default:
       return '응답 대기 중';
