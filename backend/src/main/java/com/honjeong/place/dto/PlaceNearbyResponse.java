@@ -16,6 +16,9 @@ import java.util.List;
  * @param activeCount   현재 ACTIVE 혼밥러 수(없으면 0)
  * @param seekingCount  현재 SEEKING(모집중) 수(없으면 0)
  * @param photoUrls     대표 사진 URL 목록(리뷰 사진 최신순 최대 N장; 없으면 빈 배열)
+ * @param reviewCount   리뷰 수(없으면 0)
+ * @param avgTasteRating 맛 별점 평균(소수 1자리; 리뷰 없으면 null)
+ * @param avgSoloFriendlyRating 혼밥 적합도 별점 평균(소수 1자리; 리뷰 없으면 null)
  */
 public record PlaceNearbyResponse(
         Long placeId,
@@ -27,5 +30,8 @@ public record PlaceNearbyResponse(
         long distanceMeters,
         long activeCount,
         long seekingCount,
-        List<String> photoUrls) {
+        List<String> photoUrls,
+        long reviewCount,
+        Double avgTasteRating,
+        Double avgSoloFriendlyRating) {
 }

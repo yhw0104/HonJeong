@@ -36,6 +36,8 @@ import com.honjeong.place.dto.PlaceSearchResponse;
 import com.honjeong.place.repository.PlaceRepository;
 import com.honjeong.review.repository.ReviewPhotoRepository;
 import com.honjeong.review.repository.ReviewPhotoRepository.PlacePhotoRow;
+import com.honjeong.review.repository.ReviewRepository;
+import com.honjeong.review.repository.ReviewRepository.PlaceReviewStatRow;
 
 /**
  * PlaceService 단위 테스트(순수 Mockito).
@@ -60,6 +62,9 @@ class PlaceServiceTest {
     @Mock
     ReviewPhotoRepository reviewPhotoRepository;
 
+    @Mock
+    ReviewRepository reviewRepository;
+
     @InjectMocks
     PlaceService service;
 
@@ -68,6 +73,16 @@ class PlaceServiceTest {
         return new PlacePhotoRow() {
             @Override public Long getPlaceId() { return placeId; }
             @Override public String getImageUrl() { return url; }
+        };
+    }
+
+    /** 프로젝션(PlaceReviewStatRow) 한 행을 만드는 테스트 헬퍼. */
+    private static PlaceReviewStatRow statRow(long placeId, long count, Double avgTaste, Double avgSolo) {
+        return new PlaceReviewStatRow() {
+            @Override public Long getPlaceId() { return placeId; }
+            @Override public long getReviewCount() { return count; }
+            @Override public Double getAvgTaste() { return avgTaste; }
+            @Override public Double getAvgSolo() { return avgSolo; }
         };
     }
 
@@ -264,6 +279,28 @@ class PlaceServiceTest {
         assertThat(res.content().get(0).placeId()).isEqualTo(1L);
         assertThat(res.content().get(0).photoUrls()).containsExactly("u1", "u2", "u3", "u4", "u5"); // 최대 5장
         assertThat(res.content().get(1).photoUrls()).isEmpty(); // 사진 없는 식당은 빈 배열
+    }
+
+    @Test
+    @DisplayName("주변 식당에 리뷰 수·별점 평균(소수1자리 반올림)을 오버레이하고, 리뷰 없으면 0/null")
+    void nearby_overlaysReviewStats() {
+        Place a = Place.ofPublicData("A", "가까운집", "한식", "주소", "도로", 37.5000, 127.0000, "02", "영업");
+        Place b = Place.ofPublicData("B", "먼집", "분식", "주소", "도로", 37.5050, 127.0050, "02", "영업");
+        ReflectionTestUtils.setField(a, "id", 1L);
+        ReflectionTestUtils.setField(b, "id", 2L);
+        when(placeRepository.findOpenWithinBounds(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+                .thenReturn(List.of(a, b));
+        // a(1L)만 리뷰 3건(맛 4.34→4.3, 혼밥 3.66→3.7), b(2L)는 리뷰 없음
+        when(reviewRepository.summarizeByPlaceIds(anyList()))
+                .thenReturn(List.of(statRow(1L, 3L, 4.34, 3.66)));
+
+        PageResponse<PlaceNearbyResponse> res = service.nearby(37.5000, 127.0000, 1000, 0, 20);
+
+        assertThat(res.content().get(0).reviewCount()).isEqualTo(3L);
+        assertThat(res.content().get(0).avgTasteRating()).isEqualTo(4.3);        // 소수1자리 반올림
+        assertThat(res.content().get(0).avgSoloFriendlyRating()).isEqualTo(3.7);
+        assertThat(res.content().get(1).reviewCount()).isEqualTo(0L);            // 리뷰 없는 식당
+        assertThat(res.content().get(1).avgTasteRating()).isNull();
     }
 
     @Test

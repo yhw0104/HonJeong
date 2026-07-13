@@ -254,6 +254,12 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
               <View style={{ flex: 1 }}>
                 <Text style={styles.listName}>{r.name}</Text>
                 <View style={styles.listMetaRow}>
+                  {r.reviewCount > 0 && (
+                    <>
+                      <Text style={styles.listStar}>★ {(r.avgTasteRating ?? 0).toFixed(1)} ({r.reviewCount})</Text>
+                      <Text style={styles.dot}>·</Text>
+                    </>
+                  )}
                   <Text style={styles.listMeta}>
                     {[r.category, formatDistance(r.distanceMeters)].filter(Boolean).join(' · ')}
                   </Text>
@@ -499,6 +505,7 @@ const styles = StyleSheet.create({
   listName: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
   listMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
   listMeta: { fontSize: 12, color: T2.textSub },
+  listStar: { fontSize: 12, color: '#F5A623', fontWeight: '700' },
   dot: { color: T2.textMute, fontSize: 12 },
   listTag: { fontSize: 12 },
   listPhotos: { marginTop: 10 },

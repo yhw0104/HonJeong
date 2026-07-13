@@ -41,6 +41,34 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Object[]> summarizeByPlace(@Param("placeId") Long placeId);
 
     /**
+     * 기능: 여러 식당의 리뷰 수·별점 평균 2종을 식당별로 한 번에 집계 — 주변 목록 카드용 배치 조회.
+     * 쿼리: WHERE r.place_id IN :placeIds GROUP BY r.place_id (리뷰 있는 식당만 행이 나옴 — 없는 식당은 호출측이 0/null 처리)
+     * Request: placeIds — 식당 ID 목록(빈 목록 금지) / Response: List&lt;PlaceReviewStatRow&gt; — 식당별 (개수, 맛평균, 혼밥평균)
+     */
+    @Query("""
+            SELECT r.place.id AS placeId, COUNT(r) AS reviewCount,
+                   AVG(r.tasteRating) AS avgTaste, AVG(r.soloFriendlyRating) AS avgSolo
+            FROM Review r
+            WHERE r.place.id IN :placeIds
+            GROUP BY r.place.id
+            """)
+    List<PlaceReviewStatRow> summarizeByPlaceIds(@Param("placeIds") List<Long> placeIds);
+
+    /**
+     * 배치 리뷰 집계 한 행(식당 ID + 리뷰 수 + 별점 평균 2종) 프로젝션.
+     */
+    interface PlaceReviewStatRow {
+        /** 집계 대상 식당 ID */
+        Long getPlaceId();
+        /** 리뷰 수 */
+        long getReviewCount();
+        /** 맛 별점 평균(리뷰 있으면 non-null) */
+        Double getAvgTaste();
+        /** 혼밥 적합도 별점 평균(리뷰 있으면 non-null) */
+        Double getAvgSolo();
+    }
+
+    /**
      * 기능: 식당의 친화 태그별 부착 횟수를 빈도 내림차순으로 집계
      * 쿼리: SELECT tag, COUNT(*) FROM review_tags WHERE place_id = :placeId GROUP BY tag ORDER BY COUNT(*) DESC
      * Request: placeId — 식당 ID / Response: List<Object[]> — [태그, 횟수] 행 목록

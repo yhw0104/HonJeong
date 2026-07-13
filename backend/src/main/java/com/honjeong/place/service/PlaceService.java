@@ -25,6 +25,8 @@ import com.honjeong.place.dto.PlaceSearchResponse;
 import com.honjeong.place.repository.PlaceRepository;
 import com.honjeong.review.repository.ReviewPhotoRepository;
 import com.honjeong.review.repository.ReviewPhotoRepository.PlacePhotoRow;
+import com.honjeong.review.repository.ReviewRepository;
+import com.honjeong.review.repository.ReviewRepository.PlaceReviewStatRow;
 
 /**
  * 1. 기능: 장소(식당) 단건 조회·이름 검색·주변 반경 조회(ACTIVE 혼밥러 수 오버레이) 비즈니스 로직
@@ -57,12 +59,14 @@ public class PlaceService {
     private final PlaceRepository placeRepository;
     private final CheckInRepository checkInRepository;
     private final ReviewPhotoRepository reviewPhotoRepository;
+    private final ReviewRepository reviewRepository;
 
     public PlaceService(PlaceRepository placeRepository, CheckInRepository checkInRepository,
-            ReviewPhotoRepository reviewPhotoRepository) {
+            ReviewPhotoRepository reviewPhotoRepository, ReviewRepository reviewRepository) {
         this.placeRepository = placeRepository;
         this.checkInRepository = checkInRepository;
         this.reviewPhotoRepository = reviewPhotoRepository;
+        this.reviewRepository = reviewRepository;
     }
 
     /**
@@ -197,18 +201,26 @@ public class PlaceService {
         int to = Math.min(from + clampedSize, within.size());
         List<PlaceDistance> pageSlice = within.subList(from, to);
 
-        // 현재 페이지 식당들의 대표 사진(리뷰 사진)만 배치 조회해 오버레이한다(식당당 최대 MAX_PHOTOS_PER_PLACE장, 최신순).
-        Map<Long, List<String>> photosByPlace = loadPhotos(
-                pageSlice.stream().map(pd -> pd.place().getId()).toList());
+        // 현재 페이지 식당들의 대표 사진(리뷰 사진)·리뷰 집계(수·별점 평균)만 배치 조회해 오버레이한다.
+        List<Long> pagePlaceIds = pageSlice.stream().map(pd -> pd.place().getId()).toList();
+        Map<Long, List<String>> photosByPlace = loadPhotos(pagePlaceIds);
+        Map<Long, PlaceReviewStatRow> statsByPlace = loadReviewStats(pagePlaceIds);
 
         List<PlaceNearbyResponse> content = pageSlice.stream()
-                .map(pd -> new PlaceNearbyResponse(
-                        pd.place().getId(), pd.place().getName(), pd.place().getCategory(), pd.place().getRoadAddress(),
-                        pd.place().getLatitude(), pd.place().getLongitude(),
-                        Math.round(pd.meters()),
-                        counts.getOrDefault(pd.place().getId(), 0L),
-                        seekingCounts.getOrDefault(pd.place().getId(), 0L),
-                        photosByPlace.getOrDefault(pd.place().getId(), List.of())))
+                .map(pd -> {
+                    Long id = pd.place().getId();
+                    PlaceReviewStatRow stat = statsByPlace.get(id);
+                    return new PlaceNearbyResponse(
+                            id, pd.place().getName(), pd.place().getCategory(), pd.place().getRoadAddress(),
+                            pd.place().getLatitude(), pd.place().getLongitude(),
+                            Math.round(pd.meters()),
+                            counts.getOrDefault(id, 0L),
+                            seekingCounts.getOrDefault(id, 0L),
+                            photosByPlace.getOrDefault(id, List.of()),
+                            stat != null ? stat.getReviewCount() : 0L,
+                            stat != null ? round1(stat.getAvgTaste()) : null,
+                            stat != null ? round1(stat.getAvgSolo()) : null);
+                })
                 .toList();
 
         return PageResponse.of(content, page, clampedSize, total);
@@ -233,6 +245,26 @@ public class PlaceService {
             }
         }
         return byPlace;
+    }
+
+    /**
+     * 기능: 주어진 식당들의 리뷰 집계(수·별점 평균 2종)를 식당별로 모아 맵으로 반환.
+     * 빈 목록이면 IN () 쿼리를 피하려 곧바로 빈 맵을 반환한다. 리뷰 없는 식당은 키가 없다.
+     *
+     * @param placeIds 집계할 식당 ID 목록(현재 페이지 분량)
+     * @return placeId → 리뷰 집계 행(개수·맛평균·혼밥평균)
+     */
+    private Map<Long, PlaceReviewStatRow> loadReviewStats(List<Long> placeIds) {
+        if (placeIds.isEmpty()) {
+            return Map.of();
+        }
+        return reviewRepository.summarizeByPlaceIds(placeIds).stream()
+                .collect(Collectors.toMap(PlaceReviewStatRow::getPlaceId, row -> row));
+    }
+
+    /** 별점 평균을 소수 1자리로 반올림(리뷰 없으면 null 유지). */
+    private static Double round1(Double v) {
+        return v == null ? null : Math.round(v * 10) / 10.0;
     }
 
     /**
