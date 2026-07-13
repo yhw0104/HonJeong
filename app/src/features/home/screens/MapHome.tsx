@@ -9,7 +9,6 @@ import { T2 } from '@/shared/theme';
 import { BellButton } from '@/features/notifications/BellButton';
 import { useLocation } from '@/shared/location/useLocation';
 import { useNearby } from '@/features/place/queries';
-import { shouldOfferResearch } from '@/shared/location/research';
 import type { Coord } from '@/shared/location/pickLocation';
 import { useMyCheckIn, useStats, useStartCheckIn, useDineAlone, useCancelCheckIn } from '@/features/checkin/queries';
 import { usePromptEndCheckIn } from '@/features/checkin/usePromptEndCheckIn';
@@ -81,8 +80,9 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     else requestAgain();
   };
 
-  // 지도를 드래그해 지도 중심이 기준점에서 200m 이상 벗어나면 '이 위치에서 재검색' 노출(GPS 이동과 무관).
-  const offerResearch = mapCenter != null && anchor != null && shouldOfferResearch(mapCenter, anchor);
+  // 지도를 드래그해 지도를 움직이면(dragend) 곧바로 '이 위치에서 재검색' 노출(GPS 이동과 무관).
+  // mapCenter는 실제 드래그 끝에서만 갱신되고(프로그램적 setCenter는 dragend 미발화), 재검색/내주변 시 null로 정리된다.
+  const offerResearch = mapCenter != null && anchor != null;
   const researchHere = () => { if (mapCenter) setAnchor(mapCenter); setMapCenter(null); }; // 지도 중심으로 재검색 + 버튼 숨김
   // '내 주변': 내 GPS로 재검색 + 지도 이동(GPS 없으면 권한 재요청). setMapCenter(null)로 재검색 버튼도 정리.
   const nearMe = () => {
