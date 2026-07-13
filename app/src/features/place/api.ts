@@ -11,6 +11,7 @@ export type PlaceNearbyItem = {
   placeId: number; name: string; category: string | null;
   roadAddress: string | null; latitude: number; longitude: number;
   distanceMeters: number; activeCount: number; seekingCount: number;
+  photoUrls: string[]; // 대표 사진(리뷰 사진 최신순 최대 N장). 없으면 빈 배열
 };
 
 export type PlaceDetail = {

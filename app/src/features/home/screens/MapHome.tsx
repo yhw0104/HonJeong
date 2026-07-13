@@ -1,7 +1,7 @@
 // MapHome — 지도/홈. 실제 카카오맵 위에 실데이터(마커·주변 리스트·혼밥 시작/종료·전체 카운트)를 올린다.
 // 하단 탭바는 MainTabs 네비게이터가 렌더하므로 여기서는 그리지 않는다.
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Animated, PanResponder, Dimensions, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Animated, PanResponder, Dimensions, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HonjeongMap, Icon, HonbabStatusBar } from '@/shared/components';
 import type { HonjeongMapHandle } from '@/shared/components';
@@ -264,6 +264,19 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                     </>
                   )}
                 </View>
+                {/* 사진 있으면 이름·거리 아래에 가로 스크롤 스트립, 없으면 아무것도 안 그림(기존 모습 유지) */}
+                {(r.photoUrls?.length ?? 0) > 0 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.listPhotos}
+                    contentContainerStyle={styles.listPhotosContent}
+                  >
+                    {r.photoUrls.map((uri, idx) => (
+                      <Image key={`${uri}-${idx}`} source={{ uri }} style={styles.listPhoto} />
+                    ))}
+                  </ScrollView>
+                )}
               </View>
             </Pressable>
           ))}
@@ -488,6 +501,9 @@ const styles = StyleSheet.create({
   listMeta: { fontSize: 12, color: T2.textSub },
   dot: { color: T2.textMute, fontSize: 12 },
   listTag: { fontSize: 12 },
+  listPhotos: { marginTop: 10 },
+  listPhotosContent: { gap: 6, paddingRight: 4 },
+  listPhoto: { width: 104, height: 104, borderRadius: 10, backgroundColor: T2.bg },
 
   // 시트 헤더 + 혼밥 시작 버튼
   sheetHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

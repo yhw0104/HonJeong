@@ -34,6 +34,8 @@ import com.honjeong.place.dto.PlaceDetailResponse;
 import com.honjeong.place.dto.PlaceNearbyResponse;
 import com.honjeong.place.dto.PlaceSearchResponse;
 import com.honjeong.place.repository.PlaceRepository;
+import com.honjeong.review.repository.ReviewPhotoRepository;
+import com.honjeong.review.repository.ReviewPhotoRepository.PlacePhotoRow;
 
 /**
  * PlaceService 단위 테스트(순수 Mockito).
@@ -55,8 +57,19 @@ class PlaceServiceTest {
     @Mock
     CheckInRepository checkInRepository;
 
+    @Mock
+    ReviewPhotoRepository reviewPhotoRepository;
+
     @InjectMocks
     PlaceService service;
+
+    /** 프로젝션(PlacePhotoRow) 한 행을 만드는 테스트 헬퍼. */
+    private static PlacePhotoRow photoRow(long placeId, String url) {
+        return new PlacePhotoRow() {
+            @Override public Long getPlaceId() { return placeId; }
+            @Override public String getImageUrl() { return url; }
+        };
+    }
 
     @Test
     @DisplayName("getById: 존재하는 placeId면 장소 엔티티를 반환한다")
@@ -229,6 +242,28 @@ class PlaceServiceTest {
         assertThat(res.content().get(0).placeId()).isEqualTo(1L);     // 가까운 a가 먼저
         assertThat(res.content().get(0).seekingCount()).isEqualTo(2L); // 오버레이 확인
         assertThat(res.content().get(1).seekingCount()).isEqualTo(0L); // 오버레이 없는 b는 0
+    }
+
+    @Test
+    @DisplayName("주변 식당에 리뷰 사진을 식당당 최대 N장(최신순)으로 오버레이하고, 없으면 빈 배열")
+    void nearby_overlaysPhotos() {
+        Place a = Place.ofPublicData("A", "가까운집", "한식", "주소", "도로", 37.5000, 127.0000, "02", "영업");
+        Place b = Place.ofPublicData("B", "먼집", "분식", "주소", "도로", 37.5050, 127.0050, "02", "영업");
+        ReflectionTestUtils.setField(a, "id", 1L);
+        ReflectionTestUtils.setField(b, "id", 2L);
+        when(placeRepository.findOpenWithinBounds(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+                .thenReturn(List.of(a, b));
+        // a(1L)에 6장 → 상한 5장으로 절단, b(2L)는 사진 없음
+        when(reviewPhotoRepository.findByPlaceIdsFlattened(anyList()))
+                .thenReturn(List.of(
+                        photoRow(1L, "u1"), photoRow(1L, "u2"), photoRow(1L, "u3"),
+                        photoRow(1L, "u4"), photoRow(1L, "u5"), photoRow(1L, "u6")));
+
+        PageResponse<PlaceNearbyResponse> res = service.nearby(37.5000, 127.0000, 1000, 0, 20);
+
+        assertThat(res.content().get(0).placeId()).isEqualTo(1L);
+        assertThat(res.content().get(0).photoUrls()).containsExactly("u1", "u2", "u3", "u4", "u5"); // 최대 5장
+        assertThat(res.content().get(1).photoUrls()).isEmpty(); // 사진 없는 식당은 빈 배열
     }
 
     @Test

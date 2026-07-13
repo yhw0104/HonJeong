@@ -111,8 +111,10 @@ class PlaceControllerTest {
 
     private PageResponse<PlaceNearbyResponse> sampleNearbyPage() {
         List<PlaceNearbyResponse> content = List.of(
-                new PlaceNearbyResponse(10L, "혼밥집", "한식", "서울 도로명", 37.5001, 127.0001, 15L, 3L, 2L),
-                new PlaceNearbyResponse(11L, "먼집", "분식", "서울 도로명", 37.5050, 127.0050, 680L, 0L, 0L));
+                new PlaceNearbyResponse(10L, "혼밥집", "한식", "서울 도로명", 37.5001, 127.0001, 15L, 3L, 2L,
+                        List.of("https://img/1.jpg", "https://img/2.jpg")),
+                new PlaceNearbyResponse(11L, "먼집", "분식", "서울 도로명", 37.5050, 127.0050, 680L, 0L, 0L,
+                        List.of()));
         return PageResponse.of(content, 0, 20, 2L);
     }
 
