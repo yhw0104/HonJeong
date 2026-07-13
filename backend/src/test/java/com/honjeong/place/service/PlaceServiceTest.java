@@ -211,6 +211,27 @@ class PlaceServiceTest {
     }
 
     @Test
+    @DisplayName("주변 식당을 거리순으로 반환하고 모집중(SEEKING) 수를 오버레이한다")
+    void nearby_overlaysSeekingCount() {
+        Place a = Place.ofPublicData("A", "가까운집", "한식", "주소", "도로", 37.5000, 127.0000, "02", "영업");
+        Place b = Place.ofPublicData("B", "먼집", "분식", "주소", "도로", 37.5050, 127.0050, "02", "영업");
+        ReflectionTestUtils.setField(a, "id", 1L);
+        ReflectionTestUtils.setField(b, "id", 2L);
+        when(placeRepository.findOpenWithinBounds(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+                .thenReturn(List.of(b, a)); // 리포지토리는 b를 먼저 반환하지만
+        when(checkInRepository.countActiveByPlaceIds(anyList()))
+                .thenReturn(List.of());
+        when(checkInRepository.countSeekingByPlaceIds(anyList()))
+                .thenReturn(List.of(new PlaceActiveCount(1L, 2L)));
+
+        PageResponse<PlaceNearbyResponse> res = service.nearby(37.5000, 127.0000, 1000, 0, 20);
+
+        assertThat(res.content().get(0).placeId()).isEqualTo(1L);     // 가까운 a가 먼저
+        assertThat(res.content().get(0).seekingCount()).isEqualTo(2L); // 오버레이 확인
+        assertThat(res.content().get(1).seekingCount()).isEqualTo(0L); // 오버레이 없는 b는 0
+    }
+
+    @Test
     @DisplayName("lat/lng 누락이면 INVALID_INPUT")
     void nearbyMissingCoord() {
         assertThatThrownBy(() -> service.nearby(null, 127.0, 1000, 0, 20))
@@ -227,5 +248,6 @@ class PlaceServiceTest {
         var res = service.nearby(37.5, 127.0, 1000, 0, 20);
         assertThat(res.content()).isEmpty();
         verify(checkInRepository, never()).countActiveByPlaceIds(anyList());
+        verify(checkInRepository, never()).countSeekingByPlaceIds(anyList());
     }
 }

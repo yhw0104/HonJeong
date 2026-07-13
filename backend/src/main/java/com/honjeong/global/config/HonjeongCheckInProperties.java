@@ -11,13 +11,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param ttlHours         ACTIVE 유효시간(시간, yml 키 {@code ttl-hours}). 기본 3.
  * @param expiryIntervalMs 만료 스케줄러 주기(ms, yml 키 {@code expiry-interval-ms}). 기본 300000(5분).
  * @param togetherTtlHours TOGETHER 유효시간(시간, matched_at 기준, yml 키 {@code together-ttl-hours}). 기본 3.
+ * @param seekingTtlHours  SEEKING 유효시간(시간, startedAt 기준, yml 키 {@code seeking-ttl-hours}). 기본 3.
  */
 @ConfigurationProperties(prefix = "honjeong.checkin")
-public record HonjeongCheckInProperties(Integer ttlHours, Long expiryIntervalMs, Integer togetherTtlHours) {
+public record HonjeongCheckInProperties(Integer ttlHours, Long expiryIntervalMs, Integer togetherTtlHours,
+        Integer seekingTtlHours) {
 
     /**
-     * 기능: 컴팩트 생성자 — yml에 키가 없어 null로 들어온 값을 기본값(ttl 3시간, 주기 5분, together 3시간)으로 보정한다
-     * Request: ttlHours·expiryIntervalMs·togetherTtlHours — yml 바인딩 값(누락 시 null)
+     * 기능: 컴팩트 생성자 — yml에 키가 없어 null로 들어온 값을 기본값(ttl 3시간, 주기 5분, together 3시간, seeking 3시간)으로 보정한다
+     * Request: ttlHours·expiryIntervalMs·togetherTtlHours·seekingTtlHours — yml 바인딩 값(누락 시 null)
      * Response: 없음(레코드 컴포넌트가 기본값으로 채워짐)
      */
     public HonjeongCheckInProperties {
@@ -29,6 +31,9 @@ public record HonjeongCheckInProperties(Integer ttlHours, Long expiryIntervalMs,
         }
         if (togetherTtlHours == null) {
             togetherTtlHours = 3;
+        }
+        if (seekingTtlHours == null) {
+            seekingTtlHours = 3;
         }
     }
 }

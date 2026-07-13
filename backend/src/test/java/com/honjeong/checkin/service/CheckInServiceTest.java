@@ -35,6 +35,7 @@ import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.config.HonjeongCheckInProperties;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
+import com.honjeong.meal.repository.MealRequestRepository;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.service.PlaceService;
 import com.honjeong.user.domain.User;
@@ -50,11 +51,13 @@ class CheckInServiceTest {
     private final PlaceService placeService = mock(PlaceService.class);
     private final UserRepository userRepository = mock(UserRepository.class);
     private final BlockRepository blockRepository = mock(BlockRepository.class);
+    private final MealRequestRepository mealRequestRepository = mock(MealRequestRepository.class);
     // KST 12:00 = UTC 03:00 으로 고정. now()는 ofInstant(instant, KST) = 2026-06-15T12:00.
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneOffset.UTC);
-    private final HonjeongCheckInProperties props = new HonjeongCheckInProperties(3, 300_000L, 3);
+    private final HonjeongCheckInProperties props = new HonjeongCheckInProperties(3, 300_000L, 3, 3);
     private final CheckInService service =
-            new CheckInService(checkInRepository, placeService, userRepository, blockRepository, clock, props);
+            new CheckInService(checkInRepository, placeService, userRepository, blockRepository,
+                    mealRequestRepository, clock, props);
 
     private final LocalDateTime nowKst = LocalDateTime.of(2026, 6, 15, 12, 0);
 
@@ -81,52 +84,100 @@ class CheckInServiceTest {
     }
 
     @Test
-    @DisplayName("createCheckIn: 기존 ACTIVE 없으면 새 체크인을 저장하고 응답을 반환한다")
+    @DisplayName("createCheckIn: 기존 활성(SEEKING/ACTIVE/TOGETHER) 없으면 새 SEEKING 체크인을 저장하고 응답을 반환한다")
     void create_new() {
-        // given: placeId=3 장소 조회 결과, 기존 ACTIVE 없음, save는 인자를 그대로 반환
+        // given: placeId=3 장소 조회 결과, 기존 활성 없음, save는 인자를 그대로 반환
         Place place = place(3L);
         when(placeService.getById(3L)).thenReturn(place);
-        when(checkInRepository.findByUser_IdAndStatus(1L, CheckInStatus.ACTIVE)).thenReturn(Optional.empty());
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.empty());
         when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
         when(checkInRepository.save(any(CheckIn.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // when
         CheckInResponse res = service.createCheckIn(1L, request());
 
-        // then: ACTIVE·placeId·startedAt(KST now) 매핑, 저장 호출됨
-        assertThat(res.status()).isEqualTo("ACTIVE");
+        // then: SEEKING·placeId·startedAt(KST now) 매핑, 저장 호출됨
+        assertThat(res.status()).isEqualTo("SEEKING");
         assertThat(res.placeId()).isEqualTo(3L);
         assertThat(res.startedAt()).isEqualTo(nowKst);
         verify(checkInRepository).save(any(CheckIn.class));
     }
 
     @Test
-    @DisplayName("createCheckIn: 같은 장소에 이미 ACTIVE면 기존을 멱등 반환하고 저장하지 않는다")
-    void create_samePlace_idempotent() {
-        // given: 기존 ACTIVE의 place와 새 요청의 place가 같은 id=3
+    @DisplayName("createCheckIn은 SEEKING 상태 체크인을 만든다")
+    void 체크인_생성은_모집중() {
         Place place = place(3L);
         when(placeService.getById(3L)).thenReturn(place);
-        CheckIn existing = CheckIn.start(mock(User.class), place, nowKst);
-        when(checkInRepository.findByUser_IdAndStatus(1L, CheckInStatus.ACTIVE)).thenReturn(Optional.of(existing));
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.empty());
+        User user = userRef(1L);
+        when(userRepository.getReferenceById(1L)).thenReturn(user);
+        when(checkInRepository.save(any(CheckIn.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CheckInResponse res = service.createCheckIn(1L, new CheckInRequest(3L));
+
+        assertThat(res.status()).isEqualTo("SEEKING");
+    }
+
+    @Test
+    @DisplayName("이미 모집중이면 다른 장소 재요청은 409")
+    void 활동중_다른장소_409() {
+        Place place = place(3L);
+        Place place2 = place(4L);
+        when(placeService.getById(4L)).thenReturn(place2);   // 다른 장소
+        CheckIn existing = CheckIn.startSeeking(userRef(1L), place, nowKst);
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection()))
+                .thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> service.createCheckIn(1L, new CheckInRequest(4L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.CHECKIN_ALREADY_ACTIVE));
+    }
+
+    @Test
+    @DisplayName("createCheckIn: 같은 장소에 이미 SEEKING이면 기존을 멱등 반환하고 저장하지 않는다")
+    void create_samePlace_idempotent() {
+        // given: 기존 SEEKING의 place와 새 요청의 place가 같은 id=3
+        Place place = place(3L);
+        when(placeService.getById(3L)).thenReturn(place);
+        CheckIn existing = CheckIn.startSeeking(mock(User.class), place, nowKst);
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.of(existing));
 
         // when
         CheckInResponse res = service.createCheckIn(1L, request());
 
         // then: 기존 반환, 저장 없음
         assertThat(res.placeId()).isEqualTo(3L);
-        assertThat(res.status()).isEqualTo("ACTIVE");
+        assertThat(res.status()).isEqualTo("SEEKING");
         verify(checkInRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("createCheckIn: 다른 장소에 이미 ACTIVE면 CHECKIN_ALREADY_ACTIVE(409)")
+    @DisplayName("createCheckIn: 이미 ACTIVE면 같은 장소여도 CHECKIN_ALREADY_ACTIVE(409) — 멱등 반환 아님")
+    void create_samePlace_activeConflict() {
+        // given: 기존이 ACTIVE(혼밥중)이고 요청 placeId도 같은 3L. SEEKING만 멱등이므로 409여야 한다.
+        Place place = place(3L);
+        when(placeService.getById(3L)).thenReturn(place);
+        CheckIn existing = CheckIn.start(userRef(1L), place, nowKst);
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.of(existing));
+
+        // when & then
+        assertThatThrownBy(() -> service.createCheckIn(1L, new CheckInRequest(3L)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.CHECKIN_ALREADY_ACTIVE));
+        verify(checkInRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("createCheckIn: 다른 장소에 이미 활성(SEEKING/ACTIVE/TOGETHER)이면 CHECKIN_ALREADY_ACTIVE(409)")
     void create_differentPlace_conflict() {
-        // given: 기존 ACTIVE place id=4, 새 요청 place id=3
+        // given: 기존 활성 place id=4, 새 요청 place id=3
         Place requestedPlace = place(3L);
         Place existingPlace = place(4L);
         when(placeService.getById(3L)).thenReturn(requestedPlace);
-        CheckIn existing = CheckIn.start(mock(User.class), existingPlace, nowKst);
-        when(checkInRepository.findByUser_IdAndStatus(1L, CheckInStatus.ACTIVE)).thenReturn(Optional.of(existing));
+        CheckIn existing = CheckIn.startSeeking(mock(User.class), existingPlace, nowKst);
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.of(existing));
 
         // when & then
         assertThatThrownBy(() -> service.createCheckIn(1L, request()))
@@ -141,7 +192,7 @@ class CheckInServiceTest {
     void create_raceConflict() {
         Place place = place(3L);
         when(placeService.getById(3L)).thenReturn(place);
-        when(checkInRepository.findByUser_IdAndStatus(1L, CheckInStatus.ACTIVE)).thenReturn(Optional.empty());
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.empty());
         when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
         when(checkInRepository.save(any())).thenThrow(new DataIntegrityViolationException("uq violation"));
 
@@ -231,6 +282,19 @@ class CheckInServiceTest {
     }
 
     @Test
+    @DisplayName("cancelCheckIn: 소유자의 SEEKING도 CANCELLED로 전이하고, 이 체크인의 대기 신청을 자동 정리한다")
+    void cancelCheckIn_cancelsSeeking() {
+        CheckIn c = CheckIn.startSeeking(userRef(1L), place(10L), nowKst);
+        when(checkInRepository.findById(3L)).thenReturn(Optional.of(c));
+
+        CheckInResponse res = service.cancelCheckIn(1L, 3L);
+
+        assertThat(res.status()).isEqualTo("CANCELLED");
+        assertThat(c.getStatus()).isEqualTo(CheckInStatus.CANCELLED);
+        verify(mealRequestRepository).expirePendingByToCheckIn(3L, nowKst); // 그만두면 대기 신청은 좀비 → 만료
+    }
+
+    @Test
     @DisplayName("cancelCheckIn: ACTIVE가 아니면 CHECKIN_NOT_ACTIVE")
     void cancelCheckIn_rejectsNonActive() {
         CheckIn c = CheckIn.start(userRef(1L), place(10L), nowKst);
@@ -264,6 +328,29 @@ class CheckInServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.CHECKIN_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("dineAlone은 SEEKING을 ACTIVE(혼밥중)로 전이하고, 이 체크인의 대기 신청을 자동 정리한다")
+    void 혼자먹기_시작() {
+        CheckIn seeking = CheckIn.startSeeking(userRef(1L), place(10L), nowKst);
+        when(checkInRepository.findById(10L)).thenReturn(Optional.of(seeking));
+
+        CheckInResponse res = service.dineAlone(1L, 10L);
+
+        assertThat(res.status()).isEqualTo("ACTIVE");
+        verify(mealRequestRepository).expirePendingByToCheckIn(10L, nowKst); // 혼자 먹기 시작 → 대기 신청 만료
+    }
+
+    @Test
+    @DisplayName("dineAlone은 SEEKING이 아니면 CHECKIN_NOT_SEEKING")
+    void 혼자먹기_비SEEKING_예외() {
+        CheckIn together = CheckIn.startTogether(userRef(1L), place(10L), 7L, nowKst);
+        when(checkInRepository.findById(10L)).thenReturn(Optional.of(together));
+
+        assertThatThrownBy(() -> service.dineAlone(1L, 10L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.CHECKIN_NOT_SEEKING);
     }
 
     @Test
@@ -305,6 +392,30 @@ class CheckInServiceTest {
     }
 
     @Test
+    @DisplayName("getMyCurrentCheckIn: SEEKING도 조회 대상(SEEKING/ACTIVE/TOGETHER)에 포함해 상태를 반환한다"
+            + "(재시작 후에도 진행 중 체크인을 복구할 수 있어야 함 — createCheckIn의 409 판단과 일치)")
+    void getMyCurrent_seeking() {
+        // given: 상태 목록을 정확히 SEEKING/ACTIVE/TOGETHER로 조회할 때만 값을 반환하도록 엄격히 스텁한다.
+        // anyCollection()을 쓰면 서비스가 실제로 어떤 목록을 넘기는지와 무관하게 통과해버려
+        // "/me가 SEEKING을 빠뜨린다"는 버그를 못 잡는다(응답 매핑 분기 자체는 이미 SEEKING을 처리하므로).
+        User user = userRef(1L);
+        Place place = place(3L);
+        CheckIn seeking = CheckIn.startSeeking(user, place, nowKst);
+        List<CheckInStatus> expectedStatuses =
+                List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE, CheckInStatus.TOGETHER);
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), eq(expectedStatuses)))
+                .thenReturn(Optional.of(seeking));
+
+        // when
+        CheckInResponse res = service.getMyCurrentCheckIn(1L);
+
+        // then
+        assertThat(res).isNotNull();
+        assertThat(res.status()).isEqualTo("SEEKING");
+        assertThat(res.partnerNickname()).isNull();
+    }
+
+    @Test
     @DisplayName("getStats: todayCount는 KST 자정 기준, activeCount는 ACTIVE 수")
     void stats() {
         // clock = 2026-06-15T12:00 KST → todayStart = 2026-06-15T00:00
@@ -316,6 +427,19 @@ class CheckInServiceTest {
 
         assertThat(res.todayCount()).isEqualTo(124L);
         assertThat(res.activeCount()).isEqualTo(17L);
+    }
+
+    @Test
+    @DisplayName("stats는 activeCount와 seekingCount를 함께 반환한다")
+    void 통계_모집중_포함() {
+        when(checkInRepository.countDistinctUsersStartedSince(any())).thenReturn(5L);
+        when(checkInRepository.countByStatus(CheckInStatus.ACTIVE)).thenReturn(2L);
+        when(checkInRepository.countByStatus(CheckInStatus.SEEKING)).thenReturn(3L);
+
+        CheckInStatsResponse res = service.getStats();
+
+        assertThat(res.activeCount()).isEqualTo(2L);
+        assertThat(res.seekingCount()).isEqualTo(3L);
     }
 
     @Test
@@ -331,9 +455,9 @@ class CheckInServiceTest {
     @DisplayName("getMap: 반경 밖 마커는 Haversine 보정으로 제외하고 거리순 정렬한다")
     void map_filtersAndSorts() {
         // 중심 (37.5,127.0). near≈120m, mid≈445m, far≈2004m(반경 1000 밖)
-        MapMarkerResponse near = new MapMarkerResponse(2L, "가까운집", 37.5010, 127.0005, 1);
-        MapMarkerResponse mid = new MapMarkerResponse(1L, "중간집", 37.5040, 127.0000, 2);
-        MapMarkerResponse far = new MapMarkerResponse(3L, "먼집", 37.5180, 127.0000, 5);
+        MapMarkerResponse near = new MapMarkerResponse(2L, "가까운집", 37.5010, 127.0005, 1, 0);
+        MapMarkerResponse mid = new MapMarkerResponse(1L, "중간집", 37.5040, 127.0000, 2, 0);
+        MapMarkerResponse far = new MapMarkerResponse(3L, "먼집", 37.5180, 127.0000, 5, 0);
         when(checkInRepository.countActiveByPlaceWithinBounds(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
                 .thenReturn(List.of(mid, near, far));
 
@@ -344,38 +468,38 @@ class CheckInServiceTest {
     }
 
     @Test
-    @DisplayName("getActiveDiners: 닉네임·경과분(now−startedAt) 매핑")
-    void diners_elapsed() {
+    @DisplayName("getSeekers: 닉네임·경과분(now−startedAt) 매핑")
+    void seekers_elapsed() {
         // clock now = 2026-06-15T12:00 KST. 11:45 시작 → 경과 15분
         User user = mock(User.class);
         when(user.getId()).thenReturn(5L);
         when(user.getNickname()).thenReturn("혼밥러");
-        CheckIn ci = CheckIn.start(user, place(3L), nowKst.minusMinutes(15));
+        CheckIn ci = CheckIn.startSeeking(user, place(3L), nowKst.minusMinutes(15));
         when(blockRepository.findExclusionIds(1L)).thenReturn(List.of(-1L));
-        when(checkInRepository.findActiveWithUserByPlace(3L, List.of(-1L))).thenReturn(List.of(ci));
+        when(checkInRepository.findSeekingWithUserByPlace(3L, List.of(-1L))).thenReturn(List.of(ci));
 
-        var diners = service.getActiveDiners(1L, 3L);
+        var seekers = service.getSeekers(1L, 3L);
 
-        assertThat(diners).hasSize(1);
-        assertThat(diners.get(0).userId()).isEqualTo(5L);
-        assertThat(diners.get(0).nickname()).isEqualTo("혼밥러");
-        assertThat(diners.get(0).elapsedMinutes()).isEqualTo(15L);
+        assertThat(seekers).hasSize(1);
+        assertThat(seekers.get(0).userId()).isEqualTo(5L);
+        assertThat(seekers.get(0).nickname()).isEqualTo("혼밥러");
+        assertThat(seekers.get(0).elapsedMinutes()).isEqualTo(15L);
     }
 
     @Test
-    @DisplayName("getActiveDiners: 차단 상호 은닉 — blockRepository의 제외 id를 리포지토리에 그대로 전달한다")
-    void diners_passesExclusionIdsFromBlockRepository() {
+    @DisplayName("getSeekers: 차단 상호 은닉 — blockRepository의 제외 id를 리포지토리에 그대로 전달한다")
+    void seekers_passesExclusionIdsFromBlockRepository() {
         User user = mock(User.class);
         when(user.getId()).thenReturn(5L);
         when(user.getNickname()).thenReturn("혼밥러");
-        CheckIn ci = CheckIn.start(user, place(3L), nowKst.minusMinutes(15));
+        CheckIn ci = CheckIn.startSeeking(user, place(3L), nowKst.minusMinutes(15));
         when(blockRepository.findExclusionIds(1L)).thenReturn(List.of(9L, 10L));
-        when(checkInRepository.findActiveWithUserByPlace(3L, List.of(9L, 10L))).thenReturn(List.of(ci));
+        when(checkInRepository.findSeekingWithUserByPlace(3L, List.of(9L, 10L))).thenReturn(List.of(ci));
 
-        var diners = service.getActiveDiners(1L, 3L);
+        var seekers = service.getSeekers(1L, 3L);
 
-        assertThat(diners).hasSize(1);
-        verify(checkInRepository).findActiveWithUserByPlace(3L, List.of(9L, 10L));
+        assertThat(seekers).hasSize(1);
+        verify(checkInRepository).findSeekingWithUserByPlace(3L, List.of(9L, 10L));
     }
 
     @Test
@@ -395,9 +519,10 @@ class CheckInServiceTest {
         // ttlHours=3, togetherTtlHours=5로 서로 다르게 구성한다. 공용 props(둘 다 3)를 쓰면 두 threshold가
         // 같은 값(09:00)이 되어 프로덕션이 두 인자를 뒤바꿔 써도 테스트가 통과해버린다(스왑 무방비).
         // 여기서는 ACTIVE→09:00, TOGETHER→07:00로 서로 다르게 만들어 스왑 시 반드시 실패하게 한다.
-        HonjeongCheckInProperties props2 = new HonjeongCheckInProperties(3, 300_000L, 5);
+        HonjeongCheckInProperties props2 = new HonjeongCheckInProperties(3, 300_000L, 5, 3);
         CheckInService service2 =
-                new CheckInService(checkInRepository, placeService, userRepository, blockRepository, clock, props2);
+                new CheckInService(checkInRepository, placeService, userRepository, blockRepository,
+                        mealRequestRepository, clock, props2);
         when(checkInRepository.endActiveStartedBefore(any(), any())).thenReturn(2);
         when(checkInRepository.endTogetherMatchedBefore(any(), any())).thenReturn(1);
 
@@ -414,5 +539,30 @@ class CheckInServiceTest {
         // 뒤바뀌면(스왑) 아래 두 단언 중 하나가 실패한다.
         assertThat(activeThreshold.getValue()).isEqualTo(nowKst.minusHours(3));
         assertThat(togetherThreshold.getValue()).isEqualTo(nowKst.minusHours(5));
+    }
+
+    @Test
+    @DisplayName("expireStaleCheckIns: SEEKING 만료(CANCELLED)도 seekingTtlHours 기준으로 합산한다"
+            + "(threshold 스왑 방지 — 세 ttl을 서로 다른 값으로 구성)")
+    void expire_includesSeeking() {
+        // ttlHours=3, togetherTtlHours=5, seekingTtlHours=7로 서로 다르게 구성해 어느 한 쌍이 뒤바뀌어도 실패하게 한다.
+        HonjeongCheckInProperties props3 = new HonjeongCheckInProperties(3, 300_000L, 5, 7);
+        CheckInService service3 =
+                new CheckInService(checkInRepository, placeService, userRepository, blockRepository,
+                        mealRequestRepository, clock, props3);
+        when(checkInRepository.endActiveStartedBefore(any(), any())).thenReturn(2);
+        when(checkInRepository.endTogetherMatchedBefore(any(), any())).thenReturn(1);
+        when(checkInRepository.cancelSeekingStartedBefore(any(), any())).thenReturn(4);
+
+        int n = service3.expireStaleCheckIns();
+
+        assertThat(n).isEqualTo(7); // 2 + 1 + 4
+
+        ArgumentCaptor<LocalDateTime> seekingThreshold = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(checkInRepository).cancelSeekingStartedBefore(seekingThreshold.capture(), eq(nowKst));
+        // seekingTtlHours=7 → now-7h(05:00). ttlHours(3)·togetherTtlHours(5)와 모두 달라 스왑 시 실패한다.
+        assertThat(seekingThreshold.getValue()).isEqualTo(nowKst.minusHours(7));
+        // 만료로 SEEKING을 벗어난 체크인에 걸린 대기 신청까지 catch-all로 정리한다
+        verify(mealRequestRepository).expirePendingForEndedTargets(nowKst);
     }
 }

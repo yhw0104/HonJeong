@@ -1,87 +1,133 @@
-// ReceivedRequests — 받은 같이 먹기 신청(더보기 진입). 같이먹기 탭과 데이터층(meal) 공유.
-import React, { useCallback } from 'react';
+// ReceivedRequests — 같이 먹기 신청(더보기 진입). 받은/보낸 토글. 같이먹기 탭과 데이터층(meal) 공유.
+import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Screen, MoreHeader, EmojiCircle, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
-import { useReceivedRequests, useAcceptMealRequest, useDeclineMealRequest } from '@/features/meal/queries';
-import { mealStatusLabel, mealErrorMessage } from '@/features/meal/mealCopy';
+import { useReceivedRequests, useSentRequests, useAcceptMealRequest, useDeclineMealRequest } from '@/features/meal/queries';
+import { mealStatusLabelReceived, mealStatusLabelSent, mealErrorMessage } from '@/features/meal/mealCopy';
 
 export function ReceivedRequestsScreen({ navigation }: RootStackScreenProps<'ReceivedRequests'>) {
+  const [tab, setTab] = useState<'received' | 'sent'>('received');
   const received = useReceivedRequests();
+  const sent = useSentRequests();
   const accept = useAcceptMealRequest();
   const decline = useDeclineMealRequest();
 
-  useFocusEffect(useCallback(() => { received.refetch(); }, [received.refetch]));
+  useFocusEffect(useCallback(() => { received.refetch(); sent.refetch(); }, [received.refetch, sent.refetch]));
 
-  const list = received.data ?? [];
-  const pending = list.filter((r) => r.status === 'PENDING');
-  const past = list.filter((r) => r.status !== 'PENDING');
+  const receivedList = received.data ?? [];
+  const sentList = sent.data ?? [];
+  const pending = receivedList.filter((r) => r.status === 'PENDING');
+  const past = receivedList.filter((r) => r.status !== 'PENDING');
   const respond = (mut: typeof accept, id: number) =>
     mut.mutate(id, { onError: (e) => Alert.alert('처리 실패', mealErrorMessage(e)) });
 
   return (
     <Screen bg={T2.bg} edges={['top']}>
-      <MoreHeader title="받은 같이 먹기 신청" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {received.isLoading ? (
-          <ActivityIndicator color={T2.brand} style={{ marginTop: 20 }} />
-        ) : received.isError ? (
-          <Text style={styles.empty}>신청을 불러오지 못했어요.</Text>
-        ) : (
-          <>
-            <Text style={styles.label}>새로운 신청 {pending.length}</Text>
-            {pending.length === 0 ? (
-              <Text style={styles.empty}>처리할 신청이 없어요.</Text>
-            ) : (
-              <View style={{ gap: 12 }}>
-                {pending.map((r) => (
-                  <View key={r.mealRequestId} style={styles.card}>
-                    <Pressable style={styles.cardHead} onPress={() => navigation.navigate('MateProfile', { userId: r.fromUser.userId })} accessibilityRole="button">
-                      <EmojiCircle emoji={r.fromUser.nickname[0] ?? '?'} size={46} />
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.name}>{r.fromUser.nickname}</Text>
-                      </View>
-                    </Pressable>
-                    <View style={styles.placeChip}>
-                      <Icon name="pin" size={14} color={T2.brand} />
-                      <Text style={styles.placeText}>{r.placeName}</Text>
-                    </View>
-                    {r.message ? <Text style={styles.msg}>"{r.message}"</Text> : null}
-                    <View style={styles.btnRow}>
-                      <Pressable style={styles.declineBtn} disabled={decline.isPending}
-                        onPress={() => respond(decline, r.mealRequestId)} accessibilityRole="button">
-                        <Text style={styles.declineText}>거절</Text>
-                      </Pressable>
-                      <Pressable style={styles.acceptBtn} disabled={accept.isPending}
-                        onPress={() => respond(accept, r.mealRequestId)} accessibilityRole="button">
-                        <Text style={styles.acceptText}>수락하기</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
+      <MoreHeader title="같이 먹기 신청" onBack={() => navigation.goBack()} />
 
-            <Text style={[styles.label, { marginTop: 28 }]}>지난 신청</Text>
-            {past.length === 0 ? (
-              <Text style={styles.empty}>지난 신청이 없어요.</Text>
-            ) : (
-              <View>
-                {past.map((p, i) => (
-                  <Pressable key={p.mealRequestId} style={[styles.pastRow, i < past.length - 1 && styles.pastDivider]} onPress={() => navigation.navigate('MateProfile', { userId: p.fromUser.userId })} accessibilityRole="button">
-                    <EmojiCircle emoji={p.fromUser.nickname[0] ?? '?'} size={40} dimmed />
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.pastName}>{p.fromUser.nickname}</Text>
-                      <Text style={styles.pastPlace}>{p.placeName}</Text>
+      {/* 받은 / 보낸 토글 */}
+      <View style={styles.segRow}>
+        {([
+          { key: 'received' as const, label: '받은 신청', count: receivedList.length },
+          { key: 'sent' as const, label: '보낸 신청', count: sentList.length },
+        ]).map((s) => {
+          const on = tab === s.key;
+          return (
+            <Pressable key={s.key} style={styles.seg} onPress={() => setTab(s.key)} accessibilityRole="button">
+              <Text style={[styles.segLabel, { color: on ? T2.text : T2.textMute }]}>{s.label}</Text>
+              <Text style={[styles.segCount, { color: on ? T2.brand : T2.textMute }]}>{s.count}</Text>
+              {on && <View style={styles.segUnderline} />}
+            </Pressable>
+          );
+        })}
+      </View>
+      <View style={styles.divider} />
+
+      <ScrollView contentContainerStyle={styles.scroll}>
+        {tab === 'received' ? (
+          received.isLoading ? (
+            <ActivityIndicator color={T2.brand} style={{ marginTop: 20 }} />
+          ) : received.isError ? (
+            <Text style={styles.empty}>신청을 불러오지 못했어요.</Text>
+          ) : (
+            <>
+              <Text style={styles.label}>새로운 신청 {pending.length}</Text>
+              {pending.length === 0 ? (
+                <Text style={styles.empty}>처리할 신청이 없어요.</Text>
+              ) : (
+                <View style={{ gap: 12 }}>
+                  {pending.map((r) => (
+                    <View key={r.mealRequestId} style={styles.card}>
+                      <Pressable style={styles.cardHead} onPress={() => navigation.navigate('MateProfile', { userId: r.fromUser.userId })} accessibilityRole="button">
+                        <EmojiCircle emoji={r.fromUser.nickname[0] ?? '?'} size={46} />
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.name}>{r.fromUser.nickname}</Text>
+                        </View>
+                      </Pressable>
+                      <View style={styles.placeChip}>
+                        <Icon name="pin" size={14} color={T2.brand} />
+                        <Text style={styles.placeText}>{r.placeName}</Text>
+                      </View>
+                      {r.message ? <Text style={styles.msg}>"{r.message}"</Text> : null}
+                      <View style={styles.btnRow}>
+                        <Pressable style={styles.declineBtn} disabled={decline.isPending}
+                          onPress={() => respond(decline, r.mealRequestId)} accessibilityRole="button">
+                          <Text style={styles.declineText}>거절</Text>
+                        </Pressable>
+                        <Pressable style={styles.acceptBtn} disabled={accept.isPending}
+                          onPress={() => respond(accept, r.mealRequestId)} accessibilityRole="button">
+                          <Text style={styles.acceptText}>수락하기</Text>
+                        </Pressable>
+                      </View>
                     </View>
-                    <Text style={styles.pastState}>{mealStatusLabel(p.status)}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            )}
-          </>
+                  ))}
+                </View>
+              )}
+
+              <Text style={[styles.label, { marginTop: 28 }]}>지난 신청</Text>
+              {past.length === 0 ? (
+                <Text style={styles.empty}>지난 신청이 없어요.</Text>
+              ) : (
+                <View>
+                  {past.map((p, i) => (
+                    <Pressable key={p.mealRequestId} style={[styles.pastRow, i < past.length - 1 && styles.pastDivider]} onPress={() => navigation.navigate('MateProfile', { userId: p.fromUser.userId })} accessibilityRole="button">
+                      <EmojiCircle emoji={p.fromUser.nickname[0] ?? '?'} size={40} dimmed />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.pastName}>{p.fromUser.nickname}</Text>
+                        <Text style={styles.pastPlace}>{p.placeName}</Text>
+                      </View>
+                      <Text style={styles.pastState}>{mealStatusLabelReceived(p.status)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </>
+          )
+        ) : (
+          // 보낸 신청 — 상대가 처리한 상태(수락됨/거절됨/만료됨)
+          sent.isLoading ? (
+            <ActivityIndicator color={T2.brand} style={{ marginTop: 20 }} />
+          ) : sent.isError ? (
+            <Text style={styles.empty}>신청을 불러오지 못했어요.</Text>
+          ) : sentList.length === 0 ? (
+            <Text style={styles.empty}>보낸 신청이 없어요.</Text>
+          ) : (
+            <View>
+              {sentList.map((s, i) => (
+                <Pressable key={s.mealRequestId} style={[styles.pastRow, i < sentList.length - 1 && styles.pastDivider]} onPress={() => navigation.navigate('MateProfile', { userId: s.toUser.userId })} accessibilityRole="button">
+                  <EmojiCircle emoji={s.toUser.nickname[0] ?? '?'} size={40} dimmed={s.status === 'DECLINED' || s.status === 'EXPIRED'} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.pastName}>{s.toUser.nickname}</Text>
+                    <Text style={styles.pastPlace}>{s.placeName}</Text>
+                  </View>
+                  <Text style={[styles.pastState, s.status === 'ACCEPTED' && styles.pastStateActive]}>{mealStatusLabelSent(s.status)}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )
         )}
       </ScrollView>
     </Screen>
@@ -89,7 +135,14 @@ export function ReceivedRequestsScreen({ navigation }: RootStackScreenProps<'Rec
 }
 
 const styles = StyleSheet.create({
-  scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
+  segRow: { flexDirection: 'row', gap: 22, paddingHorizontal: 20, marginTop: 4 },
+  seg: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingBottom: 12 },
+  segLabel: { fontSize: 16, fontWeight: '800', letterSpacing: -0.3 },
+  segCount: { fontSize: 12, fontWeight: '700' },
+  segUnderline: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, backgroundColor: T2.brand },
+  divider: { height: 1, backgroundColor: T2.border },
+
+  scroll: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 },
   label: { fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: 0.6, marginBottom: 12 },
   empty: { fontSize: 13, color: T2.textMute, paddingVertical: 8 },
   card: { padding: 18, backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: T2.border },
@@ -108,4 +161,5 @@ const styles = StyleSheet.create({
   pastName: { fontSize: 14, fontWeight: '700', color: T2.textSub, letterSpacing: -0.3 },
   pastPlace: { fontSize: 11, color: T2.textMute, marginTop: 3 },
   pastState: { fontSize: 12, fontWeight: '600', color: T2.textMute },
+  pastStateActive: { color: T2.brand, fontWeight: '700' },
 });

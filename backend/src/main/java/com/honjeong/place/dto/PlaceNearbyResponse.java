@@ -1,7 +1,8 @@
 package com.honjeong.place.dto;
 
 /**
- * 주변 식당 1건 응답. distanceMeters는 요청 위치에서의 Haversine 거리(반올림), activeCount는 현재 ACTIVE 혼밥러 수.
+ * 주변 식당 1건 응답. distanceMeters는 요청 위치에서의 Haversine 거리(반올림), activeCount는 현재 ACTIVE 혼밥러 수,
+ * seekingCount는 현재 SEEKING(모집중) 수.
  *
  * @param placeId       장소 PK
  * @param name          가게명
@@ -11,6 +12,7 @@ package com.honjeong.place.dto;
  * @param longitude     경도
  * @param distanceMeters 요청 좌표에서 이 장소까지의 거리(m, 반올림)
  * @param activeCount   현재 ACTIVE 혼밥러 수(없으면 0)
+ * @param seekingCount  현재 SEEKING(모집중) 수(없으면 0)
  */
 public record PlaceNearbyResponse(
         Long placeId,
@@ -20,5 +22,6 @@ public record PlaceNearbyResponse(
         double latitude,
         double longitude,
         long distanceMeters,
-        long activeCount) {
+        long activeCount,
+        long seekingCount) {
 }

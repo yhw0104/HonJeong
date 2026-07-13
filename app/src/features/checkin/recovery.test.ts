@@ -33,3 +33,27 @@ it('409가 아닌 에러는 그대로 던진다', async () => {
     startCheckInWithRecovery(9, { start, getMine: jest.fn(), end: jest.fn() }),
   ).rejects.toBeInstanceOf(ApiError);
 });
+
+it('409인데 기존이 SEEKING이면 재시도하지 않고 원래 에러를 그대로 던진다', async () => {
+  const conflict = new ApiError(409, 'CHECKIN_ALREADY_ACTIVE', '이미 진행 중');
+  const start = jest.fn().mockRejectedValue(conflict);
+  const getMine = jest.fn().mockResolvedValue(made({ checkInId: 1, placeId: 5, status: 'SEEKING' }));
+  const end = jest.fn();
+
+  await expect(startCheckInWithRecovery(9, { start, getMine, end })).rejects.toBe(conflict);
+
+  expect(end).not.toHaveBeenCalled();
+  expect(start).toHaveBeenCalledTimes(1); // 확정 실패한 POST를 두 번 쏘지 않는다
+});
+
+it('409인데 기존이 TOGETHER여도 재시도하지 않고 원래 에러를 그대로 던진다', async () => {
+  const conflict = new ApiError(409, 'CHECKIN_ALREADY_ACTIVE', '이미 진행 중');
+  const start = jest.fn().mockRejectedValue(conflict);
+  const getMine = jest.fn().mockResolvedValue(made({ checkInId: 1, placeId: 5, status: 'TOGETHER' }));
+  const end = jest.fn();
+
+  await expect(startCheckInWithRecovery(9, { start, getMine, end })).rejects.toBe(conflict);
+
+  expect(end).not.toHaveBeenCalled();
+  expect(start).toHaveBeenCalledTimes(1);
+});

@@ -49,17 +49,71 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     Optional<CheckIn> findByUser_IdAndStatusIn(Long userId, Collection<CheckInStatus> statuses);
 
     /**
-     * 기능: 특정 상태를 제외한 사용자의 체크인 수 집계
-     * 쿼리: SELECT COUNT(*) FROM check_ins WHERE user_id = :userId AND status <> :status
-     * Request: userId — 회원 ID, status — 제외할 상태 / Response: long — 건수
+     * 기능: 완료된(혼밥으로 인정되는) 사용자 체크인 수 집계 — CANCELLED·SEEKING 모두 제외
+     * 쿼리: SELECT COUNT(*) FROM check_ins WHERE user_id = :userId AND status NOT IN ('CANCELLED', 'SEEKING')
+     * Request: userId — 회원 ID / Response: long — 건수
      *
-     * <p>[기존 주석] 특정 상태를 제외한 사용자 체크인 수(총 체크인에서 CANCELLED 제외용).
+     * <p>[기존 주석] 완료 집계용 — CANCELLED와 SEEKING(안 먹음)을 제외한 사용자 체크인 수(혼밥 횟수).
+     * 모집만 하고 실제로 먹지 않은 SEEKING은 혼밥이 아니므로 이력·누적 집계에서 제외한다.
      *
      * @param userId 회원 id
-     * @param status 제외할 상태
      * @return 건수
      */
-    long countByUser_IdAndStatusNot(Long userId, CheckInStatus status);
+    @Query("SELECT COUNT(c) FROM CheckIn c WHERE c.user.id = :userId "
+            + "AND c.status NOT IN (com.honjeong.checkin.domain.CheckInStatus.CANCELLED, "
+            + "com.honjeong.checkin.domain.CheckInStatus.SEEKING)")
+    long countCompletedByUser(@Param("userId") Long userId);
+
+    /**
+     * 기능: 혼밥(혼자 먹은) 완료 체크인 수 집계 — CANCELLED·SEEKING 제외 + 매칭 안 됨(matchedAt IS NULL)
+     * 쿼리: SELECT COUNT(*) FROM check_ins WHERE user_id = :userId AND status NOT IN ('CANCELLED', 'SEEKING') AND matched_at IS NULL
+     * Request: userId — 회원 ID / Response: long — 건수
+     *
+     * <p>[기존 주석] 혼밥(혼자 먹은) 완료 수 — CANCELLED·SEEKING 제외 + 매칭 안 됨(matchedAt IS NULL).
+     *
+     * @param userId 회원 id
+     * @return 건수
+     */
+    @Query("SELECT COUNT(c) FROM CheckIn c WHERE c.user.id = :userId "
+            + "AND c.status NOT IN (com.honjeong.checkin.domain.CheckInStatus.CANCELLED, "
+            + "com.honjeong.checkin.domain.CheckInStatus.SEEKING) AND c.matchedAt IS NULL")
+    long countSoloCompletedByUser(@Param("userId") Long userId);
+
+    /**
+     * 기능: 같이먹음(매칭돼 같이 먹은) 체크인 수 집계 — matchedAt IS NOT NULL
+     * 쿼리: SELECT COUNT(*) FROM check_ins WHERE user_id = :userId AND matched_at IS NOT NULL
+     * Request: userId — 회원 ID / Response: long — 건수
+     *
+     * <p>[기존 주석] 같이먹음(매칭돼 같이 먹은) 수 — matchedAt IS NOT NULL(TOGETHER 또는 그로부터 종료된 것).
+     *
+     * @param userId 회원 id
+     * @return 건수
+     */
+    @Query("SELECT COUNT(c) FROM CheckIn c WHERE c.user.id = :userId AND c.matchedAt IS NOT NULL")
+    long countTogetherByUser(@Param("userId") Long userId);
+
+    /**
+     * 기능: 두 사용자가 실제로 함께 먹은(pairwise) 횟수 집계 — 양쪽 모두 같은 매칭(meal_request_id)에 체크인이 있는 건만
+     * 쿼리: SELECT COUNT(DISTINCT c.meal_request_id) FROM check_ins c
+     *       WHERE c.user_id = :viewerId AND c.meal_request_id IS NOT NULL
+     *         AND EXISTS (SELECT 1 FROM check_ins o WHERE o.meal_request_id = c.meal_request_id AND o.user_id = :targetId)
+     * Request: viewerId — 조회자(나) ID, targetId — 상대 ID / Response: long — 두 사람이 함께 먹은 횟수
+     *
+     * <p>[의도] 메이트 프로필 "함께 먹음"은 <b>나↔이 사람</b>이 실제로 같이 먹은 pairwise 횟수다. 신청 수락 건수가 아니라
+     * 실제 매칭 체크인(양쪽 모두 같은 meal_request_id) 기준으로 세야, 수락만 되고 매칭 체크인이 없는 유령 데이터가 부풀리지 않는다.
+     * 본인 프로필의 전체 같이먹음({@code countTogetherByUser})과는 다른 지표다(전체 vs 특정 상대와의 pairwise).
+     *
+     * @param viewerId 조회자(나) id
+     * @param targetId 상대 id
+     * @return 두 사람이 실제로 함께 먹은 횟수(양쪽 매칭 체크인이 있는 meal_request 수)
+     */
+    @Query("""
+            SELECT COUNT(DISTINCT c.mealRequestId) FROM CheckIn c
+            WHERE c.user.id = :viewerId AND c.mealRequestId IS NOT NULL
+              AND EXISTS (SELECT 1 FROM CheckIn o
+                          WHERE o.mealRequestId = c.mealRequestId AND o.user.id = :targetId)
+            """)
+    long countTogetherBetween(@Param("viewerId") Long viewerId, @Param("targetId") Long targetId);
 
     /**
      * 기능: 해당 상태의 전체 체크인 수 집계
@@ -74,39 +128,50 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     long countByStatus(CheckInStatus status);
 
     /**
-     * 기능: 기준 시각 이후 시작된 체크인의 distinct 사용자 수 집계(오늘 혼밥 "N명")
-     * 쿼리: SELECT COUNT(DISTINCT user_id) FROM check_ins WHERE started_at >= :start AND status <> 'CANCELLED'
+     * 기능: 기준 시각 이후 시작된 체크인의 distinct 사용자 수 집계(오늘 혼밥 "N명") — CANCELLED·SEEKING 제외
+     * 쿼리: SELECT COUNT(DISTINCT user_id) FROM check_ins WHERE started_at >= :start AND status NOT IN ('CANCELLED', 'SEEKING')
      * Request: start — 집계 시작 경계(KST 자정) / Response: long — 중복 제거된 사용자 수
      *
      * <p>[기존 주석] 기준 시각 이후 시작된 체크인의 distinct 사용자 수(오늘 혼밥 "N명").
+     * 모집만 하고 안 먹은 SEEKING은 혼밥이 아니므로 CANCELLED와 함께 제외한다.
      *
      * @param start 집계 시작 경계(KST 자정)
      * @return 중복 제거된 사용자 수
      */
     @Query("SELECT COUNT(DISTINCT c.user.id) FROM CheckIn c "
-            + "WHERE c.startedAt >= :start AND c.status <> com.honjeong.checkin.domain.CheckInStatus.CANCELLED")
+            + "WHERE c.startedAt >= :start AND c.status NOT IN ("
+            + "com.honjeong.checkin.domain.CheckInStatus.CANCELLED, "
+            + "com.honjeong.checkin.domain.CheckInStatus.SEEKING)")
     long countDistinctUsersStartedSince(@Param("start") LocalDateTime start);
 
     /**
-     * 기능: 위경도 박스 안의 식당별 현재 ACTIVE 혼밥러 수를 마커 DTO로 집계
-     * 쿼리: SELECT p.id, p.name, p.latitude, p.longitude, COUNT(c.id) FROM check_ins c JOIN places p ON c.place_id = p.id
-     *       WHERE c.status = 'ACTIVE' AND p.latitude BETWEEN :latMin AND :latMax AND p.longitude BETWEEN :lngMin AND :lngMax
-     *       GROUP BY p.id, p.name, p.latitude, p.longitude (INNER JOIN이라 ACTIVE가 있는 식당만 반환)
+     * 기능: 위경도 박스 안의 식당별 현재 ACTIVE·SEEKING 혼밥러 수를 각각 마커 DTO로 집계
+     * 쿼리: SELECT p.id, p.name, p.latitude, p.longitude,
+     *       SUM(CASE WHEN status='ACTIVE' THEN 1 ELSE 0 END), SUM(CASE WHEN status='SEEKING' THEN 1 ELSE 0 END)
+     *       FROM check_ins c JOIN places p ON c.place_id = p.id
+     *       WHERE c.status IN ('SEEKING','ACTIVE') AND p.latitude BETWEEN :latMin AND :latMax
+     *       AND p.longitude BETWEEN :lngMin AND :lngMax GROUP BY p.id, p.name, p.latitude, p.longitude
+     *       (INNER JOIN이라 ACTIVE 또는 SEEKING이 있는 식당만 반환)
      * Request: latMin·latMax — 위도 하한·상한, lngMin·lngMax — 경도 하한·상한 / Response: List&lt;MapMarkerResponse&gt; — 박스 내 식당별 마커
      *
-     * <p>[기존 주석] 위경도 박스 안의 식당별 현재 ACTIVE 혼밥러 수. ACTIVE가 있는 식당만(INNER JOIN) 반환한다.
+     * <p>[기존 주석] 위경도 박스 안의 식당별 현재 ACTIVE·SEEKING 혼밥러 수를 조건부 SUM으로 각각 집계한다.
+     * ACTIVE 또는 SEEKING이 있는 식당만(INNER JOIN + WHERE IN) 반환한다 — 모집중만 있는 식당도 이제 마커에 나온다.
      * 원형 반경 보정·거리정렬은 서비스가 Haversine로 수행한다.
      *
      * @param latMin 위도 하한
      * @param latMax 위도 상한
      * @param lngMin 경도 하한
      * @param lngMax 경도 상한
-     * @return 박스 내 식당별 마커(활성 수 포함)
+     * @return 박스 내 식당별 마커(ACTIVE·SEEKING 수 포함)
      */
     @Query("""
-            SELECT new com.honjeong.checkin.dto.MapMarkerResponse(p.id, p.name, p.latitude, p.longitude, COUNT(c.id))
+            SELECT new com.honjeong.checkin.dto.MapMarkerResponse(
+                p.id, p.name, p.latitude, p.longitude,
+                SUM(CASE WHEN c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE THEN 1 ELSE 0 END),
+                SUM(CASE WHEN c.status = com.honjeong.checkin.domain.CheckInStatus.SEEKING THEN 1 ELSE 0 END))
             FROM CheckIn c JOIN c.place p
-            WHERE c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE
+            WHERE c.status IN (com.honjeong.checkin.domain.CheckInStatus.SEEKING,
+                               com.honjeong.checkin.domain.CheckInStatus.ACTIVE)
               AND p.latitude BETWEEN :latMin AND :latMax
               AND p.longitude BETWEEN :lngMin AND :lngMax
             GROUP BY p.id, p.name, p.latitude, p.longitude
@@ -116,26 +181,27 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             @Param("lngMin") double lngMin, @Param("lngMax") double lngMax);
 
     /**
-     * 기능: 식당의 현재 ACTIVE 체크인을 사용자(닉네임)와 함께 시작시각 오름차순으로 조회
+     * 기능: 식당의 현재 SEEKING(모집중) 체크인을 사용자(닉네임)와 함께 시작시각 오름차순으로 조회(같이먹기 신청 대상)
      * 쿼리: SELECT c.*, u.* FROM check_ins c JOIN users u ON c.user_id = u.id
-     *       WHERE c.place_id = :placeId AND c.status = 'ACTIVE' AND c.user_id NOT IN (:excludedUserIds)
+     *       WHERE c.place_id = :placeId AND c.status = 'SEEKING' AND c.user_id NOT IN (:excludedUserIds)
      *       ORDER BY c.started_at (user를 fetch join해 N+1 방지)
-     * Request: placeId — 식당 ID, excludedUserIds — 제외할 사용자 ID 목록 / Response: List&lt;CheckIn&gt; — ACTIVE 체크인 목록(user 로딩됨)
+     * Request: placeId — 식당 ID, excludedUserIds — 제외할 사용자 ID 목록 / Response: List&lt;CheckIn&gt; — SEEKING 체크인 목록(user 로딩됨)
      *
-     * <p>[기존 주석] 식당의 현재 ACTIVE 체크인을 startedAt 오름차순으로 조회한다. 닉네임을 위해 user를 fetch join한다(N+1 방지).
-     * 차단 관계(양방향) 유저는 상호 은닉하기 위해 {@code excludedUserIds}로 걸러낸다(FR-108).
+     * <p>[기존 주석] 식당의 현재 SEEKING(모집중) 체크인을 startedAt 오름차순으로 조회한다. 같이먹기 신청 대상 목록이다.
+     * 닉네임을 위해 user를 fetch join한다(N+1 방지). 차단 관계(양방향) 유저는 상호 은닉하기 위해
+     * {@code excludedUserIds}로 걸러낸다(FR-108).
      *
      * @param placeId         식당 id
      * @param excludedUserIds 제외할 사용자 id 목록(차단 상호 은닉용, 항상 non-empty — 빈 IN 방지는 호출 측 책임)
-     * @return ACTIVE 체크인 목록(user 로딩됨, 제외 대상 제외)
+     * @return SEEKING 체크인 목록(user 로딩됨, 제외 대상 제외)
      */
     @Query("""
             SELECT c FROM CheckIn c JOIN FETCH c.user
-            WHERE c.place.id = :placeId AND c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE
+            WHERE c.place.id = :placeId AND c.status = com.honjeong.checkin.domain.CheckInStatus.SEEKING
               AND c.user.id NOT IN :excludedUserIds
             ORDER BY c.startedAt
             """)
-    List<CheckIn> findActiveWithUserByPlace(@Param("placeId") Long placeId,
+    List<CheckIn> findSeekingWithUserByPlace(@Param("placeId") Long placeId,
             @Param("excludedUserIds") List<Long> excludedUserIds);
 
     /**
@@ -159,6 +225,29 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             GROUP BY c.place.id
             """)
     List<PlaceActiveCount> countActiveByPlaceIds(@Param("placeIds") List<Long> placeIds);
+
+    /**
+     * 기능: 주어진 장소 ID 목록의 현재 SEEKING(모집중) 체크인 수를 장소별로 배치 집계
+     * 쿼리: SELECT place_id, COUNT(id) FROM check_ins WHERE place_id IN (:placeIds) AND status = 'SEEKING' GROUP BY place_id
+     * Request: placeIds — 조회할 장소 PK 목록 / Response: List&lt;PlaceActiveCount&gt; — 장소별 SEEKING 수(SEEKING 있는 장소만)
+     *
+     * <p>[기존 주석] 주어진 장소 ID 목록에 대해 현재 SEEKING(모집중) 체크인 수를 장소별로 집계한다.
+     * SEEKING이 없는 장소는 결과에 포함되지 않는다(카운트 0은 서비스에서 기본값으로 처리).
+     * {@link PlaceActiveCount}를 재사용하며, 이 경우 {@code activeCount} 필드에는 SEEKING 수가 담긴다.
+     *
+     * <p><b>주의:</b> placeIds가 빈 리스트이면 JPQL {@code IN ()} 오류가 발생할 수 있으므로
+     * 호출 전 반드시 빈 리스트 여부를 확인하고 단락 처리해야 한다. 빈 리스트 방지는 호출 측 책임이다.
+     *
+     * @param placeIds 조회할 장소 PK 목록
+     * @return 장소별 SEEKING(모집중) 수(SEEKING이 있는 장소만 포함)
+     */
+    @Query("""
+            SELECT new com.honjeong.checkin.dto.PlaceActiveCount(c.place.id, COUNT(c.id))
+            FROM CheckIn c
+            WHERE c.place.id IN :placeIds AND c.status = com.honjeong.checkin.domain.CheckInStatus.SEEKING
+            GROUP BY c.place.id
+            """)
+    List<PlaceActiveCount> countSeekingByPlaceIds(@Param("placeIds") List<Long> placeIds);
 
     /**
      * 기능: 리뷰 인증 자동연결용 — 해당 식당에 대한 사용자의 최근 솔로 체크인(ACTIVE 또는 since 이후 ENDED) 1건 조회
@@ -239,18 +328,41 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     int endActiveStartedBefore(@Param("threshold") LocalDateTime threshold, @Param("now") LocalDateTime now);
 
     /**
-     * 기능: 사용자의 전체 체크인 이력을 장소와 함께 최신순으로 조회(타임라인용)
+     * 기능: startedAt이 기준 이전인 SEEKING 체크인을 일괄 CANCELLED 처리(모집 TTL 만료)
+     * 쿼리: UPDATE check_ins SET status = 'CANCELLED', ended_at = :now WHERE status = 'SEEKING' AND started_at < :threshold
+     * Request: threshold — 만료 기준 시각, now — 종료 시각으로 기록할 현재 시각 / Response: int — 정리된 건수
+     *
+     * <p>[기존 주석] startedAt이 기준 이전인 SEEKING을 일괄 CANCELLED 처리한다(모집 TTL — 안 먹었으므로 이력 제외).
+     * 실제로 먹은 것이 아니므로 ENDED가 아니라 CANCELLED로 보내 이력·누적 집계에서 제외한다.
+     *
+     * @param threshold 이 시각 이전 시작된 SEEKING이 정리 대상
+     * @param now       종료 시각으로 기록할 현재 시각
+     * @return 정리된 건수
+     */
+    @Modifying
+    @Query("""
+            UPDATE CheckIn c SET c.status = com.honjeong.checkin.domain.CheckInStatus.CANCELLED, c.endedAt = :now
+            WHERE c.status = com.honjeong.checkin.domain.CheckInStatus.SEEKING AND c.startedAt < :threshold
+            """)
+    int cancelSeekingStartedBefore(@Param("threshold") LocalDateTime threshold, @Param("now") LocalDateTime now);
+
+    /**
+     * 기능: 사용자의 전체 체크인 이력을 장소와 함께 최신순으로 조회(타임라인용) — CANCELLED·SEEKING 제외
      * 쿼리: SELECT c.*, p.* FROM check_ins c JOIN places p ON c.place_id = p.id
-     *       WHERE c.user_id = :userId AND c.status <> 'CANCELLED' ORDER BY c.started_at DESC (place fetch join)
+     *       WHERE c.user_id = :userId AND c.status NOT IN ('CANCELLED', 'SEEKING') ORDER BY c.started_at DESC (place fetch join)
      * Request: userId — 회원 ID / Response: List&lt;CheckIn&gt; — 체크인 이력(place 로딩됨, 최신순)
      *
      * <p>[기존 주석] 사용자의 전체 체크인 이력을 place와 함께 startedAt 내림차순으로 조회한다(타임라인용).
+     * 모집만 하고 안 먹은 SEEKING은 혼밥이 아니므로 CANCELLED와 함께 이력에서 제외한다.
+     * '내 혼밥 기록'은 <b>진짜 혼자 먹은</b> 기록만 담는다 — 같이 먹은(matchedAt IS NOT NULL) 체크인은 제외한다.
      *
      * @param userId 회원 id
-     * @return 체크인 이력(place fetch join 포함, 최신순)
+     * @return 혼밥(솔로) 체크인 이력(place fetch join 포함, 최신순)
      */
     @Query("SELECT c FROM CheckIn c JOIN FETCH c.place "
-            + "WHERE c.user.id = :userId AND c.status <> com.honjeong.checkin.domain.CheckInStatus.CANCELLED "
+            + "WHERE c.user.id = :userId AND c.matchedAt IS NULL AND c.status NOT IN ("
+            + "com.honjeong.checkin.domain.CheckInStatus.CANCELLED, "
+            + "com.honjeong.checkin.domain.CheckInStatus.SEEKING) "
             + "ORDER BY c.startedAt DESC")
     List<CheckIn> findHistoryWithPlaceByUser(@Param("userId") Long userId);
 
@@ -267,40 +379,12 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     long countByUser_Id(Long userId);
 
     /**
-     * 기능: 사용자가 방문한 식당 수 집계(중복 제거)
-     * 쿼리: SELECT COUNT(DISTINCT place_id) FROM check_ins WHERE user_id = :userId AND status <> 'CANCELLED'
-     * Request: userId — 회원 ID / Response: long — 고유 식당 수
-     *
-     * <p>[기존 주석] 사용자가 방문한 식당 수(중복 제거).
-     *
-     * @param userId 회원 id
-     * @return 고유 식당 수
-     */
-    @Query("SELECT COUNT(DISTINCT c.place.id) FROM CheckIn c "
-            + "WHERE c.user.id = :userId AND c.status <> com.honjeong.checkin.domain.CheckInStatus.CANCELLED")
-    long countDistinctPlacesByUser(@Param("userId") Long userId);
-
-    /**
-     * 기능: 기준 시각 이후 사용자의 체크인 수 집계(이번 달 체크인 수용)
-     * 쿼리: SELECT COUNT(*) FROM check_ins WHERE user_id = :userId AND started_at >= :monthStart AND status <> 'CANCELLED'
-     * Request: userId — 회원 ID, monthStart — 집계 시작 경계 / Response: long — 해당 기간 체크인 건수
-     *
-     * <p>[기존 주석] 기준 시각 이후 사용자의 체크인 수(이번 달 체크인 수용).
-     *
-     * @param userId     회원 id
-     * @param monthStart 집계 시작 경계
-     * @return 해당 기간 체크인 건수
-     */
-    @Query("SELECT COUNT(c) FROM CheckIn c WHERE c.user.id = :userId AND c.startedAt >= :monthStart "
-            + "AND c.status <> com.honjeong.checkin.domain.CheckInStatus.CANCELLED")
-    long countByUserSince(@Param("userId") Long userId, @Param("monthStart") LocalDateTime monthStart);
-
-    /**
-     * 기능: 주어진 장소 목록 중 사용자가 체크인한 적 있는 장소 ID 조회(즐겨찾기 visited 판정용)
-     * 쿼리: SELECT DISTINCT place_id FROM check_ins WHERE user_id = :userId AND place_id IN (:placeIds) AND status <> 'CANCELLED'
+     * 기능: 주어진 장소 목록 중 사용자가 체크인한 적 있는 장소 ID 조회(즐겨찾기 visited 판정용) — CANCELLED·SEEKING 제외
+     * 쿼리: SELECT DISTINCT place_id FROM check_ins WHERE user_id = :userId AND place_id IN (:placeIds) AND status NOT IN ('CANCELLED', 'SEEKING')
      * Request: userId — 회원 ID, placeIds — 판정할 장소 PK 목록 / Response: List&lt;Long&gt; — 체크인 이력이 있는 장소 ID 목록
      *
      * <p>[기존 주석] 주어진 장소 id 목록 중 사용자가 체크인한 적 있는 장소 id들을 반환한다(즐겨찾기 visited 판정용).
+     * 모집만 하고 안 먹은 SEEKING은 방문으로 치지 않으므로 CANCELLED와 함께 제외한다.
      *
      * @param userId   회원 id
      * @param placeIds 판정할 장소 pk 목록
@@ -308,37 +392,41 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
      */
     @Query("SELECT DISTINCT c.place.id FROM CheckIn c "
             + "WHERE c.user.id = :userId AND c.place.id IN :placeIds "
-            + "AND c.status <> com.honjeong.checkin.domain.CheckInStatus.CANCELLED")
+            + "AND c.status NOT IN (com.honjeong.checkin.domain.CheckInStatus.CANCELLED, "
+            + "com.honjeong.checkin.domain.CheckInStatus.SEEKING)")
     List<Long> findVisitedPlaceIds(@Param("userId") Long userId, @Param("placeIds") List<Long> placeIds);
 
     /**
-     * 기능: 주어진 사용자 목록의 현재 ACTIVE 체크인을 장소와 함께 배치 조회(메이트 온라인 상태 표시용)
+     * 기능: 주어진 사용자 목록의 현재 SEEKING(모집중) 또는 ACTIVE(혼밥중) 체크인을 장소와 함께 배치 조회(메이트 온라인 상태 표시용)
      * 쿼리: SELECT c.*, p.* FROM check_ins c JOIN places p ON c.place_id = p.id
-     *       WHERE c.user_id IN (:userIds) AND c.status = 'ACTIVE' (place fetch join으로 N+1 방지)
-     * Request: userIds — 조회할 사용자 PK 목록 / Response: List&lt;CheckIn&gt; — 해당 사용자들의 ACTIVE 체크인(place 로딩됨)
+     *       WHERE c.user_id IN (:userIds) AND c.status IN ('SEEKING', 'ACTIVE') (place fetch join으로 N+1 방지)
+     * Request: userIds — 조회할 사용자 PK 목록 / Response: List&lt;CheckIn&gt; — 해당 사용자들의 SEEKING·ACTIVE 체크인(place 로딩됨)
      *
-     * <p>[기존 주석] 주어진 사용자 id 목록의 현재 ACTIVE 체크인을 place와 함께 배치 조회한다(메이트 온라인 상태 N+1 방지).
+     * <p>[기존 주석] 주어진 사용자 id 목록의 현재 SEEKING·ACTIVE 체크인을 place와 함께 배치 조회한다(메이트 온라인 상태 N+1 방지).
+     * online = 모집중(SEEKING) 또는 혼밥중(ACTIVE) — TOGETHER(매칭돼 함께 식사 중)는 이미 상대가 있는 상태이므로 온라인에서 제외한다.
      *
      * <p><b>주의:</b> userIds가 빈 리스트이면 JPQL {@code IN ()} 오류가 발생할 수 있으므로
      * 호출 전 반드시 빈 리스트 여부를 확인하고 단락 처리해야 한다.
      *
      * @param userIds 조회할 사용자 PK 목록
-     * @return 해당 사용자들의 ACTIVE 체크인(place fetch join 포함)
+     * @return 해당 사용자들의 SEEKING·ACTIVE 체크인(place fetch join 포함)
      */
     @Query("""
             SELECT c FROM CheckIn c JOIN FETCH c.place
-            WHERE c.user.id IN :userIds AND c.status = com.honjeong.checkin.domain.CheckInStatus.ACTIVE
+            WHERE c.user.id IN :userIds AND c.status IN (
+                com.honjeong.checkin.domain.CheckInStatus.SEEKING,
+                com.honjeong.checkin.domain.CheckInStatus.ACTIVE)
             """)
-    List<CheckIn> findActiveWithPlaceByUserIds(@Param("userIds") List<Long> userIds);
+    List<CheckIn> findSeekingOrActiveWithPlaceByUserIds(@Param("userIds") List<Long> userIds);
 
     /**
-     * 기능: 주어진 사용자 목록의 체크인 수(혼밥 횟수)를 사용자별로 배치 집계(메이트 목록 checkInCount용)
-     * 쿼리: SELECT user_id, COUNT(*) FROM check_ins WHERE user_id IN (:userIds) AND status <> 'CANCELLED' GROUP BY user_id
+     * 기능: 주어진 사용자 목록의 체크인 수(혼밥 횟수)를 사용자별로 배치 집계(메이트 목록 checkInCount용) — CANCELLED·SEEKING 제외
+     * 쿼리: SELECT user_id, COUNT(*) FROM check_ins WHERE user_id IN (:userIds) AND status NOT IN ('CANCELLED', 'SEEKING') GROUP BY user_id
      * Request: userIds — 조회할 사용자 PK 목록 / Response: List&lt;CheckInCountRow&gt; — 사용자별 체크인 수 행(유효 체크인 있는 사용자만)
      *
      * <p>[기존 주석] 주어진 사용자 id 목록의 체크인 수(혼밥 횟수)를 사용자별로 배치 집계한다(메이트 목록 checkInCount N+1 방지).
-     * 본인 프로필·메이트 상세와 같은 기준({@code countByUser_IdAndStatusNot(CANCELLED)})으로
-     * CANCELLED(30분 미만 취소)는 제외한다 — 포함하면 화면마다 혼밥 횟수가 달라진다.
+     * 본인 프로필·메이트 상세와 같은 기준({@code countCompletedByUser})으로
+     * CANCELLED(30분 미만 취소)와 SEEKING(모집만 하고 안 먹음)은 제외한다 — 포함하면 화면마다 혼밥 횟수가 달라진다.
      * 유효 체크인이 0건인 사용자는 결과에 포함되지 않는다(호출 측에서 기본값 0으로 처리).
      *
      * <p><b>주의:</b> userIds가 빈 리스트이면 JPQL {@code IN ()} 오류가 발생할 수 있으므로
@@ -349,17 +437,55 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
      */
     @Query("""
             SELECT c.user.id AS userId, COUNT(c) AS cnt FROM CheckIn c
-            WHERE c.user.id IN :userIds AND c.status <> com.honjeong.checkin.domain.CheckInStatus.CANCELLED
+            WHERE c.user.id IN :userIds AND c.status NOT IN (
+                com.honjeong.checkin.domain.CheckInStatus.CANCELLED,
+                com.honjeong.checkin.domain.CheckInStatus.SEEKING)
             GROUP BY c.user.id
             """)
     List<CheckInCountRow> countByUserIds(@Param("userIds") List<Long> userIds);
+
+    /**
+     * 기능: 내가 각 상대와 실제로 함께 먹은(pairwise) 횟수를 상대별로 배치 집계(메이트 목록 "함께 먹음" N+1 방지)
+     * 쿼리: SELECT o.user_id AS partnerId, COUNT(DISTINCT c.meal_request_id) AS cnt
+     *       FROM check_ins c, check_ins o
+     *       WHERE c.user_id = :viewerId AND c.meal_request_id IS NOT NULL
+     *         AND o.meal_request_id = c.meal_request_id AND o.user_id <> :viewerId
+     *       GROUP BY o.user_id
+     * Request: viewerId — 기준 사용자(나) ID / Response: List&lt;TogetherPairRow&gt; — 상대별 함께 먹은 횟수(함께 먹은 상대만)
+     *
+     * <p>[의도] 각 매칭(meal_request_id)에는 정확히 두 사용자의 체크인이 있다. 내 체크인(c)과 같은 매칭의 상대 체크인(o)을
+     * 짝지어 상대(o.user)별로 distinct 매칭 수를 센다 — 메이트 프로필 단건({@code countTogetherBetween})과 같은 기준이다.
+     * 수락만 되고 매칭 체크인이 없는 유령 건은 애초에 체크인이 없어 집계되지 않는다. 함께 먹은 적 없는 상대는 결과에 없다(기본값 0).
+     *
+     * <p><b>주의:</b> 특정 상대로 필터링하지 않는 전체 배치라 viewerId만 받는다. 호출 측은 파트너 id로 map을 만들어 조회한다.
+     *
+     * @param viewerId 기준 사용자(나) id
+     * @return 상대별 함께 먹은 횟수 행(함께 먹은 상대만 포함)
+     */
+    @Query("""
+            SELECT o.user.id AS partnerId, COUNT(DISTINCT c.mealRequestId) AS cnt
+            FROM CheckIn c, CheckIn o
+            WHERE c.user.id = :viewerId AND c.mealRequestId IS NOT NULL
+              AND o.mealRequestId = c.mealRequestId AND o.user.id <> :viewerId
+            GROUP BY o.user.id
+            """)
+    List<TogetherPairRow> countTogetherPairsForUser(@Param("viewerId") Long viewerId);
 
     /** 사용자별 체크인 수 한 행(사용자 id + 건수). */
     interface CheckInCountRow {
         /** 사용자 ID */
         Long getUserId();
 
-        /** 유효 체크인 건수(CANCELLED 제외) */
+        /** 유효 체크인 건수(CANCELLED·SEEKING 제외) */
+        long getCnt();
+    }
+
+    /** 나와 특정 상대가 함께 먹은 횟수 한 행(상대 id + 건수). */
+    interface TogetherPairRow {
+        /** 함께 먹은 상대 사용자 ID */
+        Long getPartnerId();
+
+        /** 그 상대와 함께 먹은 횟수(distinct meal_request_id) */
         long getCnt();
     }
 }

@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,6 +54,13 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     private Place persistPlace(String sourceId, double lat, double lng) {
         return em.persist(Place.ofPublicData(sourceId, sourceId + "식당", "한식", "서울 어딘가", "서울 도로명",
                 lat, lng, null, "영업"));
+    }
+
+    /** ENDED(종료된) 체크인을 만들어 반환한다(영속화는 호출 측 책임). startedAt으로 시작해 곧바로 종료 처리한다. */
+    private CheckIn endedCheckIn(User user, Place place, LocalDateTime startedAt) {
+        CheckIn c = CheckIn.start(user, place, startedAt);
+        c.end(startedAt.plusMinutes(30));
+        return c;
     }
 
     @Test
@@ -139,53 +148,91 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
-    @DisplayName("findActiveWithUserByPlace: 식당의 ACTIVE 혼밥러를 startedAt 오름차순, user fetch")
-    void activeDiners() {
-        User u1 = persistUser("01000000001", "먼저온사람");
-        User u2 = persistUser("01000000002", "나중온사람");
+    @DisplayName("지도 마커는 식당별 ACTIVE·SEEKING 수를 각각 집계한다")
+    void 마커_ACTIVE_SEEKING_분리집계() {
+        User user = persistUser("01000000001", "A");
+        User user2 = persistUser("01000000002", "B");
         Place place = persistPlace("ext-1", 37.5, 127.0);
-        em.persist(CheckIn.start(u1, place, NOW));
-        em.persist(CheckIn.start(u2, place, NOW.plusMinutes(10)));
-        em.flush();
-        em.clear(); // fetch join 실제 동작 확인(영속성 컨텍스트 비움)
+        CheckIn active = CheckIn.startSeeking(user, place, NOW);
+        active.dineAlone(NOW);
+        checkInRepository.save(active);
+        checkInRepository.save(CheckIn.startSeeking(user2, place, NOW)); // 같은 place 모집중
+        checkInRepository.flush();
 
-        var diners = checkInRepository.findActiveWithUserByPlace(place.getId(), List.of(-1L));
+        var markers = checkInRepository.countActiveByPlaceWithinBounds(
+                place.getLatitude() - 0.01, place.getLatitude() + 0.01,
+                place.getLongitude() - 0.01, place.getLongitude() + 0.01);
 
-        assertThat(diners).hasSize(2);
-        assertThat(diners.get(0).getUser().getNickname()).isEqualTo("먼저온사람");
-        assertThat(diners.get(1).getUser().getNickname()).isEqualTo("나중온사람");
+        assertThat(markers).singleElement().satisfies(m -> {
+            assertThat(m.activeCount()).isEqualTo(1);
+            assertThat(m.seekingCount()).isEqualTo(1);
+        });
     }
 
     @Test
-    @DisplayName("혼밥러 목록: 제외 id 목록의 유저는 빠진다")
-    void findActiveWithUserByPlace_excludesBlocked() {
+    @DisplayName("모집중 목록은 SEEKING만, ACTIVE(혼밥중)는 제외한다")
+    void 모집중_목록_SEEKING만() {
+        User user = persistUser("01000000001", "모집중사람");
+        User user2 = persistUser("01000000002", "혼밥중사람");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        checkInRepository.save(CheckIn.startSeeking(user, place, NOW));         // 모집중
+        CheckIn eating = CheckIn.startSeeking(user2, place, NOW);
+        eating.dineAlone(NOW);
+        checkInRepository.save(eating);                                         // 혼밥중(제외)
+        checkInRepository.flush();
+
+        var seekers = checkInRepository.findSeekingWithUserByPlace(place.getId(), List.of(-1L));
+
+        assertThat(seekers).singleElement()
+                .satisfies(c -> assertThat(c.getUser().getId()).isEqualTo(user.getId()));
+    }
+
+    @Test
+    @DisplayName("모집중 목록: 제외 id 목록의 유저는 빠진다")
+    void findSeekingWithUserByPlace_excludesBlocked() {
         User userA = persistUser("01000000001", "A");
         User userB = persistUser("01000000002", "B");
         Place place = persistPlace("ext-1", 37.5, 127.0);
-        em.persist(CheckIn.start(userA, place, NOW));
-        em.persist(CheckIn.start(userB, place, NOW.plusMinutes(1)));
+        em.persist(CheckIn.startSeeking(userA, place, NOW));
+        em.persist(CheckIn.startSeeking(userB, place, NOW.plusMinutes(1)));
         em.flush();
         em.clear();
 
-        List<CheckIn> result = checkInRepository.findActiveWithUserByPlace(place.getId(), List.of(userB.getId()));
+        List<CheckIn> result = checkInRepository.findSeekingWithUserByPlace(place.getId(), List.of(userB.getId()));
 
         assertThat(result).extracting(c -> c.getUser().getId()).containsExactly(userA.getId());
     }
 
     @Test
-    @DisplayName("혼밥러 목록: 센티널(-1)만 있으면 전원 노출")
-    void findActiveWithUserByPlace_sentinelShowsAll() {
-        User userA = persistUser("01000000001", "A");
-        User userB = persistUser("01000000002", "B");
+    @DisplayName("모집중 목록: user를 fetch join해 영속성 컨텍스트를 비워도 닉네임 접근이 지연로딩 없이 통과한다")
+    void findSeekingWithUserByPlace_fetchesUser() {
+        User user = persistUser("01000000001", "모집중사람");
         Place place = persistPlace("ext-1", 37.5, 127.0);
-        em.persist(CheckIn.start(userA, place, NOW));
-        em.persist(CheckIn.start(userB, place, NOW.plusMinutes(1)));
+        em.persist(CheckIn.startSeeking(user, place, NOW));
+        em.flush();
+        em.clear(); // fetch join 실제 동작 확인(영속성 컨텍스트 비움)
+
+        List<CheckIn> result = checkInRepository.findSeekingWithUserByPlace(place.getId(), List.of(-1L));
+
+        assertThat(result).singleElement()
+                .satisfies(c -> assertThat(c.getUser().getNickname()).isEqualTo("모집중사람"));
+    }
+
+    @Test
+    @DisplayName("모집중 목록: SEEKING 체크인을 startedAt 오름차순으로 반환한다")
+    void findSeekingWithUserByPlace_ordersByStartedAt() {
+        User u1 = persistUser("01000000001", "먼저온사람");
+        User u2 = persistUser("01000000002", "나중온사람");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        em.persist(CheckIn.startSeeking(u1, place, NOW));
+        em.persist(CheckIn.startSeeking(u2, place, NOW.plusMinutes(10)));
         em.flush();
         em.clear();
 
-        List<CheckIn> result = checkInRepository.findActiveWithUserByPlace(place.getId(), List.of(-1L));
+        List<CheckIn> result = checkInRepository.findSeekingWithUserByPlace(place.getId(), List.of(-1L));
 
-        assertThat(result).hasSize(2);
+        assertThat(result).extracting(c -> c.getUser().getNickname())
+                .containsExactly("먼저온사람", "나중온사람");
     }
 
     @Test
@@ -205,6 +252,23 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         assertThat(expired).isEqualTo(1);
         assertThat(checkInRepository.countByStatus(CheckInStatus.ACTIVE)).isEqualTo(1);
         assertThat(checkInRepository.countByStatus(CheckInStatus.ENDED)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("TTL 초과 SEEKING은 CANCELLED로 정리된다(ENDED 아님)")
+    void 모집_TTL_만료() {
+        User user = persistUser("01000000001", "모집중사람");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn old = CheckIn.startSeeking(user, place, NOW.minusHours(4)); // 4h 전 모집
+        checkInRepository.save(old);
+        checkInRepository.flush();
+        em.clear(); // 벌크 @Modifying 후 1차 캐시 stale 방지(findById 재조회 보장)
+
+        int n = checkInRepository.cancelSeekingStartedBefore(NOW.minusHours(3), NOW);
+
+        assertThat(n).isEqualTo(1);
+        assertThat(checkInRepository.findById(old.getId()).get().getStatus())
+                .isEqualTo(CheckInStatus.CANCELLED);
     }
 
     @Test
@@ -323,7 +387,7 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
-    @DisplayName("countByUser_IdAndStatusNot: CANCELLED를 제외한 총 체크인 수")
+    @DisplayName("countCompletedByUser: CANCELLED를 제외한 총 체크인 수")
     void countExcludingCancelled() {
         User u = persistUser("01000000001", "A");
         Place p = persistPlace("ext-1", 37.5, 127.0);
@@ -337,9 +401,36 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         em.persist(active);
         em.flush();
 
-        assertThat(checkInRepository.countByUser_IdAndStatusNot(u.getId(), CheckInStatus.CANCELLED))
-                .isEqualTo(2);
+        assertThat(checkInRepository.countCompletedByUser(u.getId())).isEqualTo(2);
         assertThat(checkInRepository.countByUser_Id(u.getId())).isEqualTo(3); // 기존 메서드는 그대로 총건수
+    }
+
+    @Test
+    @DisplayName("혼밥 횟수 집계는 SEEKING과 CANCELLED를 모두 제외한다")
+    void 이력집계_SEEKING_제외() {
+        User user = persistUser("01000000001", "A");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        Place place2 = persistPlace("ext-2", 37.6, 127.1);
+        em.persist(endedCheckIn(user, place, NOW));            // 종료된 식사(집계 대상)
+        em.persist(CheckIn.startSeeking(user, place2, NOW));   // 모집중(제외돼야)
+        em.flush();
+
+        long count = checkInRepository.countCompletedByUser(user.getId());
+
+        assertThat(count).isEqualTo(1); // SEEKING 제외 → 1
+    }
+
+    @Test
+    @DisplayName("오늘 N명 집계도 SEEKING을 제외한다")
+    void 오늘집계_SEEKING_제외() {
+        User user = persistUser("01000000001", "A");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        em.persist(CheckIn.startSeeking(user, place, NOW));    // 모집만
+        em.flush();
+
+        long today = checkInRepository.countDistinctUsersStartedSince(NOW.minusHours(1));
+
+        assertThat(today).isZero();
     }
 
     @Test
@@ -373,12 +464,66 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
+    @DisplayName("countSoloCompletedByUser: 매칭 안 되고 혼자 먹은 완료 체크인만 센다(matchedAt null, SEEKING→dineAlone→ENDED)")
+    void soloCompleted_countsUnmatchedOnly() {
+        User user = persistUser("01000000001", "혼밥러A");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn solo = CheckIn.startSeeking(user, place, NOW);
+        solo.dineAlone(NOW.plusMinutes(5));
+        solo.end(NOW.plusMinutes(35));
+        em.persist(solo);
+        em.flush();
+
+        assertThat(checkInRepository.countSoloCompletedByUser(user.getId())).isEqualTo(1);
+        assertThat(checkInRepository.countTogetherByUser(user.getId())).isZero();
+    }
+
+    @Test
+    @DisplayName("countTogetherByUser: 매칭돼 같이 먹은(matchedAt 설정된) 체크인만 센다")
+    void togetherCompleted_countsMatchedOnly() {
+        User user = persistUser("01000000001", "혼밥러A");
+        User other = persistUser("01000000002", "혼밥러B");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        CheckIn seeking = em.persist(CheckIn.startSeeking(user, place, NOW));
+        em.persist(CheckIn.start(other, place, NOW));
+        MealRequest mealRequest = em.persist(MealRequest.create(other, seeking, place, null, NOW));
+        em.flush();
+        seeking.matchTogether(mealRequest.getId(), NOW.plusMinutes(1));
+        checkInRepository.saveAndFlush(seeking);
+
+        assertThat(checkInRepository.countSoloCompletedByUser(user.getId())).isZero();
+        assertThat(checkInRepository.countTogetherByUser(user.getId())).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("solo + together == countCompletedByUser(총합)와 정확히 일치한다")
+    void soloPlusTogether_equalsTotal() {
+        User user = persistUser("01000000001", "혼밥러A");
+        User other = persistUser("01000000002", "혼밥러B");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        em.persist(endedCheckIn(user, place, NOW.minusDays(1))); // 혼자 먹은 완료 1건
+        CheckIn otherCheckIn = em.persist(CheckIn.startSeeking(other, place, NOW));
+        MealRequest mealRequest = em.persist(MealRequest.create(user, otherCheckIn, place, null, NOW));
+        em.flush();
+        checkInRepository.saveAndFlush(CheckIn.startTogether(user, place, mealRequest.getId(), NOW)); // 매칭돼 같이 먹은 1건
+
+        long solo = checkInRepository.countSoloCompletedByUser(user.getId());
+        long together = checkInRepository.countTogetherByUser(user.getId());
+        long total = checkInRepository.countCompletedByUser(user.getId());
+
+        assertThat(solo).isEqualTo(1);
+        assertThat(together).isEqualTo(1);
+        assertThat(solo + together).isEqualTo(total);
+        assertThat(total).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("findTogetherByMealRequestId: 같은 매칭의 TOGETHER 쌍을 user와 함께 반환한다")
     void findTogetherPair() {
         User sender = persistUser("01000000001", "신청자");
         User receiver = persistUser("01000000002", "수신자");
         Place p = persistPlace("ext-1", 37.5, 127.0);
-        CheckIn receiverCheckIn = em.persist(CheckIn.start(receiver, p, NOW));
+        CheckIn receiverCheckIn = em.persist(CheckIn.startSeeking(receiver, p, NOW));
         MealRequest mealRequest = em.persist(MealRequest.create(sender, receiverCheckIn, p, null, NOW));
         em.flush();
 
@@ -396,9 +541,10 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
-    @DisplayName("findHistoryWithPlaceByUser: CANCELLED는 이력에서 제외한다")
-    void history_excludesCancelled() {
+    @DisplayName("findHistoryWithPlaceByUser: CANCELLED와 같이 먹은(matched) 체크인은 이력에서 제외한다 — 진짜 혼밥만")
+    void history_excludesCancelledAndMatched() {
         User u = persistUser("01000000001", "A");
+        User partner = persistUser("01000000002", "B");
         Place p = persistPlace("ext-1", 37.5, 127.0);
         CheckIn cancelled = CheckIn.start(u, p, NOW.minusDays(1));
         cancelled.cancel(NOW.minusDays(1));
@@ -406,47 +552,15 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         CheckIn ended = CheckIn.start(u, p, NOW.minusHours(2));
         ended.end(NOW.minusHours(1));
         em.persist(ended);
+        persistEndedTogetherPair(u, partner, p, NOW.minusHours(4)); // u의 같이 먹은(matched) 완료 → 제외돼야
         em.flush();
         em.clear();
 
         List<CheckIn> history = checkInRepository.findHistoryWithPlaceByUser(u.getId());
 
-        assertThat(history).hasSize(1);
+        assertThat(history).hasSize(1); // 솔로 ENDED 1건만(CANCELLED·matched 제외)
         assertThat(history.get(0).getStatus()).isEqualTo(CheckInStatus.ENDED);
-    }
-
-    @Test
-    @DisplayName("countDistinctPlacesByUser: CANCELLED만 있는 방문지는 제외한다")
-    void distinctPlaces_excludesCancelled() {
-        User u = persistUser("01000000001", "A");
-        Place p1 = persistPlace("ext-1", 37.5, 127.0);
-        Place p2 = persistPlace("ext-2", 37.6, 127.1);
-        CheckIn cancelledAtP2 = CheckIn.start(u, p2, NOW.minusDays(1));
-        cancelledAtP2.cancel(NOW.minusDays(1));
-        em.persist(cancelledAtP2);
-        CheckIn endedAtP1 = CheckIn.start(u, p1, NOW.minusHours(2));
-        endedAtP1.end(NOW.minusHours(1));
-        em.persist(endedAtP1);
-        em.flush();
-
-        assertThat(checkInRepository.countDistinctPlacesByUser(u.getId())).isEqualTo(1);
-    }
-
-    @Test
-    @DisplayName("countByUserSince: 기준 이후 체크인 중 CANCELLED는 제외한다")
-    void countSince_excludesCancelled() {
-        User u = persistUser("01000000001", "A");
-        Place p = persistPlace("ext-1", 37.5, 127.0);
-        LocalDateTime monthStart = NOW.minusDays(5);
-        CheckIn cancelled = CheckIn.start(u, p, NOW.minusDays(1));
-        cancelled.cancel(NOW.minusDays(1));
-        em.persist(cancelled);
-        CheckIn ended = CheckIn.start(u, p, NOW.minusHours(2));
-        ended.end(NOW.minusHours(1));
-        em.persist(ended);
-        em.flush();
-
-        assertThat(checkInRepository.countByUserSince(u.getId(), monthStart)).isEqualTo(1);
+        assertThat(history.get(0).getMatchedAt()).isNull();
     }
 
     @Test
@@ -491,5 +605,66 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         Optional<CheckIn> found = checkInRepository.findRecentForReview(u.getId(), p.getId(), NOW.minusHours(3));
         assertThat(found).isPresent();
         assertThat(found.get().getId()).isEqualTo(solo.getId());
+    }
+
+    @Test
+    @DisplayName("countTogetherBetween: 나↔특정 상대와 실제로 함께 먹은 pairwise 횟수만(다른 상대와 먹은 건 제외, 방향 무관)")
+    void countTogetherBetween_pairwiseOnly() {
+        User me = persistUser("01000000001", "나");
+        User b = persistUser("01000000002", "B");
+        User c = persistUser("01000000003", "C");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        // 나↔B 함께 2번, 나↔C 함께 1번
+        persistEndedTogetherPair(me, b, place, NOW.minusHours(6));
+        persistEndedTogetherPair(me, b, place, NOW.minusHours(4));
+        persistEndedTogetherPair(me, c, place, NOW.minusHours(2));
+        // 나 혼자 먹은 완료 1건(매칭 아님 → pairwise·together에 안 잡힘)
+        em.persist(endedCheckIn(me, place, NOW.minusHours(1)));
+        em.flush();
+
+        assertThat(checkInRepository.countTogetherBetween(me.getId(), b.getId())).isEqualTo(2);
+        assertThat(checkInRepository.countTogetherBetween(me.getId(), c.getId())).isEqualTo(1);
+        assertThat(checkInRepository.countTogetherBetween(b.getId(), c.getId())).isZero(); // B↔C는 함께 먹은 적 없음
+        assertThat(checkInRepository.countTogetherBetween(b.getId(), me.getId())).isEqualTo(2); // 방향 무관(대칭)
+        // 본인 전체 같이먹음(3) ≠ 특정 상대와의 pairwise — 본인 프로필과 메이트 프로필은 서로 다른 지표다
+        assertThat(checkInRepository.countTogetherByUser(me.getId())).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("countTogetherPairsForUser: 내가 각 상대와 함께 먹은 횟수를 상대별로 배치 집계한다")
+    void countTogetherPairsForUser_groupsByPartner() {
+        User me = persistUser("01000000001", "나");
+        User b = persistUser("01000000002", "B");
+        User c = persistUser("01000000003", "C");
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        persistEndedTogetherPair(me, b, place, NOW.minusHours(6));
+        persistEndedTogetherPair(me, b, place, NOW.minusHours(4));
+        persistEndedTogetherPair(me, c, place, NOW.minusHours(2));
+        em.flush();
+
+        Map<Long, Long> byPartner = checkInRepository.countTogetherPairsForUser(me.getId()).stream()
+                .collect(Collectors.toMap(CheckInRepository.TogetherPairRow::getPartnerId,
+                        CheckInRepository.TogetherPairRow::getCnt));
+
+        assertThat(byPartner).hasSize(2)
+                .containsEntry(b.getId(), 2L)
+                .containsEntry(c.getId(), 1L);
+    }
+
+    /**
+     * A와 B가 같은 매칭(meal_request)으로 함께 먹고 종료한 쌍(양쪽 matched 체크인)을 영속화한다.
+     * 확장 유니크 인덱스상 사용자당 현재 체크인 1개라, 같은 사람과 여러 번 함께 먹으려면 각 건을 종료(ENDED)까지 처리한다.
+     * matchedAt·mealRequestId는 end() 후에도 유지되므로 pairwise 집계에 그대로 잡힌다.
+     */
+    private void persistEndedTogetherPair(User a, User b, Place place, LocalDateTime at) {
+        CheckIn bCheckIn = em.persist(CheckIn.startSeeking(b, place, at));
+        MealRequest mr = em.persist(MealRequest.create(a, bCheckIn, place, null, at));
+        em.flush();
+        CheckIn aTogether = CheckIn.startTogether(a, place, mr.getId(), at);
+        aTogether.end(at.plusMinutes(30));
+        checkInRepository.saveAndFlush(aTogether);
+        bCheckIn.matchTogether(mr.getId(), at);
+        bCheckIn.end(at.plusMinutes(30));
+        checkInRepository.saveAndFlush(bCheckIn);
     }
 }

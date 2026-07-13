@@ -21,7 +21,7 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
   const { coord, source } = useLocation();
   // 주변 혼밥은 실제 GPS가 있을 때만(내 동네·기본좌표면 '주변'이 아니라 숨김). 폴링 없음.
   const nearbyQuery = useNearby(coord, 1000, source === 'gps', false);
-  const myCheckIn = useMyCheckIn(); // 내가 혼밥 중인 식당은 인원에서 나만 뺀다(activeCount에 내가 포함돼 있어서)
+  const myCheckIn = useMyCheckIn(); // 내가 모집중인 식당은 인원에서 나만 뺀다(seekingCount에 내가 포함돼 있어서)
   const nearby =
     source === 'gps'
       ? nearbyDiningPlaces(nearbyQuery.data?.content ?? [], 5, myCheckIn.data?.placeId ?? null)
@@ -92,7 +92,7 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
             )}
             {nearby.length > 0 && (
               <View style={styles.nearbyWrap}>
-                <Text style={styles.nearbyTitle}>지금 주변에서 혼밥 중</Text>
+                <Text style={styles.nearbyTitle}>지금 주변에서 같이 먹을 사람 구하는 중</Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -113,7 +113,7 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
                         {[p.category, formatDistance(p.distanceMeters)].filter(Boolean).join(' · ')}
                       </Text>
                       <View style={styles.countBadge}>
-                        <Text style={styles.countText}>{p.activeCount}명 혼밥</Text>
+                        <Text style={styles.countText}>모집 {p.seekingCount}</Text>
                       </View>
                     </Pressable>
                   ))}

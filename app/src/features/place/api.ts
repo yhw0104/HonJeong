@@ -10,7 +10,7 @@ export type PlaceSearchItem = {
 export type PlaceNearbyItem = {
   placeId: number; name: string; category: string | null;
   roadAddress: string | null; latitude: number; longitude: number;
-  distanceMeters: number; activeCount: number;
+  distanceMeters: number; activeCount: number; seekingCount: number;
 };
 
 export type PlaceDetail = {

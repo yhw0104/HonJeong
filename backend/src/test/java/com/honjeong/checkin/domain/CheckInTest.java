@@ -20,9 +20,9 @@ class CheckInTest {
     private final LocalDateTime t0 = LocalDateTime.of(2026, 7, 3, 12, 0);
 
     @Test
-    @DisplayName("matchTogether: ACTIVE를 TOGETHER로 전이하고 matchedAt·mealRequestId를 채운다")
+    @DisplayName("matchTogether: SEEKING을 TOGETHER로 전이하고 matchedAt·mealRequestId를 채운다")
     void matchTogether_transitions() {
-        CheckIn c = CheckIn.start(mock(User.class), mock(Place.class), t0);
+        CheckIn c = CheckIn.startSeeking(mock(User.class), mock(Place.class), t0);
         c.matchTogether(77L, t0.plusMinutes(30));
 
         assertThat(c.getStatus()).isEqualTo(CheckInStatus.TOGETHER);

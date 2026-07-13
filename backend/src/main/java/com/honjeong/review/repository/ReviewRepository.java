@@ -92,17 +92,19 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Review> findAllByUserWithPlaceAndTags(@Param("userId") Long userId);
 
     /**
-     * 기능: 사용자의 인증 리뷰(체크인 연결) 건수 집계
-     * 쿼리: SELECT COUNT(*) FROM reviews WHERE user_id = :userId AND check_in_id IS NOT NULL
-     * Request: userId — 사용자 ID / Response: long — 인증 리뷰 건수
+     * 기능: 사용자의 혼밥 인증 리뷰(솔로 체크인 연결) 건수 집계 — 같이 먹은(matched) 체크인 리뷰는 제외
+     * 쿼리: SELECT COUNT(*) FROM reviews r JOIN check_ins c ON r.check_in_id = c.id WHERE r.user_id = :userId AND c.matched_at IS NULL
+     * Request: userId — 사용자 ID / Response: long — 혼밥 인증 리뷰 건수
      *
-     * <p>[기존 주석] 사용자의 인증 리뷰 수(checkIn 연결된 것만). '내 혼밥 기록' 요약 "일기 N"용 —
-     * 그 화면 목록이 인증 일기만 노출하므로 카운트 기준을 일치시킨다.
+     * <p>[의도] '내 혼밥 기록' 요약 "일기 N"·더보기 카드 일기 수용. 인증(혼밥 뱃지)은 혼자 먹은(matchedAt IS NULL) 체크인만
+     * 대상이므로({@link com.honjeong.review.service.ReviewService#resolveCheckIn}) 카운트도 솔로 기준으로 일치시킨다.
      *
      * @param userId 회원 id
-     * @return 인증 리뷰 건수
+     * @return 혼밥 인증 리뷰 건수(솔로 체크인 연결)
      */
-    long countByUser_IdAndCheckInIsNotNull(Long userId);
+    @Query("SELECT COUNT(r) FROM Review r WHERE r.user.id = :userId "
+            + "AND r.checkIn IS NOT NULL AND r.checkIn.matchedAt IS NULL")
+    long countSoloAuthenticatedByUser(@Param("userId") Long userId);
 
     /**
      * 기능: 해당 체크인에 연결된 리뷰가 이미 있는지 확인

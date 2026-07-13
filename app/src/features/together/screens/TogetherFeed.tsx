@@ -12,7 +12,7 @@ import { formatDistance } from '@/shared/format';
 import {
   useReceivedRequests, useSentRequests, useAcceptMealRequest, useDeclineMealRequest,
 } from '@/features/meal/queries';
-import { mealStatusLabel, mealErrorMessage } from '@/features/meal/mealCopy';
+import { mealStatusLabelReceived, mealStatusLabelSent, mealErrorMessage } from '@/features/meal/mealCopy';
 import { fetchMyCheckIn } from '@/features/checkin/api';
 import { LIVE_REFETCH_MS } from '@/shared/realtime';
 
@@ -117,7 +117,7 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
                     <EmojiCircle emoji={r.fromUser.nickname[0] ?? '?'} size={46} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={styles.recvName}>{r.fromUser.nickname}</Text>
-                      <Text style={styles.recvMeta}>{r.status === 'PENDING' ? '새 신청' : mealStatusLabel(r.status)}</Text>
+                      <Text style={styles.recvMeta}>{r.status === 'PENDING' ? '새 신청' : mealStatusLabelReceived(r.status)}</Text>
                     </View>
                   </Pressable>
                   <View style={styles.recvPlace}>
@@ -157,7 +157,7 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
                     <Text style={styles.sentMeta} numberOfLines={1}>{s.placeName}</Text>
                   </View>
                   <View style={[styles.sentPill, { backgroundColor: s.status === 'ACCEPTED' ? T2.brandSoft : T2.bg, borderColor: s.status === 'ACCEPTED' ? 'rgba(255,90,31,0.2)' : T2.border }]}>
-                    <Text style={[styles.sentPillText, { color: s.status === 'ACCEPTED' ? T2.brand : T2.textMute }]}>{mealStatusLabel(s.status)}</Text>
+                    <Text style={[styles.sentPillText, { color: s.status === 'ACCEPTED' ? T2.brand : T2.textMute }]}>{mealStatusLabelSent(s.status)}</Text>
                   </View>
                 </Pressable>
               ))}

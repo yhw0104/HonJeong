@@ -11,8 +11,9 @@ import { useLocation } from '@/shared/location/useLocation';
 import { useNearby } from '@/features/place/queries';
 import { shouldOfferResearch } from '@/shared/location/research';
 import type { Coord } from '@/shared/location/pickLocation';
-import { useMap, useMyCheckIn, useStats, useStartCheckIn } from '@/features/checkin/queries';
+import { useMap, useMyCheckIn, useStats, useStartCheckIn, useDineAlone, useCancelCheckIn } from '@/features/checkin/queries';
 import { usePromptEndCheckIn } from '@/features/checkin/usePromptEndCheckIn';
+import { checkInMode } from '@/features/checkin/statusView';
 import { formatDistance } from '@/shared/format';
 import type { MainTabScreenProps } from '@/navigation/types';
 
@@ -46,14 +47,16 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const nearby = useNearby(searchAt, 1000, true, true); // 마커(useMap)와 동일하게 anchor를 폴링 — 카운트만 갱신되고, anchor 고정이라 파란 점이 움직여도 목록은 안 튐(재검색 버튼으로만 기준점 이동)
   const myCheckIn = useMyCheckIn();
   const startMut = useStartCheckIn();
+  const dineAloneMut = useDineAlone();
+  const cancelMut = useCancelCheckIn();
   const promptEnd = usePromptEndCheckIn();
 
-  const honbabOn = !!myCheckIn.data; // ACTIVE 또는 TOGETHER — 종료/취소되면 useMyCheckIn이 null을 반환
+  const honbabOn = !!myCheckIn.data; // SEEKING/ACTIVE/TOGETHER — 종료/취소되면 null
   const nearbyList = nearby.data?.content ?? [];
   const myPlaceName =
     markers.data?.find((m) => m.placeId === myCheckIn.data?.placeId)?.name ??
     nearbyList.find((p) => p.placeId === myCheckIn.data?.placeId)?.name ??
-    '혼밥 중';
+    '내 식당';
 
   const goDetail = (placeId: number, name?: string) =>
     navigation.navigate('RestaurantDetail', { placeId, name });
@@ -63,7 +66,9 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     startMut.mutate(placeId);
   };
   const endHonbab = () => {
-    if (myCheckIn.data) promptEnd(myCheckIn.data);
+    if (!myCheckIn.data) return;
+    if (myCheckIn.data.status === 'SEEKING') return; // 모집중은 상태바의 혼자먹기/그만두기로만
+    promptEnd(myCheckIn.data);
   };
 
   // 내 위치로: 진짜 GPS가 있으면 지도 이동, 없으면(거부/실패) 권한을 다시 요청한다.
@@ -112,12 +117,16 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         center={searchAt}
         // '내 위치' 파란 점은 진짜 GPS일 때만 — 폴백 좌표(연남동 기본 등)를 내 위치처럼 보이게 하지 않는다.
         myLocation={source === 'gps' ? coord : null}
-        markers={(markers.data ?? []).map((m) => ({
-          placeId: m.placeId,
-          latitude: m.latitude,
-          longitude: m.longitude,
-          activeCount: m.activeCount,
-        }))}
+        // 마커는 '같이 먹을 사람(모집중)'을 표시 — 모집중 0명(혼밥중만)인 식당은 마커를 띄우지 않는다.
+        markers={(markers.data ?? [])
+          .filter((m) => m.seekingCount > 0)
+          .map((m) => ({
+            placeId: m.placeId,
+            latitude: m.latitude,
+            longitude: m.longitude,
+            activeCount: m.activeCount,
+            seekingCount: m.seekingCount,
+          }))}
         onMarkerPress={(placeId) => goDetail(placeId)}
       />
 
@@ -141,12 +150,14 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           </Pressable>
         )}
 
-        {honbabOn && (
+        {honbabOn && myCheckIn.data && (
           <HonbabStatusBar
+            mode={checkInMode(myCheckIn.data.status)}
             place={myPlaceName}
-            together={myCheckIn.data?.status === 'TOGETHER'}
-            partnerNickname={myCheckIn.data?.partnerNickname}
+            partnerNickname={myCheckIn.data.partnerNickname}
             onEnd={endHonbab}
+            onDineAlone={() => dineAloneMut.mutate(myCheckIn.data!.checkInId)}
+            onQuit={() => cancelMut.mutate(myCheckIn.data!.checkInId)}
             style={{ marginTop: 10 }}
           />
         )}
@@ -192,7 +203,8 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
               <Text style={styles.liveTag}>지금 · 실시간</Text>
             </View>
             <Text style={styles.sheetTitle}>
-              지금 <Text style={{ color: T2.brand }}>{stats.data?.activeCount ?? '–'}명</Text>이{'\n'}혼자 식사 중
+              지금 <Text style={{ color: T2.brand }}>{stats.data?.seekingCount ?? '–'}명</Text>이 같이 먹을 사람 찾는 중{'\n'}
+              <Text style={styles.sheetSubInline}>· {stats.data?.activeCount ?? '–'}명 혼밥 중</Text>
             </Text>
             <Text style={styles.sheetSub}>내 주변 가게 {nearbyList.length}곳</Text>
           </View>
@@ -204,12 +216,14 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                 <View style={styles.honbabHalo} />
                 <View style={styles.honbabDot} />
               </View>
-              <Text style={styles.honbabBtnOnText}>혼밥 중</Text>
+              <Text style={styles.honbabBtnOnText}>
+                {myCheckIn.data?.status === 'SEEKING' ? '모집 중' : myCheckIn.data?.status === 'TOGETHER' ? '같이 먹는 중' : '혼밥 중'}
+              </Text>
             </Pressable>
           ) : (
             <Pressable style={styles.honbabBtn} onPress={() => setPicking(true)}>
               <Text style={styles.honbabEmoji}>🍚</Text>
-              <Text style={styles.honbabBtnText}>혼밥 시작</Text>
+              <Text style={styles.honbabBtnText}>같이 먹기</Text>
             </Pressable>
           )}
           </View>
@@ -228,10 +242,10 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                   <Text style={styles.listMeta}>
                     {[r.category, formatDistance(r.distanceMeters)].filter(Boolean).join(' · ')}
                   </Text>
-                  {r.activeCount > 0 && (
+                  {r.seekingCount > 0 && (
                     <>
                       <Text style={styles.dot}>·</Text>
-                      <Text style={[styles.listTag, { color: T2.brand, fontWeight: '700' }]}>● 혼밥 {r.activeCount}</Text>
+                      <Text style={[styles.listTag, { color: T2.brand, fontWeight: '700' }]}>● 모집 {r.seekingCount}</Text>
                     </>
                   )}
                 </View>
@@ -248,8 +262,8 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           <View style={[styles.pickSheet, { paddingBottom: insets.bottom + 24 }]}>
             <View style={styles.handle} />
             <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
-              <Text style={styles.pickTitle}>어디서 혼밥 중이세요?</Text>
-              <Text style={styles.pickSub}>선택한 식당에 ‘혼밥 중’으로 표시돼요</Text>
+              <Text style={styles.pickTitle}>어디서 드실 예정이세요?</Text>
+              <Text style={styles.pickSub}>선택한 식당에 ‘모집 중’으로 표시돼요</Text>
             </View>
             <ScrollView style={styles.pickList} showsVerticalScrollIndicator={false}>
               {nearbyList.map((p, i) => (
@@ -385,6 +399,7 @@ const styles = StyleSheet.create({
   pulseDotSm: { width: 7, height: 7, borderRadius: 4, backgroundColor: T2.brand },
   liveTag: { fontSize: 11, fontWeight: '700', color: T2.brand, letterSpacing: 0.5 },
   sheetTitle: { fontSize: 26, fontWeight: '800', color: T2.text, letterSpacing: -0.8, marginTop: 4, lineHeight: 30 },
+  sheetSubInline: { fontSize: 13, color: T2.textSub, fontWeight: '600' },
   sheetSub: { fontSize: 12, color: T2.textMute, marginTop: 6, letterSpacing: -0.2 },
 
   listRow: {

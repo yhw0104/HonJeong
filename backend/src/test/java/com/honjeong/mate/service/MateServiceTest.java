@@ -10,13 +10,12 @@ import org.junit.jupiter.api.Test;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.checkin.repository.CheckInRepository.CheckInCountRow;
+import com.honjeong.checkin.repository.CheckInRepository.TogetherPairRow;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.mate.domain.Mate;
 import com.honjeong.mate.dto.MateResponse;
 import com.honjeong.mate.repository.MateRepository;
-import com.honjeong.meal.repository.MealRequestRepository;
-import com.honjeong.meal.repository.MealRequestRepository.MealPairRow;
 import java.util.Optional;
 import com.honjeong.place.domain.Place;
 import com.honjeong.user.domain.User;
@@ -25,8 +24,7 @@ class MateServiceTest {
 
     private final MateRepository mateRepository = mock(MateRepository.class);
     private final CheckInRepository checkInRepository = mock(CheckInRepository.class);
-    private final MealRequestRepository mealRequestRepository = mock(MealRequestRepository.class);
-    private final MateService service = new MateService(mateRepository, checkInRepository, mealRequestRepository);
+    private final MateService service = new MateService(mateRepository, checkInRepository);
 
     @Test
     @DisplayName("deleteMate: 관계 없으면 MATE_NOT_FOUND")
@@ -84,7 +82,7 @@ class MateServiceTest {
         when(checkInA.getUser()).thenReturn(userA);
         when(checkInA.getPlace()).thenReturn(placeA);
         when(checkInA.getStartedAt()).thenReturn(startedAtA);
-        when(checkInRepository.findActiveWithPlaceByUserIds(List.of(10L, 20L)))
+        when(checkInRepository.findSeekingOrActiveWithPlaceByUserIds(List.of(10L, 20L)))
                 .thenReturn(List.of(checkInA));
         List<CheckInCountRow> countRows = List.of(countRow(10L, 5L), countRow(20L, 3L));
         when(checkInRepository.countByUserIds(List.of(10L, 20L))).thenReturn(countRows);
@@ -115,7 +113,41 @@ class MateServiceTest {
     }
 
     @Test
-    @DisplayName("getMyMates: mealsTogether = 나↔각 메이트 수락 건수(양방향 합산, 비메이트 상대는 무시)")
+    @DisplayName("getMyMates: 메이트가 SEEKING(모집중)이어도 online=true·현재장소 노출(모집중도 online)")
+    void getMyMates_seekingIsOnline() {
+        LocalDateTime matesSinceA = LocalDateTime.of(2026, 6, 1, 12, 0);
+        LocalDateTime startedAtA = LocalDateTime.of(2026, 7, 2, 11, 30);
+
+        User userA = mock(User.class);
+        when(userA.getId()).thenReturn(10L);
+
+        Mate mateA = mock(Mate.class);
+        when(mateA.getMateUser()).thenReturn(userA);
+        when(mateA.getCreatedAt()).thenReturn(matesSinceA);
+        when(mateRepository.findMatesWithUserByUserId(1L)).thenReturn(List.of(mateA));
+
+        Place placeA = mock(Place.class);
+        when(placeA.getId()).thenReturn(100L);
+        when(placeA.getName()).thenReturn("모집중식당");
+        CheckIn seekingA = mock(CheckIn.class);
+        when(seekingA.getUser()).thenReturn(userA);
+        when(seekingA.getPlace()).thenReturn(placeA);
+        when(seekingA.getStartedAt()).thenReturn(startedAtA);
+        when(checkInRepository.findSeekingOrActiveWithPlaceByUserIds(List.of(10L)))
+                .thenReturn(List.of(seekingA));
+        when(checkInRepository.countByUserIds(List.of(10L))).thenReturn(List.of());
+
+        List<MateResponse> result = service.getMyMates(1L);
+
+        assertThat(result).hasSize(1);
+        MateResponse a = result.get(0);
+        assertThat(a.isOnline()).isTrue();
+        assertThat(a.currentPlaceId()).isEqualTo(100L);
+        assertThat(a.currentPlaceName()).isEqualTo("모집중식당");
+    }
+
+    @Test
+    @DisplayName("getMyMates: mealsTogether = 나↔각 메이트 실제 매칭 pairwise(파트너별 배치, 비메이트 상대는 무시)")
     void getMyMates_mealsTogether() {
         User userA = mock(User.class);
         when(userA.getId()).thenReturn(10L);
@@ -126,11 +158,11 @@ class MateServiceTest {
         Mate mateB = mock(Mate.class);
         when(mateB.getMateUser()).thenReturn(userB);
         when(mateRepository.findMatesWithUserByUserId(1L)).thenReturn(List.of(mateA, mateB));
-        when(checkInRepository.findActiveWithPlaceByUserIds(List.of(10L, 20L))).thenReturn(List.of());
+        when(checkInRepository.findSeekingOrActiveWithPlaceByUserIds(List.of(10L, 20L))).thenReturn(List.of());
         when(checkInRepository.countByUserIds(List.of(10L, 20L))).thenReturn(List.of());
-        // 나(1L)↔A(10L): 내가 신청 1 + A가 신청 1 = 2회, 나↔B: 0회, 나↔비메이트(99L): 1회(무시)
-        List<MealPairRow> pairs = List.of(pair(1L, 10L), pair(10L, 1L), pair(1L, 99L));
-        when(mealRequestRepository.findAcceptedPairsForUser(1L)).thenReturn(pairs);
+        // 나(1L)↔A(10L): 2회, 나↔B(20L): 0회(결과에 없음), 나↔비메이트(99L): 1회(무시)
+        List<TogetherPairRow> togetherRows = List.of(togetherPair(10L, 2L), togetherPair(99L, 1L));
+        when(checkInRepository.countTogetherPairsForUser(1L)).thenReturn(togetherRows);
 
         List<MateResponse> result = service.getMyMates(1L);
 
@@ -147,10 +179,10 @@ class MateServiceTest {
         return row;
     }
 
-    private MealPairRow pair(long fromId, long toId) {
-        MealPairRow row = mock(MealPairRow.class);
-        when(row.getFromId()).thenReturn(fromId);
-        when(row.getToId()).thenReturn(toId);
+    private TogetherPairRow togetherPair(long partnerId, long cnt) {
+        TogetherPairRow row = mock(TogetherPairRow.class);
+        when(row.getPartnerId()).thenReturn(partnerId);
+        when(row.getCnt()).thenReturn(cnt);
         return row;
     }
 }

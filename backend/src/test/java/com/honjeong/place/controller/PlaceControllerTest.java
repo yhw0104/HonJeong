@@ -111,13 +111,13 @@ class PlaceControllerTest {
 
     private PageResponse<PlaceNearbyResponse> sampleNearbyPage() {
         List<PlaceNearbyResponse> content = List.of(
-                new PlaceNearbyResponse(10L, "혼밥집", "한식", "서울 도로명", 37.5001, 127.0001, 15L, 3L),
-                new PlaceNearbyResponse(11L, "먼집", "분식", "서울 도로명", 37.5050, 127.0050, 680L, 0L));
+                new PlaceNearbyResponse(10L, "혼밥집", "한식", "서울 도로명", 37.5001, 127.0001, 15L, 3L, 2L),
+                new PlaceNearbyResponse(11L, "먼집", "분식", "서울 도로명", 37.5050, 127.0050, 680L, 0L, 0L));
         return PageResponse.of(content, 0, 20, 2L);
     }
 
     @Test
-    @DisplayName("GET /nearby: USER 토큰 + lat/lng 있으면 200 + 페이지 엔벨로프(혼밥러수 포함)")
+    @DisplayName("GET /nearby: USER 토큰 + lat/lng 있으면 200 + 페이지 엔벨로프(혼밥러수·모집중수 포함)")
     void nearby_ok() throws Exception {
         when(placeService.nearby(anyDouble(), anyDouble(), anyInt(), anyInt(), anyInt()))
                 .thenReturn(sampleNearbyPage());
@@ -131,7 +131,9 @@ class PlaceControllerTest {
                 .andExpect(jsonPath("$.data.content.length()").value(2))
                 .andExpect(jsonPath("$.data.content[0].placeId").value(10))
                 .andExpect(jsonPath("$.data.content[0].activeCount").value(3))
+                .andExpect(jsonPath("$.data.content[0].seekingCount").value(2))
                 .andExpect(jsonPath("$.data.content[1].activeCount").value(0))
+                .andExpect(jsonPath("$.data.content[1].seekingCount").value(0))
                 .andExpect(jsonPath("$.data.totalElements").value(2));
     }
 

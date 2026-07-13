@@ -123,14 +123,16 @@ public class PlaceService {
     }
 
     /**
-     * 기능: 반경 내 영업 중인 장소를 거리순으로 조회하고 장소별 ACTIVE 혼밥러 수를 오버레이
+     * 기능: 반경 내 영업 중인 장소를 거리순으로 조회하고 장소별 ACTIVE 혼밥러 수·SEEKING(모집중) 수를 오버레이
      * Request: lat — 요청 위도(필수), lng — 요청 경도(필수), radius — 반경(m, 1~10000 클램프), page — 0-base 페이지 번호, size — 페이지 크기(최대 50 클램프)
-     * Response: {@code PageResponse<PlaceNearbyResponse>} — 거리순 주변 장소 페이지 엔벨로프(거리·혼밥러 수 포함)
+     * Response: {@code PageResponse<PlaceNearbyResponse>} — 거리순 주변 장소 페이지 엔벨로프(거리·혼밥러 수·모집중 수 포함)
      *
-     * <p>[기존 주석] 요청 위치에서 반경 {@code radius}m 이내의 영업 중인 장소를 거리순으로 반환하고 ACTIVE 혼밥러 수를 오버레이한다.
+     * <p>[기존 주석] 요청 위치에서 반경 {@code radius}m 이내의 영업 중인 장소를 거리순으로 반환하고
+     * ACTIVE 혼밥러 수와 SEEKING(모집중) 수를 오버레이한다.
      *
      * <p>바운딩박스 1차 필터 후 Haversine으로 원형 반경 보정·거리 정렬하고, 혼밥러 수는
-     * {@link CheckInRepository#countActiveByPlaceIds}로 일괄 조회해 오버레이한다(없으면 0).
+     * {@link CheckInRepository#countActiveByPlaceIds}로, 모집중 수는
+     * {@link CheckInRepository#countSeekingByPlaceIds}로 각각 일괄 조회해 오버레이한다(없으면 0).
      *
      * @param lat    요청 위도(필수 — null이면 INVALID_INPUT)
      * @param lng    요청 경도(필수 — null이면 INVALID_INPUT)
@@ -168,11 +170,15 @@ public class PlaceService {
 
         // 빈 리스트로 IN () 쿼리를 날리면 일부 JPQL 구현체에서 오류가 발생하므로 단락 처리한다.
         Map<Long, Long> counts;
+        Map<Long, Long> seekingCounts;
         if (within.isEmpty()) {
             counts = Map.of();
+            seekingCounts = Map.of();
         } else {
             List<Long> placeIds = within.stream().map(pd -> pd.place().getId()).toList();
             counts = checkInRepository.countActiveByPlaceIds(placeIds).stream()
+                    .collect(Collectors.toMap(PlaceActiveCount::placeId, PlaceActiveCount::activeCount));
+            seekingCounts = checkInRepository.countSeekingByPlaceIds(placeIds).stream()
                     .collect(Collectors.toMap(PlaceActiveCount::placeId, PlaceActiveCount::activeCount));
         }
 
@@ -185,7 +191,8 @@ public class PlaceService {
                         pd.place().getId(), pd.place().getName(), pd.place().getCategory(), pd.place().getRoadAddress(),
                         pd.place().getLatitude(), pd.place().getLongitude(),
                         Math.round(pd.meters()),
-                        counts.getOrDefault(pd.place().getId(), 0L)))
+                        counts.getOrDefault(pd.place().getId(), 0L),
+                        seekingCounts.getOrDefault(pd.place().getId(), 0L)))
                 .toList();
 
         return PageResponse.of(content, page, clampedSize, total);

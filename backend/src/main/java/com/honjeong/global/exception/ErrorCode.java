@@ -52,6 +52,8 @@ public enum ErrorCode {
     CHECKIN_NOT_FOUND(HttpStatus.NOT_FOUND, "체크인을 찾을 수 없습니다."),
     /** ACTIVE 상태가 아닌 체크인을 취소/종료 시도 — 409 */
     CHECKIN_NOT_ACTIVE(HttpStatus.CONFLICT, "진행 중인 혼밥만 취소할 수 있습니다."),
+    /** SEEKING 상태가 아닌 체크인에 dineAlone(혼자 먹기 시작) 시도 — 409 */
+    CHECKIN_NOT_SEEKING(HttpStatus.CONFLICT, "모집 중인 체크인이 아닙니다."),
 
     // 같이먹기 — 대상 체크인 상태·opt-in·자기신청/중복·응답완료 충돌
     /** 같이먹기 신청 없음 — 잘못된 requestId — 404 */

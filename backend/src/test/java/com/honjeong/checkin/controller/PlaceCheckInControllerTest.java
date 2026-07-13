@@ -39,9 +39,9 @@ class PlaceCheckInControllerTest {
     private CheckInService checkInService;
 
     @Test
-    @DisplayName("GET /api/places/{id}/check-ins: USER면 200 + 혼밥러 목록(닉네임·경과)")
+    @DisplayName("GET /api/places/{id}/check-ins: USER면 200 + 모집중 목록(닉네임·경과)")
     void diners_200() throws Exception {
-        when(checkInService.getActiveDiners(1L, 3L)).thenReturn(List.of(
+        when(checkInService.getSeekers(1L, 3L)).thenReturn(List.of(
                 new CheckInUserResponse(10L, 5L, "혼밥러", LocalDateTime.of(2026, 6, 15, 12, 0), 15L)));
 
         mockMvc.perform(get("/api/places/3/check-ins")

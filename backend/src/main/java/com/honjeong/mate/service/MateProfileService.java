@@ -16,7 +16,6 @@ import com.honjeong.mate.dto.PublicProfileResponse;
 import com.honjeong.mate.dto.UserSearchResponse;
 import com.honjeong.mate.repository.MateRepository;
 import com.honjeong.mate.repository.MateRequestRepository;
-import com.honjeong.meal.repository.MealRequestRepository;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.domain.UserStatus;
 import com.honjeong.user.repository.UserFoodPreferenceRepository;
@@ -34,19 +33,16 @@ public class MateProfileService {
     private final MateRequestRepository mateRequestRepository;
     private final CheckInRepository checkInRepository;
     private final UserFoodPreferenceRepository foodRepository;
-    private final MealRequestRepository mealRequestRepository;
     private final BlockRepository blockRepository;
 
     public MateProfileService(UserRepository userRepository, MateRepository mateRepository,
             MateRequestRepository mateRequestRepository, CheckInRepository checkInRepository,
-            UserFoodPreferenceRepository foodRepository, MealRequestRepository mealRequestRepository,
-            BlockRepository blockRepository) {
+            UserFoodPreferenceRepository foodRepository, BlockRepository blockRepository) {
         this.userRepository = userRepository;
         this.mateRepository = mateRepository;
         this.mateRequestRepository = mateRequestRepository;
         this.checkInRepository = checkInRepository;
         this.foodRepository = foodRepository;
-        this.mealRequestRepository = mealRequestRepository;
         this.blockRepository = blockRepository;
     }
 
@@ -90,10 +86,13 @@ public class MateProfileService {
         boolean isMate = mateRepository.existsByUser_IdAndMateUser_Id(viewerId, targetId);
 
         // 온라인 상태는 메이트 여부와 무관하게 항상 공개(같이먹기는 누구나 신청 가능)
+        // online = 모집중(SEEKING) 또는 혼밥중(ACTIVE) — TOGETHER(이미 매칭돼 함께 식사 중)는 제외한다.
         boolean online = false;
         String currentPlaceName = null;
         Long currentPlaceId = null;
-        CheckIn active = checkInRepository.findByUser_IdAndStatus(targetId, CheckInStatus.ACTIVE).orElse(null);
+        CheckIn active = checkInRepository
+                .findByUser_IdAndStatusIn(targetId, List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE))
+                .orElse(null);
         if (active != null) {
             online = true;
             currentPlaceName = active.getPlace().getName();
@@ -109,8 +108,8 @@ public class MateProfileService {
                 t.getAgeGroup(),
                 t.getDiningStyle() == null ? null : t.getDiningStyle().name(),
                 foods,
-                checkInRepository.countByUser_IdAndStatusNot(targetId, CheckInStatus.CANCELLED),
-                mealRequestRepository.countAcceptedBetween(viewerId, targetId),  // 함께 먹음(나↔대상 수락 건수)
+                checkInRepository.countCompletedByUser(targetId),
+                checkInRepository.countTogetherBetween(viewerId, targetId),  // 함께 먹음(나↔대상 실제 매칭 체크인 pairwise)
                 0L,  // badgeCount — 뱃지 도메인 없음
                 online, currentPlaceName, currentPlaceId,
                 isMate, requestStatus(viewerId, targetId));

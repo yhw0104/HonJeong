@@ -10,7 +10,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.favorite.repository.FavoriteRepository;
 import com.honjeong.mate.repository.MateRepository;
@@ -27,16 +26,18 @@ class UserActivityServiceTest {
     @InjectMocks private UserActivityService service;
 
     @Test
-    @DisplayName("getActivitySummary: 체크인·인증 리뷰·즐겨찾기·메이트 카운트를 모두 실데이터로 집계")
+    @DisplayName("getActivitySummary: 혼밥(solo)·같이먹음(together)·인증 리뷰·즐겨찾기·메이트 카운트를 모두 실데이터로 집계")
     void getActivitySummary_aggregates_withMateCount() {
-        when(checkInRepository.countByUser_IdAndStatusNot(1L, CheckInStatus.CANCELLED)).thenReturn(12L);
-        when(reviewRepository.countByUser_IdAndCheckInIsNotNull(1L)).thenReturn(8L);
+        when(checkInRepository.countSoloCompletedByUser(1L)).thenReturn(12L);
+        when(checkInRepository.countTogetherByUser(1L)).thenReturn(4L);
+        when(reviewRepository.countSoloAuthenticatedByUser(1L)).thenReturn(8L);
         when(favoriteRepository.countDistinctPlaceByUserId(1L)).thenReturn(5L);
         when(mateRepository.countByUser_Id(1L)).thenReturn(3L);
 
         ActivitySummaryResponse res = service.getActivitySummary(1L);
 
         assertThat(res.checkInCount()).isEqualTo(12L);
+        assertThat(res.togetherCount()).isEqualTo(4L);
         assertThat(res.reviewCount()).isEqualTo(8L);
         assertThat(res.favoriteCount()).isEqualTo(5L);
         assertThat(res.mateCount()).isEqualTo(3L);

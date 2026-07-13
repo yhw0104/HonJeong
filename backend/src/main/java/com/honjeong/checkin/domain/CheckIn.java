@@ -107,6 +107,26 @@ public class CheckIn {
     }
 
     /**
+     * 새 SEEKING(모집중) 체크인을 시작한다. 체크인의 정문 — 같이 갈 사람을 구하는 상태.
+     */
+    public static CheckIn startSeeking(User user, Place place, LocalDateTime now) {
+        CheckIn c = new CheckIn(user, place, now);
+        c.status = CheckInStatus.SEEKING;
+        return c;
+    }
+
+    /**
+     * SEEKING을 ACTIVE(혼밥중)로 전이한다(매칭 실패/포기 후 혼자 먹기 시작). SEEKING이 아니면 무시(멱등).
+     * startedAt을 now로 재설정해 "혼밥중" 경과·TTL 기준을 실제 식사 시작으로 맞춘다.
+     */
+    public void dineAlone(LocalDateTime now) {
+        if (status == CheckInStatus.SEEKING) {
+            this.status = CheckInStatus.ACTIVE;
+            this.startedAt = now;
+        }
+    }
+
+    /**
      * 발신자용 TOGETHER 체크인을 새로 만든다. startedAt·matchedAt·createdAt을 동일 now로 채운다.
      *
      * @param user          같이먹기 발신자
@@ -137,13 +157,13 @@ public class CheckIn {
     }
 
     /**
-     * ACTIVE 체크인을 TOGETHER(같이 먹는 중)로 전이한다. ACTIVE가 아니면 무시(멱등).
+     * SEEKING 체크인을 TOGETHER(같이 먹는 중)로 전이한다. SEEKING이 아니면 무시(멱등).
      *
      * @param mealRequestId 매칭 신청 id
      * @param now           매칭 시각
      */
     public void matchTogether(Long mealRequestId, LocalDateTime now) {
-        if (status == CheckInStatus.ACTIVE) {
+        if (status == CheckInStatus.SEEKING) {
             this.status = CheckInStatus.TOGETHER;
             this.matchedAt = now;
             this.mealRequestId = mealRequestId;
@@ -151,12 +171,12 @@ public class CheckIn {
     }
 
     /**
-     * ACTIVE 체크인을 CANCELLED(오집계 취소)로 전이한다. ACTIVE가 아니면 무시(멱등).
+     * SEEKING 또는 ACTIVE 체크인을 CANCELLED(오집계 취소)로 전이한다. 그 외 상태면 무시(멱등).
      *
      * @param now 취소 시각
      */
     public void cancel(LocalDateTime now) {
-        if (status == CheckInStatus.ACTIVE) {
+        if (status == CheckInStatus.SEEKING || status == CheckInStatus.ACTIVE) {
             this.status = CheckInStatus.CANCELLED;
             this.endedAt = now;
         }

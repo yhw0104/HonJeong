@@ -97,95 +97,86 @@ public interface MealRequestRepository extends JpaRepository<MealRequest, Long> 
             @Param("excludedUserIds") List<Long> excludedUserIds);
 
     /**
-     * 기능: 같은 대상 체크인으로 온 나머지 PENDING 신청 일괄 거절(하나 수락 시 자동 정리)
-     * 쿼리: UPDATE meal_requests SET status = 'DECLINED', responded_at = :now WHERE to_check_in_id = :toCheckInId AND id &lt;&gt; :exceptId AND status = 'PENDING'
-     * Request: toCheckInId — 대상 체크인 ID, exceptId — 방금 수락한 신청 ID(제외), now — 응답 시각 / Response: int — 거절 처리된 행 수
+     * 기능: 같은 대상 체크인으로 온 나머지 PENDING 신청 일괄 만료(하나 수락 시 자동 정리)
+     * 쿼리: UPDATE meal_requests SET status = 'EXPIRED', responded_at = :now WHERE to_check_in_id = :toCheckInId AND id &lt;&gt; :exceptId AND status = 'PENDING'
+     * Request: toCheckInId — 대상 체크인 ID, exceptId — 방금 수락한 신청 ID(제외), now — 응답 시각 / Response: int — 만료 처리된 행 수
      *
-     * <p>[기존 주석] 같은 대상 체크인으로 온 나머지 PENDING 신청을 일괄 DECLINED 처리한다(수락 시 정리). exceptId=방금 수락한 신청.
+     * <p>[의도] 수신자가 한 신청을 수락하면 같은 체크인으로 온 나머지 PENDING은 자리가 차서 무효가 된다. 수신자가 직접
+     * 거절한 게 아니므로 DECLINED가 아니라 EXPIRED(만료)로 정리한다 — 목록에 "거절함"이 아니라 "만료됨"으로 보인다.
+     * exceptId=방금 수락한 신청(제외).
      */
     @Modifying
     @Query("""
             UPDATE MealRequest mr
-            SET mr.status = com.honjeong.meal.domain.MealRequestStatus.DECLINED, mr.respondedAt = :now
+            SET mr.status = com.honjeong.meal.domain.MealRequestStatus.EXPIRED, mr.respondedAt = :now
             WHERE mr.toCheckIn.id = :toCheckInId AND mr.id <> :exceptId
               AND mr.status = com.honjeong.meal.domain.MealRequestStatus.PENDING
             """)
-    int declineOtherPending(@Param("toCheckInId") Long toCheckInId,
+    int expireOtherPending(@Param("toCheckInId") Long toCheckInId,
             @Param("exceptId") Long exceptId, @Param("now") LocalDateTime now);
 
     /**
-     * 기능: 두 사용자가 함께 먹은 횟수(수락된 신청 수, 방향 무관) 집계 — MateProfileService의 "함께 먹음" 통계용
-     * 쿼리: SELECT COUNT(*) FROM meal_requests mr JOIN check_ins ci ON mr.to_check_in_id = ci.id
-     *       WHERE mr.status = 'ACCEPTED' AND ((mr.from_user_id = :a AND ci.user_id = :b) OR (mr.from_user_id = :b AND ci.user_id = :a))
-     * Request: a — 한쪽 사용자 ID, b — 다른쪽 사용자 ID / Response: long — 두 사람 사이 수락된 같이먹기 건수
-     *
-     * <p>[기존 주석] 두 사용자가 함께 먹은 횟수 = 수락(ACCEPTED)된 같이먹기 신청 수. 방향 무관 —
-     * a가 신청하고 b가 수신했거나 그 반대 모두 센다(상대방 프로필 "함께 먹음" 통계).
-     *
-     * @param a 한쪽 사용자 id(보통 뷰어)
-     * @param b 다른쪽 사용자 id(보통 대상)
-     * @return 두 사람 사이 수락된 같이먹기 건수
-     */
-    @Query("""
-            SELECT COUNT(mr) FROM MealRequest mr
-            WHERE mr.status = com.honjeong.meal.domain.MealRequestStatus.ACCEPTED
-              AND ((mr.fromUser.id = :a AND mr.toCheckIn.user.id = :b)
-                OR (mr.fromUser.id = :b AND mr.toCheckIn.user.id = :a))
-            """)
-    long countAcceptedBetween(@Param("a") Long a, @Param("b") Long b);
-
-    /**
-     * 기능: viewer가 참여한 수락된 같이먹기의 (신청자, 수신자) id 쌍 배치 조회 — MateService 메이트 목록 "함께 먹음" 일괄 집계용(N+1 방지)
-     * 쿼리: SELECT mr.from_user_id AS fromId, ci.user_id AS toId FROM meal_requests mr JOIN check_ins ci ON mr.to_check_in_id = ci.id
-     *       WHERE mr.status = 'ACCEPTED' AND (mr.from_user_id = :viewerId OR ci.user_id = :viewerId)
-     * Request: viewerId — 기준 사용자(나) ID / Response: List&lt;MealPairRow&gt; — (fromId, toId) 쌍 목록
-     *
-     * <p>[기존 주석] viewer가 참여한 수락된 같이먹기의 (신청자, 수신자) 사용자 id 쌍 목록. 메이트 목록의
-     * 상대별 "함께 먹음"을 한 번에 집계하기 위한 배치 조회다(메이트마다 count 날리는 N+1 방지).
-     * 상대 id는 호출 측에서 {@code fromId==viewer ? toId : fromId}로 뽑아 합산한다.
-     *
-     * @param viewerId 기준 사용자(나) id
-     * @return viewer가 신청자이거나 수신자인 ACCEPTED 신청들의 (fromId, toId) 쌍
-     */
-    @Query("""
-            SELECT mr.fromUser.id AS fromId, mr.toCheckIn.user.id AS toId
-            FROM MealRequest mr
-            WHERE mr.status = com.honjeong.meal.domain.MealRequestStatus.ACCEPTED
-              AND (mr.fromUser.id = :viewerId OR mr.toCheckIn.user.id = :viewerId)
-            """)
-    List<MealPairRow> findAcceptedPairsForUser(@Param("viewerId") Long viewerId);
-
-    /**
-     * 수락된 같이먹기 한 건의 신청자·수신자 사용자 id 쌍을 담는 프로젝션.
-     *
-     * <p>[기존 주석] 수락된 같이먹기 한 건의 신청자·수신자 사용자 id 쌍(함께먹음 배치 집계용).
-     */
-    interface MealPairRow {
-        /** 신청자(fromUser) 사용자 id. */
-        Long getFromId();
-
-        /** 수신자(toCheckIn.user) 사용자 id. */
-        Long getToId();
-    }
-
-    /**
-     * 기능: 두 유저 사이(방향 무관) PENDING 신청 일괄 거절 — BlockService가 차단 시 자동 정리용으로 호출
-     * 쿼리: UPDATE meal_requests SET status = 'DECLINED', responded_at = :now WHERE status = 'PENDING'
+     * 기능: 두 유저 사이(방향 무관) PENDING 신청 일괄 만료 — BlockService가 차단 시 자동 정리용으로 호출
+     * 쿼리: UPDATE meal_requests SET status = 'EXPIRED', responded_at = :now WHERE status = 'PENDING'
      *       AND ((from_user_id = :a AND to_check_in_id IN (SELECT id FROM check_ins WHERE user_id = :b))
      *         OR (from_user_id = :b AND to_check_in_id IN (SELECT id FROM check_ins WHERE user_id = :a)))
-     * Request: a — 한쪽 사용자 ID, b — 다른쪽 사용자 ID, now — 응답 시각 / Response: int — 거절 처리된 행 수
+     * Request: a — 한쪽 사용자 ID, b — 다른쪽 사용자 ID, now — 응답 시각 / Response: int — 만료 처리된 행 수
      *
-     * <p>[기존 주석] 두 유저 사이(방향 무관) PENDING 같이먹기 신청 일괄 DECLINED(차단 자동 정리용).
+     * <p>[의도] 차단으로 자동 정리되는 신청은 수신자가 직접 거절한 게 아니므로 EXPIRED(만료)로 처리한다(차단 사실도 노출 안 됨).
      */
     @Modifying
     @Query("""
             UPDATE MealRequest mr
-            SET mr.status = com.honjeong.meal.domain.MealRequestStatus.DECLINED, mr.respondedAt = :now
+            SET mr.status = com.honjeong.meal.domain.MealRequestStatus.EXPIRED, mr.respondedAt = :now
             WHERE mr.status = com.honjeong.meal.domain.MealRequestStatus.PENDING
               AND ((mr.fromUser.id = :a AND mr.toCheckIn.id IN
                         (SELECT c.id FROM CheckIn c WHERE c.user.id = :b))
                 OR (mr.fromUser.id = :b AND mr.toCheckIn.id IN
                         (SELECT c.id FROM CheckIn c WHERE c.user.id = :a)))
             """)
-    int declinePendingBetween(@Param("a") Long a, @Param("b") Long b, @Param("now") LocalDateTime now);
+    int expirePendingBetween(@Param("a") Long a, @Param("b") Long b, @Param("now") LocalDateTime now);
+
+    /**
+     * 기능: 대상 체크인으로 온 모든 PENDING 신청 일괄 만료 — 대상이 모집(SEEKING)을 벗어날 때(혼자먹기·그만두기) 자동 정리용
+     * 쿼리: UPDATE meal_requests SET status = 'EXPIRED', responded_at = :now WHERE to_check_in_id = :checkInId AND status = 'PENDING'
+     * Request: checkInId — 대상 체크인 ID, now — 응답 시각 / Response: int — 만료 처리된 행 수
+     *
+     * <p>[의도] 같이먹기 신청은 대상이 SEEKING일 때만 수락 가능하다. 대상이 혼자먹기(ACTIVE)나 그만두기(CANCELLED)로
+     * SEEKING을 벗어나면 남은 PENDING은 영영 수락 불가한 좀비가 되므로 즉시 정리한다. 수신자가 직접 거절한 게 아니므로
+     * DECLINED가 아니라 EXPIRED(만료)로 처리한다 — 목록에 "거절함"이 아니라 "만료됨"으로 보인다({@link #expireOtherPending}의 exceptId 없는 버전).
+     *
+     * @param checkInId 대상 체크인 id
+     * @param now       응답 시각
+     * @return 만료 처리된 행 수
+     */
+    @Modifying
+    @Query("""
+            UPDATE MealRequest mr
+            SET mr.status = com.honjeong.meal.domain.MealRequestStatus.EXPIRED, mr.respondedAt = :now
+            WHERE mr.toCheckIn.id = :checkInId
+              AND mr.status = com.honjeong.meal.domain.MealRequestStatus.PENDING
+            """)
+    int expirePendingByToCheckIn(@Param("checkInId") Long checkInId, @Param("now") LocalDateTime now);
+
+    /**
+     * 기능: 더는 모집(SEEKING) 상태가 아닌 대상 체크인에 걸린 PENDING 신청을 일괄 만료 — 만료 스케줄러의 catch-all 정리용
+     * 쿼리: UPDATE meal_requests SET status = 'EXPIRED', responded_at = :now WHERE status = 'PENDING'
+     *       AND to_check_in_id IN (SELECT id FROM check_ins WHERE status &lt;&gt; 'SEEKING')
+     * Request: now — 응답 시각 / Response: int — 만료 처리된 행 수
+     *
+     * <p>[의도] TTL 만료로 SEEKING이 CANCELLED가 되는 등 상호작용 경로를 놓친 잔여 PENDING까지 쓸어담는 안전망이다.
+     * PENDING은 원래 SEEKING 대상에만 존재해야 하므로, 대상이 SEEKING이 아니면 정리 대상이다. 자동 정리이므로 EXPIRED(만료)로 처리한다.
+     *
+     * @param now 응답 시각
+     * @return 만료 처리된 행 수
+     */
+    @Modifying
+    @Query("""
+            UPDATE MealRequest mr
+            SET mr.status = com.honjeong.meal.domain.MealRequestStatus.EXPIRED, mr.respondedAt = :now
+            WHERE mr.status = com.honjeong.meal.domain.MealRequestStatus.PENDING
+              AND mr.toCheckIn.id IN (SELECT c.id FROM CheckIn c
+                    WHERE c.status <> com.honjeong.checkin.domain.CheckInStatus.SEEKING)
+            """)
+    int expirePendingForEndedTargets(@Param("now") LocalDateTime now);
 }

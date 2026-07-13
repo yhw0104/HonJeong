@@ -213,8 +213,8 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
-    @DisplayName("declinePendingBetween: 두 유저 사이 양방향 PENDING을 모두 DECLINED, 제3자는 불변")
-    void declinePendingBetween_bulkDeclines() {
+    @DisplayName("expirePendingBetween: 두 유저 사이 양방향 PENDING을 모두 EXPIRED(차단 자동정리), 제3자는 불변")
+    void expirePendingBetween_bulkExpires() {
         User a = persistUser("01000000001", "A");
         User b = persistUser("01000000002", "B");
         User stranger = persistUser("01000000003", "제3자");
@@ -229,83 +229,16 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
         em.flush();
         em.clear();
 
-        int updated = mealRequestRepository.declinePendingBetween(a.getId(), b.getId(), NOW.plusMinutes(5));
+        int updated = mealRequestRepository.expirePendingBetween(a.getId(), b.getId(), NOW.plusMinutes(5));
 
         assertThat(updated).isEqualTo(2);
         em.clear();
         assertThat(mealRequestRepository.findById(aToB.getId()).orElseThrow().getStatus())
-                .isEqualTo(MealRequestStatus.DECLINED);
+                .isEqualTo(MealRequestStatus.EXPIRED);
         assertThat(mealRequestRepository.findById(bToA.getId()).orElseThrow().getStatus())
-                .isEqualTo(MealRequestStatus.DECLINED);
+                .isEqualTo(MealRequestStatus.EXPIRED);
         assertThat(mealRequestRepository.findById(strangerToA.getId()).orElseThrow().getStatus())
                 .isEqualTo(MealRequestStatus.PENDING);
-    }
-
-    @Test
-    @DisplayName("countAcceptedBetween: 두 사람 사이 ACCEPTED만 방향 무관 집계(PENDING·DECLINED·제3자 제외)")
-    void countAcceptedBetween() {
-        User me = persistUser("01000000001", "나");
-        User friend = persistUser("01000000002", "친구");
-        User stranger = persistUser("01000000003", "제3자");
-        Place place = persistPlace("ext-1");
-        // 유니크 제약상 사용자당 ACTIVE 체크인 1개, (from,to_check_in) 쌍 1개 — 쌍이 겹치지 않게 구성
-        CheckIn myCheckIn = persistCheckIn(me, place);
-        CheckIn friendCheckIn = persistCheckIn(friend, place);
-        CheckIn strangerCheckIn = persistCheckIn(stranger, place);
-
-        persistAccepted(me, friendCheckIn, place);      // 나→친구 수락 (count)
-        persistAccepted(friend, myCheckIn, place);      // 친구→나 수락 (역방향도 count)
-        persistAccepted(me, strangerCheckIn, place);    // 나→제3자 수락 (친구와 무관)
-        em.persist(MealRequest.create(stranger, friendCheckIn, place, "대기", NOW)); // 제3자→친구 PENDING (제외)
-        persistDeclined(stranger, myCheckIn, place);    // 제3자→나 DECLINED (제외)
-        em.flush();
-        em.clear();
-
-        assertThat(mealRequestRepository.countAcceptedBetween(me.getId(), friend.getId())).isEqualTo(2L);
-        assertThat(mealRequestRepository.countAcceptedBetween(friend.getId(), me.getId())).isEqualTo(2L); // 대칭
-        assertThat(mealRequestRepository.countAcceptedBetween(me.getId(), stranger.getId())).isEqualTo(1L); // declined 제외
-        assertThat(mealRequestRepository.countAcceptedBetween(friend.getId(), stranger.getId())).isZero(); // pending만 → 0
-    }
-
-    @Test
-    @DisplayName("findAcceptedPairsForUser: viewer가 신청자/수신자인 ACCEPTED 쌍만 반환(from/to id)")
-    void findAcceptedPairsForUser() {
-        User me = persistUser("01000000001", "나");
-        User a = persistUser("01000000002", "A");
-        User b = persistUser("01000000003", "B");
-        Place place = persistPlace("ext-1");
-        CheckIn myCheckIn = persistCheckIn(me, place);
-        CheckIn aCheckIn = persistCheckIn(a, place);
-        CheckIn bCheckIn = persistCheckIn(b, place);
-
-        persistAccepted(me, aCheckIn, place);   // 나→A
-        persistAccepted(b, myCheckIn, place);   // B→나
-        persistAccepted(a, bCheckIn, place);    // A→B (나 무관, 제외)
-        em.persist(MealRequest.create(me, bCheckIn, place, "대기", NOW)); // 나→B PENDING (제외)
-        em.flush();
-        em.clear();
-
-        List<MealRequestRepository.MealPairRow> rows =
-                mealRequestRepository.findAcceptedPairsForUser(me.getId());
-
-        assertThat(rows).hasSize(2);
-        assertThat(rows).allSatisfy(r ->
-                assertThat(r.getFromId().equals(me.getId()) || r.getToId().equals(me.getId())).isTrue());
-        // (from, to) 쌍 집합 검증: (나→A), (B→나)
-        assertThat(rows).extracting(r -> r.getFromId() + "->" + r.getToId())
-                .containsExactlyInAnyOrder(me.getId() + "->" + a.getId(), b.getId() + "->" + me.getId());
-    }
-
-    private void persistAccepted(User from, CheckIn targetCheckIn, Place place) {
-        MealRequest mr = MealRequest.create(from, targetCheckIn, place, "수락건", NOW);
-        mr.accept(NOW.plusMinutes(5));
-        em.persist(mr);
-    }
-
-    private void persistDeclined(User from, CheckIn targetCheckIn, Place place) {
-        MealRequest mr = MealRequest.create(from, targetCheckIn, place, "거절건", NOW);
-        mr.decline(NOW.plusMinutes(5));
-        em.persist(mr);
     }
 
     @Test
@@ -323,5 +256,53 @@ class MealRequestRepositoryTest extends AbstractPostgresTest {
         assertThat(found.isReceivedBy(to.getId())).isTrue();
         assertThat(found.isReceivedBy(from.getId())).isFalse();
         assertThat(mealRequestRepository.findWithReceiverById(-1L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("expirePendingByToCheckIn: 대상 체크인의 PENDING만 EXPIRED, 다른 체크인 신청은 불변")
+    void expirePendingByToCheckIn_expiresOnlyTarget() {
+        User seeker = persistUser("01000000001", "모집자");
+        User seeker2 = persistUser("01000000002", "다른모집자");
+        User applicant = persistUser("01000000003", "신청자A");
+        User applicant2 = persistUser("01000000004", "신청자B");
+        Place place = persistPlace("ext-1");
+        CheckIn target = em.persist(CheckIn.startSeeking(seeker, place, NOW));
+        CheckIn other = em.persist(CheckIn.startSeeking(seeker2, place, NOW));
+        MealRequest toTarget = em.persist(MealRequest.create(applicant, target, place, "대기", NOW));  // 정리 대상
+        MealRequest toOther = em.persist(MealRequest.create(applicant2, other, place, "대기", NOW));   // 불변
+        em.flush();
+
+        int n = mealRequestRepository.expirePendingByToCheckIn(target.getId(), NOW.plusMinutes(1));
+        em.clear();
+
+        assertThat(n).isEqualTo(1);
+        assertThat(mealRequestRepository.findById(toTarget.getId()).orElseThrow().getStatus())
+                .isEqualTo(MealRequestStatus.EXPIRED);
+        assertThat(mealRequestRepository.findById(toOther.getId()).orElseThrow().getStatus())
+                .isEqualTo(MealRequestStatus.PENDING); // 다른 체크인 신청은 불변
+    }
+
+    @Test
+    @DisplayName("expirePendingForEndedTargets: SEEKING이 아닌 대상의 PENDING만 EXPIRED(모집중 대상 신청은 유지)")
+    void expirePendingForEndedTargets_expiresNonSeeking() {
+        User applicant = persistUser("01000000001", "신청자");
+        User stillSeeking = persistUser("01000000002", "계속모집");
+        User endedUser = persistUser("01000000003", "만료됨");
+        Place place = persistPlace("ext-1");
+        CheckIn seekingTarget = em.persist(CheckIn.startSeeking(stillSeeking, place, NOW));
+        CheckIn endedTarget = em.persist(CheckIn.startSeeking(endedUser, place, NOW));
+        MealRequest toSeeking = em.persist(MealRequest.create(applicant, seekingTarget, place, "대기", NOW));
+        MealRequest toEnded = em.persist(MealRequest.create(applicant, endedTarget, place, "대기", NOW));
+        endedTarget.cancel(NOW.plusMinutes(1)); // 대상이 모집(SEEKING)을 벗어남
+        em.flush();
+
+        int n = mealRequestRepository.expirePendingForEndedTargets(NOW.plusMinutes(2));
+        em.clear();
+
+        assertThat(n).isEqualTo(1);
+        assertThat(mealRequestRepository.findById(toSeeking.getId()).orElseThrow().getStatus())
+                .isEqualTo(MealRequestStatus.PENDING); // 아직 모집중 대상 → 유지
+        assertThat(mealRequestRepository.findById(toEnded.getId()).orElseThrow().getStatus())
+                .isEqualTo(MealRequestStatus.EXPIRED); // 모집 벗어난 대상 → 만료
     }
 }

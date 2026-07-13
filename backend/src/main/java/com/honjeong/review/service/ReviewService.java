@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
-import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
@@ -212,7 +211,10 @@ public class ReviewService {
         }
     }
 
-    /** 기능: 리뷰에 연결할 체크인 결정 — checkInId 명시 시 소유·식당 일치 검증(타인 소유 403, 불일치 null), 미지정 시 24h 내 최근 체크인 자동 탐색. */
+    /**
+     * 기능: 리뷰에 연결할 체크인 결정 — checkInId 명시 시 소유·식당·솔로 검증(타인 소유 403, 불일치/매칭이면 null),
+     * 미지정 시 24h 내 최근 솔로 체크인 자동 탐색. 인증(혼밥 뱃지)은 <b>혼자 먹은(matchedAt IS NULL) 체크인</b>만 대상이다.
+     */
     private CheckIn resolveCheckIn(Long userId, Long placeId, Long checkInId, LocalDateTime now) {
         if (checkInId != null) {
             CheckIn ci = checkInRepository.findById(checkInId).orElse(null);
@@ -221,6 +223,10 @@ public class ReviewService {
             }
             if (!ci.isOwnedBy(userId)) {
                 throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
+            // 같이 먹은(matched) 체크인은 혼밥 인증이 아니다 → 연결 안 함(일반 리뷰로 저장). 자동연결(findRecentForReview)과 기준 일치.
+            if (ci.getMatchedAt() != null) {
+                return null;
             }
             return ci.getPlace().getId().equals(placeId) ? ci : null;   // place 불일치면 일반 리뷰
         }
@@ -243,7 +249,10 @@ public class ReviewService {
         Map<Long, Review> reviewByCheckIn = reviewRepository.findByUserWithCheckIn(userId).stream()
                 .collect(Collectors.toMap(r -> r.getCheckIn().getId(), r -> r, (a, b) -> a)); // 최신 우선(쿼리 DESC)
 
-        List<DiningHistoryResponse.Entry> entries = checkInRepository.findHistoryWithPlaceByUser(userId).stream()
+        // 타임라인은 혼밥(솔로) 체크인만(findHistoryWithPlaceByUser가 matchedAt IS NULL 강제). 요약도 이 목록에서 직접 계산해
+        // 리스트와 요약이 절대 어긋나지 않게 한다 — 같이 먹은 방문은 '내 혼밥 기록'에서 완전히 제외된다.
+        List<CheckIn> history = checkInRepository.findHistoryWithPlaceByUser(userId);
+        List<DiningHistoryResponse.Entry> entries = history.stream()
                 .map(c -> {
                     Review r = reviewByCheckIn.get(c.getId());
                     DiningHistoryResponse.ReviewBrief brief = r == null ? null
@@ -258,10 +267,10 @@ public class ReviewService {
 
         LocalDateTime monthStart = LocalDate.ofInstant(clock.instant(), KST).withDayOfMonth(1).atStartOfDay();
         DiningHistoryResponse.Summary summary = new DiningHistoryResponse.Summary(
-                checkInRepository.countByUser_IdAndStatusNot(userId, CheckInStatus.CANCELLED),
-                reviewRepository.countByUser_IdAndCheckInIsNotNull(userId),  // 화면 목록(인증 일기만)과 기준 일치
-                checkInRepository.countDistinctPlacesByUser(userId),
-                checkInRepository.countByUserSince(userId, monthStart));
+                history.size(),                                                               // 총 혼밥(솔로 완료 체크인)
+                history.stream().filter(c -> reviewByCheckIn.containsKey(c.getId())).count(),  // 일기(솔로 체크인에 달린 리뷰)
+                history.stream().map(c -> c.getPlace().getId()).distinct().count(),           // 방문 식당(솔로 기준)
+                history.stream().filter(c -> !c.getStartedAt().isBefore(monthStart)).count()); // 이번달 혼밥(솔로)
 
         return new DiningHistoryResponse(summary, entries);
     }

@@ -1,11 +1,21 @@
 import { ApiError } from '@/shared/api/client';
-import { mealStatusLabel, mealErrorMessage } from './mealCopy';
+import { mealStatusLabelReceived, mealStatusLabelSent, mealErrorMessage } from './mealCopy';
 
-describe('mealStatusLabel', () => {
-  it('상태별 한글 라벨', () => {
-    expect(mealStatusLabel('PENDING')).toBe('응답 대기 중');
-    expect(mealStatusLabel('ACCEPTED')).toBe('수락됨');
-    expect(mealStatusLabel('DECLINED')).toBe('거절됨');
+describe('mealStatusLabelReceived (수신자 관점: 내가 처리)', () => {
+  it('내가 직접 누른 것은 수락함/거절함, 자동 정리는 만료됨', () => {
+    expect(mealStatusLabelReceived('PENDING')).toBe('응답 대기 중');
+    expect(mealStatusLabelReceived('ACCEPTED')).toBe('수락함');
+    expect(mealStatusLabelReceived('DECLINED')).toBe('거절함');
+    expect(mealStatusLabelReceived('EXPIRED')).toBe('만료됨');
+  });
+});
+
+describe('mealStatusLabelSent (신청자 관점: 상대가 처리)', () => {
+  it('상대 행위는 수락됨/거절됨, 자동 정리는 만료됨', () => {
+    expect(mealStatusLabelSent('PENDING')).toBe('응답 대기 중');
+    expect(mealStatusLabelSent('ACCEPTED')).toBe('수락됨');
+    expect(mealStatusLabelSent('DECLINED')).toBe('거절됨');
+    expect(mealStatusLabelSent('EXPIRED')).toBe('만료됨');
   });
 });
 

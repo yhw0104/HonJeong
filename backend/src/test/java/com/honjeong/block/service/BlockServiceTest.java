@@ -97,7 +97,7 @@ class BlockServiceTest {
                 eq(MateRequestStatus.CANCELED), any(LocalDateTime.class));
         verify(mateRequestRepository).resolvePendingBetween(eq(2L), eq(1L),
                 eq(MateRequestStatus.DECLINED), any(LocalDateTime.class));
-        verify(mealRequestRepository).declinePendingBetween(eq(1L), eq(2L), any(LocalDateTime.class));
+        verify(mealRequestRepository).expirePendingBetween(eq(1L), eq(2L), any(LocalDateTime.class));
     }
 
     @Test

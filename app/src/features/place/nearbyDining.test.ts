@@ -1,7 +1,7 @@
 import { nearbyDiningPlaces } from './nearbyDining';
 import type { PlaceNearbyItem } from './api';
 
-const item = (placeId: number, distanceMeters: number, activeCount: number): PlaceNearbyItem => ({
+const item = (placeId: number, distanceMeters: number, seekingCount: number): PlaceNearbyItem => ({
   placeId,
   name: `p${placeId}`,
   category: null,
@@ -9,10 +9,11 @@ const item = (placeId: number, distanceMeters: number, activeCount: number): Pla
   latitude: 0,
   longitude: 0,
   distanceMeters,
-  activeCount,
+  activeCount: 0,
+  seekingCount,
 });
 
-test('혼밥 인원(activeCount)이 0인 곳은 제외한다', () => {
+test('모집중 인원(seekingCount)이 0인 곳은 제외한다', () => {
   const got = nearbyDiningPlaces([item(1, 100, 0), item(2, 200, 3)], 5);
   expect(got.map((p) => p.placeId)).toEqual([2]);
 });
@@ -28,15 +29,15 @@ test('최대 limit개까지만, 가까운 순으로 자른다', () => {
   expect(got.map((p) => p.placeId)).toEqual([2, 4]);
 });
 
-test('본인 체크인 식당은 식당을 남기되 인원에서 본인만 뺀다(activeCount-1)', () => {
+test('본인 체크인 식당은 식당을 남기되 인원에서 본인만 뺀다(seekingCount-1)', () => {
   const got = nearbyDiningPlaces([item(1, 100, 3), item(2, 200, 1)], 5, 1);
-  expect(got.map((p) => [p.placeId, p.activeCount])).toEqual([
+  expect(got.map((p) => [p.placeId, p.seekingCount])).toEqual([
     [1, 2], // 3명 중 본인 제외 → 2명(다른 사람은 그대로 보임)
     [2, 1],
   ]);
 });
 
-test('본인만 있던 식당(activeCount 1)은 본인 제외 후 0명이라 사라진다', () => {
+test('본인만 모집중이던 식당(seekingCount 1)은 본인 제외 후 0명이라 사라진다', () => {
   const got = nearbyDiningPlaces([item(1, 100, 1), item(2, 200, 2)], 5, 1);
   expect(got.map((p) => p.placeId)).toEqual([2]);
 });
@@ -51,5 +52,14 @@ test('입력 배열·객체를 변형하지 않는다', () => {
   const items = [item(1, 300, 2), item(2, 100, 1)];
   nearbyDiningPlaces(items, 5, 1);
   expect(items.map((p) => p.placeId)).toEqual([1, 2]); // 원본 순서 그대로
-  expect(items[0].activeCount).toBe(2); // 원본 인원은 감소하지 않음
+  expect(items[0].seekingCount).toBe(2); // 원본 인원은 감소하지 않음
+});
+
+test('모집중 인원>0인 곳만 거리순으로, 본인은 뺀다', () => {
+  const items = [
+    { placeId: 1, seekingCount: 2, distanceMeters: 300, /* ...나머지 필드 */ },
+    { placeId: 2, seekingCount: 1, distanceMeters: 100 },
+  ] as any;
+  const out = nearbyDiningPlaces(items, 5, 2); // placeId2가 본인
+  expect(out.map((p) => p.placeId)).toEqual([1]); // 2는 1-1=0으로 사라짐
 });
