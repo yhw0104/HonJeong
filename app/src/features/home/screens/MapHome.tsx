@@ -323,7 +323,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
             <View style={[styles.pickSheet, { paddingBottom: insets.bottom + 24 }]}>
               <View style={styles.handle} />
               <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
-                <Text style={styles.pickTitle}>여기 {group.length}곳</Text>
+                <Text style={styles.pickTitle}>여기 {group.length}집</Text>
                 <Text style={styles.pickSub}>같은 자리(건물)에 있는 식당이에요</Text>
               </View>
               <ScrollView style={styles.pickList} showsVerticalScrollIndicator={false}>
