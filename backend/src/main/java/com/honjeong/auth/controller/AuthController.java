@@ -140,13 +140,13 @@ public class AuthController {
     /**
      * 1. API 주소: POST /api/auth/terms
      * 2. 사용 화면: 프로필 설정(ProfileSetup) — 가입 완료 제출 시 약관 동의 전송(온보딩 1단계)
-     * 3. Request: TermsRequest(바디) — service/privacy/location/marketing(약관별 동의 여부) / 인증 사용자(@CurrentUserId, 온보딩 토큰)
+     * 3. Request: TermsRequest(바디) — age/service/privacy/location/marketing(약관별 동의 여부) / 인증 사용자(@CurrentUserId, 온보딩 토큰)
      * 4. Response: 없음(Void) — 성공 여부만 응답 봉투로 전달
      *
      * <p>[기존 주석] 약관 동의(온보딩 1단계).
      *
-     * <p><b>요청:</b> {@code POST /api/auth/terms}, 본문은 {@link TermsRequest}(약관별 동의 여부 4종:
-     * service/privacy/location/marketing). 필수 3종이 모두 true인지는 서비스 계층에서 검증한다.
+     * <p><b>요청:</b> {@code POST /api/auth/terms}, 본문은 {@link TermsRequest}(약관별 동의 여부 5종:
+     * age/service/privacy/location/marketing). 필수 4종이 모두 true인지는 서비스 계층에서 검증한다.
      *
      * <p><b>동작:</b> {@code @CurrentUserId}로 주입된 {@code userId}와 동의 항목들을 {@code authService.agreeTerms(...)}에
      * 위임한다(이미 동의했으면 멱등 처리).
@@ -158,7 +158,7 @@ public class AuthController {
      */
     @PostMapping("/terms")
     public ApiResponse<Void> terms(@CurrentUserId Long userId, @RequestBody @Valid TermsRequest request) {
-        authService.agreeTerms(userId, request.service(), request.privacy(), request.location(), request.marketing());
+        authService.agreeTerms(userId, request.age(), request.service(), request.privacy(), request.location(), request.marketing());
         return ApiResponse.<Void>success(null); // 반환 데이터 없음 → <Void> 명시
     }
 

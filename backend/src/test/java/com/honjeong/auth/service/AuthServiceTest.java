@@ -201,7 +201,10 @@ class AuthServiceTest {
     @Test
     @DisplayName("agreeTerms: 필수 약관 누락 시 거부")
     void agreeTerms_missingRequired_throws() {
-        assertThatThrownBy(() -> authService.agreeTerms(1L, true, false, true, false))
+        assertThatThrownBy(() -> authService.agreeTerms(1L, true, true, false, true, false))
+                .isInstanceOf(BusinessException.class);
+        // 만 14세 미확인(age=false)도 필수 미충족으로 거부
+        assertThatThrownBy(() -> authService.agreeTerms(1L, false, true, true, true, false))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -216,7 +219,7 @@ class AuthServiceTest {
     void agreeTerms_valid_saves() {
         when(termsAgreementRepository.existsByUserId(1L)).thenReturn(false);
 
-        authService.agreeTerms(1L, true, true, true, false);
+        authService.agreeTerms(1L, true, true, true, true, false);
 
         verify(termsAgreementRepository).save(any(TermsAgreement.class));
     }

@@ -224,21 +224,22 @@ public class AuthService {
     }
 
     /**
-     * 기능: 약관 동의 기록 저장(필수 3종 검증, 이미 동의했으면 멱등 통과)
-     * Request: userId — 동의하는 사용자 ID, service/privacy/location — 필수 약관 동의 여부, marketing — 선택 약관 동의 여부
+     * 기능: 약관 동의 기록 저장(필수 4종 검증, 이미 동의했으면 멱등 통과)
+     * Request: userId — 동의하는 사용자 ID, age/service/privacy/location — 필수 약관 동의 여부, marketing — 선택 약관 동의 여부
      * Response: 없음(void)
      *
-     * <p>[기존 주석] 약관 동의를 기록한다(온보딩 단계). 필수 약관 3종(서비스 이용·개인정보·위치)에 모두 동의해야
+     * <p>[기존 주석] 약관 동의를 기록한다(온보딩 단계). 필수 4종(만14세·서비스 이용·개인정보·위치)에 모두 동의해야
      * 통과하며, 마케팅은 선택이다.
      *
      * <p>동작 단계:
      * <ol>
-     *   <li>필수 3종이 모두 true가 아니면 {@code TERMS_REQUIRED} 예외로 거부한다.</li>
+     *   <li>필수 4종이 모두 true가 아니면 {@code TERMS_REQUIRED} 예외로 거부한다.</li>
      *   <li>이미 동의 기록이 있으면 아무것도 하지 않고 반환한다(<b>멱등</b> — 두 번 호출해도 안전).</li>
      *   <li>그렇지 않으면 동의 항목들과 현재 시각을 한 건으로 저장한다.</li>
      * </ol>
      *
      * @param userId    동의하는 사용자(온보딩 토큰의 주체)
+     * @param age       만 14세 이상 확인(필수)
      * @param service   서비스 이용약관 동의(필수)
      * @param privacy   개인정보 처리방침 동의(필수)
      * @param location  위치정보 이용약관 동의(필수)
@@ -246,15 +247,15 @@ public class AuthService {
      * @throws BusinessException 필수 약관을 하나라도 동의하지 않았을 때({@code TERMS_REQUIRED})
      */
     @Transactional // 동의 기록 저장(쓰기)을 트랜잭션으로 묶는다
-    public void agreeTerms(long userId, boolean service, boolean privacy, boolean location, boolean marketing) {
-        if (!(service && privacy && location)) { // 필수 3종 중 하나라도 미동의면 거부
+    public void agreeTerms(long userId, boolean age, boolean service, boolean privacy, boolean location, boolean marketing) {
+        if (!(age && service && privacy && location)) { // 필수 4종 중 하나라도 미동의면 거부
             throw new BusinessException(ErrorCode.TERMS_REQUIRED);
         }
         if (termsAgreementRepository.existsByUserId(userId)) {
             return; // 이미 동의 — 멱등(재호출해도 중복 저장하지 않음)
         }
         termsAgreementRepository.save(
-                TermsAgreement.of(userId, service, privacy, location, marketing, LocalDateTime.now(clock)));
+                TermsAgreement.of(userId, age, service, privacy, location, marketing, LocalDateTime.now(clock)));
     }
 
     /**

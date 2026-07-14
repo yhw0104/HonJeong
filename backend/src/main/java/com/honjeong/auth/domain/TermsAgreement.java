@@ -28,6 +28,10 @@ public class TermsAgreement {
     @Column(nullable = false)
     private Long userId;
 
+    /** 만 14세 이상 확인(필수). NOT NULL. */
+    @Column(nullable = false)
+    private boolean age;
+
     /** 서비스 이용약관 동의(필수). NOT NULL. */
     @Column(nullable = false)
     private boolean service;
@@ -53,9 +57,10 @@ public class TermsAgreement {
     }
 
     /** 내부 전용 생성자. 외부에서는 {@link #of} 팩토리로만 생성한다. */
-    private TermsAgreement(Long userId, boolean service, boolean privacy, boolean location,
+    private TermsAgreement(Long userId, boolean age, boolean service, boolean privacy, boolean location,
             boolean marketing, LocalDateTime agreedAt) {
         this.userId = userId;
+        this.age = age;
         this.service = service;
         this.privacy = privacy;
         this.location = location;
@@ -67,6 +72,7 @@ public class TermsAgreement {
      * 약관 동의 1행을 생성하는 정적 팩토리.
      *
      * @param userId    동의 주체 회원 id
+     * @param age       만 14세 이상 확인 여부(필수)
      * @param service   서비스 이용약관 동의 여부(필수)
      * @param privacy   개인정보 처리방침 동의 여부(필수)
      * @param location  위치기반 서비스 동의 여부(필수)
@@ -74,9 +80,9 @@ public class TermsAgreement {
      * @param agreedAt  동의 시각
      * @return 새 TermsAgreement 인스턴스
      */
-    public static TermsAgreement of(Long userId, boolean service, boolean privacy, boolean location,
+    public static TermsAgreement of(Long userId, boolean age, boolean service, boolean privacy, boolean location,
             boolean marketing, LocalDateTime agreedAt) {
-        return new TermsAgreement(userId, service, privacy, location, marketing, agreedAt);
+        return new TermsAgreement(userId, age, service, privacy, location, marketing, agreedAt);
     }
 
     // --- 이하 게터: 읽기 전용 접근자(상태 변경 없음) ---
@@ -87,6 +93,10 @@ public class TermsAgreement {
 
     public Long getUserId() {
         return userId;
+    }
+
+    public boolean isAge() {
+        return age;
     }
 
     public boolean isService() {

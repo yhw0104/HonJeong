@@ -114,7 +114,7 @@ class AuthControllerTest {
     void terms_withoutToken_401() throws Exception {
         mockMvc.perform(post("/api/auth/terms")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"service\":true,\"privacy\":true,\"location\":true,\"marketing\":false}"))
+                        .content("{\"age\":true,\"service\":true,\"privacy\":true,\"location\":true,\"marketing\":false}"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -132,10 +132,10 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/terms")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"service\":true,\"privacy\":true,\"location\":true,\"marketing\":false}"))
+                        .content("{\"age\":true,\"service\":true,\"privacy\":true,\"location\":true,\"marketing\":false}"))
                 .andExpect(status().isOk());
 
-        verify(authService).agreeTerms(1L, true, true, true, false);
+        verify(authService).agreeTerms(1L, true, true, true, true, false);
     }
 
     /**

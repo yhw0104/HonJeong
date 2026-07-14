@@ -8,6 +8,7 @@ import { WelcomeScreen } from '@/features/auth/screens/Welcome';
 import { PhoneAuthScreen } from '@/features/auth/screens/PhoneAuth';
 import { VerifyCodeScreen } from '@/features/auth/screens/VerifyCode';
 import { ProfileSetupScreen } from '@/features/auth/screens/ProfileSetup';
+import { TermsViewScreen } from '@/features/auth/screens/TermsView';
 import { NewGroupScreen } from '@/features/favorites/screens/NewGroup';
 import { RestaurantDetailScreen } from '@/features/place/screens/RestaurantDetail';
 import { PlaceSearchScreen } from '@/features/place/screens/PlaceSearch';
@@ -43,6 +44,7 @@ export function RootNavigator() {
           <Stack.Screen name="PhoneAuth" component={PhoneAuthScreen} />
           <Stack.Screen name="VerifyCode" component={VerifyCodeScreen} />
           <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
+          <Stack.Screen name="TermsView" component={TermsViewScreen} />
         </>
       ) : (
         // 로그인됨 — 메인 탭 + 세부 화면들

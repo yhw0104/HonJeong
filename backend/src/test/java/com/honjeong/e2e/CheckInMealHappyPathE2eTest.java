@@ -271,7 +271,7 @@ class CheckInMealHappyPathE2eTest extends AbstractPostgresTest {
         assertThat(onboardingToken).isNotBlank();
 
         perform(jsonPost("/api/auth/terms",
-                Map.of("service", true, "privacy", true, "location", true, "marketing", false)),
+                Map.of("age", true, "service", true, "privacy", true, "location", true, "marketing", false)),
                 onboardingToken, 200);
 
         JsonNode complete = perform(jsonPost("/api/auth/complete", Map.of("nickname", nickname)),

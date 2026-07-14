@@ -17,13 +17,14 @@ const STYLES_OPT = [
   { key: 'quiet', label: '조용히 각자', sub: '편하게, 말 없이 먹어도 좋아요' },
 ];
 
-type Term = { key: string; label: string; req: boolean };
-// 약관 키를 백엔드 /auth/terms 필드명과 동일하게 맞춘다(그대로 전송).
+type Term = { key: string; label: string; req: boolean; detail?: boolean };
+// 약관 키를 백엔드 /auth/terms 필드명과 동일하게 맞춘다(그대로 전송). detail=true면 '보기'로 전문을 연다.
 const TERMS: Term[] = [
-  { key: 'service', label: '서비스 이용약관', req: true },
-  { key: 'privacy', label: '개인정보 처리방침', req: true },
-  { key: 'location', label: '위치정보 이용 동의', req: true },
-  { key: 'marketing', label: '마케팅 알림 수신', req: false },
+  { key: 'age', label: '만 14세 이상입니다', req: true },
+  { key: 'service', label: '서비스 이용약관', req: true, detail: true },
+  { key: 'privacy', label: '개인정보 처리방침', req: true, detail: true },
+  { key: 'location', label: '위치정보 이용 동의', req: true, detail: true },
+  { key: 'marketing', label: '마케팅 알림 수신', req: false, detail: true },
 ];
 
 export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'ProfileSetup'>) {
@@ -40,6 +41,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
   const [ageGroup, setAgeGroup] = useState<string | null>(null);
   const [agePickerOpen, setAgePickerOpen] = useState(false);
   const [terms, setTerms] = useState<Record<string, boolean>>({
+    age: false,
     service: false,
     privacy: false,
     location: false,
@@ -111,7 +113,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
     try {
       await apiPost(
         '/auth/terms',
-        { service: terms.service, privacy: terms.privacy, location: terms.location, marketing: terms.marketing },
+        { age: terms.age, service: terms.service, privacy: terms.privacy, location: terms.location, marketing: terms.marketing },
         { token: onboardingToken },
       );
       const tokens = await apiPost<{ accessToken: string; refreshToken: string }>(
@@ -325,7 +327,11 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
                   <Text style={[styles.termTag, { color: t.req ? T2.text : T2.textMute }]}>{t.req ? '필수 ' : '선택 '}</Text>
                   {t.label}
                 </Text>
-                <Icon name="chevronRight" size={12} color={T2.textMute} />
+                {t.detail ? (
+                  <Pressable hitSlop={8} onPress={() => navigation.navigate('TermsView', { termKey: t.key })} accessibilityRole="button">
+                    <Text style={styles.termView}>보기</Text>
+                  </Pressable>
+                ) : null}
               </Pressable>
             );
           })}
@@ -469,4 +475,5 @@ const styles = StyleSheet.create({
   termMark: { color: '#fff', fontSize: 9, fontWeight: '800' },
   termLabel: { flex: 1, fontSize: 13, color: T2.textSub, letterSpacing: -0.2 },
   termTag: { fontWeight: '700' },
+  termView: { fontSize: 12, color: T2.textMute, fontWeight: '600', textDecorationLine: 'underline', letterSpacing: -0.2 },
 });
