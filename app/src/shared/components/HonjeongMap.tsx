@@ -154,25 +154,25 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
                 var seeking = it.seekingCount || 0;
                 if (seeking > 0) {
                   // 모집중 있음: 주황 알약 + 인원 수(강조).
-                  pin.style.cssText = 'pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:5px;background:#fff;border:2px solid #FF5A36;border-radius:999px;padding:3px 9px 3px 5px;box-shadow:0 2px 6px rgba(0,0,0,0.25);';
-                  pin.innerHTML = '<div style="width:14px;height:14px;border-radius:50%;background:#FF5A36;"></div>'
-                    + '<span style="color:#FF5A36;font-weight:800;font-size:12px;line-height:1;">' + seeking + '</span>';
+                  pin.style.cssText = 'pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:5px;background:#fff;border:2px solid #FF5A1F;border-radius:999px;padding:4px 10px 4px 8px;box-shadow:0 2px 5px rgba(0,0,0,0.18);';
+                  pin.innerHTML = '<div style="width:8px;height:8px;border-radius:50%;background:#FF5A1F;"></div>'
+                    + '<span style="color:#FF5A1F;font-weight:800;font-size:12.5px;line-height:1;">' + seeking + '</span>';
                 } else {
                   // 모집중 없음: 주황 점(위치만 표시).
-                  pin.style.cssText = 'pointer-events:auto;cursor:pointer;width:14px;height:14px;border-radius:50%;background:#FF5A36;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);';
+                  pin.style.cssText = 'pointer-events:auto;cursor:pointer;width:12px;height:12px;border-radius:50%;background:#FF5A1F;border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,0.18);';
                 }
                 pin.addEventListener('click', function(){ post('marker:' + it.placeId); });
                 el.appendChild(pin);
                 addOverlay(pos, el, makeLabel(it.name));
               } else {
-                // 묶음 마커: 단독 핀처럼 동그란 원 안에 겹침 개수(숫자). 그룹에 모집중이 하나라도 있으면 주황(채움), 없으면 흰 원(회색 글자).
+                // 묶음 마커: 단독 핀처럼 동그란 원 안에 겹침 개수(숫자). 그룹에 모집중이 하나라도 있으면 주황(채움), 없으면 흰 원(웜 뉴트럴 글자).
                 var hasSeek = g.some(function(x){ return (x.seekingCount || 0) > 0; });
                 var ids = g.map(function(x){ return x.placeId; }).join(',');
-                var base = 'pointer-events:auto;cursor:pointer;box-sizing:border-box;min-width:20px;height:20px;border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 5px;font-weight:800;font-size:10px;line-height:1;';
+                var base = 'pointer-events:auto;cursor:pointer;box-sizing:border-box;min-width:20px;height:20px;border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 5px;font-weight:800;font-size:10.5px;line-height:1;';
                 if (hasSeek) {
-                  pin.style.cssText = base + 'background:#FF5A36;color:#fff;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.28);';
+                  pin.style.cssText = base + 'background:#FF5A1F;color:#fff;border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,0.18);';
                 } else {
-                  pin.style.cssText = base + 'background:#fff;color:#555;border:1.5px solid #B8B8B8;box-shadow:0 1px 4px rgba(0,0,0,0.22);';
+                  pin.style.cssText = base + 'background:#fff;color:#8A8272;border:1.5px solid #DCD3C0;box-shadow:0 2px 5px rgba(0,0,0,0.18);';
                 }
                 pin.textContent = String(g.length); // 겹침 개수(숫자만) — 지도 클러스터 표준
                 pin.addEventListener('click', function(){ post('cluster:' + ids); });
