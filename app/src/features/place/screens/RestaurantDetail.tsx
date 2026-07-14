@@ -3,7 +3,7 @@
 // 메뉴 탭은 보류(데이터 출처 미정) — TABS에서 임시 숨김. MenuTab 컴포넌트/렌더는 복원 위해 보존.
 // 원본의 하단 MinTabBar는 제거(상세는 탭 위로 push되는 풀스크린이라 뒤로가기로 복귀).
 import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Alert, Image, Share } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Alert, Image, Share, Linking, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H } from '@/shared/components';
@@ -19,6 +19,7 @@ import type { RootStackScreenProps } from '@/navigation/types';
 import { usePlaceReviews, usePlaceReviewSummary, useDeleteReview, usePlacePhotos } from '@/features/review/queries';
 import type { PlaceReview, PlaceReviewSummary } from '@/features/review/api';
 import { FavoriteSheet } from '@/features/favorites/components/FavoriteSheet';
+import { DirectionsSheet } from '@/features/place/components/DirectionsSheet';
 import { useFavoriteStatus } from '@/features/favorites/queries';
 
 type Tab = 'home' | 'menu' | 'review' | 'photo' | 'mate' | 'nearby';
@@ -95,6 +96,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const summary = usePlaceReviewSummary(placeId);
 
   const [favSheet, setFavSheet] = useState(false);
+  const [dirOpen, setDirOpen] = useState(false);
   const favStatus = useFavoriteStatus(placeId);
   const saved = favStatus.data?.saved ?? false;
 
@@ -125,6 +127,26 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const onShare = () => {
     Share.share({ title: name, message: `${name}\n${fullAddr}\n\n🍚 혼정에서 공유` }).catch(() => {});
   };
+
+  // 길찾기 — 외부 지도앱으로 식당명 검색.
+  // 네이버: NCP 가이드대로 앱 미설치 시 스토어 설치 페이지로 유도(iOS id311867728 / Android com.nhn.android.nmap).
+  // 카카오: 앱 미설치 시 지도 웹으로 폴백.
+  const openMap = (provider: 'naver' | 'kakao') => {
+    const q = encodeURIComponent(name);
+    if (provider === 'naver') {
+      const appUrl = `nmap://search?query=${q}&appname=com.anonymous.honjeong`;
+      const storeUrl =
+        Platform.OS === 'ios'
+          ? 'https://apps.apple.com/kr/app/id311867728'
+          : 'https://play.google.com/store/apps/details?id=com.nhn.android.nmap';
+      Linking.openURL(appUrl).catch(() => Linking.openURL(storeUrl).catch(() => {}));
+      return;
+    }
+    const appUrl = `kakaomap://search?q=${q}`;
+    const webUrl = `https://map.kakao.com/link/search/${q}`;
+    Linking.openURL(appUrl).catch(() => Linking.openURL(webUrl).catch(() => {}));
+  };
+  const onDirections = () => setDirOpen(true);
   const goDinerProfile = (userId: number) => navigation.navigate('MateProfile', { userId });
   const toggleHonbab = () => {
     if (honbabOn && myCheckIn.data) {
@@ -142,14 +164,9 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
         <HeroPhotos placeId={placeId} />
 
         <View style={styles.content}>
-          {/* 카테고리 + 영업 */}
+          {/* 카테고리 */}
           <View style={{ marginBottom: 10 }}>
             <Text style={styles.eyebrow}>{detail.data?.category ?? '식당'}</Text>
-            {detail.data?.businessStatus ? (
-              <View style={styles.openBadge}>
-                <Text style={styles.openText}>{detail.data.businessStatus}</Text>
-              </View>
-            ) : null}
           </View>
 
           <Text style={styles.title}>{name}</Text>
@@ -246,7 +263,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
 
       {/* 하단 고정 CTA — 길찾기 · 같이 먹기 · 혼밥 시작/중 */}
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable style={styles.ctaNav}>
+        <Pressable style={styles.ctaNav} onPress={onDirections}>
           <Icon name="navigate" size={20} color={T2.text} />
           <Text style={styles.ctaNavText}>길찾기</Text>
         </Pressable>
@@ -293,6 +310,14 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
         onClose={() => setEnding(null)}
         onReportNoShow={(userId, nickname) =>
           navigation.navigate('ReportForm', { targetType: 'USER', targetId: userId, targetNickname: nickname })}
+      />
+
+      {/* 길찾기 — 네이버/카카오 지도 선택 시트 */}
+      <DirectionsSheet
+        visible={dirOpen}
+        placeName={name}
+        onClose={() => setDirOpen(false)}
+        onPick={(p) => { setDirOpen(false); openMap(p); }}
       />
     </View>
   );
@@ -769,8 +794,6 @@ const styles = StyleSheet.create({
   circleArrow: { fontSize: 18, color: T2.text },
 
   eyebrow: { fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: 0.6 },
-  openBadge: { alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: T2.text, borderRadius: 4 },
-  openText: { fontSize: 10, fontWeight: '700', color: '#fff', letterSpacing: 0.2 },
   title: { fontSize: 26, fontWeight: '800', color: T2.text, letterSpacing: -0.8, lineHeight: 30 },
 
   addrRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
