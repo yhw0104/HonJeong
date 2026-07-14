@@ -2,6 +2,7 @@
 // 혼밥(ACTIVE): '밀어서 완료'(ENDED) + '안 먹었어요'(CANCELLED).
 // 같이먹기(TOGETHER): '밀어서 완료'(양쪽 ENDED) + '상대가 안 나왔어요' → 노쇼 서브뷰
 //   (그래도 혼밥/다시 모집/안 먹고 감 = leaveMatch, 상대는 서버가 SEEKING 복귀+알림 / '이 사람 신고하기').
+//   + '제가 못 가게 됐어요' → 사전 취소 서브뷰(확인 1회 → leaveMatch CANCELLED, 신고 없음).
 // checkIn=null이면 렌더 안 함. 닫히면 서브뷰 상태 초기화(다음 열림 대비).
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
@@ -22,7 +23,8 @@ export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
   const cancel = useCancelCheckIn();
   const leave = useLeaveMatch();
   const [noShow, setNoShow] = useState(false); // 같이먹기 '상대가 안 나왔어요' 서브뷰
-  useEffect(() => { if (!checkIn) setNoShow(false); }, [checkIn]); // 닫히면 초기화(컴포넌트는 언마운트 안 됨)
+  const [cantGo, setCantGo] = useState(false); // 같이먹기 '제가 못 가게 됐어요'(사전 취소) 서브뷰
+  useEffect(() => { if (!checkIn) { setNoShow(false); setCantGo(false); } }, [checkIn]); // 닫히면 초기화(컴포넌트는 언마운트 안 됨)
   if (!checkIn) return null;
 
   const together = checkIn.status === 'TOGETHER';
@@ -38,7 +40,7 @@ export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
   return (
     <>
       <Pressable style={styles.scrim} onPress={onClose} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + 6 }]}>
         <Pressable style={styles.close} onPress={onClose} hitSlop={8} accessibilityRole="button">
           <Text style={styles.closeX}>×</Text>
         </Pressable>
@@ -64,15 +66,33 @@ export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
               </Pressable>
             )}
           </>
+        ) : together && cantGo ? (
+          // ── 사전 취소 서브뷰: 내가 못 가서 매칭 파기(상대는 서버가 SEEKING 복귀+알림) ──
+          <>
+            <Text style={styles.title}>못 가게 되셨나요?</Text>
+            <Text style={styles.sub}>약속을 취소하면 상대는 다시 모집 상태로 돌아가요.</Text>
+            <Pressable style={[styles.choice, styles.choicePrimary]} onPress={() => leaveTo('CANCELLED')} accessibilityRole="button">
+              <Text style={[styles.choiceText, { color: T2.brand }]}>약속 취소하기</Text>
+            </Pressable>
+            <Pressable style={styles.discard} onPress={() => setCantGo(false)} hitSlop={6} accessibilityRole="button">
+              <Text style={styles.discardText}>뒤로</Text>
+            </Pressable>
+          </>
         ) : (
           <>
             <Text style={styles.title}>{together ? '같이 먹기를 끝낼까요?' : '혼밥을 끝낼까요?'}</Text>
             <Text style={styles.sub}>다 드셨으면 밀어서 완료하세요.</Text>
             <SlideToConfirm label="밀어서 완료" onConfirm={complete} style={styles.slide} />
             {together ? (
-              <Pressable style={styles.discard} onPress={() => setNoShow(true)} hitSlop={6} accessibilityRole="button">
-                <Text style={styles.discardText}>상대가 안 나왔어요</Text>
-              </Pressable>
+              <View style={styles.togetherLinks}>
+                <Pressable style={styles.linkBtn} onPress={() => setNoShow(true)} hitSlop={6} accessibilityRole="button">
+                  <Text style={styles.linkText}>상대가 안 나왔어요</Text>
+                </Pressable>
+                <View style={styles.linkDivider} />
+                <Pressable style={styles.linkBtn} onPress={() => setCantGo(true)} hitSlop={6} accessibilityRole="button">
+                  <Text style={styles.linkText}>제가 못 가게 됐어요</Text>
+                </Pressable>
+              </View>
             ) : (
               <Pressable style={styles.discard} onPress={discard} hitSlop={6} accessibilityRole="button">
                 <Text style={styles.discardText}>안 먹었어요(기록 안 함)</Text>
@@ -90,18 +110,22 @@ const styles = StyleSheet.create({
   sheet: {
     position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 91,
     backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingTop: 12, paddingHorizontal: 20,
+    paddingTop: 10, paddingHorizontal: 20,
     shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.18, shadowRadius: 30, elevation: 12,
   },
   close: { position: 'absolute', top: 10, right: 12, width: 34, height: 34, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   closeX: { fontSize: 24, color: T2.textMute, lineHeight: 26 },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E5E5', alignSelf: 'center', marginBottom: 18 },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E5E5', alignSelf: 'center', marginBottom: 12 },
   title: { fontSize: 20, fontWeight: '800', color: T2.text, letterSpacing: -0.5 },
   sub: { fontSize: 13, color: T2.textMute, marginTop: 6, letterSpacing: -0.3 },
-  slide: { marginTop: 20 },
-  choice: { marginTop: 10, paddingVertical: 15, borderRadius: 12, borderWidth: 1.5, borderColor: T2.border, alignItems: 'center' },
-  choicePrimary: { marginTop: 18, borderColor: T2.brand, backgroundColor: T2.brandSoft },
+  slide: { marginTop: 14 },
+  choice: { marginTop: 8, paddingVertical: 13, borderRadius: 12, borderWidth: 1.5, borderColor: T2.border, alignItems: 'center' },
+  choicePrimary: { marginTop: 12, borderColor: T2.brand, backgroundColor: T2.brandSoft },
   choiceText: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
-  discard: { alignItems: 'center', paddingVertical: 14, marginTop: 8 },
+  discard: { alignItems: 'center', paddingVertical: 11, marginTop: 8 },
   discardText: { fontSize: 13.5, fontWeight: '700', color: T2.textMute, letterSpacing: -0.3 },
+  togetherLinks: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  linkBtn: { paddingVertical: 10, paddingHorizontal: 14 },
+  linkText: { fontSize: 13, fontWeight: '600', color: T2.textMute, letterSpacing: -0.2 },
+  linkDivider: { width: 1, height: 11, backgroundColor: T2.border },
 });
