@@ -81,9 +81,9 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
 
   const diningStyleLabel =
     p.diningStyle === 'TALK'
-      ? { emoji: '💬', title: '도란도란 대화하며', sub: '가볍게 이야기 나누는 게 좋아요' }
+      ? { icon: 'chat' as const, title: '도란도란 대화하며', sub: '가볍게 이야기 나누는 게 좋아요' }
       : p.diningStyle === 'QUIET'
-      ? { emoji: '🤫', title: '조용히 각자 편하게', sub: '말 없이 각자 편안하게 드세요' }
+      ? { icon: 'chat' as const, title: '조용히 각자 편하게', sub: '말 없이 각자 편안하게 드세요' }
       : null;
 
   const mealEnabled = p.isOnline && p.currentPlaceId != null;
@@ -182,7 +182,7 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
           <View style={{ marginTop: 28 }}>
             <Text style={styles.sectionLabel}>같이 먹을 때</Text>
             <View style={styles.styleCard}>
-              <Text style={{ fontSize: 22 }}>{diningStyleLabel.emoji}</Text>
+              <Icon name={diningStyleLabel.icon} size={22} color={T2.brand} />
               <View>
                 <Text style={styles.styleTitle}>{diningStyleLabel.title}</Text>
                 <Text style={styles.styleSub}>{diningStyleLabel.sub}</Text>

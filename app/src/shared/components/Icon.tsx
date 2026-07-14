@@ -34,7 +34,10 @@ export type IconName =
   | 'mail'
   | 'pushpin'
   | 'chevronUp'
-  | 'star';
+  | 'star'
+  | 'rice'
+  | 'friends'
+  | 'chat';
 
 type Props = {
   name: IconName;
@@ -286,6 +289,33 @@ export function Icon({ name, size = 18, color = T2.text }: Props) {
             strokeWidth={1.2}
             strokeLinejoin="round"
           />
+        </Svg>
+      );
+    case 'rice':
+      // 밥공기(라인) — 알림 '같이먹기'.
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path d="M2.5 11H21.5" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M4.5 11a7.5 7.5 0 0 0 15 0" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M8 11a4 3 0 0 1 8 0" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+    case 'friends':
+      // 두 사람(대칭) — 알림 '메이트'.
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Circle cx={8.5} cy={9} r={2.6} stroke={color} strokeWidth={1.7} />
+          <Circle cx={15.5} cy={9} r={2.6} stroke={color} strokeWidth={1.7} />
+          <Path d="M4 18a4.5 4.5 0 0 1 9 0" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M11 18a4.5 4.5 0 0 1 9 0" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+    case 'chat':
+      // 말풍선 두 개(대화) — 프로필 '도란도란 대화하며'.
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path d="M3 5.8a1.8 1.8 0 0 1 1.8-1.8h8.4a1.8 1.8 0 0 1 1.8 1.8v4a1.8 1.8 0 0 1-1.8 1.8h-4.5l-3 2.6v-2.6a1.8 1.8 0 0 1-2.7-1.8z" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M17 9.2h2.2a1.8 1.8 0 0 1 1.8 1.8v3.4a1.8 1.8 0 0 1-1.8 1.8h-0.3v2.2l-2.6-2.2h-2.5a1.8 1.8 0 0 1-1.8-1.8" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       );
     default:

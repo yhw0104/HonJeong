@@ -1,4 +1,4 @@
-import { notificationMessage, notificationTarget } from './copy';
+import { notificationMessage, notificationTarget, notificationIcon } from './copy';
 
 describe('notificationMessage', () => {
   it('같이먹기 신청 받음', () =>
@@ -22,5 +22,16 @@ describe('notificationTarget', () => {
   it('메이트 받음/수락 → 메이트', () => {
     expect(notificationTarget('MATE_REQUEST_RECEIVED')).toBe('Mates');
     expect(notificationTarget('MATE_REQUEST_ACCEPTED')).toBe('Mates');
+  });
+});
+
+describe('notificationIcon', () => {
+  it('같이먹기 → 밥 아이콘', () => {
+    expect(notificationIcon('MEAL_REQUEST_RECEIVED')).toBe('rice');
+    expect(notificationIcon('MEAL_MATCH_CANCELLED')).toBe('rice');
+  });
+  it('메이트 → 친구 아이콘', () => {
+    expect(notificationIcon('MATE_REQUEST_RECEIVED')).toBe('friends');
+    expect(notificationIcon('MATE_REQUEST_ACCEPTED')).toBe('friends');
   });
 });

@@ -1,4 +1,5 @@
 // 알림 문구·이동 매핑 — 서버는 type+actorNickname만 주고 문구는 여기서 조립한다(순수 함수, TDD 대상).
+import type { IconName } from '@/shared/components';
 import type { NotificationType } from './api';
 
 const MESSAGE: Record<NotificationType, string> = {
@@ -20,7 +21,7 @@ export function notificationTarget(type: NotificationType): 'ReceivedRequests' |
   return 'Mates';
 }
 
-/** 알림 아이콘(이모지) — 같이먹기 🍚 / 메이트 🤝. */
-export function notificationEmoji(type: NotificationType): string {
-  return type.startsWith('MEAL_') ? '🍚' : '🤝';
+/** 알림 아이콘 — 같이먹기 밥(rice) / 메이트 친구(friends). */
+export function notificationIcon(type: NotificationType): IconName {
+  return type.startsWith('MEAL_') ? 'rice' : 'friends';
 }

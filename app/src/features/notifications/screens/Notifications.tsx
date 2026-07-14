@@ -2,11 +2,11 @@
 // 탭하면 읽음 처리 + 관련 화면 이동. 문구는 copy.ts 순수 함수로 조립.
 import React from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
-import { Screen, MoreHeader } from '@/shared/components';
+import { Screen, MoreHeader, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { formatTimeAgo } from '@/shared/format';
 import { useNotifications, useMarkRead, useMarkAllRead } from '@/features/notifications/queries';
-import { notificationMessage, notificationTarget, notificationEmoji } from '@/features/notifications/copy';
+import { notificationMessage, notificationTarget, notificationIcon } from '@/features/notifications/copy';
 import type { NotificationItem } from '@/features/notifications/api';
 import type { RootStackScreenProps } from '@/navigation/types';
 
@@ -59,7 +59,7 @@ export function NotificationsScreen({ navigation }: RootStackScreenProps<'Notifi
               onPress={() => onPress(n)}
             >
               <View style={styles.iconCircle}>
-                <Text style={{ fontSize: 18 }}>{notificationEmoji(n.type)}</Text>
+                <Icon name={notificationIcon(n.type)} size={20} color={T2.brand} />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[styles.message, !n.isRead && styles.messageUnread]}>

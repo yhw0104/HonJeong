@@ -80,7 +80,7 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
         <View style={{ marginTop: 28 }}>
           <Text style={styles.sectionLabel}>같이 먹을 때</Text>
           <View style={styles.styleCard}>
-            <Text style={{ fontSize: 22 }}>💬</Text>
+            <Icon name="chat" size={22} color={T2.brand} />
             <View>
               <Text style={styles.styleTitle}>{styleLabel.title}</Text>
               <Text style={styles.styleSub}>{styleLabel.sub}</Text>
