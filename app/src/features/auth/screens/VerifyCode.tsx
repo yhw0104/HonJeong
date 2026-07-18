@@ -6,6 +6,7 @@ import { Screen, StepProgress, CTAButton, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { apiPost, ApiError } from '@/shared/api/client';
 import { useAuth } from '@/shared/auth/AuthContext';
+import { verifyGateState } from '@/features/auth/verifyGate';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 const CELLS = 6;
@@ -16,26 +17,38 @@ export function VerifyCodeScreen({ navigation, route }: RootStackScreenProps<'Ve
   const { signIn } = useAuth();
   const [code, setCode] = useState('');
   const [secs, setSecs] = useState(180);
+  const [cooldown, setCooldown] = useState(30); // 진입도 방금 보낸 것이므로 30초 쿨다운으로 시작
+  const [resending, setResending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    const t = setInterval(() => setSecs((s) => (s > 0 ? s - 1 : 0)), 1000);
+    const t = setInterval(() => {
+      setSecs((s) => (s > 0 ? s - 1 : 0));
+      setCooldown((c) => (c > 0 ? c - 1 : 0));
+    }, 1000);
     return () => clearInterval(t);
   }, []);
 
   const onChange = (t: string) => setCode(t.replace(/\D/g, '').slice(0, CELLS));
   // 재전송 — 실제로 인증번호를 다시 요청한다(phone_verifications에 새 행 생성). 성공 시 코드 초기화+타이머 리셋.
   const resend = async () => {
+    if (resending || cooldown > 0) return; // 연타·쿨다운 중 중복 발송 차단
+    setResending(true);
     try {
       await apiPost('/auth/phone/send-code', { phone });
       setCode('');
       setSecs(180);
+      setCooldown(30);
       inputRef.current?.focus();
     } catch (e) {
       Alert.alert('재전송 실패', e instanceof ApiError ? e.message : '잠시 후 다시 시도해주세요.');
+    } finally {
+      setResending(false);
     }
   };
+
+  const gate = verifyGateState({ secs, resending, cooldown, codeLen: code.length, cells: CELLS, verifying });
 
   // 인증번호 확인. 신규=온보딩토큰 받아 약관 제출→ProfileSetup / 기존=토큰 받아 바로 로그인.
   const onVerify = async () => {
@@ -107,6 +120,7 @@ export function VerifyCodeScreen({ navigation, route }: RootStackScreenProps<'Ve
             keyboardType="number-pad"
             maxLength={CELLS}
             autoFocus
+            editable={!gate.expired}
             style={styles.hiddenInput}
             caretHidden
           />
@@ -116,8 +130,8 @@ export function VerifyCodeScreen({ navigation, route }: RootStackScreenProps<'Ve
         <View style={styles.timerRow}>
           <Text style={styles.timer}>{`${pad(Math.floor(secs / 60))}:${pad(secs % 60)}`}</Text>
           <Text style={styles.timerHint}>안에 입력해주세요</Text>
-          <Pressable onPress={resend} style={{ marginLeft: 'auto' }}>
-            <Text style={styles.resend}>재전송</Text>
+          <Pressable onPress={resend} disabled={!gate.canResend} style={{ marginLeft: 'auto' }}>
+            <Text style={[styles.resend, !gate.canResend && { color: T2.textMute }]}>{gate.resendLabel}</Text>
           </Pressable>
         </View>
 
@@ -126,13 +140,16 @@ export function VerifyCodeScreen({ navigation, route }: RootStackScreenProps<'Ve
           <Icon name="info" size={17} color={T2.textMute} />
           <Text style={styles.noticeText}>문자가 오지 않나요? 스팸함을 확인하거나 재전송해보세요.</Text>
         </View>
+        {gate.expired ? (
+          <Text style={styles.expired}>인증 시간이 지났어요. 재전송해 주세요.</Text>
+        ) : null}
       </View>
 
       {/* CTA */}
       <View style={styles.ctaWrap}>
         <CTAButton
           label="인증 완료"
-          disabled={code.length < CELLS || verifying}
+          disabled={!gate.canVerify}
           onPress={onVerify}
         />
       </View>
@@ -180,6 +197,7 @@ const styles = StyleSheet.create({
     borderColor: T2.border,
   },
   noticeText: { flex: 1, fontSize: 12, color: T2.textSub, letterSpacing: -0.2, lineHeight: 17 },
+  expired: { marginTop: 14, fontSize: 13, fontWeight: '700', color: T2.brand, letterSpacing: -0.2 },
 
   ctaWrap: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24 },
 });
