@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { AppState } from 'react-native';
 import * as Location from 'expo-location';
 import { useMyProfile } from '@/features/users/queries';
 import { pickLocation, type Coord, type LocationSource } from './pickLocation';
+import { shouldReRequestLocation } from './reRequest';
 
 type Permission = 'granted' | 'denied' | 'undetermined';
 
@@ -77,5 +79,14 @@ export function useLocation(options?: { watch?: boolean }): {
       }),
     [gps, regionLat, regionLng],
   );
+
+  // 포그라운드 복귀 시, 아직 GPS를 못 받았으면 다시 시도(설정에서 권한 켜고 돌아온 경우 자동 반영).
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (shouldReRequestLocation(source, next)) load();
+    });
+    return () => sub.remove();
+  }, [source]);
+
   return { coord, source, permission, requestAgain: load };
 }
