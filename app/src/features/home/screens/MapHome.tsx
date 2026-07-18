@@ -3,13 +3,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Animated, PanResponder, Dimensions, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { HonjeongMap, Icon, HonbabStatusBar } from '@/shared/components';
+import { HonjeongMap, Icon, HonbabStatusBar, StateView } from '@/shared/components';
 import type { HonjeongMapHandle } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { BellButton } from '@/features/notifications/BellButton';
 import { useLocation } from '@/shared/location/useLocation';
 import { useNearby } from '@/features/place/queries';
 import type { Coord } from '@/shared/location/pickLocation';
+import { listState } from '@/shared/state/listState';
 import { useMyCheckIn, useStats, useStartCheckIn, useDineAlone, useCancelCheckIn } from '@/features/checkin/queries';
 import { EndHonbabSheet } from '@/features/checkin/components/EndHonbabSheet';
 import type { CheckIn } from '@/features/checkin/api';
@@ -89,6 +90,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     }
     return arr;
   }, [nearbyList, sortKey]);
+  const nearbySt = listState({ isLoading: nearby.isLoading, isError: nearby.isError, count: nearbyList.length });
   // 체크인 응답이 식당 이름을 직접 담아준다 — 지도를 옮겨 주변 목록이 바뀌어도 상태바 이름이 '내 식당'으로 떨어지지 않게.
   const myPlaceName = myCheckIn.data?.placeName ?? '내 식당';
 
@@ -289,7 +291,21 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         </View>
 
         <ScrollView style={styles.sheetList} showsVerticalScrollIndicator={false}>
-          {sortedList.map((r, i) => (
+          {nearbySt !== 'ready' ? (
+            <StateView
+              kind={nearbySt === 'error' ? 'error' : nearbySt === 'empty' ? 'empty' : 'loading'}
+              compact
+              message={
+                nearbySt === 'empty'
+                  ? '주변에 등록된 가게가 없어요'
+                  : nearbySt === 'error'
+                    ? '주변 정보를 불러오지 못했어요'
+                    : undefined
+              }
+              onRetry={nearbySt === 'error' ? () => nearby.refetch() : undefined}
+            />
+          ) : (
+            sortedList.map((r, i) => (
             <Pressable
               key={r.placeId}
               style={[styles.listRow, i === 0 && styles.listRowFirst]}
@@ -340,7 +356,8 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                 )}
               </View>
             </Pressable>
-          ))}
+            ))
+          )}
         </ScrollView>
       </Animated.View>
 
@@ -355,7 +372,21 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
               <Text style={styles.pickSub}>선택한 식당에 ‘모집 중’으로 표시돼요</Text>
             </View>
             <ScrollView style={styles.pickList} showsVerticalScrollIndicator={false}>
-              {nearbyList.map((p, i) => (
+              {nearbySt !== 'ready' ? (
+                <StateView
+                  kind={nearbySt === 'error' ? 'error' : nearbySt === 'empty' ? 'empty' : 'loading'}
+                  compact
+                  message={
+                    nearbySt === 'empty'
+                      ? '주변에 가게가 없어요 · 직접 검색해 보세요'
+                      : nearbySt === 'error'
+                        ? '주변 정보를 불러오지 못했어요'
+                        : undefined
+                  }
+                  onRetry={nearbySt === 'error' ? () => nearby.refetch() : undefined}
+                />
+              ) : (
+                nearbyList.map((p, i) => (
                 <Pressable
                   key={p.placeId}
                   style={[styles.pickRow, i === 0 && styles.pickRowFirst]}
@@ -370,7 +401,8 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                   </View>
                   <Icon name="chevronRight" size={18} color={T2.textMute} />
                 </Pressable>
-              ))}
+                ))
+              )}
             </ScrollView>
             <Pressable
               style={styles.pickSearch}
