@@ -28,9 +28,14 @@ export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
   if (!checkIn) return null;
 
   const together = checkIn.status === 'TOGETHER';
-  const complete = () => { end.mutate(checkIn.checkInId); onClose(); };
-  const discard = () => { cancel.mutate(checkIn.checkInId); onClose(); };
-  const leaveTo = (to: LeaveMatchTo) => { leave.mutate({ checkInId: checkIn.checkInId, to }); onClose(); };
+  // 진행 중엔 재실행 차단(실패 시 시트 유지 + 알림). 성공해야 닫는다.
+  const busy = end.isPending || cancel.isPending || leave.isPending;
+  const complete = () => { if (busy) return; end.mutate(checkIn.checkInId, { onSuccess: onClose }); };
+  const discard = () => { if (busy) return; cancel.mutate(checkIn.checkInId, { onSuccess: onClose }); };
+  const leaveTo = (to: LeaveMatchTo) => {
+    if (busy) return;
+    leave.mutate({ checkInId: checkIn.checkInId, to }, { onSuccess: onClose });
+  };
   const report = () => {
     if (checkIn.partnerUserId == null) return;
     onReportNoShow(checkIn.partnerUserId, checkIn.partnerNickname ?? '상대');
@@ -51,13 +56,13 @@ export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
           <>
             <Text style={styles.title}>상대가 안 나왔어요</Text>
             <Text style={styles.sub}>이제 어떻게 할까요?</Text>
-            <Pressable style={[styles.choice, styles.choicePrimary]} onPress={() => leaveTo('ACTIVE')} accessibilityRole="button">
+            <Pressable style={[styles.choice, styles.choicePrimary]} onPress={() => leaveTo('ACTIVE')} disabled={busy} accessibilityRole="button">
               <Text style={[styles.choiceText, { color: T2.brand }]}>그래도 혼밥할게요</Text>
             </Pressable>
-            <Pressable style={styles.choice} onPress={() => leaveTo('SEEKING')} accessibilityRole="button">
+            <Pressable style={styles.choice} onPress={() => leaveTo('SEEKING')} disabled={busy} accessibilityRole="button">
               <Text style={styles.choiceText}>다른 사람 기다릴래요</Text>
             </Pressable>
-            <Pressable style={styles.choice} onPress={() => leaveTo('CANCELLED')} accessibilityRole="button">
+            <Pressable style={styles.choice} onPress={() => leaveTo('CANCELLED')} disabled={busy} accessibilityRole="button">
               <Text style={styles.choiceText}>안 먹고 갈게요</Text>
             </Pressable>
             {checkIn.partnerUserId != null && (
@@ -71,7 +76,7 @@ export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
           <>
             <Text style={styles.title}>못 가게 되셨나요?</Text>
             <Text style={styles.sub}>약속을 취소하면 상대는 다시 모집 상태로 돌아가요.</Text>
-            <Pressable style={[styles.choice, styles.choicePrimary]} onPress={() => leaveTo('CANCELLED')} accessibilityRole="button">
+            <Pressable style={[styles.choice, styles.choicePrimary]} onPress={() => leaveTo('CANCELLED')} disabled={busy} accessibilityRole="button">
               <Text style={[styles.choiceText, { color: T2.brand }]}>약속 취소하기</Text>
             </Pressable>
             <Pressable style={styles.discard} onPress={() => setCantGo(false)} hitSlop={6} accessibilityRole="button">
@@ -94,7 +99,7 @@ export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
                 </Pressable>
               </View>
             ) : (
-              <Pressable style={styles.discard} onPress={discard} hitSlop={6} accessibilityRole="button">
+              <Pressable style={styles.discard} onPress={discard} disabled={busy} hitSlop={6} accessibilityRole="button">
                 <Text style={styles.discardText}>안 먹었어요(기록 안 함)</Text>
               </Pressable>
             )}

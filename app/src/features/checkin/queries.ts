@@ -55,6 +55,7 @@ export function useEndCheckIn() {
   return useMutation({
     mutationFn: (checkInId: number) => endCheckIn(checkInId),
     onSuccess: () => invalidateLoop(qc),
+    onError: () => Alert.alert('앗', '종료하지 못했어요. 잠시 후 다시 시도해 주세요.'),
   });
 }
 
@@ -63,6 +64,7 @@ export function useCancelCheckIn() {
   return useMutation({
     mutationFn: (checkInId: number) => cancelCheckIn(checkInId),
     onSuccess: () => invalidateLoop(qc),
+    onError: () => Alert.alert('앗', '취소하지 못했어요. 잠시 후 다시 시도해 주세요.'),
   });
 }
 
@@ -71,6 +73,7 @@ export function useDineAlone() {
   return useMutation({
     mutationFn: (checkInId: number) => dineAlone(checkInId),
     onSuccess: () => invalidateLoop(qc),
+    onError: () => Alert.alert('앗', '종료하지 못했어요. 잠시 후 다시 시도해 주세요.'),
   });
 }
 
@@ -80,5 +83,6 @@ export function useLeaveMatch() {
   return useMutation({
     mutationFn: ({ checkInId, to }: { checkInId: number; to: LeaveMatchTo }) => leaveMatch(checkInId, to),
     onSuccess: () => invalidateLoop(qc),
+    onError: () => Alert.alert('앗', '처리하지 못했어요. 잠시 후 다시 시도해 주세요.'),
   });
 }

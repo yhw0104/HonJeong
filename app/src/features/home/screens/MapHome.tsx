@@ -98,6 +98,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     navigation.navigate('RestaurantDetail', { placeId, name });
 
   const startHonbab = (placeId: number) => {
+    if (startMut.isPending) return; // 연타로 두 번 시작되는 것 차단
     setPicking(false);
     startMut.mutate(placeId);
   };
