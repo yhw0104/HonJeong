@@ -15,3 +15,5 @@ export { Icon } from './Icon';
 export type { IconName } from './Icon';
 export { HonbabStatusBar, HONBAB_BAR_H } from './HonbabStatusBar';
 export { SlideToConfirm } from './SlideToConfirm';
+export { StateView } from './StateView';
+export type { StateKind } from './StateView';
