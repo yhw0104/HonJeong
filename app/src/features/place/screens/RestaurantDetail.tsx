@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Alert, Image, Share, Linking, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
-import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H } from '@/shared/components';
+import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H, StateView } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { usePlaceDetail, useNearby } from '@/features/place/queries';
 import { formatDistance, walkingMinutes } from '@/shared/location/distance';
@@ -16,6 +16,7 @@ import { checkInMode } from '@/features/checkin/statusView';
 import type { Seeker, CheckIn } from '@/features/checkin/api';
 import { formatElapsed, addressHead } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
+import { listState, type ListState } from '@/shared/state/listState';
 import { usePlaceReviews, usePlaceReviewSummary, useDeleteReview, usePlacePhotos } from '@/features/review/queries';
 import type { PlaceReview, PlaceReviewSummary } from '@/features/review/api';
 import { FavoriteSheet } from '@/features/favorites/components/FavoriteSheet';
@@ -92,6 +93,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const addrRest = fullAddr.trim() === addrHead ? '' : fullAddr.trim().slice(addrHead.length).trimStart(); // 나머지(펼침)
   // ACTIVE 또는 TOGETHER — 종료/취소되면 useMyCheckIn이 null을 반환
   const honbabOn = !!myCheckIn.data && myCheckIn.data.placeId === placeId;
+  const seekersSt = listState({ isLoading: seekers.isLoading, isError: seekers.isError, count: (seekers.data ?? []).length });
   const reviews = usePlaceReviews(placeId);
   const summary = usePlaceReviewSummary(placeId);
 
@@ -192,6 +194,12 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
           </View>
           {addrExpanded && addrRest ? <Text style={styles.addrRest}>{addrRest}</Text> : null}
 
+          {detail.isError && !detail.data ? (
+            <Pressable style={styles.detailErrBanner} onPress={() => detail.refetch()} accessibilityRole="button">
+              <Text style={styles.detailErrText}>식당 정보를 불러오지 못했어요 · 다시 시도</Text>
+            </Pressable>
+          ) : null}
+
           {/* 평점 */}
           <View style={styles.ratingRow}>
             <View>
@@ -220,7 +228,16 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
             })}
           </View>
 
-          {stab === 'home' && <HomeTab seekers={seekers.data ?? []} onMeal={goMealRequest} onDinerPress={goDinerProfile} summary={summary.data} />}
+          {stab === 'home' && (
+            <HomeTab
+              seekers={seekers.data ?? []}
+              seekersState={seekersSt}
+              onRetrySeekers={() => seekers.refetch()}
+              onMeal={goMealRequest}
+              onDinerPress={goDinerProfile}
+              summary={summary.data}
+            />
+          )}
           {stab === 'menu' && <MenuTab />}
           {stab === 'review' && (
             <ReviewTab
@@ -324,7 +341,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
 }
 
 /* ── 홈 탭 ───────────────────────────────────────── */
-function HomeTab({ seekers, onMeal, onDinerPress, summary }: { seekers: Seeker[]; onMeal: () => void; onDinerPress: (userId: number) => void; summary: PlaceReviewSummary | undefined }) {
+function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, summary }: { seekers: Seeker[]; seekersState: ListState; onRetrySeekers: () => void; onMeal: () => void; onDinerPress: (userId: number) => void; summary: PlaceReviewSummary | undefined }) {
   return (
     <View>
       {/* 혼밥 친화도 카드 */}
@@ -391,9 +408,7 @@ function HomeTab({ seekers, onMeal, onDinerPress, summary }: { seekers: Seeker[]
             <Text style={styles.mealCardBtnText}>같이 먹기</Text>
           </Pressable>
         </View>
-        {seekers.length === 0 ? (
-          <Text style={[styles.mealText, { marginTop: 12 }]}>아직 같이 먹을 사람을 구하는 이가 없어요.</Text>
-        ) : (
+        {seekersState === 'ready' ? (
           <View style={{ marginTop: 12, gap: 10 }}>
             {seekers.map((d) => (
               <Pressable
@@ -408,6 +423,12 @@ function HomeTab({ seekers, onMeal, onDinerPress, summary }: { seekers: Seeker[]
               </Pressable>
             ))}
           </View>
+        ) : seekersState === 'loading' ? (
+          <StateView kind="loading" compact />
+        ) : seekersState === 'error' ? (
+          <StateView kind="error" compact message="혼밥러 목록을 불러오지 못했어요" onRetry={onRetrySeekers} />
+        ) : (
+          <Text style={[styles.mealText, { marginTop: 12 }]}>아직 같이 먹을 사람을 구하는 이가 없어요.</Text>
         )}
       </View>
 
@@ -835,6 +856,9 @@ const styles = StyleSheet.create({
   cardHr: { height: 1, backgroundColor: T2.border, marginTop: 18, marginBottom: 16 },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   friendlyChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
+
+  detailErrBanner: { marginTop: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, backgroundColor: T2.brandSoft },
+  detailErrText: { fontSize: 13, fontWeight: '700', color: T2.brand, letterSpacing: -0.2, textAlign: 'center' },
 
   mealCard: { marginTop: 28, padding: 18, borderRadius: 16, backgroundColor: T2.brandSoft, borderWidth: 1, borderColor: 'rgba(255,90,31,0.15)' },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: T2.brand },
