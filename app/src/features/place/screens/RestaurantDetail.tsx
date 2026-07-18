@@ -89,6 +89,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const cancelMut = useCancelCheckIn();
   const name = detail.data?.name ?? route.params.name ?? '식당';
   const fullAddr = detail.data?.roadAddress ?? detail.data?.address ?? '주소 정보 없음';
+  const detailFailed = detail.isError && !detail.data; // 상세 로딩 실패 → 주소 위장 대신 에러로 대체
   const addrHead = addressHead(fullAddr); // 시·도~구·군까지(기본 표시)
   const addrRest = fullAddr.trim() === addrHead ? '' : fullAddr.trim().slice(addrHead.length).trimStart(); // 나머지(펼침)
   // ACTIVE 또는 TOGETHER — 종료/취소되면 useMyCheckIn이 null을 반환
@@ -173,32 +174,35 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
 
           <Text style={styles.title}>{name}</Text>
 
-          {/* 주소 + 복사 — 기본은 시·도~구·군, 화살표 누르면 나머지(도로명·번지)를 아래에 펼침 */}
-          <View style={styles.addrRow}>
-            <Icon name="pin" size={15} color={T2.textMute} />
-            <Pressable
-              style={styles.addrTap}
-              onPress={() => setAddrExpanded((v) => !v)}
-              hitSlop={4}
-              disabled={!addrRest}
-            >
-              <Text style={styles.addr} numberOfLines={1}>{addrHead}</Text>
-              {addrRest ? (
-                <Icon name={addrExpanded ? 'chevronUp' : 'chevronDown'} size={14} color={T2.textMute} />
-              ) : null}
-            </Pressable>
-            <Pressable style={styles.copyBtn} onPress={copy}>
-              <Icon name="copy" size={13} color={copied ? T2.brand : T2.textSub} />
-              <Text style={[styles.copyText, { color: copied ? T2.brand : T2.textSub }]}>{copied ? '복사됨' : '복사'}</Text>
-            </Pressable>
-          </View>
-          {addrExpanded && addrRest ? <Text style={styles.addrRest}>{addrRest}</Text> : null}
-
-          {detail.isError && !detail.data ? (
+          {detailFailed ? (
+            // 상세 로딩 실패: 주소 자리에 '주소 정보 없음' 위장 대신 에러+재시도로 대체
             <Pressable style={styles.detailErrBanner} onPress={() => detail.refetch()} accessibilityRole="button">
               <Text style={styles.detailErrText}>식당 정보를 불러오지 못했어요 · 다시 시도</Text>
             </Pressable>
-          ) : null}
+          ) : (
+            <>
+              {/* 주소 + 복사 — 기본은 시·도~구·군, 화살표 누르면 나머지(도로명·번지)를 아래에 펼침 */}
+              <View style={styles.addrRow}>
+                <Icon name="pin" size={15} color={T2.textMute} />
+                <Pressable
+                  style={styles.addrTap}
+                  onPress={() => setAddrExpanded((v) => !v)}
+                  hitSlop={4}
+                  disabled={!addrRest}
+                >
+                  <Text style={styles.addr} numberOfLines={1}>{addrHead}</Text>
+                  {addrRest ? (
+                    <Icon name={addrExpanded ? 'chevronUp' : 'chevronDown'} size={14} color={T2.textMute} />
+                  ) : null}
+                </Pressable>
+                <Pressable style={styles.copyBtn} onPress={copy}>
+                  <Icon name="copy" size={13} color={copied ? T2.brand : T2.textSub} />
+                  <Text style={[styles.copyText, { color: copied ? T2.brand : T2.textSub }]}>{copied ? '복사됨' : '복사'}</Text>
+                </Pressable>
+              </View>
+              {addrExpanded && addrRest ? <Text style={styles.addrRest}>{addrRest}</Text> : null}
+            </>
+          )}
 
           {/* 평점 */}
           <View style={styles.ratingRow}>
