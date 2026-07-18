@@ -2,7 +2,7 @@
 // 더보기 프로필 카드에서 진입. 편집→ProfileEdit, 최근 뱃지 전체보기→ChallengeBadges.
 import React from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { Screen, Avatar, Icon } from '@/shared/components';
+import { Screen, Avatar, Icon, StateView } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useMyProfile, useActivitySummary } from '@/features/users/queries';
 import { diningStyleLabel, ageGenderLabel } from '@/shared/format';
@@ -11,7 +11,7 @@ import type { RootStackScreenProps } from '@/navigation/types';
 const RECENT_BADGES = ['🌱', '🍚', '🔥', '🤝'];
 
 export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'>) {
-  const { data: profile } = useMyProfile();
+  const { data: profile, isLoading, isError, refetch } = useMyProfile();
   const { data: summary } = useActivitySummary();
   const num = (n?: number) => (n === undefined ? '–' : String(n));
   const stats = [
@@ -41,7 +41,12 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      {isLoading ? (
+        <StateView kind="loading" />
+      ) : isError ? (
+        <StateView kind="error" onRetry={() => refetch()} />
+      ) : (
+        <ScrollView contentContainerStyle={styles.scroll}>
         {/* 프로필 헤더 */}
         <View style={styles.profile}>
           <Avatar uri={profile?.profileImageUrl} bg={T2.bg} size={84} />
@@ -104,7 +109,8 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
             ))}
           </View>
         </View>
-      </ScrollView>
+        </ScrollView>
+      )}
     </Screen>
   );
 }

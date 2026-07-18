@@ -2,7 +2,7 @@
 // MyProfile '편집'에서 모달로 진입. 닉네임/소개/동네/음식/성향 편집.
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
-import { Screen, FieldLabel, Avatar, Icon } from '@/shared/components';
+import { Screen, FieldLabel, Avatar, Icon, StateView } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useMyProfile, useUpdateMyProfile } from '@/features/users/queries';
 import { pickImages, uploadImages } from '@/shared/upload/imageUpload';
@@ -17,7 +17,7 @@ const STYLES_OPT = [
 ];
 
 export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileEdit'>) {
-  const { data: profile } = useMyProfile();
+  const { data: profile, isLoading, isError, refetch } = useMyProfile();
   const update = useUpdateMyProfile();
 
   const [nickname, setNickname] = useState('');
@@ -121,7 +121,12 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      {isLoading ? (
+        <StateView kind="loading" />
+      ) : isError ? (
+        <StateView kind="error" onRetry={() => refetch()} />
+      ) : (
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {/* 사진 변경 / 기본 이미지로 */}
         <View style={styles.photoBlock}>
           <Pressable onPress={onChangePhoto} disabled={uploading}>
@@ -223,7 +228,8 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
             );
           })}
         </View>
-      </ScrollView>
+        </ScrollView>
+      )}
     </Screen>
   );
 }
