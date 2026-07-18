@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, FlatList, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Icon } from '@/shared/components';
+import { Icon, StateView } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { usePlaceSearch, useNearby } from '@/features/place/queries';
 import { useRecentSearches } from '@/features/place/recentSearches';
@@ -16,7 +16,7 @@ import type { RootStackScreenProps } from '@/navigation/types';
 export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSearch'>) {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
-  const { data, isFetching, isError } = usePlaceSearch(query);
+  const { data, isFetching, isError, refetch } = usePlaceSearch(query);
   const { recent, add, remove, clear } = useRecentSearches();
   const { coord, source } = useLocation();
   // 주변 혼밥은 실제 GPS가 있을 때만(내 동네·기본좌표면 '주변'이 아니라 숨김). 폴링 없음.
@@ -123,9 +123,7 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
           </ScrollView>
         )
       ) : isError ? (
-        <View style={styles.center}>
-          <Text style={styles.msg}>검색에 실패했어요.{'\n'}잠시 후 다시 시도해주세요.</Text>
-        </View>
+        <StateView kind="error" message="검색에 실패했어요." onRetry={() => refetch()} />
       ) : (
         <FlatList
           data={results}
@@ -133,7 +131,11 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
-            !isFetching ? <Text style={styles.msg}>‘{q}’ 검색 결과가 없어요.</Text> : null
+            isFetching ? (
+              <StateView kind="loading" compact />
+            ) : (
+              <StateView kind="empty" compact message={`‘${q}’ 검색 결과가 없어요.`} />
+            )
           }
           renderItem={({ item }) => (
             <Pressable
