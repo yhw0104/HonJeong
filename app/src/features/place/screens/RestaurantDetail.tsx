@@ -10,7 +10,7 @@ import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H, StateVie
 import { T2 } from '@/shared/theme';
 import { usePlaceDetail, useNearby, usePlaceCheckinSummary } from '@/features/place/queries';
 import { soloFriendlyLabel } from '@/features/place/soloFriendlyLabel';
-import { barHeights, PERIOD_LABEL } from '@/features/place/checkinSummary';
+import { barHeights, PERIOD_LABEL, PERIOD_RANGE } from '@/features/place/checkinSummary';
 import type { PlaceCheckinSummary } from '@/features/place/api';
 import { formatDistance, walkingMinutes } from '@/shared/location/distance';
 import { useSeekers, useMyCheckIn, useStartCheckIn, useDineAlone, useCancelCheckIn } from '@/features/checkin/queries';
@@ -500,8 +500,9 @@ function SocialProofStats({ stats }: { stats: PlaceCheckinSummary }) {
   const heights = barHeights(stats.periods); // 각 시간대 카운트를 최댓값 기준 0~1로 정규화
   return (
     <>
-      <Text style={styles.socialNumberBig}>{stats.totalDiners}</Text>
-      <Text style={styles.socialCaption}>여기서 지금까지 {stats.totalDiners}명이 혼밥했어요</Text>
+      <Text style={styles.socialCaption}>
+        여기서 지금까지 <Text style={styles.socialCaptionNum}>{stats.totalDiners}명</Text>이 혼밥했어요
+      </Text>
 
       {stats.peakPeriodKey != null ? (
         <>
@@ -515,10 +516,12 @@ function SocialProofStats({ stats }: { stats: PlaceCheckinSummary }) {
               const h = Math.max(heights[i] * SOCIAL_BAR_MAX, p.count > 0 ? 6 : 3);
               return (
                 <View key={p.key} style={styles.barCol}>
+                  <Text style={[styles.barCount, isPeak && styles.barCountPeak]}>{p.count}</Text>
                   <View style={styles.barColTrack}>
                     <View style={[styles.periodBar, { height: h, backgroundColor: isPeak ? T2.brand : T2.border }]} />
                   </View>
                   <Text style={[styles.periodLabel, isPeak && styles.periodLabelPeak]}>{PERIOD_LABEL[p.key]}</Text>
+                  <Text style={styles.periodRange}>({PERIOD_RANGE[p.key]})</Text>
                 </View>
               );
             })}
@@ -917,16 +920,19 @@ const styles = StyleSheet.create({
   socialCard: { marginTop: 20, padding: 20, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border },
   socialEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   socialEmptyText: { marginTop: 12, fontSize: 15, fontWeight: '600', color: T2.text, letterSpacing: -0.3, lineHeight: 21 },
-  socialNumberBig: { marginTop: 8, fontSize: 38, fontWeight: '800', color: T2.text, letterSpacing: -1.8 },
-  socialCaption: { marginTop: 4, fontSize: 13.5, color: T2.textSub, letterSpacing: -0.2 },
+  socialCaption: { marginTop: 10, fontSize: 15, color: T2.text, letterSpacing: -0.3 },
+  socialCaptionNum: { color: T2.brand, fontWeight: '800' },
   socialPeakLine: { marginTop: 14, fontSize: 13, color: T2.textSub, letterSpacing: -0.2 },
   socialPeakName: { color: T2.text, fontWeight: '800' },
   barsRow: { flexDirection: 'row', marginTop: 12 },
   barCol: { flex: 1, alignItems: 'center' },
+  barCount: { marginBottom: 4, fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: -0.2 },
+  barCountPeak: { color: T2.brand },
   barColTrack: { height: SOCIAL_BAR_MAX, justifyContent: 'flex-end' },
   periodBar: { width: 26, borderTopLeftRadius: 4, borderTopRightRadius: 4 },
   periodLabel: { marginTop: 8, fontSize: 11, fontWeight: '600', color: T2.textMute, letterSpacing: -0.2 },
   periodLabelPeak: { color: T2.text, fontWeight: '800' },
+  periodRange: { marginTop: 2, fontSize: 9, color: T2.textMute, letterSpacing: -0.2 },
 
   detailErrBanner: { marginTop: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, backgroundColor: T2.brandSoft },
   detailErrText: { fontSize: 13, fontWeight: '700', color: T2.brand, letterSpacing: -0.2, textAlign: 'center' },
