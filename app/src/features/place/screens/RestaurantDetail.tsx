@@ -436,7 +436,17 @@ function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, 
             <View style={[styles.infoRow, styles.infoDivider]}>
               <Text style={styles.infoKey}>전화</Text>
               <Text style={styles.infoVal}>{phone}</Text>
-              <Pressable style={styles.telBtn} onPress={() => Linking.openURL(`tel:${phone}`)} accessibilityRole="button">
+              <Pressable
+                style={styles.telBtn}
+                accessibilityRole="button"
+                onPress={() =>
+                  // 전화 앱이 없는 기기·시뮬레이터에선 openURL이 실패 → 조용히 죽지 않게 번호 복사로 폴백.
+                  Linking.openURL(`tel:${phone}`).catch(async () => {
+                    await Clipboard.setStringAsync(phone);
+                    Alert.alert('전화번호를 복사했어요', phone);
+                  })
+                }
+              >
                 <Icon name="phoneCall" size={13} color={T2.text} />
                 <Text style={styles.telText}>전화</Text>
               </Pressable>
