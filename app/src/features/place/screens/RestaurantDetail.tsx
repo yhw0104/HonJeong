@@ -344,29 +344,22 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
 function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, summary, phone, onKakao, summaryStats, summaryLoading, summaryError }: { seekers: Seeker[]; seekersState: ListState; onRetrySeekers: () => void; onMeal: () => void; onDinerPress: (userId: number) => void; summary: PlaceReviewSummary | undefined; phone: string | null; onKakao: () => void; summaryStats: PlaceCheckinSummary | null; summaryLoading: boolean; summaryError: boolean }) {
   return (
     <View>
-      {/* 혼밥 친화도 카드 */}
-      <View style={styles.card}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 12 }}>
-          <View>
-            <Text style={styles.sectionTitle}>혼밥 친화도</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 7 }}>
-              <Text style={styles.scoreBig}>{summary?.avgSoloFriendlyRating?.toFixed(1) ?? '-'}</Text>
-              <Text style={styles.scoreOutOf}>/ 5</Text>
-            </View>
-          </View>
-          <View style={{ flex: 1 }} />
-          <View style={{ alignItems: 'flex-end' }}>
-            <View style={styles.scorePill}>
-              <Text style={styles.scorePillText}>{soloFriendlyLabel(summary?.avgSoloFriendlyRating ?? null, summary?.reviewCount ?? 0)}</Text>
-            </View>
-            {(summary?.reviewCount ?? 0) > 0 ? (
-              <Text style={styles.scoreNote}>혼밥러 {summary?.reviewCount}명 평가</Text>
-            ) : null}
-          </View>
+      {/* 혼밥 친화도 — 인라인(박스 없음): 점수 숫자 + 라벨 + 5칸 바 + 친화 칩. */}
+      <View style={styles.friendlyInline}>
+        <View style={styles.friendlyHeadRow}>
+          <Text style={styles.friendlyTitle}>혼밥 친화도</Text>
+          {(summary?.reviewCount ?? 0) > 0 ? (
+            <Text style={styles.friendlyCount}>혼밥러 {summary?.reviewCount}명 평가</Text>
+          ) : null}
+        </View>
+        <View style={styles.friendlyScoreRow}>
+          <Text style={styles.friendlyScore}>{summary?.avgSoloFriendlyRating?.toFixed(1) ?? '-'}</Text>
+          <Text style={styles.friendlyDot}>·</Text>
+          <Text style={styles.friendlyLabel}>{soloFriendlyLabel(summary?.avgSoloFriendlyRating ?? null, summary?.reviewCount ?? 0)}</Text>
         </View>
 
-        {/* 점수 바 */}
-        <View style={{ flexDirection: 'row', gap: 5, marginTop: 16 }}>
+        {/* 점수 5칸 바 */}
+        <View style={styles.friendlyBars}>
           {[0, 1, 2, 3, 4].map((i) => {
             const fill = Math.max(0, Math.min(1, (summary?.avgSoloFriendlyRating ?? 0) - i));
             return (
@@ -377,11 +370,9 @@ function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, 
           })}
         </View>
 
-        <View style={styles.cardHr} />
-
         {/* 친화 요소 칩 */}
         {(summary?.topTags ?? []).length > 0 ? (
-          <View style={styles.chipWrap}>
+          <View style={[styles.chipWrap, { marginTop: 14 }]}>
             {(summary?.topTags ?? []).map((t) => (
               <View
                 key={t.tag}
@@ -914,10 +905,19 @@ const styles = StyleSheet.create({
   barFill: { height: '100%', backgroundColor: T2.brand, borderRadius: 3 },
   cardHr: { height: 1, backgroundColor: T2.border, marginTop: 18, marginBottom: 16 },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  friendlyInline: { marginTop: 20 },
+  friendlyHeadRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  friendlyTitle: { fontSize: 16, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
+  friendlyScoreRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginTop: 8 },
+  friendlyScore: { fontSize: 20, fontWeight: '800', color: T2.text, letterSpacing: -0.5 },
+  friendlyDot: { fontSize: 14, color: T2.textMute },
+  friendlyLabel: { fontSize: 15, fontWeight: '800', color: T2.brand, letterSpacing: -0.3 },
+  friendlyBars: { flexDirection: 'row', gap: 5, marginTop: 12 },
+  friendlyCount: { fontSize: 12, color: T2.textMute, letterSpacing: -0.2 },
   friendlyChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
 
   // 사회적 증거 카드 (홈 탭 최상단 — 누적 혼밥러 + 붐비는 시간대)
-  socialCard: { marginTop: 20, padding: 20, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border },
+  socialCard: { marginTop: 24, paddingTop: 22, borderTopWidth: 1, borderTopColor: T2.border }, // 박스 아닌 구분선 인라인 섹션
   socialEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   socialEmptyText: { marginTop: 12, fontSize: 15, fontWeight: '600', color: T2.text, letterSpacing: -0.3, lineHeight: 21 },
   socialCaption: { marginTop: 10, fontSize: 15, color: T2.text, letterSpacing: -0.3 },
