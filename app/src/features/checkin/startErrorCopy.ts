@@ -6,5 +6,5 @@ export function startErrorCopy(e: unknown): { title: string; message: string } {
   if (e instanceof ApiError && e.code === 'CHECKIN_ALREADY_ACTIVE') {
     return { title: '잠깐요', message: '이미 다른 곳에서 모집/혼밥 중이에요. 먼저 끝내고 다시 시도해 주세요.' };
   }
-  return { title: '앗', message: '지금 시작하지 못했어요. 잠시 후 다시 시도해 주세요.' };
+  return { title: '잠깐만요', message: '연결이 불안정해요. 잠시 후 다시 해 주세요.' };
 }
