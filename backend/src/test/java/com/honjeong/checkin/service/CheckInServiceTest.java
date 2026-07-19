@@ -560,6 +560,38 @@ class CheckInServiceTest {
     }
 
     @Test
+    @DisplayName("getCheckinSummary: 누적 혼밥러 + summarize 결과 조립")
+    void 체크인_요약_조립() {
+        Place p = place(9L);
+        when(placeService.getById(9L)).thenReturn(p);
+        when(checkInRepository.countDistinctDinersByPlace(9L)).thenReturn(7L);
+        when(checkInRepository.findDinerStartedAtByPlace(9L)).thenReturn(List.of(
+                LocalDateTime.of(2026, 7, 19, 12, 0),
+                LocalDateTime.of(2026, 7, 19, 12, 30),
+                LocalDateTime.of(2026, 7, 19, 13, 0),
+                LocalDateTime.of(2026, 7, 19, 18, 0),
+                LocalDateTime.of(2026, 7, 19, 18, 0)));
+
+        var res = service.getCheckinSummary(9L);
+
+        assertThat(res.totalDiners()).isEqualTo(7);
+        assertThat(res.peakPeriodKey()).isEqualTo("LUNCH"); // 점심 3 vs 저녁 2, 총 5 >= 5(피크 최소값)
+        assertThat(res.periods()).extracting("key").containsExactly("MORNING", "LUNCH", "EVENING", "NIGHT");
+    }
+
+    @Test
+    @DisplayName("getCheckinSummary: 존재하지 않는 placeId면 PLACE_NOT_FOUND(404)")
+    void 체크인_요약_장소없음() {
+        when(placeService.getById(999L)).thenThrow(new BusinessException(ErrorCode.PLACE_NOT_FOUND));
+
+        assertThatThrownBy(() -> service.getCheckinSummary(999L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.PLACE_NOT_FOUND));
+        verify(checkInRepository, never()).countDistinctDinersByPlace(any());
+    }
+
+    @Test
     @DisplayName("expireStaleCheckIns: now-ttl 이전 ACTIVE를 만료시키고 건수를 반환한다")
     void expire() {
         // now=2026-06-15T12:00 KST, ttl=3h → threshold=09:00

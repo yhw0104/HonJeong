@@ -21,6 +21,7 @@ import com.honjeong.checkin.dto.CheckInResponse;
 import com.honjeong.checkin.dto.CheckInStatsResponse;
 import com.honjeong.checkin.dto.CheckInUserResponse;
 import com.honjeong.checkin.dto.MapMarkerResponse;
+import com.honjeong.checkin.dto.PlaceCheckinSummaryResponse;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.config.HonjeongCheckInProperties;
 import com.honjeong.global.exception.BusinessException;
@@ -358,6 +359,26 @@ public class CheckInService {
                         c.getStartedAt(),
                         Duration.between(c.getStartedAt(), now).toMinutes()))
                 .toList();
+    }
+
+    /**
+     * 기능: 식당 상세 사회적 증거(누적 혼밥러 수 + 붐비는 시간대)를 집계한다
+     * Request: placeId — 식당 ID
+     * Response: PlaceCheckinSummaryResponse — totalDiners(누적 혼밥러), periods(시간대별 세션 수), peakPeriodKey(붐비는 시간대, 없으면 null)
+     *
+     * <p>[의도] 식당 상세 사회적 증거: 누적 혼밥러 수 + 붐비는 시간대. 없는 place면 PLACE_NOT_FOUND.
+     *
+     * @param placeId 식당 id
+     * @return 누적 혼밥러 수 + 시간대별 집계 + 피크 시간대
+     * @throws BusinessException 존재하지 않는 place면 {@link ErrorCode#PLACE_NOT_FOUND}
+     */
+    @Transactional(readOnly = true)
+    public PlaceCheckinSummaryResponse getCheckinSummary(Long placeId) {
+        placeService.getById(placeId); // 존재 검증(없으면 PLACE_NOT_FOUND)
+        long totalDiners = checkInRepository.countDistinctDinersByPlace(placeId);
+        CheckinTimeBuckets.Summary s = CheckinTimeBuckets.summarize(
+                checkInRepository.findDinerStartedAtByPlace(placeId));
+        return new PlaceCheckinSummaryResponse(totalDiners, s.periods(), s.peakKey());
     }
 
     /**

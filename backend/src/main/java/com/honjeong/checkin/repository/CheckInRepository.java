@@ -488,4 +488,34 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
         /** 그 상대와 함께 먹은 횟수(distinct meal_request_id) */
         long getCnt();
     }
+
+    /**
+     * 기능: 식당에서 실제로 혼밥한(취소·모집만 제외) distinct 사용자 수 집계(식당 상세 "누적 혼밥러")
+     * 쿼리: SELECT COUNT(DISTINCT user_id) FROM check_ins WHERE place_id = :placeId AND status NOT IN ('CANCELLED', 'SEEKING')
+     * Request: placeId — 식당 ID / Response: long — 중복 제거된 사용자 수
+     *
+     * <p>[의도] 이 식당에서 실제로 혼밥한(취소·모집만 제외) distinct 사용자 수(누적 혼밥러).
+     *
+     * @param placeId 식당 id
+     * @return 중복 제거된 사용자 수
+     */
+    @Query("SELECT COUNT(DISTINCT c.user.id) FROM CheckIn c WHERE c.place.id = :placeId "
+            + "AND c.status NOT IN (com.honjeong.checkin.domain.CheckInStatus.CANCELLED, "
+            + "com.honjeong.checkin.domain.CheckInStatus.SEEKING)")
+    long countDistinctDinersByPlace(@Param("placeId") Long placeId);
+
+    /**
+     * 기능: 식당의 실제 혼밥 체크인 시작 시각 목록 조회(시간대 집계용) — 취소·모집만 제외
+     * 쿼리: SELECT started_at FROM check_ins WHERE place_id = :placeId AND status NOT IN ('CANCELLED', 'SEEKING')
+     * Request: placeId — 식당 ID / Response: List&lt;LocalDateTime&gt; — 혼밥 체크인 시작 시각들(KST 벽시계)
+     *
+     * <p>[의도] 이 식당의 실제 혼밥 체크인 시작 시각들(시간대 집계용). 시각은 KST 벽시계.
+     *
+     * @param placeId 식당 id
+     * @return 혼밥 체크인 시작 시각 목록(KST 벽시계)
+     */
+    @Query("SELECT c.startedAt FROM CheckIn c WHERE c.place.id = :placeId "
+            + "AND c.status NOT IN (com.honjeong.checkin.domain.CheckInStatus.CANCELLED, "
+            + "com.honjeong.checkin.domain.CheckInStatus.SEEKING)")
+    List<LocalDateTime> findDinerStartedAtByPlace(@Param("placeId") Long placeId);
 }

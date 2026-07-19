@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.honjeong.checkin.dto.CheckInUserResponse;
+import com.honjeong.checkin.dto.PlaceCheckinSummaryResponse;
 import com.honjeong.checkin.service.CheckInService;
 import com.honjeong.global.common.ApiResponse;
 import com.honjeong.global.security.CurrentUserId;
@@ -42,5 +43,19 @@ public class PlaceCheckInController {
     public ApiResponse<List<CheckInUserResponse>> seekers(@CurrentUserId Long userId,
             @PathVariable Long placeId) {
         return ApiResponse.success(checkInService.getSeekers(userId, placeId));
+    }
+
+    /**
+     * 1. API 주소: GET /api/places/{placeId}/checkin-summary
+     * 2. 사용 화면: 식당 상세(RestaurantDetail) — 누적 혼밥러 수 + 붐비는 시간대(사회적 증거)
+     * 3. Request: placeId(경로) — 식당 ID
+     * 4. Response: PlaceCheckinSummaryResponse — totalDiners(누적 혼밥러), periods(시간대별 세션 수),
+     *    peakPeriodKey(붐비는 시간대, 없으면 null)
+     *
+     * <p>[기존 주석] 누적 혼밥러 + 붐비는 시간대(사회적 증거).
+     */
+    @GetMapping("/{placeId}/checkin-summary")
+    public ApiResponse<PlaceCheckinSummaryResponse> checkinSummary(@PathVariable Long placeId) {
+        return ApiResponse.success(checkInService.getCheckinSummary(placeId));
     }
 }
