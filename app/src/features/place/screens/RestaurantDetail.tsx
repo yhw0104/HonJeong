@@ -9,6 +9,7 @@ import * as Clipboard from 'expo-clipboard';
 import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H, StateView } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { usePlaceDetail, useNearby } from '@/features/place/queries';
+import { soloFriendlyLabel } from '@/features/place/soloFriendlyLabel';
 import { formatDistance, walkingMinutes } from '@/shared/location/distance';
 import { useSeekers, useMyCheckIn, useStartCheckIn, useDineAlone, useCancelCheckIn } from '@/features/checkin/queries';
 import { EndHonbabSheet } from '@/features/checkin/components/EndHonbabSheet';
@@ -33,19 +34,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'nearby', label: '주변' },
 ];
 
-const INFO: { k: string; v: string; tel?: boolean; link?: boolean }[] = [
-  { k: '전화', v: '02-322-1014', tel: true },
-  { k: '영업시간', v: '매일 10:00 – 21:00 · 브레이크 15–17시' },
-  { k: '홈페이지', v: 'instagram.com/keun_sundubu', link: true },
-];
-const FACILITIES = [
-  { l: '무료 와이파이', on: true },
-  { l: '포장 가능', on: true },
-  { l: '예약 가능', on: false },
-  { l: '남녀 화장실 구분', on: true },
-  { l: '주차', on: false },
-  { l: '단체석', on: false },
-];
 const MENU = [
   { n: '얼큰순두부', d: '소·중·대', p: '9,000', best: true },
   { n: '굴순두부', d: '겨울 한정', p: '10,000', best: false },
@@ -240,6 +228,8 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
               onMeal={goMealRequest}
               onDinerPress={goDinerProfile}
               summary={summary.data}
+              phone={detail.data?.phone ?? null}
+              onKakao={() => openMap('kakao')}
             />
           )}
           {stab === 'menu' && <MenuTab />}
@@ -345,7 +335,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
 }
 
 /* ── 홈 탭 ───────────────────────────────────────── */
-function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, summary }: { seekers: Seeker[]; seekersState: ListState; onRetrySeekers: () => void; onMeal: () => void; onDinerPress: (userId: number) => void; summary: PlaceReviewSummary | undefined }) {
+function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, summary, phone, onKakao }: { seekers: Seeker[]; seekersState: ListState; onRetrySeekers: () => void; onMeal: () => void; onDinerPress: (userId: number) => void; summary: PlaceReviewSummary | undefined; phone: string | null; onKakao: () => void }) {
   return (
     <View>
       {/* 혼밥 친화도 카드 */}
@@ -361,9 +351,11 @@ function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, 
           <View style={{ flex: 1 }} />
           <View style={{ alignItems: 'flex-end' }}>
             <View style={styles.scorePill}>
-              <Text style={styles.scorePillText}>혼밥하기 아주 좋아요</Text>
+              <Text style={styles.scorePillText}>{soloFriendlyLabel(summary?.avgSoloFriendlyRating ?? null, summary?.reviewCount ?? 0)}</Text>
             </View>
-            <Text style={styles.scoreNote}>혼밥러 {summary?.reviewCount ?? 0}명 평가</Text>
+            {(summary?.reviewCount ?? 0) > 0 ? (
+              <Text style={styles.scoreNote}>혼밥러 {summary?.reviewCount}명 평가</Text>
+            ) : null}
           </View>
         </View>
 
@@ -436,43 +428,25 @@ function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, 
         )}
       </View>
 
-      {/* 정보 */}
+      {/* 정보 — 전화(있을 때만·실연결) + 영업시간/메뉴는 카카오맵으로 유도(우리 데이터엔 없음) */}
       <View style={{ marginTop: 28 }}>
         <Text style={styles.sectionTitle}>정보</Text>
         <View style={{ marginTop: 12 }}>
-          {INFO.map((r, i, arr) => (
-            <View key={r.k} style={[styles.infoRow, i < arr.length - 1 && styles.infoDivider]}>
-              <Text style={styles.infoKey}>{r.k}</Text>
-              <Text style={[styles.infoVal, { color: r.link ? T2.brand : T2.text, textDecorationLine: r.link ? 'underline' : 'none' }]}>
-                {r.v}
-              </Text>
-              {r.tel ? (
-                <Pressable style={styles.telBtn}>
-                  <Icon name="phoneCall" size={13} color={T2.text} />
-                  <Text style={styles.telText}>전화</Text>
-                </Pressable>
-              ) : null}
+          {phone ? (
+            <View style={[styles.infoRow, styles.infoDivider]}>
+              <Text style={styles.infoKey}>전화</Text>
+              <Text style={styles.infoVal}>{phone}</Text>
+              <Pressable style={styles.telBtn} onPress={() => Linking.openURL(`tel:${phone}`)} accessibilityRole="button">
+                <Icon name="phoneCall" size={13} color={T2.text} />
+                <Text style={styles.telText}>전화</Text>
+              </Pressable>
             </View>
-          ))}
-        </View>
-      </View>
-
-      {/* 편의시설 */}
-      <View style={{ marginTop: 24 }}>
-        <Text style={styles.sectionTitle}>편의시설</Text>
-        <View style={[styles.chipWrap, { marginTop: 12 }]}>
-          {FACILITIES.map((f) => (
-            <View
-              key={f.l}
-              style={[
-                styles.facilityChip,
-                { backgroundColor: f.on ? '#fff' : T2.bg, borderColor: f.on ? T2.borderStrong : T2.border, opacity: f.on ? 1 : 0.55 },
-              ]}
-            >
-              <Text style={{ fontSize: 12, fontWeight: '800', color: f.on ? T2.brand : T2.textMute }}>{f.on ? '✓' : '–'}</Text>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: f.on ? T2.text : T2.textMute, letterSpacing: -0.3 }}>{f.l}</Text>
-            </View>
-          ))}
+          ) : null}
+          <Pressable style={styles.infoRow} onPress={onKakao} accessibilityRole="button">
+            <Icon name="pin" size={15} color={T2.textMute} />
+            <Text style={[styles.infoVal, { color: T2.brand }]}>영업시간·메뉴는 카카오맵에서 확인</Text>
+            <Icon name="chevronRight" size={16} color={T2.textMute} />
+          </Pressable>
         </View>
       </View>
     </View>
@@ -876,8 +850,6 @@ const styles = StyleSheet.create({
   infoVal: { flex: 1, fontSize: 14, lineHeight: 21, letterSpacing: -0.3 },
   telBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: T2.border },
   telText: { fontSize: 12, fontWeight: '700', color: T2.text, letterSpacing: -0.2 },
-
-  facilityChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, borderWidth: 1 },
 
   menuRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14 },
   menuName: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
