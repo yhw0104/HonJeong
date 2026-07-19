@@ -7,6 +7,7 @@ import {
   leaveMatch, type LeaveMatchTo,
 } from './api';
 import { startCheckInWithRecovery } from './recovery';
+import { startErrorCopy } from './startErrorCopy';
 
 export function useMyCheckIn() {
   return useQuery({ queryKey: ['checkin', 'me'], queryFn: fetchMyCheckIn });
@@ -46,7 +47,11 @@ export function useStartCheckIn() {
     mutationFn: (placeId: number) =>
       startCheckInWithRecovery(placeId, { start: startCheckIn, getMine: fetchMyCheckIn, end: endCheckIn }),
     onSuccess: () => invalidateLoop(qc),
-    onError: () => Alert.alert('잠깐요', '이미 다른 곳에서 모집/혼밥 중이에요. 먼저 끝내고 다시 시도해 주세요.'),
+    onError: (e) => {
+      // 진짜 충돌(이미 모집/혼밥 중)과 네트워크 실패 등을 구분해 안내(오인 문구 방지).
+      const { title, message } = startErrorCopy(e);
+      Alert.alert(title, message);
+    },
   });
 }
 
