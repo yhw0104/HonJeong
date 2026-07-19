@@ -652,31 +652,7 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
-    @DisplayName("countDistinctDinersByPlace: CANCELLED·SEEKING 제외, distinct 사용자")
-    void 누적_혼밥러_distinct() {
-        // given: place p, u1은 ENDED 2건(같은 사람=1로 집계)+CANCELLED 1건, u2는 ACTIVE 1건, u3는 SEEKING 1건(집계 제외)
-        User u1 = persistUser("01000000001", "A");
-        User u2 = persistUser("01000000002", "B");
-        User u3 = persistUser("01000000003", "C");
-        Place place = persistPlace("ext-1", 37.5, 127.0);
-        em.persist(endedCheckIn(u1, place, NOW.minusDays(2)));
-        em.persist(endedCheckIn(u1, place, NOW.minusDays(1)));
-        CheckIn cancelled = CheckIn.start(u1, place, NOW.minusHours(3));
-        cancelled.cancel(NOW.minusHours(3));
-        em.persist(cancelled);
-        em.persist(CheckIn.start(u2, place, NOW));
-        em.persist(CheckIn.startSeeking(u3, place, NOW));
-        em.flush();
-
-        // when
-        long n = checkInRepository.countDistinctDinersByPlace(place.getId());
-
-        // then: u1·u2만(u3는 SEEKING이라 제외, u1은 3건이지만 distinct라 1로)
-        assertThat(n).isEqualTo(2);
-    }
-
-    @Test
-    @DisplayName("findDinerStartedAtByPlace: 혼밥 세션 시작시각만(취소·모집 제외)")
+    @DisplayName("findDinerStartedAtByPlace: 세션 목록 크기=중복 포함 혼밥 세션 수(같은 사람 반복도 각각)")
     void 시작시각_목록() {
         // given: 위와 동일 구성 — ENDED 2 + ACTIVE 1(집계 대상), CANCELLED 1 + SEEKING 1(제외)
         User u1 = persistUser("01000000001", "A");

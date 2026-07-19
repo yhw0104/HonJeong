@@ -34,10 +34,11 @@ class CheckinTimeBucketsTest {
     }
 
     @Test
-    @DisplayName("빈 입력이면 전 버킷 0 + peak null")
+    @DisplayName("빈 입력이면 전 버킷 0 + total 0 + peak null")
     void 빈_입력() {
         var s = CheckinTimeBuckets.summarize(List.of());
         assertThat(s.periods()).extracting("count").containsExactly(0L, 0L, 0L, 0L);
+        assertThat(s.total()).isZero();
         assertThat(s.peakKey()).isNull();
     }
 
@@ -79,5 +80,17 @@ class CheckinTimeBucketsTest {
         var s = CheckinTimeBuckets.summarize(times);
         assertThat(s.periods()).extracting("key").containsExactly("MORNING", "LUNCH", "EVENING", "NIGHT");
         assertThat(s.periods()).extracting("count").containsExactly(1L, 2L, 3L, 4L);
+    }
+
+    @Test
+    @DisplayName("total은 전체 세션 수(중복 포함, 바 합과 동일) — 같은 사람 반복도 각각 카운트")
+    void total_중복포함() {
+        var times = new java.util.ArrayList<LocalDateTime>();
+        times.addAll(nTimes(12, 3)); // 점심 3(같은 시각=같은 사람 상관없이 각각)
+        times.addAll(nTimes(18, 2)); // 저녁 2
+        var s = CheckinTimeBuckets.summarize(times);
+        // total(5) == 바 합(0+3+2+0)
+        assertThat(s.total()).isEqualTo(5);
+        assertThat(s.periods()).extracting("count").containsExactly(0L, 3L, 2L, 0L);
     }
 }

@@ -560,21 +560,23 @@ class CheckInServiceTest {
     }
 
     @Test
-    @DisplayName("getCheckinSummary: 누적 혼밥러 + summarize 결과 조립")
+    @DisplayName("getCheckinSummary: totalDiners=전체 세션 수(중복 포함, 바 합과 동일) + summarize 조립")
     void 체크인_요약_조립() {
         Place p = place(9L);
         when(placeService.getById(9L)).thenReturn(p);
-        when(checkInRepository.countDistinctDinersByPlace(9L)).thenReturn(7L);
+        // 같은 사람이 12:00에 두 번 온 것도 각각 카운트 — distinct였다면 5보다 작음
         when(checkInRepository.findDinerStartedAtByPlace(9L)).thenReturn(List.of(
                 LocalDateTime.of(2026, 7, 19, 12, 0),
-                LocalDateTime.of(2026, 7, 19, 12, 30),
+                LocalDateTime.of(2026, 7, 19, 12, 0),
                 LocalDateTime.of(2026, 7, 19, 13, 0),
                 LocalDateTime.of(2026, 7, 19, 18, 0),
                 LocalDateTime.of(2026, 7, 19, 18, 0)));
 
         var res = service.getCheckinSummary(9L);
 
-        assertThat(res.totalDiners()).isEqualTo(7);
+        // 전체 세션 5 = 바 합(점심 3 + 저녁 2), distinct 아님
+        assertThat(res.totalDiners()).isEqualTo(5);
+        assertThat(res.periods()).extracting("count").containsExactly(0L, 3L, 2L, 0L);
         assertThat(res.peakPeriodKey()).isEqualTo("LUNCH"); // 점심 3 vs 저녁 2, 총 5 >= 5(피크 최소값)
         assertThat(res.periods()).extracting("key").containsExactly("MORNING", "LUNCH", "EVENING", "NIGHT");
     }
@@ -588,7 +590,7 @@ class CheckInServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.PLACE_NOT_FOUND));
-        verify(checkInRepository, never()).countDistinctDinersByPlace(any());
+        verify(checkInRepository, never()).findDinerStartedAtByPlace(any());
     }
 
     @Test

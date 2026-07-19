@@ -16,8 +16,11 @@ public final class CheckinTimeBuckets {
 
     private CheckinTimeBuckets() {}
 
-    /** 결과: 아침→점심→저녁→밤 순 카운트 + 피크 key(없으면 null). */
-    public record Summary(List<PeriodCount> periods, String peakKey) {}
+    /**
+     * 결과: total(전체 세션 수=periods 합, 중복 포함) + 아침→점심→저녁→밤 순 카운트 + 피크 key(없으면 null).
+     * total은 distinct 사람 수가 아니라 세션 수라, "N명" 문구와 시간대 바 합이 항상 일치한다.
+     */
+    public record Summary(long total, List<PeriodCount> periods, String peakKey) {}
 
     /** 시각(hour 0–23)을 버킷 key로. */
     public static String bucketOf(int hour) {
@@ -56,6 +59,6 @@ public final class CheckinTimeBuckets {
                 }
             }
         }
-        return new Summary(periods, peak);
+        return new Summary(total, periods, peak);
     }
 }

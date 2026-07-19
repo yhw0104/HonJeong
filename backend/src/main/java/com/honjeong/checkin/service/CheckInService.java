@@ -362,23 +362,24 @@ public class CheckInService {
     }
 
     /**
-     * 기능: 식당 상세 사회적 증거(누적 혼밥러 수 + 붐비는 시간대)를 집계한다
+     * 기능: 식당 상세 사회적 증거(누적 혼밥 세션 수 + 붐비는 시간대)를 집계한다
      * Request: placeId — 식당 ID
-     * Response: PlaceCheckinSummaryResponse — totalDiners(누적 혼밥러), periods(시간대별 세션 수), peakPeriodKey(붐비는 시간대, 없으면 null)
+     * Response: PlaceCheckinSummaryResponse — totalDiners(누적 혼밥 세션 수, 중복 포함=시간대 바 합), periods(시간대별 세션 수), peakPeriodKey(붐비는 시간대, 없으면 null)
      *
-     * <p>[의도] 식당 상세 사회적 증거: 누적 혼밥러 수 + 붐비는 시간대. 없는 place면 PLACE_NOT_FOUND.
+     * <p>[의도] 식당 상세 사회적 증거: 누적 혼밥 세션 수 + 붐비는 시간대. 없는 place면 PLACE_NOT_FOUND.
+     * totalDiners는 distinct 사람이 아니라 세션 수(같은 사람 반복 방문도 각각) — 시간대 바 합과 항상 일치하도록 같은 목록에서 파생.
      *
      * @param placeId 식당 id
-     * @return 누적 혼밥러 수 + 시간대별 집계 + 피크 시간대
+     * @return 누적 혼밥 세션 수(중복 포함) + 시간대별 집계 + 피크 시간대
      * @throws BusinessException 존재하지 않는 place면 {@link ErrorCode#PLACE_NOT_FOUND}
      */
     @Transactional(readOnly = true)
     public PlaceCheckinSummaryResponse getCheckinSummary(Long placeId) {
         placeService.getById(placeId); // 존재 검증(없으면 PLACE_NOT_FOUND)
-        long totalDiners = checkInRepository.countDistinctDinersByPlace(placeId);
+        // totalDiners = 같은 세션 목록에서 파생한 전체 세션 수(중복 포함) → "N명"과 시간대 바 합이 구조적으로 항상 일치
         CheckinTimeBuckets.Summary s = CheckinTimeBuckets.summarize(
                 checkInRepository.findDinerStartedAtByPlace(placeId));
-        return new PlaceCheckinSummaryResponse(totalDiners, s.periods(), s.peakKey());
+        return new PlaceCheckinSummaryResponse(s.total(), s.periods(), s.peakKey());
     }
 
     /**
