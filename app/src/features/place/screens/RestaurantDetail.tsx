@@ -8,8 +8,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H, StateView } from '@/shared/components';
 import { T2 } from '@/shared/theme';
-import { usePlaceDetail, useNearby } from '@/features/place/queries';
+import { usePlaceDetail, useNearby, usePlaceCheckinSummary } from '@/features/place/queries';
 import { soloFriendlyLabel } from '@/features/place/soloFriendlyLabel';
+import { barHeights, PERIOD_LABEL } from '@/features/place/checkinSummary';
+import type { PlaceCheckinSummary } from '@/features/place/api';
 import { formatDistance, walkingMinutes } from '@/shared/location/distance';
 import { useSeekers, useMyCheckIn, useStartCheckIn, useDineAlone, useCancelCheckIn } from '@/features/checkin/queries';
 import { EndHonbabSheet } from '@/features/checkin/components/EndHonbabSheet';
@@ -69,6 +71,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const [addrExpanded, setAddrExpanded] = useState(false);
   const placeId = route.params.placeId;
   const detail = usePlaceDetail(placeId);
+  const checkinSummary = usePlaceCheckinSummary(placeId);
   const seekers = useSeekers(placeId);
   const myCheckIn = useMyCheckIn();
   const startMut = useStartCheckIn();
@@ -230,6 +233,8 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
               summary={summary.data}
               phone={detail.data?.phone ?? null}
               onKakao={() => openMap('kakao')}
+              summaryStats={checkinSummary.data ?? null}
+              summaryLoading={checkinSummary.isLoading}
             />
           )}
           {stab === 'menu' && <MenuTab />}
@@ -335,10 +340,13 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
 }
 
 /* ── 홈 탭 ───────────────────────────────────────── */
-function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, summary, phone, onKakao }: { seekers: Seeker[]; seekersState: ListState; onRetrySeekers: () => void; onMeal: () => void; onDinerPress: (userId: number) => void; summary: PlaceReviewSummary | undefined; phone: string | null; onKakao: () => void }) {
+function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, summary, phone, onKakao, summaryStats, summaryLoading }: { seekers: Seeker[]; seekersState: ListState; onRetrySeekers: () => void; onMeal: () => void; onDinerPress: (userId: number) => void; summary: PlaceReviewSummary | undefined; phone: string | null; onKakao: () => void; summaryStats: PlaceCheckinSummary | null; summaryLoading: boolean }) {
   return (
     <View>
-      {/* 혼밥 친화도 카드 */}
+      {/* 사회적 증거 카드 — 누적 혼밥러 + 붐비는 시간대 */}
+      <SocialProofCard stats={summaryStats} loading={summaryLoading} />
+
+      {/* 혼밥 친화도 카드 — 사회적 증거 카드와 짝을 이루는 통계 카드라 간격을 좁게(14) */}
       <View style={styles.card}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 12 }}>
           <View>
@@ -429,7 +437,7 @@ function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, 
       </View>
 
       {/* 정보 — 전화(있을 때만·실연결) + 영업시간/메뉴는 카카오맵으로 유도(우리 데이터엔 없음) */}
-      <View style={{ marginTop: 28 }}>
+      <View style={styles.sectionGap}>
         <Text style={styles.sectionTitle}>정보</Text>
         <View style={{ marginTop: 12 }}>
           {phone ? (
@@ -460,6 +468,60 @@ function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, 
         </View>
       </View>
     </View>
+  );
+}
+
+/* ── 사회적 증거 카드 — 누적 혼밥러 + 붐비는 시간대(팝타임 미니 바) ── */
+const SOCIAL_BAR_MAX = 40; // 미니 바 최대 높이(px) — barHeights()의 0~1 정규화 값을 여기 곱해 실제 픽셀로 환산
+
+function SocialProofCard({ stats, loading }: { stats: PlaceCheckinSummary | null; loading: boolean }) {
+  return (
+    <View style={styles.socialCard}>
+      <View style={styles.socialEyebrowRow}>
+        <Icon name="rice" size={13} color={T2.textMute} />
+        <Text style={styles.sectionTitle}>혼밥 기록</Text>
+      </View>
+      {loading ? (
+        <StateView kind="loading" compact />
+      ) : stats && stats.totalDiners > 0 ? (
+        <SocialProofStats stats={stats} />
+      ) : (
+        <Text style={styles.socialEmptyText}>아직 첫 혼밥러를 기다려요 🍚</Text>
+      )}
+    </View>
+  );
+}
+
+function SocialProofStats({ stats }: { stats: PlaceCheckinSummary }) {
+  const heights = barHeights(stats.periods); // 각 시간대 카운트를 최댓값 기준 0~1로 정규화
+  return (
+    <>
+      <Text style={styles.socialNumberBig}>{stats.totalDiners}</Text>
+      <Text style={styles.socialCaption}>여기서 지금까지 {stats.totalDiners}명이 혼밥했어요</Text>
+
+      {stats.peakPeriodKey != null ? (
+        <>
+          <Text style={styles.socialPeakLine}>
+            주로 <Text style={styles.socialPeakName}>{PERIOD_LABEL[stats.peakPeriodKey]}</Text>에 붐벼요
+          </Text>
+          <View style={styles.barsRow}>
+            {stats.periods.map((p, i) => {
+              const isPeak = p.key === stats.peakPeriodKey;
+              // 실데이터가 0인 시간대는 얇은 기준선으로, 있는 시간대는 최소 6px로 바닥에서 눈에 띄게(값 왜곡 없이 가독성만 확보)
+              const h = Math.max(heights[i] * SOCIAL_BAR_MAX, p.count > 0 ? 6 : 3);
+              return (
+                <View key={p.key} style={styles.barCol}>
+                  <View style={styles.barColTrack}>
+                    <View style={[styles.periodBar, { height: h, backgroundColor: isPeak ? T2.brand : T2.border }]} />
+                  </View>
+                  <Text style={[styles.periodLabel, isPeak && styles.periodLabelPeak]}>{PERIOD_LABEL[p.key]}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </>
+      ) : null}
+    </>
   );
 }
 
@@ -832,8 +894,10 @@ const styles = StyleSheet.create({
   tabLabel: { fontSize: 15, letterSpacing: -0.3, textAlign: 'center' },
   tabUnderline: { position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, backgroundColor: T2.brand },
 
-  card: { marginTop: 24, padding: 20, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border },
+  // 홈 탭 상단 리듬 — 14(짝을 이루는 통계 카드끼리) / 24(성격이 다른 섹션 사이) 두 값만 사용
+  card: { marginTop: 14, padding: 20, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border },
   sectionTitle: { fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: 0.6 },
+  sectionGap: { marginTop: 24 },
   scoreBig: { fontSize: 34, fontWeight: '800', color: T2.text, letterSpacing: -1.5 },
   scoreOutOf: { fontSize: 14, fontWeight: '600', color: T2.textMute },
   scorePill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: T2.brandSoft },
@@ -845,10 +909,25 @@ const styles = StyleSheet.create({
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   friendlyChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
 
+  // 사회적 증거 카드 (홈 탭 최상단 — 누적 혼밥러 + 붐비는 시간대)
+  socialCard: { marginTop: 20, padding: 20, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border },
+  socialEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  socialEmptyText: { marginTop: 12, fontSize: 15, fontWeight: '600', color: T2.text, letterSpacing: -0.3, lineHeight: 21 },
+  socialNumberBig: { marginTop: 8, fontSize: 38, fontWeight: '800', color: T2.text, letterSpacing: -1.8 },
+  socialCaption: { marginTop: 4, fontSize: 13.5, color: T2.textSub, letterSpacing: -0.2 },
+  socialPeakLine: { marginTop: 14, fontSize: 13, color: T2.textSub, letterSpacing: -0.2 },
+  socialPeakName: { color: T2.text, fontWeight: '800' },
+  barsRow: { flexDirection: 'row', marginTop: 12 },
+  barCol: { flex: 1, alignItems: 'center' },
+  barColTrack: { height: SOCIAL_BAR_MAX, justifyContent: 'flex-end' },
+  periodBar: { width: 26, borderTopLeftRadius: 4, borderTopRightRadius: 4 },
+  periodLabel: { marginTop: 8, fontSize: 11, fontWeight: '600', color: T2.textMute, letterSpacing: -0.2 },
+  periodLabelPeak: { color: T2.text, fontWeight: '800' },
+
   detailErrBanner: { marginTop: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, backgroundColor: T2.brandSoft },
   detailErrText: { fontSize: 13, fontWeight: '700', color: T2.brand, letterSpacing: -0.2, textAlign: 'center' },
 
-  mealCard: { marginTop: 28, padding: 18, borderRadius: 16, backgroundColor: T2.brandSoft, borderWidth: 1, borderColor: 'rgba(255,90,31,0.15)' },
+  mealCard: { marginTop: 24, padding: 18, borderRadius: 16, backgroundColor: T2.brandSoft, borderWidth: 1, borderColor: 'rgba(255,90,31,0.15)' },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: T2.brand },
   liveLabel: { fontSize: 12, fontWeight: '700', color: T2.brand, letterSpacing: 0.4 },
   mealText: { flex: 1, fontSize: 13, color: T2.text, lineHeight: 18, fontWeight: '500' },
