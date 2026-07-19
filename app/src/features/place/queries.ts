@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Coord } from '@/shared/location/pickLocation';
 import { LIVE_REFETCH_MS } from '@/shared/realtime';
-import { searchPlaces, fetchNearby, fetchPlaceDetail } from './api';
+import { searchPlaces, fetchNearby, fetchPlaceDetail, fetchPlaceCheckinSummary } from './api';
 
 /** 식당 이름 검색. 빈 검색어면 호출하지 않는다. */
 export function usePlaceSearch(query: string) {
@@ -30,5 +30,13 @@ export function usePlaceDetail(placeId: number) {
   return useQuery({
     queryKey: ['place', placeId],
     queryFn: () => fetchPlaceDetail(placeId),
+  });
+}
+
+/** 식당 사회적 증거 요약. 누적 성격이라 폴링 없음(체크인 변경 시 ['place'] 무효화가 커버). */
+export function usePlaceCheckinSummary(placeId: number) {
+  return useQuery({
+    queryKey: ['place', placeId, 'checkin-summary'],
+    queryFn: () => fetchPlaceCheckinSummary(placeId),
   });
 }

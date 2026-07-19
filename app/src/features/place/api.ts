@@ -35,3 +35,13 @@ export const fetchNearby = (lat: number, lng: number, radius = 1000, page = 0, s
 
 export const fetchPlaceDetail = (placeId: number) =>
   apiGet<PlaceDetail>(`/places/${placeId}`);
+
+export type PlaceCheckinSummary = {
+  totalDiners: number;
+  periods: { key: string; count: number }[];
+  peakPeriodKey: string | null;
+};
+
+/** 식당 사회적 증거(누적 혼밥러 + 붐비는 시간대). */
+export const fetchPlaceCheckinSummary = (placeId: number) =>
+  apiGet<PlaceCheckinSummary>(`/places/${placeId}/checkin-summary`);
