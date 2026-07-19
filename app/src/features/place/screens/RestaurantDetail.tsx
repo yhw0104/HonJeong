@@ -344,10 +344,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
 function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, summary, phone, onKakao, summaryStats, summaryLoading, summaryError }: { seekers: Seeker[]; seekersState: ListState; onRetrySeekers: () => void; onMeal: () => void; onDinerPress: (userId: number) => void; summary: PlaceReviewSummary | undefined; phone: string | null; onKakao: () => void; summaryStats: PlaceCheckinSummary | null; summaryLoading: boolean; summaryError: boolean }) {
   return (
     <View>
-      {/* 사회적 증거 카드 — 누적 혼밥러 + 붐비는 시간대 */}
-      <SocialProofCard stats={summaryStats} loading={summaryLoading} error={summaryError} />
-
-      {/* 혼밥 친화도 카드 — 사회적 증거 카드와 짝을 이루는 통계 카드라 간격을 좁게(14) */}
+      {/* 혼밥 친화도 카드 */}
       <View style={styles.card}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 12 }}>
           <View>
@@ -436,6 +433,9 @@ function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, 
           <Text style={[styles.mealText, { marginTop: 12 }]}>아직 같이 먹을 사람을 구하는 이가 없어요.</Text>
         )}
       </View>
+
+      {/* 혼밥 기록(사회적 증거) — 누적 혼밥러 + 붐비는 시간대. 같이먹기 카드 아래로 배치. */}
+      <SocialProofCard stats={summaryStats} loading={summaryLoading} error={summaryError} />
 
       {/* 정보 — 전화(있을 때만·실연결) + 영업시간/메뉴는 카카오맵으로 유도(우리 데이터엔 없음) */}
       <View style={styles.sectionGap}>
@@ -902,7 +902,7 @@ const styles = StyleSheet.create({
   tabUnderline: { position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, backgroundColor: T2.brand },
 
   // 홈 탭 상단 리듬 — 14(짝을 이루는 통계 카드끼리) / 24(성격이 다른 섹션 사이) 두 값만 사용
-  card: { marginTop: 14, padding: 20, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border },
+  card: { marginTop: 24, padding: 20, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border },
   sectionTitle: { fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: 0.6 },
   sectionGap: { marginTop: 24 },
   scoreBig: { fontSize: 34, fontWeight: '800', color: T2.text, letterSpacing: -1.5 },
