@@ -235,6 +235,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
               onKakao={() => openMap('kakao')}
               summaryStats={checkinSummary.data ?? null}
               summaryLoading={checkinSummary.isLoading}
+              summaryError={checkinSummary.isError}
             />
           )}
           {stab === 'menu' && <MenuTab />}
@@ -340,11 +341,11 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
 }
 
 /* ── 홈 탭 ───────────────────────────────────────── */
-function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, summary, phone, onKakao, summaryStats, summaryLoading }: { seekers: Seeker[]; seekersState: ListState; onRetrySeekers: () => void; onMeal: () => void; onDinerPress: (userId: number) => void; summary: PlaceReviewSummary | undefined; phone: string | null; onKakao: () => void; summaryStats: PlaceCheckinSummary | null; summaryLoading: boolean }) {
+function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, summary, phone, onKakao, summaryStats, summaryLoading, summaryError }: { seekers: Seeker[]; seekersState: ListState; onRetrySeekers: () => void; onMeal: () => void; onDinerPress: (userId: number) => void; summary: PlaceReviewSummary | undefined; phone: string | null; onKakao: () => void; summaryStats: PlaceCheckinSummary | null; summaryLoading: boolean; summaryError: boolean }) {
   return (
     <View>
       {/* 사회적 증거 카드 — 누적 혼밥러 + 붐비는 시간대 */}
-      <SocialProofCard stats={summaryStats} loading={summaryLoading} />
+      <SocialProofCard stats={summaryStats} loading={summaryLoading} error={summaryError} />
 
       {/* 혼밥 친화도 카드 — 사회적 증거 카드와 짝을 이루는 통계 카드라 간격을 좁게(14) */}
       <View style={styles.card}>
@@ -474,7 +475,7 @@ function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, 
 /* ── 사회적 증거 카드 — 누적 혼밥러 + 붐비는 시간대(팝타임 미니 바) ── */
 const SOCIAL_BAR_MAX = 40; // 미니 바 최대 높이(px) — barHeights()의 0~1 정규화 값을 여기 곱해 실제 픽셀로 환산
 
-function SocialProofCard({ stats, loading }: { stats: PlaceCheckinSummary | null; loading: boolean }) {
+function SocialProofCard({ stats, loading, error }: { stats: PlaceCheckinSummary | null; loading: boolean; error: boolean }) {
   return (
     <View style={styles.socialCard}>
       <View style={styles.socialEyebrowRow}>
@@ -483,6 +484,9 @@ function SocialProofCard({ stats, loading }: { stats: PlaceCheckinSummary | null
       </View>
       {loading ? (
         <StateView kind="loading" compact />
+      ) : error ? (
+        // 조회 실패를 '0명'으로 위장하지 않는다(정직한 상태 표시).
+        <Text style={styles.socialEmptyText}>혼밥 기록을 불러오지 못했어요</Text>
       ) : stats && stats.totalDiners > 0 ? (
         <SocialProofStats stats={stats} />
       ) : (
