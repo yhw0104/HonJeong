@@ -108,20 +108,21 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     setEnding(myCheckIn.data); // 밀어서 완료 시트 열기
   };
 
-  // 내 위치로: 진짜 GPS가 있으면 지도 이동, 없으면(거부/실패) 권한을 다시 요청한다.
-  // 재요청으로 GPS가 잡히면 coord가 바뀌어 지도 center가 따라 이동한다.
-  const recenterToMe = () => {
-    if (source === 'gps') mapRef.current?.recenter();
-    else requestAgain();
-  };
-
   // 지도를 드래그해 지도를 움직이면(dragend) 곧바로 '이 위치에서 재검색' 노출(GPS 이동과 무관).
   // mapCenter는 실제 드래그 끝에서만 갱신되고(프로그램적 setCenter는 dragend 미발화), 재검색/내주변 시 null로 정리된다.
   const offerResearch = mapCenter != null && anchor != null;
   const researchHere = () => { if (mapCenter) setAnchor(mapCenter); setMapCenter(null); }; // 지도 중심으로 재검색 + 버튼 숨김
   // '내 주변': 내 GPS로 재검색 + 지도 이동(GPS 없으면 권한 재요청). setMapCenter(null)로 재검색 버튼도 정리.
+  // recenter()를 명령형으로 부르는 이유: 드래그만 하고 재검색 안 한 상태에선 anchor가 이미 내 위치라
+  // setAnchor(coord)로는 center prop의 lat/lng가 안 바뀌어 HonjeongMap의 setCenter effect가 안 돎 → 지도가 안 돌아온다.
   const nearMe = () => {
-    if (source === 'gps') { setAnchor(coord); setMapCenter(null); } else { requestAgain(); }
+    if (source === 'gps') {
+      mapRef.current?.recenter();
+      setAnchor(coord);
+      setMapCenter(null);
+    } else {
+      requestAgain();
+    }
   };
 
   // 드래그로 펼치는 하단 시트: 핸들/헤더를 위로 끌면 펼침, 아래로 끌면 접힘.
@@ -179,12 +180,9 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           <Pressable style={styles.search} onPress={() => navigation.navigate('PlaceSearch')}>
             <Icon name="search" size={16} color={T2.text} />
             <Text style={styles.searchPlaceholder}>혼밥집 검색</Text>
-            {/* 종은 검색창 안 오른쪽 끝 — 자체 Pressable이라 탭이 검색 이동과 분리된다 */}
-            <BellButton />
           </Pressable>
-          <Pressable style={styles.navBtn} onPress={recenterToMe}>
-            <Icon name="navigate" size={20} color="#fff" />
-          </Pressable>
+          {/* 알림(종) — 검색창 안에서 우측 상단 독립 버튼으로 이동. 브랜드색 배경 + 흰 종 아이콘. */}
+          <BellButton style={styles.bellBtn} iconColor="#fff" />
         </View>
 
         {permission === 'denied' && (
@@ -497,18 +495,14 @@ const styles = StyleSheet.create({
     ...shadow,
   },
   searchPlaceholder: { flex: 1, color: T2.textMute, fontSize: 14, letterSpacing: -0.3 },
-  navBtn: {
+  bellBtn: {
     width: 48,
     height: 48,
     borderRadius: 14,
     backgroundColor: T2.brand,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: T2.brand,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 4,
+    ...shadow,
   },
   locBanner: {
     marginTop: 10,
