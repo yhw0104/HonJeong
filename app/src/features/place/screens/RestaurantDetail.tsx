@@ -17,7 +17,7 @@ import { useSeekers, useMyCheckIn, useStartCheckIn, useDineAlone, useCancelCheck
 import { EndHonbabSheet } from '@/features/checkin/components/EndHonbabSheet';
 import { checkInMode } from '@/features/checkin/statusView';
 import type { Seeker, CheckIn } from '@/features/checkin/api';
-import { formatElapsed, addressHead, formatTimeAgo } from '@/shared/format';
+import { formatElapsed, addressHead } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { listState, type ListState } from '@/shared/state/listState';
 import { usePlaceReviews, usePlaceReviewSummary, useDeleteReview, usePlacePhotos } from '@/features/review/queries';
@@ -676,86 +676,74 @@ function MateTab({ placeId, onMeal, onOpenProfile, soloRating, soloReviewCount }
 
   const { visitedCount, mates, savedCount, savedMateCount } = q.data!;
   const hereNowMates = mates.filter((m) => m.hereNow);
+  // 요약 배너 아바타 스택 — 다녀간 메이트만(최대 3). 아직 안 다녀갔으면 스택 없이 평가 문구만.
+  const stackMates = mates.filter((m) => m.lastVisitedAt != null || m.visitCount > 0).slice(0, 3);
+
   return (
-    <View style={{ marginTop: 22 }}>
-      {/* 다녀온 메이트 — 카드로 감쌈(목업 톤). 목록은 전원 유지(이력). */}
-      <View style={styles.mateVisitedCard}>
-      {visitedCount > 0 ? (
-        <Text style={styles.mateSummaryLine}>
-          내 메이트 <Text style={{ fontWeight: '800', color: T2.brand }}>{visitedCount}명</Text>이 여기 다녀갔어요
-        </Text>
-      ) : soloRating != null ? (
-        // 다녀온 메이트가 없으면 혼밥 친화도 평가로 대체(실데이터 기반)
-        <>
-          <Text style={styles.mateSummaryLine}>
-            혼밥 친화도 <Text style={{ fontWeight: '800', color: T2.brand }}>★{soloRating.toFixed(1)}</Text> · {soloFriendlyLabel(soloRating, soloReviewCount)}
-          </Text>
-          <Text style={styles.mateEvalSub}>혼밥러 {soloReviewCount}명이 평가했어요</Text>
-        </>
-      ) : (
-        <>
-          <Text style={styles.mateSummaryLine}>아직 다녀간 메이트가 없어요</Text>
-          <Text style={styles.mateEvalSub}>같이 먹기를 통해 새로운 메이트를 만들어 봐요</Text>
-        </>
-      )}
-      <View style={{ marginTop: mates.length > 0 ? 14 : 0, gap: 2 }}>
-        {mates.map((m, i, arr) => {
-          // 같이 N회는 이름 옆 칩으로 뺐으니 메타에는 리뷰·방문·마지막방문만(빈 조각은 제외해 앞 구분점 방지).
-          const tail = [
-            m.reviewContent ? `"${m.reviewContent}"` : null,
-            m.visitCount > 0 ? `방문 ${m.visitCount}회` : null,
-            m.lastVisitedAt ? formatTimeAgo(m.lastVisitedAt, new Date()) : null,
-          ].filter(Boolean).join(' · ');
-          return (
-            <Pressable
-              key={m.userId}
-              onPress={() => onOpenProfile(m.userId)}
-              style={[styles.mateRow, i < arr.length - 1 && styles.infoDivider]}
-              accessibilityRole="button"
-            >
-              <Avatar name={m.nickname[0] ?? '?'} uri={m.profileImageUrl} bg="#525252" size={40} ring={m.hereNow ? T2.brandSoft : undefined} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.mateRowName} numberOfLines={1}>{m.nickname}</Text>
-                  {m.togetherCount > 0 ? (
-                    <View style={styles.togetherChip}><Text style={styles.togetherChipText}>같이 {m.togetherCount}회</Text></View>
-                  ) : null}
-                </View>
-                {m.soloFriendlyRating != null || tail ? (
-                  <Text style={styles.mateRowMeta} numberOfLines={1}>
-                    {m.soloFriendlyRating != null ? <Text style={{ color: T2.brand, fontWeight: '700' }}>★{m.soloFriendlyRating}</Text> : null}
-                    {m.soloFriendlyRating != null && tail ? ' · ' : ''}
-                    {tail}
-                  </Text>
-                ) : null}
+    <View style={{ marginTop: 8 }}>
+      {/* 요약 배너 — 사회적 신뢰(아바타 스택 + 문구). 목업 정합. */}
+      <View style={styles.mateSummaryCard}>
+        {stackMates.length > 0 ? (
+          <View style={styles.mateAvatarStack}>
+            {stackMates.map((m, i) => (
+              <View key={m.userId} style={{ marginLeft: i ? -10 : 0 }}>
+                <Avatar name={m.nickname[0] ?? '?'} uri={m.profileImageUrl} bg="#525252" size={36} ring="#fff" />
               </View>
-            </Pressable>
-          );
-        })}
-      </View>
+            ))}
+          </View>
+        ) : null}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          {visitedCount > 0 ? (
+            <>
+              <Text style={styles.mateSummaryLine}>
+                내 메이트 <Text style={{ fontWeight: '800', color: T2.brand }}>{visitedCount}명</Text>이 여기 다녀갔어요
+              </Text>
+              <Text style={styles.mateSummarySub}>믿고 혼밥하기 좋은 곳이에요</Text>
+            </>
+          ) : soloRating != null ? (
+            // 다녀간 메이트가 없으면 혼밥 친화도 평가로 대체(하드코딩 대신 실데이터).
+            <>
+              <Text style={styles.mateSummaryLine}>
+                혼밥 친화도 <Text style={{ fontWeight: '800', color: T2.brand }}>★{soloRating.toFixed(1)}</Text> · {soloFriendlyLabel(soloRating, soloReviewCount)}
+              </Text>
+              <Text style={styles.mateSummarySub}>혼밥러 {soloReviewCount}명이 평가했어요</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.mateSummaryLine}>아직 다녀간 메이트가 없어요</Text>
+              <Text style={styles.mateSummarySub}>같이 먹기를 통해 새로운 메이트를 만들어 봐요</Text>
+            </>
+          )}
+        </View>
       </View>
 
-      {/* 분리선 하나 + 지금 여기서 혼밥중 카드(라이브 — 같이먹기) */}
+      {/* 지금 여기서 혼밥 중 — 섹션 라벨 + 라이브 카드(각 메이트 한 박스) */}
       {hereNowMates.length > 0 ? (
-        <>
-          <View style={styles.mateSplitLine} />
-          <View style={styles.mateLiveCard}>
-          <View style={styles.mateLiveHead}>
-            <View style={styles.mateLiveDot} />
-            <Text style={styles.mateLiveTitle}>지금 여기서 혼밥중인 메이트</Text>
+        <View style={styles.mateSection}>
+          <View style={styles.mateSectionHead}>
+            <Text style={styles.mateSectionTitle}>지금 여기서 혼밥 중</Text>
+            <Text style={styles.mateSectionCount}>{hereNowMates.length}</Text>
           </View>
-          <View style={{ marginTop: 12, gap: 12 }}>
+          <View style={{ gap: 10 }}>
             {hereNowMates.map((m) => (
-              <View key={m.userId} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View key={m.userId} style={styles.mateLiveRow}>
                 <Pressable
                   onPress={() => onOpenProfile(m.userId)}
                   accessibilityRole="button"
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}
                 >
-                  <Avatar name={m.nickname[0] ?? '?'} uri={m.profileImageUrl} bg="#525252" size={40} ring="#fff" />
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-                    <Text style={styles.mateRowName} numberOfLines={1}>{m.nickname}</Text>
-                    <View style={styles.mateBadge}><Text style={styles.mateBadgeText}>메이트</Text></View>
+                  <View style={styles.liveAvatarWrap}>
+                    <Avatar name={m.nickname[0] ?? '?'} uri={m.profileImageUrl} bg="#525252" size={44} ring={T2.brandSoft} />
+                    <View style={styles.liveAvatarDot} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.mateRowName} numberOfLines={1}>{m.nickname}</Text>
+                      <View style={styles.mateBadge}><Text style={styles.mateBadgeText}>메이트</Text></View>
+                    </View>
+                    {m.togetherCount > 0 ? (
+                      <Text style={styles.mateLiveMeta} numberOfLines={1}>같이 {m.togetherCount}회 먹었어요</Text>
+                    ) : null}
                   </View>
                 </Pressable>
                 <Pressable style={styles.mateCtaSolid} onPress={onMeal}>
@@ -765,17 +753,24 @@ function MateTab({ placeId, onMeal, onOpenProfile, soloRating, soloReviewCount }
             ))}
           </View>
         </View>
-        </>
       ) : null}
 
-      {/* 즐겨찾기 사회적 증거 — 저장한 사람 수(내 메이트 포함) */}
+      {/* 즐겨찾기에 담은 메이트 — 섹션 라벨 + 저장 수(내 메이트 포함) */}
       {savedCount > 0 ? (
-        <View style={styles.mateSavedRow}>
-          <Text style={styles.mateSavedEmoji}>🔖</Text>
-          <Text style={styles.mateSavedText}>
-            이 식당을 <Text style={{ fontWeight: '800', color: T2.text }}>{savedCount}명</Text>이 저장했어요
-            {savedMateCount > 0 ? <Text style={{ color: T2.brand, fontWeight: '700' }}> · 내 메이트 {savedMateCount}명</Text> : null}
-          </Text>
+        <View style={styles.mateSection}>
+          <View style={styles.mateSectionHead}>
+            <Text style={styles.mateSectionTitle}>즐겨찾기에 담은 메이트</Text>
+            <Text style={styles.mateSectionCount}>{savedCount}</Text>
+          </View>
+          <View style={styles.mateSavedRow}>
+            <Text style={styles.mateSavedEmoji}>🔖</Text>
+            <Text style={styles.mateSavedText}>
+              {savedMateCount > 0 ? (
+                <><Text style={{ fontWeight: '800', color: T2.text }}>메이트 {savedMateCount}명</Text>을 포함해 </>
+              ) : null}
+              {savedCount}명이 이 식당을 저장했어요
+            </Text>
+          </View>
         </View>
       ) : null}
     </View>
@@ -979,26 +974,30 @@ const styles = StyleSheet.create({
   tabEmpty: { textAlign: 'center', color: T2.textMute, fontSize: 13, paddingVertical: 32 },
 
   // 메이트 탭
-  mateSummaryLine: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
-  mateVisitedCard: { padding: 16, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border },
-  mateEvalSub: { marginTop: 5, fontSize: 13, color: T2.textSub, letterSpacing: -0.3, lineHeight: 19 },
+  // 요약 배너
+  mateSummaryCard: { marginTop: 18, padding: 16, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border, flexDirection: 'row', alignItems: 'center', gap: 13 },
+  mateAvatarStack: { flexDirection: 'row' },
+  mateSummaryLine: { fontSize: 14, fontWeight: '600', color: T2.text, letterSpacing: -0.3, lineHeight: 20 },
+  mateSummarySub: { marginTop: 2, fontSize: 13, color: T2.textSub, letterSpacing: -0.3, lineHeight: 18 },
+  // 섹션 라벨(지금 혼밥중 / 즐겨찾기)
+  mateSection: { marginTop: 26 },
+  mateSectionHead: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginBottom: 12 },
+  mateSectionTitle: { fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: 0.6 },
+  mateSectionCount: { fontSize: 12, fontWeight: '700', color: T2.textMute },
+  // 라이브 카드(각 메이트 한 박스)
+  mateLiveRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: T2.brandSoft, borderWidth: 1, borderColor: 'rgba(255,90,31,0.15)' },
+  liveAvatarWrap: { position: 'relative' },
+  liveAvatarDot: { position: 'absolute', right: -1, bottom: -1, width: 13, height: 13, borderRadius: 6.5, backgroundColor: T2.brand, borderWidth: 2.5, borderColor: T2.brandSoft },
   mateBadge: { backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(255,90,31,0.25)', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   mateBadgeText: { fontSize: 10, fontWeight: '700', color: T2.brand },
-  mateSavedRow: { marginTop: 22, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 2 },
-  mateSavedEmoji: { fontSize: 15 },
-  mateSavedText: { flex: 1, fontSize: 13, color: T2.textSub, letterSpacing: -0.3 },
-  mateSplitLine: { height: 1, backgroundColor: T2.border, marginTop: 20, marginBottom: 20 },
-  togetherChip: { backgroundColor: T2.brandSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-  togetherChipText: { fontSize: 11, fontWeight: '800', color: T2.brand, letterSpacing: -0.3 },
-  mateLiveCard: { padding: 16, borderRadius: 16, backgroundColor: T2.brandSoft, borderWidth: 1, borderColor: 'rgba(255,90,31,0.15)' },
-  mateLiveHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  mateLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: T2.brand },
-  mateLiveTitle: { fontSize: 14, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
+  mateLiveMeta: { fontSize: 12, color: T2.textSub, marginTop: 3, letterSpacing: -0.2 },
   mateCtaSolid: { alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: T2.brand },
   mateCtaSolidText: { fontSize: 13, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
-  mateRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-  mateRowName: { fontSize: 14.5, fontWeight: '700', color: T2.text, letterSpacing: -0.4 },
-  mateRowMeta: { fontSize: 12, color: T2.textMute, marginTop: 4, letterSpacing: -0.2 },
+  mateRowName: { fontSize: 15, fontWeight: '800', color: T2.text, letterSpacing: -0.4 },
+  // 즐겨찾기 사회 증거
+  mateSavedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 2 },
+  mateSavedEmoji: { fontSize: 15 },
+  mateSavedText: { flex: 1, fontSize: 13, color: T2.textSub, letterSpacing: -0.3, lineHeight: 18 },
 
   // 주변 탭
   nearbyNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },

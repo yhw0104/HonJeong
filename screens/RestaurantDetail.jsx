@@ -538,8 +538,13 @@ function DetailMateTab() {
           ))}
         </div>
         <div style={{ flex: 1, fontSize: 13.5, color: T2.text, lineHeight: 1.45, fontWeight: 500, letterSpacing: -0.3 }}>
-          내 메이트 <b>3명</b>이 여기 다녀갔어요.<br/>
-          <span style={{ color: T2.textSub }}>믿고 혼밥하기 좋은 곳이에요.</span>
+          {visited.length > 0 ? (
+            <>내 메이트 <b>{visited.length}명</b>이 여기 다녀갔어요.<br/>
+            <span style={{ color: T2.textSub }}>믿고 혼밥하기 좋은 곳이에요.</span></>
+          ) : (
+            <>혼밥 친화도가 높은 곳이에요.<br/>
+            <span style={{ color: T2.textSub }}>혼자 가도 눈치 없이 편하게 먹을 수 있어요.</span></>
+          )}
         </div>
       </div>
 
@@ -567,36 +572,6 @@ function DetailMateTab() {
             }}>같이 먹기</div>
           </div>
         ))}
-      </Section>
-
-      {/* 다녀온 메이트 */}
-      <Section title="다녀온 메이트" count={visited.length}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {visited.map((m, i, arr) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0',
-              borderBottom: i < arr.length - 1 ? `1px solid ${T2.border}` : 'none',
-            }}>
-              <Avatar name={m.init} bg={m.bg} size={40} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 14.5, fontWeight: 700, color: T2.text, letterSpacing: -0.4 }}>{m.n}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: T2.textMute, background: T2.bg, padding: '2px 7px', borderRadius: 999, border: `1px solid ${T2.border}` }}>{m.mood}</span>
-                </div>
-                <div style={{ fontSize: 12, color: T2.textMute, marginTop: 4, letterSpacing: -0.2, fontFeatureSettings: '"tnum"' }}>
-                  {m.together > 0 ? <span style={{ color: T2.brand, fontWeight: 700 }}>같이 {m.together}회 · </span> : null}
-                  방문 {m.visits}회 · 혼밥친화 ★{m.score} · {m.last}
-                </div>
-              </div>
-              <div style={{
-                flexShrink: 0, padding: '8px 12px', borderRadius: 9, background: '#fff',
-                border: `1.5px solid ${m.together > 0 ? T2.brand : T2.border}`,
-                color: m.together > 0 ? T2.brand : T2.textSub,
-                fontSize: 12.5, fontWeight: 700, letterSpacing: -0.3, whiteSpace: 'nowrap', cursor: 'pointer',
-              }}>{m.together > 0 ? '같이 먹기' : '메이트 신청'}</div>
-            </div>
-          ))}
-        </div>
       </Section>
 
       {/* 즐겨찾기에 담은 메이트 */}
