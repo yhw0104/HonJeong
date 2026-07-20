@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H, StateView } from '@/shared/components';
 import { T2 } from '@/shared/theme';
-import { usePlaceDetail, useNearby, usePlaceCheckinSummary } from '@/features/place/queries';
+import { usePlaceDetail, useNearby, usePlaceCheckinSummary, usePlaceMates } from '@/features/place/queries';
 import { soloFriendlyLabel } from '@/features/place/soloFriendlyLabel';
 import { barHeights, PERIOD_LABEL, PERIOD_RANGE } from '@/features/place/checkinSummary';
 import type { PlaceCheckinSummary } from '@/features/place/api';
@@ -17,7 +17,7 @@ import { useSeekers, useMyCheckIn, useStartCheckIn, useDineAlone, useCancelCheck
 import { EndHonbabSheet } from '@/features/checkin/components/EndHonbabSheet';
 import { checkInMode } from '@/features/checkin/statusView';
 import type { Seeker, CheckIn } from '@/features/checkin/api';
-import { formatElapsed, addressHead } from '@/shared/format';
+import { formatElapsed, addressHead, formatTimeAgo } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { listState, type ListState } from '@/shared/state/listState';
 import { usePlaceReviews, usePlaceReviewSummary, useDeleteReview, usePlacePhotos } from '@/features/review/queries';
@@ -44,22 +44,7 @@ const MENU = [
   { n: '공기밥 추가', d: '', p: '1,000', best: false },
 ];
 
-// ── 메이트 탭 데이터 ──
-const LIVE_MATES = [
-  { n: '지현', init: '지', bg: '#171717', tag: '대화 환영', mutual: '같이 3회', here: '바테이블 · 12분째' },
-];
-const VISITED = [
-  { n: '연남또일이', init: '연', bg: '#525252', mood: '조용히', together: 2, visits: 4, score: '4.8', last: '3일 전' },
-  { n: '순두부조아', init: '순', bg: '#7C7C7C', mood: '대화 환영', together: 1, visits: 6, score: '4.5', last: '1주 전' },
-  { n: '혼밥부장', init: '혼', bg: '#171717', mood: '대화 환영', together: 0, visits: 3, score: '4.6', last: '2주 전' },
-];
-const SAVED = [
-  { init: '미', bg: '#171717' },
-  { init: '도', bg: '#525252' },
-  { init: '하', bg: '#7C7C7C' },
-  { init: '진', bg: '#A3A3A3' },
-];
-
+// 메이트 탭은 실데이터(usePlaceMates)로 렌더 — 상수 목업 제거
 // 주변 탭은 실데이터(useNearby)로 렌더 — 상수 목업 제거
 
 const GRID_W = (Dimensions.get('window').width - 40 - 12) / 3;
@@ -251,7 +236,9 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
             />
           )}
           {stab === 'photo' && <PhotoTab placeId={placeId} />}
-          {stab === 'mate' && <MateTab onMeal={goMealRequest} />}
+          {stab === 'mate' && (
+            <MateTab placeId={placeId} onMeal={goMealRequest} onOpenProfile={goDinerProfile} />
+          )}
           {stab === 'nearby' && (
             <NearbyTab
               placeId={placeId}
@@ -669,109 +656,57 @@ function PhotoTab({ placeId }: { placeId: number }) {
 }
 
 /* ── 메이트 탭 ───────────────────────────────────── */
-function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
-  return (
-    <View style={{ marginTop: 26 }}>
-      <View style={styles.mateSectionHead}>
-        <Text style={styles.mateSectionTitle}>{title}</Text>
-        {count != null ? <Text style={styles.mateSectionCount}>{count}</Text> : null}
-      </View>
-      {children}
-    </View>
-  );
-}
+function MateTab({ placeId, onMeal, onOpenProfile }: {
+  placeId: number;
+  onMeal: () => void;
+  onOpenProfile: (userId: number) => void;
+}) {
+  const q = usePlaceMates(placeId);
+  const st = listState({ isLoading: q.isLoading, isError: q.isError, count: (q.data?.mates ?? []).length });
+  if (st === 'loading') return <View style={{ marginTop: 20 }}><StateView kind="loading" /></View>;
+  if (st === 'error') return <View style={{ marginTop: 20 }}><StateView kind="error" message="메이트 정보를 불러오지 못했어요" onRetry={() => q.refetch()} /></View>;
+  if (st === 'empty') return <View style={{ marginTop: 20 }}><StateView kind="empty" message="아직 여기 다녀간 메이트가 없어요" /></View>;
 
-function MateTab({ onMeal }: { onMeal: () => void }) {
+  const { visitedCount, mates } = q.data!;
   return (
     <View style={{ marginTop: 8 }}>
-      {/* 요약 배너 — 사회적 신뢰 */}
-      <View style={styles.mateSummary}>
-        <View style={{ flexDirection: 'row' }}>
-          {['민', '도', '하'].map((c, i) => (
-            <View key={c} style={{ marginLeft: i ? -10 : 0 }}>
-              <Avatar name={c} bg={['#171717', '#525252', '#7C7C7C'][i]} size={36} ring="#fff" />
-            </View>
-          ))}
-        </View>
-        <Text style={styles.mateSummaryText}>
-          내 메이트 <Text style={{ fontWeight: '800' }}>3명</Text>이 여기 다녀갔어요.{'\n'}
-          <Text style={{ color: T2.textSub }}>믿고 혼밥하기 좋은 곳이에요.</Text>
+      {visitedCount > 0 ? (
+        <Text style={styles.mateSummaryLine}>
+          내 메이트 <Text style={{ fontWeight: '800', color: T2.text }}>{visitedCount}명</Text>이 여기 다녀갔어요
         </Text>
-      </View>
-
-      {/* 지금 여기서 혼밥 중 */}
-      <Section title="지금 여기서 혼밥 중" count={LIVE_MATES.length}>
-        {LIVE_MATES.map((m) => (
-          <View key={m.n} style={styles.liveMateCard}>
-            <View>
-              <Avatar name={m.init} bg={m.bg} size={44} ring={T2.brandSoft} />
-              <View style={styles.liveMateDot} />
-            </View>
+      ) : null}
+      <View style={{ marginTop: 14, gap: 2 }}>
+        {mates.map((m, i, arr) => (
+          <Pressable
+            key={m.userId}
+            onPress={() => onOpenProfile(m.userId)}
+            style={[styles.mateRow, i < arr.length - 1 && styles.infoDivider]}
+            accessibilityRole="button"
+          >
+            <Avatar name={m.nickname[0] ?? '?'} bg="#525252" size={40} ring={m.hereNow ? T2.brandSoft : undefined} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={styles.mateName}>{m.n}</Text>
-                <View style={styles.mateBadge}>
-                  <Text style={styles.mateBadgeText}>메이트</Text>
-                </View>
+                <Text style={styles.mateRowName}>{m.nickname}</Text>
+                {m.hereNow ? (
+                  <View style={styles.hereNowBadge}><Text style={styles.hereNowBadgeText}>지금 여기 있어요</Text></View>
+                ) : null}
               </View>
-              <Text style={styles.mateMeta}>{m.here} · {m.mutual}</Text>
+              <Text style={styles.mateRowMeta} numberOfLines={1}>
+                {m.soloFriendlyRating != null ? <Text style={{ color: T2.brand, fontWeight: '700' }}>★{m.soloFriendlyRating}</Text> : null}
+                {m.reviewContent ? ` · "${m.reviewContent}"` : ''}
+                {m.togetherCount > 0 ? ` · 같이 ${m.togetherCount}회` : ''}
+                {m.visitCount > 0 ? ` · 방문 ${m.visitCount}회` : ''}
+                {m.lastVisitedAt ? ` · ${formatTimeAgo(m.lastVisitedAt, new Date())}` : ''}
+              </Text>
             </View>
-            <Pressable style={styles.mateCtaSolid} onPress={onMeal}>
-              <Text style={styles.mateCtaSolidText}>같이 먹기</Text>
-            </Pressable>
-          </View>
-        ))}
-      </Section>
-
-      {/* 다녀온 메이트 */}
-      <Section title="다녀온 메이트" count={VISITED.length}>
-        <View style={{ gap: 2 }}>
-          {VISITED.map((m, i, arr) => (
-            <View key={m.n} style={[styles.mateRow, i < arr.length - 1 && styles.infoDivider]}>
-              <Avatar name={m.init} bg={m.bg} size={40} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.mateRowName}>{m.n}</Text>
-                  <View style={styles.moodChip}>
-                    <Text style={styles.moodChipText}>{m.mood}</Text>
-                  </View>
-                </View>
-                <Text style={styles.mateRowMeta}>
-                  {m.together > 0 ? <Text style={{ color: T2.brand, fontWeight: '700' }}>같이 {m.together}회 · </Text> : null}
-                  방문 {m.visits}회 · 혼밥친화 ★{m.score} · {m.last}
-                </Text>
-              </View>
-              <Pressable
-                style={[styles.mateCtaOutline, { borderColor: m.together > 0 ? T2.brand : T2.border }]}
-                onPress={onMeal}
-              >
-                <Text style={[styles.mateCtaOutlineText, { color: m.together > 0 ? T2.brand : T2.textSub }]}>
-                  {m.together > 0 ? '같이 먹기' : '메이트 신청'}
-                </Text>
+            {m.hereNow ? (
+              <Pressable style={styles.mateCtaSolid} onPress={onMeal}>
+                <Text style={styles.mateCtaSolidText}>같이 먹기</Text>
               </Pressable>
-            </View>
-          ))}
-        </View>
-      </Section>
-
-      {/* 즐겨찾기에 담은 메이트 */}
-      <Section title="즐겨찾기에 담은 메이트" count={12}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <View style={{ flexDirection: 'row' }}>
-            {SAVED.map((s, i) => (
-              <View key={s.init} style={{ marginLeft: i ? -10 : 0 }}>
-                <Avatar name={s.init} bg={s.bg} size={38} ring={T2.bg} />
-              </View>
-            ))}
-            <View style={styles.savedMore}>
-              <Text style={styles.savedMoreText}>+8</Text>
-            </View>
-          </View>
-          <Text style={styles.savedNote}>
-            메이트 <Text style={{ color: T2.text, fontWeight: '800' }}>4명</Text>을 포함해{'\n'}12명이 이 식당을 저장했어요
-          </Text>
-        </View>
-      </Section>
+            ) : null}
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 }
@@ -973,6 +908,9 @@ const styles = StyleSheet.create({
   tabEmpty: { textAlign: 'center', color: T2.textMute, fontSize: 13, paddingVertical: 32 },
 
   // 메이트 탭
+  mateSummaryLine: { fontSize: 14, color: T2.textSub, letterSpacing: -0.3 },
+  hereNowBadge: { backgroundColor: T2.brandSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  hereNowBadgeText: { fontSize: 11, fontWeight: '800', color: T2.brand, letterSpacing: -0.3 },
   mateSummary: { marginTop: 18, padding: 16, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border, flexDirection: 'row', alignItems: 'center', gap: 13 },
   mateSummaryText: { flex: 1, fontSize: 13.5, color: T2.text, lineHeight: 20, fontWeight: '500', letterSpacing: -0.3 },
   mateSectionHead: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginBottom: 12 },
