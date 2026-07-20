@@ -668,8 +668,10 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
   if (st === 'empty') return <View style={{ marginTop: 20 }}><StateView kind="empty" message="아직 여기 다녀간 메이트가 없어요" /></View>;
 
   const { visitedCount, mates } = q.data!;
+  const hereNowMates = mates.filter((m) => m.hereNow);
   return (
     <View style={{ marginTop: 8 }}>
+      {/* 다녀온 메이트 — 여기서 혼밥한 적 있는 내 메이트 전원(이력). 같이먹기는 아래 카드로 뺌. */}
       {visitedCount > 0 ? (
         <Text style={styles.mateSummaryLine}>
           내 메이트 <Text style={{ fontWeight: '800', color: T2.text }}>{visitedCount}명</Text>이 여기 다녀갔어요
@@ -685,12 +687,7 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
           >
             <Avatar name={m.nickname[0] ?? '?'} bg="#525252" size={40} ring={m.hereNow ? T2.brandSoft : undefined} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={styles.mateRowName}>{m.nickname}</Text>
-                {m.hereNow ? (
-                  <View style={styles.hereNowBadge}><Text style={styles.hereNowBadgeText}>지금 여기 있어요</Text></View>
-                ) : null}
-              </View>
+              <Text style={styles.mateRowName}>{m.nickname}</Text>
               {m.soloFriendlyRating != null || m.reviewContent || m.togetherCount > 0 || m.visitCount > 0 || m.lastVisitedAt ? (
                 <Text style={styles.mateRowMeta} numberOfLines={1}>
                   {m.soloFriendlyRating != null ? <Text style={{ color: T2.brand, fontWeight: '700' }}>★{m.soloFriendlyRating}</Text> : null}
@@ -701,14 +698,36 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
                 </Text>
               ) : null}
             </View>
-            {m.hereNow ? (
-              <Pressable style={styles.mateCtaSolid} onPress={onMeal}>
-                <Text style={styles.mateCtaSolidText}>같이 먹기</Text>
-              </Pressable>
-            ) : null}
           </Pressable>
         ))}
       </View>
+
+      {/* 그 아래: 같이 먹기 카드 — 지금 여기 있는 메이트 + 같이 먹기 버튼 */}
+      {hereNowMates.length > 0 ? (
+        <View style={styles.mateLiveCard}>
+          <View style={styles.mateLiveHead}>
+            <View style={styles.mateLiveDot} />
+            <Text style={styles.mateLiveTitle}>지금 여기서 같이 먹을 수 있어요</Text>
+          </View>
+          <View style={{ marginTop: 12, gap: 12 }}>
+            {hereNowMates.map((m) => (
+              <View key={m.userId} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Pressable
+                  onPress={() => onOpenProfile(m.userId)}
+                  accessibilityRole="button"
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}
+                >
+                  <Avatar name={m.nickname[0] ?? '?'} bg="#525252" size={40} ring="#fff" />
+                  <Text style={styles.mateRowName} numberOfLines={1}>{m.nickname}</Text>
+                </Pressable>
+                <Pressable style={styles.mateCtaSolid} onPress={onMeal}>
+                  <Text style={styles.mateCtaSolidText}>같이 먹기</Text>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -911,8 +930,10 @@ const styles = StyleSheet.create({
 
   // 메이트 탭
   mateSummaryLine: { fontSize: 14, color: T2.textSub, letterSpacing: -0.3 },
-  hereNowBadge: { backgroundColor: T2.brandSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-  hereNowBadgeText: { fontSize: 11, fontWeight: '800', color: T2.brand, letterSpacing: -0.3 },
+  mateLiveCard: { marginTop: 24, padding: 16, borderRadius: 16, backgroundColor: T2.brandSoft, borderWidth: 1, borderColor: 'rgba(255,90,31,0.15)' },
+  mateLiveHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  mateLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: T2.brand },
+  mateLiveTitle: { fontSize: 14, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
   mateCtaSolid: { alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: T2.brand },
   mateCtaSolidText: { fontSize: 13, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
   mateRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
