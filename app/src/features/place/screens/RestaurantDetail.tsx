@@ -678,28 +678,39 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
         </Text>
       ) : null}
       <View style={{ marginTop: 14, gap: 2 }}>
-        {mates.map((m, i, arr) => (
-          <Pressable
-            key={m.userId}
-            onPress={() => onOpenProfile(m.userId)}
-            style={[styles.mateRow, i < arr.length - 1 && styles.infoDivider]}
-            accessibilityRole="button"
-          >
-            <Avatar name={m.nickname[0] ?? '?'} bg="#525252" size={40} ring={m.hereNow ? T2.brandSoft : undefined} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.mateRowName}>{m.nickname}</Text>
-              {m.soloFriendlyRating != null || m.reviewContent || m.togetherCount > 0 || m.visitCount > 0 || m.lastVisitedAt ? (
-                <Text style={styles.mateRowMeta} numberOfLines={1}>
-                  {m.soloFriendlyRating != null ? <Text style={{ color: T2.brand, fontWeight: '700' }}>★{m.soloFriendlyRating}</Text> : null}
-                  {m.reviewContent ? ` · "${m.reviewContent}"` : ''}
-                  {m.togetherCount > 0 ? ` · 같이 ${m.togetherCount}회` : ''}
-                  {m.visitCount > 0 ? ` · 방문 ${m.visitCount}회` : ''}
-                  {m.lastVisitedAt ? ` · ${formatTimeAgo(m.lastVisitedAt, new Date())}` : ''}
-                </Text>
-              ) : null}
-            </View>
-          </Pressable>
-        ))}
+        {mates.map((m, i, arr) => {
+          // 같이 N회는 이름 옆 칩으로 뺐으니 메타에는 리뷰·방문·마지막방문만(빈 조각은 제외해 앞 구분점 방지).
+          const tail = [
+            m.reviewContent ? `"${m.reviewContent}"` : null,
+            m.visitCount > 0 ? `방문 ${m.visitCount}회` : null,
+            m.lastVisitedAt ? formatTimeAgo(m.lastVisitedAt, new Date()) : null,
+          ].filter(Boolean).join(' · ');
+          return (
+            <Pressable
+              key={m.userId}
+              onPress={() => onOpenProfile(m.userId)}
+              style={[styles.mateRow, i < arr.length - 1 && styles.infoDivider]}
+              accessibilityRole="button"
+            >
+              <Avatar name={m.nickname[0] ?? '?'} bg="#525252" size={40} ring={m.hereNow ? T2.brandSoft : undefined} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.mateRowName} numberOfLines={1}>{m.nickname}</Text>
+                  {m.togetherCount > 0 ? (
+                    <View style={styles.togetherChip}><Text style={styles.togetherChipText}>같이 {m.togetherCount}회</Text></View>
+                  ) : null}
+                </View>
+                {m.soloFriendlyRating != null || tail ? (
+                  <Text style={styles.mateRowMeta} numberOfLines={1}>
+                    {m.soloFriendlyRating != null ? <Text style={{ color: T2.brand, fontWeight: '700' }}>★{m.soloFriendlyRating}</Text> : null}
+                    {m.soloFriendlyRating != null && tail ? ' · ' : ''}
+                    {tail}
+                  </Text>
+                ) : null}
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* 그 아래: 같이 먹기 카드 — 지금 여기 있는 메이트 + 같이 먹기 버튼 */}
@@ -930,6 +941,8 @@ const styles = StyleSheet.create({
 
   // 메이트 탭
   mateSummaryLine: { fontSize: 14, color: T2.textSub, letterSpacing: -0.3 },
+  togetherChip: { backgroundColor: T2.brandSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  togetherChipText: { fontSize: 11, fontWeight: '800', color: T2.brand, letterSpacing: -0.3 },
   mateLiveCard: { marginTop: 24, padding: 16, borderRadius: 16, backgroundColor: T2.brandSoft, borderWidth: 1, borderColor: 'rgba(255,90,31,0.15)' },
   mateLiveHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   mateLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: T2.brand },
