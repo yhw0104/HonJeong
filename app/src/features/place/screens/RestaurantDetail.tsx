@@ -671,13 +671,14 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
   const hereNowMates = mates.filter((m) => m.hereNow);
   return (
     <View style={{ marginTop: 22 }}>
-      {/* 다녀온 메이트 — 여기서 혼밥한 적 있는 내 메이트 전원(이력). 같이먹기는 아래 카드로 뺌. */}
+      {/* 다녀온 메이트 — 카드로 감쌈(목업 톤). 목록은 전원 유지(이력). */}
+      <View style={styles.mateVisitedCard}>
       {visitedCount > 0 ? (
         <Text style={styles.mateSummaryLine}>
           내 메이트 <Text style={{ fontWeight: '800', color: T2.brand }}>{visitedCount}명</Text>이 여기 다녀갔어요
         </Text>
       ) : null}
-      <View style={{ marginTop: 16, gap: 2 }}>
+      <View style={{ marginTop: visitedCount > 0 ? 14 : 0, gap: 2 }}>
         {mates.map((m, i, arr) => {
           // 같이 N회는 이름 옆 칩으로 뺐으니 메타에는 리뷰·방문·마지막방문만(빈 조각은 제외해 앞 구분점 방지).
           const tail = [
@@ -712,13 +713,16 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
           );
         })}
       </View>
+      </View>
 
-      {/* 그 아래: 같이 먹기 카드 — 지금 여기 있는 메이트 + 같이 먹기 버튼 */}
+      {/* 분리선 하나 + 지금 여기서 혼밥중 카드(라이브 — 같이먹기) */}
       {hereNowMates.length > 0 ? (
-        <View style={styles.mateLiveCard}>
+        <>
+          <View style={styles.mateSplitLine} />
+          <View style={styles.mateLiveCard}>
           <View style={styles.mateLiveHead}>
             <View style={styles.mateLiveDot} />
-            <Text style={styles.mateLiveTitle}>지금 여기서 같이 먹을 수 있어요</Text>
+            <Text style={styles.mateLiveTitle}>지금 여기서 혼밥중</Text>
           </View>
           <View style={{ marginTop: 12, gap: 12 }}>
             {hereNowMates.map((m) => (
@@ -738,6 +742,7 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
             ))}
           </View>
         </View>
+        </>
       ) : null}
     </View>
   );
@@ -941,9 +946,11 @@ const styles = StyleSheet.create({
 
   // 메이트 탭
   mateSummaryLine: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
+  mateVisitedCard: { padding: 16, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border },
+  mateSplitLine: { height: 1, backgroundColor: T2.border, marginTop: 20, marginBottom: 20 },
   togetherChip: { backgroundColor: T2.brandSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   togetherChipText: { fontSize: 11, fontWeight: '800', color: T2.brand, letterSpacing: -0.3 },
-  mateLiveCard: { marginTop: 24, padding: 16, borderRadius: 16, backgroundColor: T2.brandSoft, borderWidth: 1, borderColor: 'rgba(255,90,31,0.15)' },
+  mateLiveCard: { padding: 16, borderRadius: 16, backgroundColor: T2.brandSoft, borderWidth: 1, borderColor: 'rgba(255,90,31,0.15)' },
   mateLiveHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   mateLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: T2.brand },
   mateLiveTitle: { fontSize: 14, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
