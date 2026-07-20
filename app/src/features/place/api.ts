@@ -55,6 +55,7 @@ export type MateAtPlace = {
   togetherCount: number;
   visitCount: number;
   lastVisitedAt: string | null;
+  profileImageUrl: string | null;
 };
 export type PlaceMates = { visitedCount: number; mates: MateAtPlace[]; savedCount: number; savedMateCount: number };
 

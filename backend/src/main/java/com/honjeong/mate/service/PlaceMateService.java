@@ -59,8 +59,10 @@ public class PlaceMateService {
         }
 
         Map<Long, String> nicknameById = new LinkedHashMap<>();
+        Map<Long, String> profileImageById = new LinkedHashMap<>();
         for (Mate m : mates) {
             nicknameById.put(m.getMateUser().getId(), m.getMateUser().getNickname());
+            profileImageById.put(m.getMateUser().getId(), m.getMateUser().getProfileImageUrl());
         }
         List<Long> mateIds = new ArrayList<>(nicknameById.keySet());
         int savedMateCount = (int) favoriteRepository.countDistinctSaverMatesByPlace(placeId, mateIds);
@@ -100,7 +102,8 @@ public class PlaceMateService {
                     rv != null ? rv.getContent() : null,
                     togetherByPartner.getOrDefault(uid, 0),
                     visitCount,
-                    v != null ? v.getLastVisitedAt() : null));
+                    v != null ? v.getLastVisitedAt() : null,
+                    profileImageById.get(uid)));
         }
         // 정렬: hereNow 우선 → lastVisitedAt 최신(null 마지막) → userId(결정적 tie-break)
         list.sort(Comparator

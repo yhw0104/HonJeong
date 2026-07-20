@@ -94,6 +94,7 @@ class PlaceMateServiceTest {
         assertThat(aOut.reviewContent()).isEqualTo("조용해요");
         assertThat(aOut.togetherCount()).isEqualTo(3);
         assertThat(aOut.visitCount()).isEqualTo(2);
+        assertThat(aOut.profileImageUrl()).isEqualTo("img11"); // 프로필 사진 URL 실려 옴
     }
 
     @Test
@@ -226,6 +227,7 @@ class PlaceMateServiceTest {
         User u = mock(User.class);
         when(u.getId()).thenReturn(id);
         when(u.getNickname()).thenReturn(nickname);
+        when(u.getProfileImageUrl()).thenReturn("img" + id);
         return u;
     }
 

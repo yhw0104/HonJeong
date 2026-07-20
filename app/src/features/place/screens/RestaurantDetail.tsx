@@ -668,8 +668,8 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
   if (st === 'empty') return (
     <View style={styles.mateEmptyCard}>
       <Text style={styles.mateEmptyEmoji}>🍚</Text>
-      <Text style={styles.mateEmptyTitle}>아직 여기 다녀간 메이트가 없어요</Text>
-      <Text style={styles.mateEmptySub}>여기서 같이 먹으면 새로운 메이트를 만들 수 있어요</Text>
+      <Text style={styles.mateEmptyTitle}>아직 다녀간 메이트가 없어요</Text>
+      <Text style={styles.mateEmptySub}>같이 먹기를 통해 새로운 메이트를 만들어 봐요</Text>
       <Pressable style={styles.mateEmptyBtn} onPress={onMeal} accessibilityRole="button">
         <Text style={styles.mateEmptyBtnText}>같이 먹기</Text>
       </Pressable>
@@ -702,7 +702,7 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
               style={[styles.mateRow, i < arr.length - 1 && styles.infoDivider]}
               accessibilityRole="button"
             >
-              <Avatar name={m.nickname[0] ?? '?'} bg="#525252" size={40} ring={m.hereNow ? T2.brandSoft : undefined} />
+              <Avatar name={m.nickname[0] ?? '?'} uri={m.profileImageUrl} bg="#525252" size={40} ring={m.hereNow ? T2.brandSoft : undefined} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={styles.mateRowName} numberOfLines={1}>{m.nickname}</Text>
@@ -741,7 +741,7 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
                   accessibilityRole="button"
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}
                 >
-                  <Avatar name={m.nickname[0] ?? '?'} bg="#525252" size={40} ring="#fff" />
+                  <Avatar name={m.nickname[0] ?? '?'} uri={m.profileImageUrl} bg="#525252" size={40} ring="#fff" />
                   <Text style={styles.mateRowName} numberOfLines={1}>{m.nickname}</Text>
                 </Pressable>
                 <Pressable style={styles.mateCtaSolid} onPress={onMeal}>
