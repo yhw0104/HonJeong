@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.honjeong.checkin.repository.CheckInRepository;
+import com.honjeong.favorite.repository.FavoriteRepository;
 import com.honjeong.mate.domain.Mate;
 import com.honjeong.mate.dto.MateAtPlace;
 import com.honjeong.mate.dto.PlaceMatesResponse;
@@ -34,17 +35,21 @@ class PlaceMateServiceTest {
     @Mock MateRepository mateRepository;
     @Mock CheckInRepository checkInRepository;
     @Mock ReviewRepository reviewRepository;
+    @Mock FavoriteRepository favoriteRepository;
     @InjectMocks PlaceMateService service;
 
     @Test
-    @DisplayName("메이트 없으면 visitedCount=0·빈 목록(쿼리 호출 안 함)")
+    @DisplayName("메이트 없으면 visitedCount=0·빈 목록(메이트 쿼리 호출 안 함), 저장 수는 메이트 무관하게 반환")
     void 메이트_없음() {
         when(mateRepository.findMatesWithUserByUserId(1L)).thenReturn(List.of());
+        when(favoriteRepository.countDistinctSaversByPlace(9L)).thenReturn(5L);
 
         var res = service.getMatesAtPlace(1L, 9L);
 
         assertThat(res.visitedCount()).isZero();
         assertThat(res.mates()).isEmpty();
+        assertThat(res.savedCount()).isEqualTo(5); // 저장 사회증거는 메이트 없어도 준다
+        assertThat(res.savedMateCount()).isZero();
         verify(checkInRepository, never()).aggregateMateVisitsAtPlace(any(), any());
     }
 
@@ -70,10 +75,14 @@ class PlaceMateServiceTest {
         when(reviewRepository.findByPlace_IdAndUser_IdInOrderByVisitedAtDesc(eq(9L), anyCollection()))
                 .thenReturn(reviews);
         when(checkInRepository.countTogetherPairsForUser(1L)).thenReturn(togetherRows);
+        when(favoriteRepository.countDistinctSaversByPlace(9L)).thenReturn(10L);
+        when(favoriteRepository.countDistinctSaverMatesByPlace(eq(9L), anyCollection())).thenReturn(2L);
 
         var res = service.getMatesAtPlace(1L, 9L);
 
         assertThat(res.visitedCount()).isEqualTo(1); // A만 방문>0
+        assertThat(res.savedCount()).isEqualTo(10);
+        assertThat(res.savedMateCount()).isEqualTo(2);
         assertThat(res.mates()).hasSize(2);
         // hereNow(B) 우선
         assertThat(res.mates().get(0).userId()).isEqualTo(12L);

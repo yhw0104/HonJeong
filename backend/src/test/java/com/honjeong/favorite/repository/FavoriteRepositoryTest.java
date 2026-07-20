@@ -113,6 +113,31 @@ class FavoriteRepositoryTest extends AbstractPostgresTest {
         assertThat(favoriteRepository.countDistinctPlaceByUserId(user.getId())).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("countDistinctSavers/SaverMatesByPlace: 저장자 distinct(한 사람 여러 그룹=1)·타 식당 제외·메이트 필터")
+    void 저장자_사회증거() {
+        User u1 = persistUser("01000000021", "저장1");
+        User u2 = persistUser("01000000022", "저장2");
+        User u3 = persistUser("01000000023", "저장3");
+        Place place = persistPlace("ext-saver-1");
+        Place other = persistPlace("ext-saver-2");
+        FavoriteGroup u1g1 = em.persist(FavoriteGroup.create(u1, "g1", null, "#FF5A1F", false));
+        FavoriteGroup u1g2 = em.persist(FavoriteGroup.create(u1, "g2", null, "#22A65A", false));
+        FavoriteGroup u2g = em.persist(FavoriteGroup.create(u2, "g", null, "#EB5757", false));
+        FavoriteGroup u3g = em.persist(FavoriteGroup.create(u3, "g", null, "#2F80ED", false));
+        em.persist(Favorite.of(u1g1, place));
+        em.persist(Favorite.of(u1g2, place)); // 같은 사람 2그룹 → 1로
+        em.persist(Favorite.of(u2g, place));
+        em.persist(Favorite.of(u3g, other)); // 타 식당 → 제외
+        em.flush();
+
+        assertThat(favoriteRepository.countDistinctSaversByPlace(place.getId())).isEqualTo(2L); // u1, u2
+
+        // 내 메이트 중 저장자: mateIds=[u1,u3] → u1만 이 식당 저장 = 1
+        assertThat(favoriteRepository.countDistinctSaverMatesByPlace(
+                place.getId(), List.of(u1.getId(), u3.getId()))).isEqualTo(1L);
+    }
+
     private User persistUser(String phone, String nickname) {
         User u = User.pending(phone, null);
         u.completeProfile(nickname, null, null, null, null, null, null, null, null);

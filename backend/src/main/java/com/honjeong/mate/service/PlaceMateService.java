@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.honjeong.checkin.repository.CheckInRepository;
+import com.honjeong.favorite.repository.FavoriteRepository;
 import com.honjeong.mate.domain.Mate;
 import com.honjeong.mate.dto.MateAtPlace;
 import com.honjeong.mate.dto.PlaceMatesResponse;
@@ -31,12 +32,14 @@ public class PlaceMateService {
     private final MateRepository mateRepository;
     private final CheckInRepository checkInRepository;
     private final ReviewRepository reviewRepository;
+    private final FavoriteRepository favoriteRepository;
 
     public PlaceMateService(MateRepository mateRepository, CheckInRepository checkInRepository,
-            ReviewRepository reviewRepository) {
+            ReviewRepository reviewRepository, FavoriteRepository favoriteRepository) {
         this.mateRepository = mateRepository;
         this.checkInRepository = checkInRepository;
         this.reviewRepository = reviewRepository;
+        this.favoriteRepository = favoriteRepository;
     }
 
     /**
@@ -47,9 +50,12 @@ public class PlaceMateService {
      */
     @Transactional(readOnly = true)
     public PlaceMatesResponse getMatesAtPlace(Long viewerId, Long placeId) {
+        // 저장(즐겨찾기) 사회적 증거는 메이트 유무와 무관 — 메이트 없어도 전체 저장 수는 준다.
+        int savedCount = (int) favoriteRepository.countDistinctSaversByPlace(placeId);
+
         List<Mate> mates = mateRepository.findMatesWithUserByUserId(viewerId);
         if (mates.isEmpty()) {
-            return new PlaceMatesResponse(0, List.of());
+            return new PlaceMatesResponse(0, List.of(), savedCount, 0);
         }
 
         Map<Long, String> nicknameById = new LinkedHashMap<>();
@@ -57,6 +63,7 @@ public class PlaceMateService {
             nicknameById.put(m.getMateUser().getId(), m.getMateUser().getNickname());
         }
         List<Long> mateIds = new ArrayList<>(nicknameById.keySet());
+        int savedMateCount = (int) favoriteRepository.countDistinctSaverMatesByPlace(placeId, mateIds);
 
         Map<Long, CheckInRepository.MateVisitRow> visitByUser = checkInRepository
                 .aggregateMateVisitsAtPlace(placeId, mateIds).stream()
@@ -100,6 +107,6 @@ public class PlaceMateService {
                 .comparing(MateAtPlace::hereNow, Comparator.reverseOrder())
                 .thenComparing(MateAtPlace::lastVisitedAt, Comparator.nullsLast(Comparator.reverseOrder()))
                 .thenComparing(MateAtPlace::userId));
-        return new PlaceMatesResponse(visitedCount, list);
+        return new PlaceMatesResponse(visitedCount, list, savedCount, savedMateCount);
     }
 }

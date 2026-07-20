@@ -665,9 +665,18 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
   const st = listState({ isLoading: q.isLoading, isError: q.isError, count: (q.data?.mates ?? []).length });
   if (st === 'loading') return <View style={{ marginTop: 20 }}><StateView kind="loading" /></View>;
   if (st === 'error') return <View style={{ marginTop: 20 }}><StateView kind="error" message="메이트 정보를 불러오지 못했어요" onRetry={() => q.refetch()} /></View>;
-  if (st === 'empty') return <View style={{ marginTop: 20 }}><StateView kind="empty" message="아직 여기 다녀간 메이트가 없어요" /></View>;
+  if (st === 'empty') return (
+    <View style={styles.mateEmptyCard}>
+      <Text style={styles.mateEmptyEmoji}>🍚</Text>
+      <Text style={styles.mateEmptyTitle}>아직 여기 다녀간 메이트가 없어요</Text>
+      <Text style={styles.mateEmptySub}>여기서 같이 먹으면 새로운 메이트를 만들 수 있어요</Text>
+      <Pressable style={styles.mateEmptyBtn} onPress={onMeal} accessibilityRole="button">
+        <Text style={styles.mateEmptyBtnText}>같이 먹기</Text>
+      </Pressable>
+    </View>
+  );
 
-  const { visitedCount, mates } = q.data!;
+  const { visitedCount, mates, savedCount, savedMateCount } = q.data!;
   const hereNowMates = mates.filter((m) => m.hereNow);
   return (
     <View style={{ marginTop: 22 }}>
@@ -722,7 +731,7 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
           <View style={styles.mateLiveCard}>
           <View style={styles.mateLiveHead}>
             <View style={styles.mateLiveDot} />
-            <Text style={styles.mateLiveTitle}>지금 여기서 혼밥중</Text>
+            <Text style={styles.mateLiveTitle}>지금 여기서 혼밥중인 메이트</Text>
           </View>
           <View style={{ marginTop: 12, gap: 12 }}>
             {hereNowMates.map((m) => (
@@ -743,6 +752,17 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
           </View>
         </View>
         </>
+      ) : null}
+
+      {/* 즐겨찾기 사회적 증거 — 저장한 사람 수(내 메이트 포함) */}
+      {savedCount > 0 ? (
+        <View style={styles.mateSavedRow}>
+          <Text style={styles.mateSavedEmoji}>🔖</Text>
+          <Text style={styles.mateSavedText}>
+            이 식당을 <Text style={{ fontWeight: '800', color: T2.text }}>{savedCount}명</Text>이 저장했어요
+            {savedMateCount > 0 ? <Text style={{ color: T2.brand, fontWeight: '700' }}> · 내 메이트 {savedMateCount}명</Text> : null}
+          </Text>
+        </View>
       ) : null}
     </View>
   );
@@ -947,6 +967,15 @@ const styles = StyleSheet.create({
   // 메이트 탭
   mateSummaryLine: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
   mateVisitedCard: { padding: 16, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border },
+  mateEmptyCard: { marginTop: 22, padding: 28, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border, alignItems: 'center' },
+  mateEmptyEmoji: { fontSize: 30 },
+  mateEmptyTitle: { marginTop: 10, fontSize: 15, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
+  mateEmptySub: { marginTop: 6, fontSize: 13, color: T2.textSub, letterSpacing: -0.3, textAlign: 'center', lineHeight: 19 },
+  mateEmptyBtn: { marginTop: 16, paddingHorizontal: 20, paddingVertical: 11, borderRadius: 12, backgroundColor: T2.brand },
+  mateEmptyBtnText: { fontSize: 14, fontWeight: '800', color: '#fff', letterSpacing: -0.3 },
+  mateSavedRow: { marginTop: 22, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 2 },
+  mateSavedEmoji: { fontSize: 15 },
+  mateSavedText: { flex: 1, fontSize: 13, color: T2.textSub, letterSpacing: -0.3 },
   mateSplitLine: { height: 1, backgroundColor: T2.border, marginTop: 20, marginBottom: 20 },
   togetherChip: { backgroundColor: T2.brandSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   togetherChipText: { fontSize: 11, fontWeight: '800', color: T2.brand, letterSpacing: -0.3 },

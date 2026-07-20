@@ -1,5 +1,6 @@
 package com.honjeong.favorite.repository;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -67,4 +68,22 @@ public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
      */
     @Query("SELECT f.group.id FROM Favorite f WHERE f.group.user.id = :userId AND f.place.id = :placeId")
     List<Long> findGroupIdsContaining(@Param("userId") Long userId, @Param("placeId") Long placeId);
+
+    /**
+     * 기능: 이 장소를 즐겨찾기한 서로 다른 사용자 수(사회적 증거 "N명이 저장") — 여러 그룹 중복은 1명으로
+     * 쿼리: SELECT COUNT(DISTINCT g.user_id) FROM favorites f JOIN favorite_groups g ON g.id=f.group_id WHERE f.place_id=:placeId
+     * Request: placeId — 장소 ID / Response: long — 중복 제거된 저장자 수
+     */
+    @Query("SELECT COUNT(DISTINCT f.group.user.id) FROM Favorite f WHERE f.place.id = :placeId")
+    long countDistinctSaversByPlace(@Param("placeId") Long placeId);
+
+    /**
+     * 기능: 내 메이트 중 이 장소를 즐겨찾기한 서로 다른 사용자 수(사회적 증거 "내 메이트 M명 포함")
+     * 쿼리: SELECT COUNT(DISTINCT g.user_id) FROM favorites f JOIN favorite_groups g ON g.id=f.group_id
+     *       WHERE f.place_id=:placeId AND g.user_id IN :mateIds
+     * Request: placeId — 장소 ID, mateIds — 내 메이트 ID 목록 / Response: long — 저장한 메이트 수
+     */
+    @Query("SELECT COUNT(DISTINCT f.group.user.id) FROM Favorite f WHERE f.place.id = :placeId "
+            + "AND f.group.user.id IN :mateIds")
+    long countDistinctSaverMatesByPlace(@Param("placeId") Long placeId, @Param("mateIds") Collection<Long> mateIds);
 }

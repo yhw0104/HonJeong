@@ -56,7 +56,7 @@ export type MateAtPlace = {
   visitCount: number;
   lastVisitedAt: string | null;
 };
-export type PlaceMates = { visitedCount: number; mates: MateAtPlace[] };
+export type PlaceMates = { visitedCount: number; mates: MateAtPlace[]; savedCount: number; savedMateCount: number };
 
 export const fetchPlaceMates = (placeId: number) =>
   apiGet<PlaceMates>(`/places/${placeId}/mates`);
