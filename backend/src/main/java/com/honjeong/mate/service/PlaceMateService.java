@@ -95,10 +95,11 @@ public class PlaceMateService {
                     visitCount,
                     v != null ? v.getLastVisitedAt() : null));
         }
-        // 정렬: hereNow 우선 → lastVisitedAt 최신(null 마지막)
+        // 정렬: hereNow 우선 → lastVisitedAt 최신(null 마지막) → userId(결정적 tie-break)
         list.sort(Comparator
                 .comparing(MateAtPlace::hereNow, Comparator.reverseOrder())
-                .thenComparing(MateAtPlace::lastVisitedAt, Comparator.nullsLast(Comparator.reverseOrder())));
+                .thenComparing(MateAtPlace::lastVisitedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(MateAtPlace::userId));
         return new PlaceMatesResponse(visitedCount, list);
     }
 }
