@@ -670,14 +670,14 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
   const { visitedCount, mates } = q.data!;
   const hereNowMates = mates.filter((m) => m.hereNow);
   return (
-    <View style={{ marginTop: 8 }}>
+    <View style={{ marginTop: 22 }}>
       {/* 다녀온 메이트 — 여기서 혼밥한 적 있는 내 메이트 전원(이력). 같이먹기는 아래 카드로 뺌. */}
       {visitedCount > 0 ? (
         <Text style={styles.mateSummaryLine}>
-          내 메이트 <Text style={{ fontWeight: '800', color: T2.text }}>{visitedCount}명</Text>이 여기 다녀갔어요
+          내 메이트 <Text style={{ fontWeight: '800', color: T2.brand }}>{visitedCount}명</Text>이 여기 다녀갔어요
         </Text>
       ) : null}
-      <View style={{ marginTop: 14, gap: 2 }}>
+      <View style={{ marginTop: 16, gap: 2 }}>
         {mates.map((m, i, arr) => {
           // 같이 N회는 이름 옆 칩으로 뺐으니 메타에는 리뷰·방문·마지막방문만(빈 조각은 제외해 앞 구분점 방지).
           const tail = [
@@ -940,7 +940,7 @@ const styles = StyleSheet.create({
   tabEmpty: { textAlign: 'center', color: T2.textMute, fontSize: 13, paddingVertical: 32 },
 
   // 메이트 탭
-  mateSummaryLine: { fontSize: 14, color: T2.textSub, letterSpacing: -0.3 },
+  mateSummaryLine: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
   togetherChip: { backgroundColor: T2.brandSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   togetherChipText: { fontSize: 11, fontWeight: '800', color: T2.brand, letterSpacing: -0.3 },
   mateLiveCard: { marginTop: 24, padding: 16, borderRadius: 16, backgroundColor: T2.brandSoft, borderWidth: 1, borderColor: 'rgba(255,90,31,0.15)' },
