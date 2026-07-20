@@ -678,7 +678,6 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     @Test
     @DisplayName("aggregateMateVisitsAtPlace: 메이트별 방문수·마지막방문(취소·모집 제외), 비메이트/타 식당 제외")
     void 메이트_방문집계() {
-        User me = persistUser("01000000009", "me");
         User u1 = persistUser("01000000001", "A"); // 메이트, 여기 2회 방문 + 취소 1
         User u2 = persistUser("01000000002", "B"); // 메이트, 여기 1회
         User u3 = persistUser("01000000003", "C"); // 비메이트(mateIds에 없음)
@@ -708,15 +707,20 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         User u1 = persistUser("01000000001", "A"); // ACTIVE = 여기 있음
         User u2 = persistUser("01000000002", "B"); // ENDED = 없음
         User u3 = persistUser("01000000003", "C"); // SEEKING = 여기 있음
+        User u4 = persistUser("01000000004", "D"); // TOGETHER = 여기 있음
         Place place = persistPlace("ext-1", 37.5, 127.0);
-        em.persist(CheckIn.start(u1, place, NOW));
+        CheckIn u1CheckIn = em.persist(CheckIn.start(u1, place, NOW));
         em.persist(endedCheckIn(u2, place, NOW.minusDays(1)));
         em.persist(CheckIn.startSeeking(u3, place, NOW));
+        // u4의 TOGETHER는 실제 매칭 신청을 거쳐야 유니크 제약을 만족한다 — u1의 기존 체크인을 대상으로 신청을 만든다.
+        MealRequest mealRequest = em.persist(MealRequest.create(u4, u1CheckIn, place, null, NOW));
         em.flush();
+        checkInRepository.saveAndFlush(CheckIn.startTogether(u4, place, mealRequest.getId(), NOW));
 
-        var ids = checkInRepository.findMateIdsHereNow(place.getId(), List.of(u1.getId(), u2.getId(), u3.getId()));
+        var ids = checkInRepository.findMateIdsHereNow(place.getId(),
+                List.of(u1.getId(), u2.getId(), u3.getId(), u4.getId()));
 
-        assertThat(ids).containsExactlyInAnyOrder(u1.getId(), u3.getId());
+        assertThat(ids).containsExactlyInAnyOrder(u1.getId(), u3.getId(), u4.getId());
     }
 
     /**

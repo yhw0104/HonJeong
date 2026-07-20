@@ -691,13 +691,15 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
                   <View style={styles.hereNowBadge}><Text style={styles.hereNowBadgeText}>지금 여기 있어요</Text></View>
                 ) : null}
               </View>
-              <Text style={styles.mateRowMeta} numberOfLines={1}>
-                {m.soloFriendlyRating != null ? <Text style={{ color: T2.brand, fontWeight: '700' }}>★{m.soloFriendlyRating}</Text> : null}
-                {m.reviewContent ? ` · "${m.reviewContent}"` : ''}
-                {m.togetherCount > 0 ? ` · 같이 ${m.togetherCount}회` : ''}
-                {m.visitCount > 0 ? ` · 방문 ${m.visitCount}회` : ''}
-                {m.lastVisitedAt ? ` · ${formatTimeAgo(m.lastVisitedAt, new Date())}` : ''}
-              </Text>
+              {m.soloFriendlyRating != null || m.reviewContent || m.togetherCount > 0 || m.visitCount > 0 || m.lastVisitedAt ? (
+                <Text style={styles.mateRowMeta} numberOfLines={1}>
+                  {m.soloFriendlyRating != null ? <Text style={{ color: T2.brand, fontWeight: '700' }}>★{m.soloFriendlyRating}</Text> : null}
+                  {m.reviewContent ? ` · "${m.reviewContent}"` : ''}
+                  {m.togetherCount > 0 ? ` · 같이 ${m.togetherCount}회` : ''}
+                  {m.visitCount > 0 ? ` · 방문 ${m.visitCount}회` : ''}
+                  {m.lastVisitedAt ? ` · ${formatTimeAgo(m.lastVisitedAt, new Date())}` : ''}
+                </Text>
+              ) : null}
             </View>
             {m.hereNow ? (
               <Pressable style={styles.mateCtaSolid} onPress={onMeal}>
@@ -911,29 +913,11 @@ const styles = StyleSheet.create({
   mateSummaryLine: { fontSize: 14, color: T2.textSub, letterSpacing: -0.3 },
   hereNowBadge: { backgroundColor: T2.brandSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   hereNowBadgeText: { fontSize: 11, fontWeight: '800', color: T2.brand, letterSpacing: -0.3 },
-  mateSummary: { marginTop: 18, padding: 16, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border, flexDirection: 'row', alignItems: 'center', gap: 13 },
-  mateSummaryText: { flex: 1, fontSize: 13.5, color: T2.text, lineHeight: 20, fontWeight: '500', letterSpacing: -0.3 },
-  mateSectionHead: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginBottom: 12 },
-  mateSectionTitle: { fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: 0.6 },
-  mateSectionCount: { fontSize: 12, fontWeight: '700', color: T2.textMute },
-  liveMateCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: T2.brandSoft, borderWidth: 1, borderColor: 'rgba(255,90,31,0.15)' },
-  liveMateDot: { position: 'absolute', right: -1, bottom: -1, width: 13, height: 13, borderRadius: 6.5, backgroundColor: T2.brand, borderWidth: 2.5, borderColor: T2.brandSoft },
-  mateName: { fontSize: 15, fontWeight: '800', color: T2.text, letterSpacing: -0.4 },
-  mateBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(255,90,31,0.25)' },
-  mateBadgeText: { fontSize: 10, fontWeight: '700', color: T2.brand },
-  mateMeta: { fontSize: 12, color: T2.textSub, marginTop: 3, letterSpacing: -0.2 },
   mateCtaSolid: { alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: T2.brand },
   mateCtaSolidText: { fontSize: 13, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
   mateRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   mateRowName: { fontSize: 14.5, fontWeight: '700', color: T2.text, letterSpacing: -0.4 },
-  moodChip: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: T2.bg, borderWidth: 1, borderColor: T2.border },
-  moodChipText: { fontSize: 11, fontWeight: '600', color: T2.textMute },
   mateRowMeta: { fontSize: 12, color: T2.textMute, marginTop: 4, letterSpacing: -0.2 },
-  mateCtaOutline: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: '#fff', borderWidth: 1.5 },
-  mateCtaOutlineText: { fontSize: 12.5, fontWeight: '700', letterSpacing: -0.3 },
-  savedMore: { marginLeft: -10, width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border, alignItems: 'center', justifyContent: 'center' },
-  savedMoreText: { fontSize: 12, fontWeight: '700', color: T2.textSub },
-  savedNote: { flex: 1, fontSize: 13, color: T2.textSub, letterSpacing: -0.3, lineHeight: 18 },
 
   // 주변 탭
   nearbyNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
