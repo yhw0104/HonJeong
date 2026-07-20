@@ -503,4 +503,62 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             + "AND c.status NOT IN (com.honjeong.checkin.domain.CheckInStatus.CANCELLED, "
             + "com.honjeong.checkin.domain.CheckInStatus.SEEKING)")
     List<LocalDateTime> findDinerStartedAtByPlace(@Param("placeId") Long placeId);
+
+    /**
+     * 기능: 이 식당에서 내 메이트별 방문(실제 혼밥) 수·마지막 방문시각 집계 — 취소·모집 제외
+     * 쿼리: SELECT user_id, COUNT(*), MAX(started_at) ... WHERE place_id=:placeId AND user_id IN :mateIds
+     *       AND status NOT IN ('CANCELLED','SEEKING') GROUP BY user_id
+     * Request: placeId — 식당 ID, mateIds — 집계 대상 메이트 사용자 ID 목록 / Response: List&lt;MateVisitRow&gt; — 메이트별 방문 집계(방문 있는 메이트만)
+     *
+     * <p>[의도] 식당상세 메이트 탭에서 "이 메이트, 여기 N번 왔었네" 정보를 보여주기 위한 집계다. 취소(CANCELLED)와
+     * 모집만 하고 안 먹은(SEEKING)은 실제 방문이 아니므로 다른 집계들과 동일하게 제외한다.
+     *
+     * <p><b>주의:</b> mateIds가 빈 컬렉션이면 JPQL {@code IN ()} 오류가 발생할 수 있으므로
+     * 호출 전 반드시 빈 컬렉션 여부를 확인하고 단락 처리해야 한다.
+     *
+     * @param placeId 식당 id
+     * @param mateIds 집계 대상 메이트 사용자 id 목록
+     * @return 메이트별 방문 집계(방문 이력이 있는 메이트만 포함)
+     */
+    @Query("SELECT c.user.id AS userId, COUNT(c) AS visitCount, MAX(c.startedAt) AS lastVisitedAt "
+            + "FROM CheckIn c WHERE c.place.id = :placeId AND c.user.id IN :mateIds "
+            + "AND c.status NOT IN (com.honjeong.checkin.domain.CheckInStatus.CANCELLED, "
+            + "com.honjeong.checkin.domain.CheckInStatus.SEEKING) "
+            + "GROUP BY c.user.id")
+    List<MateVisitRow> aggregateMateVisitsAtPlace(@Param("placeId") Long placeId,
+            @Param("mateIds") Collection<Long> mateIds);
+
+    /**
+     * 기능: 이 식당에 지금 체크인 중(ACTIVE/SEEKING/TOGETHER)인 내 메이트 id 목록
+     * 쿼리: SELECT DISTINCT user_id ... WHERE place_id=:placeId AND user_id IN :mateIds AND status IN (ACTIVE,SEEKING,TOGETHER)
+     * Request: placeId — 식당 ID, mateIds — 조회 대상 메이트 사용자 ID 목록 / Response: List&lt;Long&gt; — 지금 이 식당에 있는 메이트 id 목록
+     *
+     * <p>[의도] 식당상세 메이트 탭에서 "지금 여기 있는 메이트"를 표시하기 위한 조회다. ACTIVE(혼밥중)·SEEKING(모집중)·
+     * TOGETHER(같이먹는중) 모두 "지금 여기 있다"로 취급한다.
+     *
+     * <p><b>주의:</b> mateIds가 빈 컬렉션이면 JPQL {@code IN ()} 오류가 발생할 수 있으므로
+     * 호출 전 반드시 빈 컬렉션 여부를 확인하고 단락 처리해야 한다.
+     *
+     * @param placeId 식당 id
+     * @param mateIds 조회 대상 메이트 사용자 id 목록
+     * @return 지금 이 식당에 있는 메이트 id 목록(중복 제거)
+     */
+    @Query("SELECT DISTINCT c.user.id FROM CheckIn c WHERE c.place.id = :placeId AND c.user.id IN :mateIds "
+            + "AND c.status IN (com.honjeong.checkin.domain.CheckInStatus.ACTIVE, "
+            + "com.honjeong.checkin.domain.CheckInStatus.SEEKING, "
+            + "com.honjeong.checkin.domain.CheckInStatus.TOGETHER)")
+    List<Long> findMateIdsHereNow(@Param("placeId") Long placeId,
+            @Param("mateIds") Collection<Long> mateIds);
+
+    /** 메이트 방문 집계 projection: 사용자별 방문수·마지막 방문시각. */
+    interface MateVisitRow {
+        /** 메이트 사용자 ID */
+        Long getUserId();
+
+        /** 이 식당에서의 방문(혼밥) 수(CANCELLED·SEEKING 제외) */
+        long getVisitCount();
+
+        /** 이 식당에서의 마지막 방문 시작 시각 */
+        LocalDateTime getLastVisitedAt();
+    }
 }

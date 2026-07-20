@@ -675,6 +675,50 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         assertThat(startedAts).hasSize(3);
     }
 
+    @Test
+    @DisplayName("aggregateMateVisitsAtPlace: 메이트별 방문수·마지막방문(취소·모집 제외), 비메이트/타 식당 제외")
+    void 메이트_방문집계() {
+        User me = persistUser("01000000009", "me");
+        User u1 = persistUser("01000000001", "A"); // 메이트, 여기 2회 방문 + 취소 1
+        User u2 = persistUser("01000000002", "B"); // 메이트, 여기 1회
+        User u3 = persistUser("01000000003", "C"); // 비메이트(mateIds에 없음)
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        Place other = persistPlace("ext-2", 37.6, 127.1);
+        em.persist(endedCheckIn(u1, place, NOW.minusDays(3)));
+        em.persist(endedCheckIn(u1, place, NOW.minusDays(1))); // u1 마지막 방문 = -1d
+        CheckIn cancelled = CheckIn.start(u1, place, NOW.minusHours(2)); cancelled.cancel(NOW.minusHours(2));
+        em.persist(cancelled); // 취소 → 집계 제외
+        em.persist(endedCheckIn(u2, place, NOW.minusDays(2)));
+        em.persist(endedCheckIn(u3, place, NOW.minusDays(1))); // 비메이트 → mateIds로 제외
+        em.persist(endedCheckIn(u1, other, NOW.minusDays(1))); // 타 식당 → 제외
+        em.flush();
+
+        var rows = checkInRepository.aggregateMateVisitsAtPlace(place.getId(), List.of(u1.getId(), u2.getId()));
+
+        var byUser = rows.stream().collect(java.util.stream.Collectors.toMap(r -> r.getUserId(), r -> r));
+        assertThat(byUser).containsOnlyKeys(u1.getId(), u2.getId());
+        assertThat(byUser.get(u1.getId()).getVisitCount()).isEqualTo(2);
+        assertThat(byUser.get(u1.getId()).getLastVisitedAt()).isEqualTo(NOW.minusDays(1));
+        assertThat(byUser.get(u2.getId()).getVisitCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("findMateIdsHereNow: 지금 ACTIVE/SEEKING/TOGETHER인 메이트만(ENDED·취소 제외)")
+    void 메이트_현재체크인() {
+        User u1 = persistUser("01000000001", "A"); // ACTIVE = 여기 있음
+        User u2 = persistUser("01000000002", "B"); // ENDED = 없음
+        User u3 = persistUser("01000000003", "C"); // SEEKING = 여기 있음
+        Place place = persistPlace("ext-1", 37.5, 127.0);
+        em.persist(CheckIn.start(u1, place, NOW));
+        em.persist(endedCheckIn(u2, place, NOW.minusDays(1)));
+        em.persist(CheckIn.startSeeking(u3, place, NOW));
+        em.flush();
+
+        var ids = checkInRepository.findMateIdsHereNow(place.getId(), List.of(u1.getId(), u2.getId(), u3.getId()));
+
+        assertThat(ids).containsExactlyInAnyOrder(u1.getId(), u3.getId());
+    }
+
     /**
      * A와 B가 같은 매칭(meal_request)으로 함께 먹고 종료한 쌍(양쪽 matched 체크인)을 영속화한다.
      * 확장 유니크 인덱스상 사용자당 현재 체크인 1개라, 같은 사람과 여러 번 함께 먹으려면 각 건을 종료(ENDED)까지 처리한다.
