@@ -282,19 +282,32 @@ class ReviewRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
-    @DisplayName("findByPlace_IdAndUser_IdInOrderByVisitedAtDesc: 지정 사용자들의 이 식당 리뷰를 최신순으로")
+    @DisplayName("findByPlace_IdAndUser_IdInOrderByVisitedAtDesc: 지정 사용자들의 이 식당 리뷰를 최신순으로 — 타 식당·비지정 유저는 실제로 제외됨")
     void 메이트_리뷰_최신순() {
         User u1 = persistUser("01000000001", "A");
         User u2 = persistUser("01000000002", "B");
+        User u3 = persistUser("01000000005", "C");
         Place place = persistPlace("ext-1");
-        // u1: 이 식당 리뷰 2건(최신=별점5) / u2: 1건 / 타 식당·비지정 유저는 제외되는지
+        Place otherPlace = persistPlace("ext-1-other");
+        // u1: 이 식당 리뷰 2건(최신=별점5) / u2: 1건
         persistReview(u1, place, NOW.minusDays(5), 4, 3, "옛날 리뷰");
         persistReview(u1, place, NOW.minusDays(1), 5, 5, "조용해서 좋아요"); // 최신
         persistReview(u2, place, NOW.minusDays(2), 4, 4, "괜찮아요");
+        // 타 식당의 u1 리뷰 → place 필터가 깨지면 섞여 나옴
+        persistReview(u1, otherPlace, NOW.minusDays(1), 5, 5, "다른 식당 리뷰");
+        // 목록에 없는 u3의 이 식당 리뷰 → userIds 필터가 깨지면 섞여 나옴
+        persistReview(u3, place, NOW.minusDays(1), 5, 5, "제3자 리뷰");
         em.flush();
 
         var rows = reviewRepository.findByPlace_IdAndUser_IdInOrderByVisitedAtDesc(
                 place.getId(), List.of(u1.getId(), u2.getId()));
+
+        // 결과 건수: u1 2건 + u2 1건 = 3건(타 식당·u3 리뷰는 섞이지 않음)
+        assertThat(rows).hasSize(3);
+        assertThat(rows).extracting(r -> r.getUser().getId())
+                .containsExactlyInAnyOrder(u1.getId(), u1.getId(), u2.getId());
+        assertThat(rows).extracting(r -> r.getPlace().getId())
+                .containsOnly(place.getId());
 
         // 최신순 → u1의 첫 등장이 별점5 "조용해서 좋아요"
         var firstByUser = new java.util.LinkedHashMap<Long, Review>();
