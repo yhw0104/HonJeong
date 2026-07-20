@@ -674,8 +674,11 @@ function MateTab({ placeId, onMeal, onOpenProfile, soloRating, soloReviewCount }
   if (st === 'loading') return <View style={{ marginTop: 20 }}><StateView kind="loading" /></View>;
   if (st === 'error') return <View style={{ marginTop: 20 }}><StateView kind="error" message="메이트 정보를 불러오지 못했어요" onRetry={() => q.refetch()} /></View>;
 
-  const { visitedCount, mates, savedCount, savedMateCount } = q.data!;
+  const { visitedCount, mates, savedCount, savedMates } = q.data!;
   const hereNowMates = mates.filter((m) => m.hereNow);
+  // 저장 아바타 스택 — 저장한 메이트 최대 4명 + 나머지("+N"). N = 전체 저장자 - 보여준 메이트 수.
+  const savedShown = savedMates.slice(0, 4);
+  const savedOverflow = savedCount - savedShown.length;
   // 요약 배너 아바타 스택 — 다녀간 메이트만(최대 3). 아직 안 다녀갔으면 스택 없이 평가 문구만.
   const stackMates = mates.filter((m) => m.lastVisitedAt != null || m.visitCount > 0).slice(0, 3);
 
@@ -755,22 +758,38 @@ function MateTab({ placeId, onMeal, onOpenProfile, soloRating, soloReviewCount }
         </View>
       ) : null}
 
-      {/* 즐겨찾기에 담은 메이트 — 섹션 라벨 + 저장 수(내 메이트 포함) */}
+      {/* 즐겨찾기에 담은 메이트 — 섹션 라벨 + 아바타 스택 + 저장 수(내 메이트 포함). 목업 정합. */}
       {savedCount > 0 ? (
         <View style={styles.mateSection}>
           <View style={styles.mateSectionHead}>
             <Text style={styles.mateSectionTitle}>즐겨찾기에 담은 메이트</Text>
             <Text style={styles.mateSectionCount}>{savedCount}</Text>
           </View>
-          <View style={styles.mateSavedRow}>
-            <Text style={styles.mateSavedEmoji}>🔖</Text>
+          {savedShown.length > 0 ? (
+            <View style={styles.mateSavedRow}>
+              <View style={styles.mateAvatarStack}>
+                {savedShown.map((s, i) => (
+                  <View key={s.userId} style={{ marginLeft: i ? -10 : 0 }}>
+                    <Avatar name={s.nickname[0] ?? '?'} uri={s.profileImageUrl} bg="#525252" size={38} ring={T2.bg} />
+                  </View>
+                ))}
+                {savedOverflow > 0 ? (
+                  <View style={styles.mateSavedMore}>
+                    <Text style={styles.mateSavedMoreText}>+{savedOverflow}</Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={styles.mateSavedText}>
+                <Text style={{ fontWeight: '800', color: T2.text }}>메이트 {savedMates.length}명</Text>을 포함해{'\n'}
+                {savedCount}명이 이 식당을 저장했어요
+              </Text>
+            </View>
+          ) : (
+            // 저장한 메이트 아바타가 없으면(비메이트 저장자만) 텍스트만
             <Text style={styles.mateSavedText}>
-              {savedMateCount > 0 ? (
-                <><Text style={{ fontWeight: '800', color: T2.text }}>메이트 {savedMateCount}명</Text>을 포함해 </>
-              ) : null}
-              {savedCount}명이 이 식당을 저장했어요
+              <Text style={{ fontWeight: '800', color: T2.text }}>{savedCount}명</Text>이 이 식당을 저장했어요
             </Text>
-          </View>
+          )}
         </View>
       ) : null}
     </View>
@@ -995,8 +1014,9 @@ const styles = StyleSheet.create({
   mateCtaSolidText: { fontSize: 13, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
   mateRowName: { fontSize: 15, fontWeight: '800', color: T2.text, letterSpacing: -0.4 },
   // 즐겨찾기 사회 증거
-  mateSavedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 2 },
-  mateSavedEmoji: { fontSize: 15 },
+  mateSavedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 2 },
+  mateSavedMore: { marginLeft: -10, width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border, alignItems: 'center', justifyContent: 'center' },
+  mateSavedMoreText: { fontSize: 12, fontWeight: '700', color: T2.textSub },
   mateSavedText: { flex: 1, fontSize: 13, color: T2.textSub, letterSpacing: -0.3, lineHeight: 18 },
 
   // 주변 탭

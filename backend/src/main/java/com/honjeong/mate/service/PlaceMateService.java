@@ -18,6 +18,7 @@ import com.honjeong.favorite.repository.FavoriteRepository;
 import com.honjeong.mate.domain.Mate;
 import com.honjeong.mate.dto.MateAtPlace;
 import com.honjeong.mate.dto.PlaceMatesResponse;
+import com.honjeong.mate.dto.SavedMate;
 import com.honjeong.mate.repository.MateRepository;
 import com.honjeong.review.domain.Review;
 import com.honjeong.review.repository.ReviewRepository;
@@ -55,7 +56,7 @@ public class PlaceMateService {
 
         List<Mate> mates = mateRepository.findMatesWithUserByUserId(viewerId);
         if (mates.isEmpty()) {
-            return new PlaceMatesResponse(0, List.of(), savedCount, 0);
+            return new PlaceMatesResponse(0, List.of(), savedCount, 0, List.of());
         }
 
         Map<Long, String> nicknameById = new LinkedHashMap<>();
@@ -65,7 +66,11 @@ public class PlaceMateService {
             profileImageById.put(m.getMateUser().getId(), m.getMateUser().getProfileImageUrl());
         }
         List<Long> mateIds = new ArrayList<>(nicknameById.keySet());
-        int savedMateCount = (int) favoriteRepository.countDistinctSaverMatesByPlace(placeId, mateIds);
+        // 저장한 메이트(아바타 스택용) — savedMateCount는 목록 크기에서 유도(별도 카운트 쿼리 제거).
+        List<SavedMate> savedMates = favoriteRepository.findSaverMatesByPlace(placeId, mateIds).stream()
+                .map(r -> new SavedMate(r.getUserId(), r.getNickname(), r.getProfileImageUrl()))
+                .toList();
+        int savedMateCount = savedMates.size();
 
         Map<Long, CheckInRepository.MateVisitRow> visitByUser = checkInRepository
                 .aggregateMateVisitsAtPlace(placeId, mateIds).stream()
@@ -110,6 +115,6 @@ public class PlaceMateService {
                 .comparing(MateAtPlace::hereNow, Comparator.reverseOrder())
                 .thenComparing(MateAtPlace::lastVisitedAt, Comparator.nullsLast(Comparator.reverseOrder()))
                 .thenComparing(MateAtPlace::userId));
-        return new PlaceMatesResponse(visitedCount, list, savedCount, savedMateCount);
+        return new PlaceMatesResponse(visitedCount, list, savedCount, savedMateCount, savedMates);
     }
 }

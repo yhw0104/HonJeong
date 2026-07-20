@@ -20,6 +20,7 @@ import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.security.JwtProvider;
 import com.honjeong.mate.dto.MateAtPlace;
 import com.honjeong.mate.dto.PlaceMatesResponse;
+import com.honjeong.mate.dto.SavedMate;
 import com.honjeong.mate.service.PlaceMateService;
 
 /**
@@ -44,7 +45,8 @@ class PlaceMateControllerTest {
         when(placeMateService.getMatesAtPlace(1L, 9L))
                 .thenReturn(new PlaceMatesResponse(1, List.of(
                         new MateAtPlace(11L, "에이", true, 5, "조용해요", 3, 2,
-                                java.time.LocalDateTime.of(2026, 7, 18, 12, 0), "https://img/11")), 10, 2));
+                                java.time.LocalDateTime.of(2026, 7, 18, 12, 0), "https://img/11")), 10, 2,
+                        List.of(new SavedMate(11L, "에이", "https://img/11"))));
 
         mockMvc.perform(get("/api/places/9/mates")
                         .header("Authorization", "Bearer " + jwtProvider.createAccessToken(1L)))
@@ -52,6 +54,8 @@ class PlaceMateControllerTest {
                 .andExpect(jsonPath("$.data.visitedCount").value(1))
                 .andExpect(jsonPath("$.data.savedCount").value(10))
                 .andExpect(jsonPath("$.data.savedMateCount").value(2))
+                .andExpect(jsonPath("$.data.savedMates[0].userId").value(11))
+                .andExpect(jsonPath("$.data.savedMates[0].profileImageUrl").value("https://img/11"))
                 .andExpect(jsonPath("$.data.mates[0].nickname").value("에이"))
                 .andExpect(jsonPath("$.data.mates[0].profileImageUrl").value("https://img/11"))
                 .andExpect(jsonPath("$.data.mates[0].hereNow").value(true));

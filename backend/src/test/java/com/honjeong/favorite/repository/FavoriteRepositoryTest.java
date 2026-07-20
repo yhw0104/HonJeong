@@ -133,9 +133,11 @@ class FavoriteRepositoryTest extends AbstractPostgresTest {
 
         assertThat(favoriteRepository.countDistinctSaversByPlace(place.getId())).isEqualTo(2L); // u1, u2
 
-        // 내 메이트 중 저장자: mateIds=[u1,u3] → u1만 이 식당 저장 = 1
-        assertThat(favoriteRepository.countDistinctSaverMatesByPlace(
-                place.getId(), List.of(u1.getId(), u3.getId()))).isEqualTo(1L);
+        // 내 메이트 중 저장자: mateIds=[u1,u3] → u1만 이 식당 저장 = 목록 1건(프로필 포함)
+        var saverMates = favoriteRepository.findSaverMatesByPlace(place.getId(), List.of(u1.getId(), u3.getId()));
+        assertThat(saverMates).hasSize(1);
+        assertThat(saverMates.get(0).getUserId()).isEqualTo(u1.getId());
+        assertThat(saverMates.get(0).getNickname()).isEqualTo("저장1");
     }
 
     private User persistUser(String phone, String nickname) {

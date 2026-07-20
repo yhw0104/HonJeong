@@ -78,12 +78,23 @@ public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
     long countDistinctSaversByPlace(@Param("placeId") Long placeId);
 
     /**
-     * 기능: 내 메이트 중 이 장소를 즐겨찾기한 서로 다른 사용자 수(사회적 증거 "내 메이트 M명 포함")
-     * 쿼리: SELECT COUNT(DISTINCT g.user_id) FROM favorites f JOIN favorite_groups g ON g.id=f.group_id
-     *       WHERE f.place_id=:placeId AND g.user_id IN :mateIds
-     * Request: placeId — 장소 ID, mateIds — 내 메이트 ID 목록 / Response: long — 저장한 메이트 수
+     * 기능: 내 메이트 중 이 장소를 즐겨찾기한 사용자 목록(사회적 증거 "내 메이트 M명 포함" + 아바타 스택)
+     *       한 사람이 여러 그룹에 담아도 1명으로(GROUP BY) — userId 오름차순 결정적 정렬.
+     * 쿼리: SELECT u.id, u.nickname, u.profile_image_url FROM favorites f
+     *       JOIN favorite_groups g ON g.id=f.group_id JOIN users u ON u.id=g.user_id
+     *       WHERE f.place_id=:placeId AND u.id IN :mateIds GROUP BY u.id,... ORDER BY u.id
+     * Request: placeId — 장소 ID, mateIds — 내 메이트 ID 목록 / Response: 저장한 메이트(프로필 포함) 목록
      */
-    @Query("SELECT COUNT(DISTINCT f.group.user.id) FROM Favorite f WHERE f.place.id = :placeId "
-            + "AND f.group.user.id IN :mateIds")
-    long countDistinctSaverMatesByPlace(@Param("placeId") Long placeId, @Param("mateIds") Collection<Long> mateIds);
+    @Query("SELECT u.id AS userId, u.nickname AS nickname, u.profileImageUrl AS profileImageUrl "
+            + "FROM Favorite f JOIN f.group g JOIN g.user u "
+            + "WHERE f.place.id = :placeId AND u.id IN :mateIds "
+            + "GROUP BY u.id, u.nickname, u.profileImageUrl ORDER BY u.id")
+    List<SaverMateRow> findSaverMatesByPlace(@Param("placeId") Long placeId, @Param("mateIds") Collection<Long> mateIds);
+
+    /** 저장한 메이트 1명의 아바타 표시 필드(프로젝션). */
+    interface SaverMateRow {
+        Long getUserId();
+        String getNickname();
+        String getProfileImageUrl();
+    }
 }

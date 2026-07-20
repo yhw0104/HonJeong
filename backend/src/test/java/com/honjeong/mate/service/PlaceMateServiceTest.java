@@ -1,6 +1,7 @@
 package com.honjeong.mate.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
@@ -50,6 +51,7 @@ class PlaceMateServiceTest {
         assertThat(res.mates()).isEmpty();
         assertThat(res.savedCount()).isEqualTo(5); // 저장 사회증거는 메이트 없어도 준다
         assertThat(res.savedMateCount()).isZero();
+        assertThat(res.savedMates()).isEmpty();
         verify(checkInRepository, never()).aggregateMateVisitsAtPlace(any(), any());
     }
 
@@ -68,6 +70,7 @@ class PlaceMateServiceTest {
         List<Long> hereNowIds = List.of(12L);
         List<Review> reviews = List.of(reviewStub(a, 5, "조용해요"));
         List<CheckInRepository.TogetherPairRow> togetherRows = List.of(togetherRow(11L, 3));
+        List<FavoriteRepository.SaverMateRow> saverRows = List.of(saverRow(11L, "에이", "img11"), saverRow(12L, "비", null));
 
         when(mateRepository.findMatesWithUserByUserId(1L)).thenReturn(mates);
         when(checkInRepository.aggregateMateVisitsAtPlace(eq(9L), anyCollection())).thenReturn(visitRows);
@@ -76,13 +79,15 @@ class PlaceMateServiceTest {
                 .thenReturn(reviews);
         when(checkInRepository.countTogetherPairsForUser(1L)).thenReturn(togetherRows);
         when(favoriteRepository.countDistinctSaversByPlace(9L)).thenReturn(10L);
-        when(favoriteRepository.countDistinctSaverMatesByPlace(eq(9L), anyCollection())).thenReturn(2L);
+        when(favoriteRepository.findSaverMatesByPlace(eq(9L), anyCollection())).thenReturn(saverRows);
 
         var res = service.getMatesAtPlace(1L, 9L);
 
         assertThat(res.visitedCount()).isEqualTo(1); // A만 방문>0
         assertThat(res.savedCount()).isEqualTo(10);
-        assertThat(res.savedMateCount()).isEqualTo(2);
+        assertThat(res.savedMateCount()).isEqualTo(2); // savedMates.size()에서 유도
+        assertThat(res.savedMates()).extracting("userId", "nickname", "profileImageUrl")
+                .containsExactly(tuple(11L, "에이", "img11"), tuple(12L, "비", null));
         assertThat(res.mates()).hasSize(2);
         // hereNow(B) 우선
         assertThat(res.mates().get(0).userId()).isEqualTo(12L);
@@ -235,6 +240,14 @@ class PlaceMateServiceTest {
         Mate m = mock(Mate.class);
         when(m.getMateUser()).thenReturn(mateUser);
         return m;
+    }
+
+    private FavoriteRepository.SaverMateRow saverRow(long userId, String nickname, String profileImageUrl) {
+        FavoriteRepository.SaverMateRow row = mock(FavoriteRepository.SaverMateRow.class);
+        when(row.getUserId()).thenReturn(userId);
+        when(row.getNickname()).thenReturn(nickname);
+        when(row.getProfileImageUrl()).thenReturn(profileImageUrl);
+        return row;
     }
 
     private CheckInRepository.MateVisitRow visitRow(long userId, long visitCount, LocalDateTime lastVisitedAt) {
