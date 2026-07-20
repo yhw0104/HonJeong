@@ -45,3 +45,18 @@ export type PlaceCheckinSummary = {
 /** 식당 사회적 증거(누적 혼밥러 + 붐비는 시간대). */
 export const fetchPlaceCheckinSummary = (placeId: number) =>
   apiGet<PlaceCheckinSummary>(`/places/${placeId}/checkin-summary`);
+
+export type MateAtPlace = {
+  userId: number;
+  nickname: string;
+  hereNow: boolean;
+  soloFriendlyRating: number | null;
+  reviewContent: string | null;
+  togetherCount: number;
+  visitCount: number;
+  lastVisitedAt: string | null;
+};
+export type PlaceMates = { visitedCount: number; mates: MateAtPlace[] };
+
+export const fetchPlaceMates = (placeId: number) =>
+  apiGet<PlaceMates>(`/places/${placeId}/mates`);
