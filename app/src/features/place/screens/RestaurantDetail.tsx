@@ -237,7 +237,13 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
           )}
           {stab === 'photo' && <PhotoTab placeId={placeId} />}
           {stab === 'mate' && (
-            <MateTab placeId={placeId} onMeal={goMealRequest} onOpenProfile={goDinerProfile} />
+            <MateTab
+              placeId={placeId}
+              onMeal={goMealRequest}
+              onOpenProfile={goDinerProfile}
+              soloRating={summary.data?.avgSoloFriendlyRating ?? null}
+              soloReviewCount={summary.data?.reviewCount ?? 0}
+            />
           )}
           {stab === 'nearby' && (
             <NearbyTab
@@ -656,25 +662,17 @@ function PhotoTab({ placeId }: { placeId: number }) {
 }
 
 /* ── 메이트 탭 ───────────────────────────────────── */
-function MateTab({ placeId, onMeal, onOpenProfile }: {
+function MateTab({ placeId, onMeal, onOpenProfile, soloRating, soloReviewCount }: {
   placeId: number;
   onMeal: () => void;
   onOpenProfile: (userId: number) => void;
+  soloRating: number | null;
+  soloReviewCount: number;
 }) {
   const q = usePlaceMates(placeId);
   const st = listState({ isLoading: q.isLoading, isError: q.isError, count: (q.data?.mates ?? []).length });
   if (st === 'loading') return <View style={{ marginTop: 20 }}><StateView kind="loading" /></View>;
   if (st === 'error') return <View style={{ marginTop: 20 }}><StateView kind="error" message="메이트 정보를 불러오지 못했어요" onRetry={() => q.refetch()} /></View>;
-  if (st === 'empty') return (
-    <View style={styles.mateEmptyCard}>
-      <Text style={styles.mateEmptyEmoji}>🍚</Text>
-      <Text style={styles.mateEmptyTitle}>아직 다녀간 메이트가 없어요</Text>
-      <Text style={styles.mateEmptySub}>같이 먹기를 통해 새로운 메이트를 만들어 봐요</Text>
-      <Pressable style={styles.mateEmptyBtn} onPress={onMeal} accessibilityRole="button">
-        <Text style={styles.mateEmptyBtnText}>같이 먹기</Text>
-      </Pressable>
-    </View>
-  );
 
   const { visitedCount, mates, savedCount, savedMateCount } = q.data!;
   const hereNowMates = mates.filter((m) => m.hereNow);
@@ -686,8 +684,21 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
         <Text style={styles.mateSummaryLine}>
           내 메이트 <Text style={{ fontWeight: '800', color: T2.brand }}>{visitedCount}명</Text>이 여기 다녀갔어요
         </Text>
-      ) : null}
-      <View style={{ marginTop: visitedCount > 0 ? 14 : 0, gap: 2 }}>
+      ) : soloRating != null ? (
+        // 다녀온 메이트가 없으면 혼밥 친화도 평가로 대체(실데이터 기반)
+        <>
+          <Text style={styles.mateSummaryLine}>
+            혼밥 친화도 <Text style={{ fontWeight: '800', color: T2.brand }}>★{soloRating.toFixed(1)}</Text> · {soloFriendlyLabel(soloRating, soloReviewCount)}
+          </Text>
+          <Text style={styles.mateEvalSub}>혼밥러 {soloReviewCount}명이 평가했어요</Text>
+        </>
+      ) : (
+        <>
+          <Text style={styles.mateSummaryLine}>아직 다녀간 메이트가 없어요</Text>
+          <Text style={styles.mateEvalSub}>같이 먹기를 통해 새로운 메이트를 만들어 봐요</Text>
+        </>
+      )}
+      <View style={{ marginTop: mates.length > 0 ? 14 : 0, gap: 2 }}>
         {mates.map((m, i, arr) => {
           // 같이 N회는 이름 옆 칩으로 뺐으니 메타에는 리뷰·방문·마지막방문만(빈 조각은 제외해 앞 구분점 방지).
           const tail = [
@@ -742,7 +753,10 @@ function MateTab({ placeId, onMeal, onOpenProfile }: {
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}
                 >
                   <Avatar name={m.nickname[0] ?? '?'} uri={m.profileImageUrl} bg="#525252" size={40} ring="#fff" />
-                  <Text style={styles.mateRowName} numberOfLines={1}>{m.nickname}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                    <Text style={styles.mateRowName} numberOfLines={1}>{m.nickname}</Text>
+                    <View style={styles.mateBadge}><Text style={styles.mateBadgeText}>메이트</Text></View>
+                  </View>
                 </Pressable>
                 <Pressable style={styles.mateCtaSolid} onPress={onMeal}>
                   <Text style={styles.mateCtaSolidText}>같이 먹기</Text>
@@ -967,12 +981,9 @@ const styles = StyleSheet.create({
   // 메이트 탭
   mateSummaryLine: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
   mateVisitedCard: { padding: 16, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border },
-  mateEmptyCard: { marginTop: 22, padding: 28, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border, alignItems: 'center' },
-  mateEmptyEmoji: { fontSize: 30 },
-  mateEmptyTitle: { marginTop: 10, fontSize: 15, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
-  mateEmptySub: { marginTop: 6, fontSize: 13, color: T2.textSub, letterSpacing: -0.3, textAlign: 'center', lineHeight: 19 },
-  mateEmptyBtn: { marginTop: 16, paddingHorizontal: 20, paddingVertical: 11, borderRadius: 12, backgroundColor: T2.brand },
-  mateEmptyBtnText: { fontSize: 14, fontWeight: '800', color: '#fff', letterSpacing: -0.3 },
+  mateEvalSub: { marginTop: 5, fontSize: 13, color: T2.textSub, letterSpacing: -0.3, lineHeight: 19 },
+  mateBadge: { backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(255,90,31,0.25)', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  mateBadgeText: { fontSize: 10, fontWeight: '700', color: T2.brand },
   mateSavedRow: { marginTop: 22, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 2 },
   mateSavedEmoji: { fontSize: 15 },
   mateSavedText: { flex: 1, fontSize: 13, color: T2.textSub, letterSpacing: -0.3 },
