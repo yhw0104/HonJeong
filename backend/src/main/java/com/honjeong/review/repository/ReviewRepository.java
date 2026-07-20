@@ -1,5 +1,6 @@
 package com.honjeong.review.repository;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -145,4 +146,10 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
      * @return 그 체크인에 연결된 리뷰 존재 여부
      */
     boolean existsByCheckIn_Id(Long checkInId);
+
+    /**
+     * 기능: 지정 사용자들의 이 식당 리뷰를 최신(visitedAt DESC)순으로 — 메이트 탭 "그 사람의 이 식당 평가" 배치 조회(N+1 방지)
+     * Request: placeId, userIds / Response: 최신순 리뷰 목록(서비스에서 user별 첫 건만 사용)
+     */
+    List<Review> findByPlace_IdAndUser_IdInOrderByVisitedAtDesc(Long placeId, Collection<Long> userIds);
 }

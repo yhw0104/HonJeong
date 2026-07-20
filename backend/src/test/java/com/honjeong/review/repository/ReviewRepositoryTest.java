@@ -281,6 +281,29 @@ class ReviewRepositoryTest extends AbstractPostgresTest {
         assertThat(reviewRepository.countSoloAuthenticatedByUser(userA.getId())).isEqualTo(1L); // 솔로 인증만
     }
 
+    @Test
+    @DisplayName("findByPlace_IdAndUser_IdInOrderByVisitedAtDesc: 지정 사용자들의 이 식당 리뷰를 최신순으로")
+    void 메이트_리뷰_최신순() {
+        User u1 = persistUser("01000000001", "A");
+        User u2 = persistUser("01000000002", "B");
+        Place place = persistPlace("ext-1");
+        // u1: 이 식당 리뷰 2건(최신=별점5) / u2: 1건 / 타 식당·비지정 유저는 제외되는지
+        persistReview(u1, place, NOW.minusDays(5), 4, 3, "옛날 리뷰");
+        persistReview(u1, place, NOW.minusDays(1), 5, 5, "조용해서 좋아요"); // 최신
+        persistReview(u2, place, NOW.minusDays(2), 4, 4, "괜찮아요");
+        em.flush();
+
+        var rows = reviewRepository.findByPlace_IdAndUser_IdInOrderByVisitedAtDesc(
+                place.getId(), List.of(u1.getId(), u2.getId()));
+
+        // 최신순 → u1의 첫 등장이 별점5 "조용해서 좋아요"
+        var firstByUser = new java.util.LinkedHashMap<Long, Review>();
+        rows.forEach(r -> firstByUser.putIfAbsent(r.getUser().getId(), r));
+        assertThat(firstByUser.get(u1.getId()).getSoloFriendlyRating()).isEqualTo(5);
+        assertThat(firstByUser.get(u1.getId()).getContent()).isEqualTo("조용해서 좋아요");
+        assertThat(firstByUser.get(u2.getId()).getContent()).isEqualTo("괜찮아요");
+    }
+
     // --- helpers (MealRequestRepositoryTest와 동일 도메인 팩토리 사용) ---
     private User persistUser(String phone, String nickname) {
         User u = User.pending(phone, null);
@@ -295,5 +318,21 @@ class ReviewRepositoryTest extends AbstractPostgresTest {
 
     private CheckIn persistCheckIn(User user, Place place) {
         return em.persist(CheckIn.start(user, place, NOW.minusHours(1)));
+    }
+
+    /** ENDED(종료된) 체크인을 만들어 반환한다(영속화는 호출 측 책임). startedAt으로 시작해 곧바로 종료 처리한다. */
+    private CheckIn endedCheckIn(User user, Place place, LocalDateTime startedAt) {
+        CheckIn c = CheckIn.start(user, place, startedAt);
+        c.end(startedAt.plusMinutes(30));
+        return c;
+    }
+
+    /** 체크인 연결(인증) 리뷰를 영속화해 반환한다 — 메이트 탭 리뷰 배치 조회 테스트용. */
+    private Review persistReview(User u, Place p, LocalDateTime visitedAt, int taste, int solo, String content) {
+        CheckIn c = endedCheckIn(u, p, visitedAt);
+        em.persist(c);
+        Review r = Review.create(u, c, p, visitedAt, taste, solo, content);
+        em.persist(r);
+        return r;
     }
 }
