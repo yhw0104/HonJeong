@@ -13,6 +13,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.honjeong.badge.service.BadgeService;
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.repository.CheckInRepository;
@@ -56,10 +57,11 @@ public class ReviewService {
     private final BlockRepository blockRepository;
     private final Clock clock;
     private final ReviewPhotoRepository reviewPhotoRepository;
+    private final BadgeService badgeService;
 
     public ReviewService(ReviewRepository reviewRepository, CheckInRepository checkInRepository,
             PlaceService placeService, UserRepository userRepository, BlockRepository blockRepository, Clock clock,
-            ReviewPhotoRepository reviewPhotoRepository) {
+            ReviewPhotoRepository reviewPhotoRepository, BadgeService badgeService) {
         this.reviewRepository = reviewRepository;
         this.checkInRepository = checkInRepository;
         this.placeService = placeService;
@@ -67,6 +69,7 @@ public class ReviewService {
         this.blockRepository = blockRepository;
         this.clock = clock;
         this.reviewPhotoRepository = reviewPhotoRepository;
+        this.badgeService = badgeService;
     }
 
     /**
@@ -154,7 +157,9 @@ public class ReviewService {
         }
         review.replacePhotos(req.imageUrls());
         try {
-            return ReviewResponse.from(reviewRepository.saveAndFlush(review));
+            Review saved = reviewRepository.saveAndFlush(review);
+            badgeService.checkAndAward(userId, true); // 일기 뱃지 지급 체크
+            return ReviewResponse.from(saved);
         } catch (DataIntegrityViolationException e) {   // 동시 작성 경쟁 → 부분 유니크 위반
             throw new BusinessException(ErrorCode.REVIEW_DUPLICATE_CHECKIN);
         }

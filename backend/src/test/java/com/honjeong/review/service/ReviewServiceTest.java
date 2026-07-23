@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 
 import org.mockito.ArgumentCaptor;
 
+import com.honjeong.badge.service.BadgeService;
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.repository.CheckInRepository;
@@ -52,9 +53,10 @@ class ReviewServiceTest {
     private final BlockRepository blockRepository = mock(BlockRepository.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-25T03:00:00Z"), ZoneOffset.UTC);
     private final ReviewPhotoRepository reviewPhotoRepository = mock(ReviewPhotoRepository.class);
+    private final BadgeService badgeService = mock(BadgeService.class);
     private final ReviewService service =
             new ReviewService(reviewRepository, checkInRepository, placeService, userRepository, blockRepository,
-                    clock, reviewPhotoRepository);
+                    clock, reviewPhotoRepository, badgeService);
 
     private Place place(long id) {
         Place p = mock(Place.class);
@@ -84,6 +86,7 @@ class ReviewServiceTest {
         assertThat(res.placeId()).isEqualTo(3L);
         assertThat(res.authenticated()).isTrue();
         assertThat(res.checkInId()).isEqualTo(7L);
+        verify(badgeService).checkAndAward(1L, true);
     }
 
     @Test
