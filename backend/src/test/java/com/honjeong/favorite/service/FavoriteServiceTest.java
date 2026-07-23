@@ -3,6 +3,8 @@ package com.honjeong.favorite.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,6 +19,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.honjeong.badge.service.BadgeService;
 import com.honjeong.favorite.domain.Favorite;
 import com.honjeong.favorite.domain.FavoriteGroup;
 import com.honjeong.favorite.dto.FavoriteStatusResponse;
@@ -34,6 +37,7 @@ class FavoriteServiceTest {
     @Mock private FavoriteGroupRepository groupRepository;
     @Mock private FavoriteRepository favoriteRepository;
     @Mock private PlaceService placeService;
+    @Mock private BadgeService badgeService;
     @InjectMocks private FavoriteService service;
 
     @Test
@@ -72,6 +76,7 @@ class FavoriteServiceTest {
         service.addPlace(7L, 5L, 100L);
 
         verify(favoriteRepository, never()).save(any());
+        verify(badgeService, never()).checkAndAward(anyLong(), anyBoolean());
     }
 
     @Test
@@ -86,6 +91,7 @@ class FavoriteServiceTest {
         service.addPlace(7L, 5L, 100L);
 
         verify(favoriteRepository).save(any(Favorite.class));
+        verify(badgeService).checkAndAward(7L, true);
     }
 
     @Test

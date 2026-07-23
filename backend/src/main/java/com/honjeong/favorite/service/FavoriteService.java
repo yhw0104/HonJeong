@@ -6,6 +6,7 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.honjeong.badge.service.BadgeService;
 import com.honjeong.favorite.domain.Favorite;
 import com.honjeong.favorite.domain.FavoriteGroup;
 import com.honjeong.favorite.dto.FavoriteStatusGroup;
@@ -27,12 +28,14 @@ public class FavoriteService {
     private final FavoriteGroupRepository groupRepository;
     private final FavoriteRepository favoriteRepository;
     private final PlaceService placeService;
+    private final BadgeService badgeService;
 
     public FavoriteService(FavoriteGroupRepository groupRepository, FavoriteRepository favoriteRepository,
-            PlaceService placeService) {
+            PlaceService placeService, BadgeService badgeService) {
         this.groupRepository = groupRepository;
         this.favoriteRepository = favoriteRepository;
         this.placeService = placeService;
+        this.badgeService = badgeService;
     }
 
     /**
@@ -64,6 +67,7 @@ public class FavoriteService {
         }
         Place place = placeService.getById(placeId);
         favoriteRepository.save(Favorite.of(group, place));
+        badgeService.checkAndAward(userId, true); // 즐겨찾기 뱃지 지급 체크
     }
 
     /**
