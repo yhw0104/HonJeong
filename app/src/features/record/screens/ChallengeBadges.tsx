@@ -2,28 +2,20 @@
 // 더보기 '챌린지·뱃지' 또는 프로필 '뱃지' 스탯에서 진입.
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, Dimensions } from 'react-native';
-import { Screen, MoreHeader } from '@/shared/components';
+import { Screen, MoreHeader, StateView } from '@/shared/components';
 import { T2 } from '@/shared/theme';
+import { useBadges } from '@/features/record/queries';
+import { toBadgeViews, earnedCount, BADGE_DEFS } from '@/features/record/badges';
 import type { RootStackScreenProps } from '@/navigation/types';
-
-const BADGES = [
-  { e: '🌱', n: '첫 혼밥', got: true },
-  { e: '🍚', n: '혼밥 10회', got: true },
-  { e: '🔥', n: '3일 연속', got: true },
-  { e: '🍜', n: '한식 마스터', got: true },
-  { e: '🤝', n: '첫 같이 먹기', got: true },
-  { e: '📷', n: '일기 10편', got: true },
-  { e: '🌙', n: '혼밥 디너', got: true },
-  { e: '🏆', n: '혼밥 50회', got: false },
-  { e: '🗺️', n: '동네 정복', got: false },
-  { e: '⭐', n: '리뷰 30개', got: false },
-  { e: '🎂', n: '생일 혼밥', got: false },
-  { e: '🥇', n: '레벨 5', got: false },
-];
 
 const GRID_W = (Dimensions.get('window').width - 40 - 24) / 3;
 
 export function ChallengeBadgesScreen({ navigation }: RootStackScreenProps<'ChallengeBadges'>) {
+  const { data, isLoading, isError, refetch } = useBadges();
+  const statuses = data ?? [];
+  const views = toBadgeViews(statuses);
+  const earned = earnedCount(statuses);
+
   return (
     <Screen bg={T2.bg} edges={['top']}>
       <MoreHeader title="혼밥 챌린지 · 뱃지" onBack={() => navigation.goBack()} />
@@ -49,26 +41,32 @@ export function ChallengeBadgesScreen({ navigation }: RootStackScreenProps<'Chal
         {/* 뱃지 요약 */}
         <View style={styles.badgeHead}>
           <Text style={styles.badgeHeadTitle}>내 뱃지</Text>
-          <Text style={styles.badgeHeadCount}>7 / 12 획득</Text>
+          <Text style={styles.badgeHeadCount}>획득 {earned} / {BADGE_DEFS.length}</Text>
         </View>
 
-        {/* 뱃지 그리드 */}
-        <View style={styles.grid}>
-          {BADGES.map((b) => (
-            <View
-              key={b.n}
-              style={[
-                styles.badgeCell,
-                { width: GRID_W, backgroundColor: b.got ? '#fff' : T2.bg, borderColor: b.got ? T2.border : 'transparent', opacity: b.got ? 1 : 0.5 },
-              ]}
-            >
-              <View style={[styles.badgeIcon, { backgroundColor: b.got ? T2.brandSoft : 'rgba(0,0,0,0.04)' }]}>
-                <Text style={{ fontSize: 26 }}>{b.got ? b.e : '🔒'}</Text>
+        {/* 뱃지 그리드 — 로딩/에러 정직 처리(에러를 가짜 획득으로 위장하지 않음) */}
+        {isLoading ? (
+          <StateView kind="loading" />
+        ) : isError ? (
+          <StateView kind="error" onRetry={() => refetch()} />
+        ) : (
+          <View style={styles.grid}>
+            {views.map((b) => (
+              <View
+                key={b.key}
+                style={[
+                  styles.badgeCell,
+                  { width: GRID_W, backgroundColor: b.earned ? '#fff' : T2.bg, borderColor: b.earned ? T2.border : 'transparent', opacity: b.earned ? 1 : 0.5 },
+                ]}
+              >
+                <View style={[styles.badgeIcon, { backgroundColor: b.earned ? T2.brandSoft : 'rgba(0,0,0,0.04)' }]}>
+                  <Text style={{ fontSize: 26 }}>{b.earned ? b.emoji : '🔒'}</Text>
+                </View>
+                <Text style={[styles.badgeName, { color: b.earned ? T2.text : T2.textMute }]}>{b.name}</Text>
               </View>
-              <Text style={[styles.badgeName, { color: b.got ? T2.text : T2.textMute }]}>{b.n}</Text>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </Screen>
   );
