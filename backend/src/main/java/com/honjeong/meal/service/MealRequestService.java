@@ -9,6 +9,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.honjeong.badge.service.BadgeService;
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
@@ -47,16 +48,18 @@ public class MealRequestService {
     private final NotificationService notificationService;
     private final BlockRepository blockRepository;
     private final Clock clock;
+    private final BadgeService badgeService;
 
     public MealRequestService(MealRequestRepository mealRequestRepository, CheckInRepository checkInRepository,
             UserRepository userRepository, NotificationService notificationService,
-            BlockRepository blockRepository, Clock clock) {
+            BlockRepository blockRepository, Clock clock, BadgeService badgeService) {
         this.mealRequestRepository = mealRequestRepository;
         this.checkInRepository = checkInRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
         this.blockRepository = blockRepository;
         this.clock = clock;
+        this.badgeService = badgeService;
     }
 
     /**
@@ -151,6 +154,8 @@ public class MealRequestService {
         }
 
         mealRequestRepository.expireOtherPending(target.getId(), mr.getId(), now); // 다른 PENDING은 자리가 차서 만료
+        badgeService.checkAndAward(userId, true);    // 수신자 같이먹기 뱃지
+        badgeService.checkAndAward(senderId, true);  // 발신자 같이먹기 뱃지
         notificationService.publish(senderId, NotificationType.MEAL_REQUEST_ACCEPTED, userId);
         return MealRequestStatusResponse.from(mr);
     }

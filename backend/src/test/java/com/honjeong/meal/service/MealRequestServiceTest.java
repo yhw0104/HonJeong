@@ -28,6 +28,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import com.honjeong.badge.service.BadgeService;
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
@@ -59,9 +60,10 @@ class MealRequestServiceTest {
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-18T03:00:00Z"), ZoneOffset.UTC);
     private final NotificationService notificationService = mock(NotificationService.class);
     private final BlockRepository blockRepository = mock(BlockRepository.class);
+    private final BadgeService badgeService = mock(BadgeService.class);
     private final MealRequestService service =
             new MealRequestService(mealRequestRepository, checkInRepository, userRepository,
-                    notificationService, blockRepository, clock);
+                    notificationService, blockRepository, clock, badgeService);
 
     private final LocalDateTime nowKst = LocalDateTime.of(2026, 6, 18, 12, 0);
 
@@ -359,6 +361,8 @@ class MealRequestServiceTest {
         assertThat(saved.getValue().getStatus()).isEqualTo(CheckInStatus.TOGETHER);
         assertThat(saved.getValue().getMealRequestId()).isEqualTo(5L);
         verify(mealRequestRepository).expireOtherPending(3L, 5L, nowKst);
+        verify(badgeService).checkAndAward(2L, true);    // 수신자
+        verify(badgeService).checkAndAward(1L, true);    // 발신자
     }
 
     @Test
