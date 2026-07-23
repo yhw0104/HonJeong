@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import com.honjeong.badge.service.BadgeService;
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
@@ -55,12 +56,13 @@ class CheckInServiceTest {
     private final BlockRepository blockRepository = mock(BlockRepository.class);
     private final MealRequestRepository mealRequestRepository = mock(MealRequestRepository.class);
     private final NotificationService notificationService = mock(NotificationService.class);
+    private final BadgeService badgeService = mock(BadgeService.class);
     // KST 12:00 = UTC 03:00 으로 고정. now()는 ofInstant(instant, KST) = 2026-06-15T12:00.
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneOffset.UTC);
     private final HonjeongCheckInProperties props = new HonjeongCheckInProperties(3, 300_000L, 3, 3);
     private final CheckInService service =
             new CheckInService(checkInRepository, placeService, userRepository, blockRepository,
-                    mealRequestRepository, notificationService, clock, props);
+                    mealRequestRepository, notificationService, clock, props, badgeService);
 
     private final LocalDateTime nowKst = LocalDateTime.of(2026, 6, 15, 12, 0);
 
@@ -229,6 +231,7 @@ class CheckInServiceTest {
 
         assertThat(res.status()).isEqualTo("ENDED");
         assertThat(res.endedAt()).isEqualTo(nowKst);
+        verify(badgeService).checkAndAward(1L, true); // 솔로 완료 → 혼밥 뱃지 지급 체크
     }
 
     @Test
@@ -613,7 +616,7 @@ class CheckInServiceTest {
         HonjeongCheckInProperties props2 = new HonjeongCheckInProperties(3, 300_000L, 5, 3);
         CheckInService service2 =
                 new CheckInService(checkInRepository, placeService, userRepository, blockRepository,
-                        mealRequestRepository, notificationService, clock, props2);
+                        mealRequestRepository, notificationService, clock, props2, badgeService);
         when(checkInRepository.endActiveStartedBefore(any(), any())).thenReturn(2);
         when(checkInRepository.endTogetherMatchedBefore(any(), any())).thenReturn(1);
 
@@ -640,7 +643,7 @@ class CheckInServiceTest {
         HonjeongCheckInProperties props3 = new HonjeongCheckInProperties(3, 300_000L, 5, 7);
         CheckInService service3 =
                 new CheckInService(checkInRepository, placeService, userRepository, blockRepository,
-                        mealRequestRepository, notificationService, clock, props3);
+                        mealRequestRepository, notificationService, clock, props3, badgeService);
         when(checkInRepository.endActiveStartedBefore(any(), any())).thenReturn(2);
         when(checkInRepository.endTogetherMatchedBefore(any(), any())).thenReturn(1);
         when(checkInRepository.cancelSeekingStartedBefore(any(), any())).thenReturn(4);

@@ -13,6 +13,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.honjeong.badge.service.BadgeService;
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
@@ -61,11 +62,12 @@ public class CheckInService {
     private final NotificationService notificationService;
     private final Clock clock;
     private final HonjeongCheckInProperties props;
+    private final BadgeService badgeService;
 
     public CheckInService(CheckInRepository checkInRepository, PlaceService placeService,
             UserRepository userRepository, BlockRepository blockRepository,
             MealRequestRepository mealRequestRepository, NotificationService notificationService,
-            Clock clock, HonjeongCheckInProperties props) {
+            Clock clock, HonjeongCheckInProperties props, BadgeService badgeService) {
         this.checkInRepository = checkInRepository;
         this.placeService = placeService;
         this.userRepository = userRepository;
@@ -74,6 +76,7 @@ public class CheckInService {
         this.notificationService = notificationService;
         this.clock = clock;
         this.props = props;
+        this.badgeService = badgeService;
     }
 
     /**
@@ -139,6 +142,7 @@ public class CheckInService {
                     .forEach(c -> c.end(now));
         } else {
             checkIn.end(now);
+            badgeService.checkAndAward(userId, true); // 솔로 완료 → 혼밥 뱃지 지급 체크
         }
         return CheckInResponse.from(checkIn);
     }
