@@ -52,6 +52,7 @@ public class NotificationSettingsService {
                     opt.map(NotificationSettings::isMealEnabled).orElse(true);
             case MATE_REQUEST_RECEIVED, MATE_REQUEST_ACCEPTED ->
                     opt.map(NotificationSettings::isMateEnabled).orElse(true);
+            case BADGE_EARNED -> true; // 뱃지 알림은 항상 ON(설정 토글 없음)
         };
     }
 }

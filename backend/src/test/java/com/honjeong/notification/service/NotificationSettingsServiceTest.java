@@ -92,4 +92,11 @@ class NotificationSettingsServiceTest {
         assertThat(service.isEnabled(1L, NotificationType.MATE_REQUEST_RECEIVED)).isTrue();
         assertThat(service.isEnabled(1L, NotificationType.MATE_REQUEST_ACCEPTED)).isTrue();
     }
+
+    @Test
+    @DisplayName("뱃지 알림은 설정과 무관하게 항상 ON")
+    void badgeAlwaysEnabled() {
+        when(settingsRepository.findByUserId(1L)).thenReturn(Optional.empty());
+        assertThat(service.isEnabled(1L, NotificationType.BADGE_EARNED)).isTrue();
+    }
 }
