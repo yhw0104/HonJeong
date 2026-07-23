@@ -9,6 +9,8 @@ import { useAuth } from '@/shared/auth/AuthContext';
 import type { MainTabScreenProps } from '@/navigation/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useMyProfile, useActivitySummary } from '@/features/users/queries';
+import { useBadges } from '@/features/record/queries';
+import { earnedCount, BADGE_DEFS } from '@/features/record/badges';
 import { useReceivedRequests } from '@/features/meal/queries';
 import { diningStyleLabel } from '@/shared/format';
 import { BellButton } from '@/features/notifications/BellButton';
@@ -31,7 +33,7 @@ const SECTIONS: Section[] = [
     items: [
       { l: '내 혼밥 기록', icon: 'book', route: 'DiningHistory' },
       { l: '내가 쓴 리뷰', icon: 'note', route: 'MyReviews' },
-      { l: '혼밥 챌린지 · 뱃지', d: '획득 7 / 20', icon: 'badge', accent: true, route: 'ChallengeBadges' },
+      { l: '혼밥 챌린지 · 뱃지', icon: 'badge', accent: true, route: 'ChallengeBadges' },
     ],
   },
   {
@@ -63,6 +65,7 @@ export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
   // 받은 같이먹기 신청(PENDING) — 같이먹기 화면과 같은 쿼리라 캐시 공유·라이브 폴링으로 갱신된다.
   const received = useReceivedRequests('PENDING');
   const pendingCount = received.data?.length;
+  const badges = useBadges();
   const num = (n?: number) => (n === undefined ? '–' : String(n));
   const stats: { n: string; l: string; route: 'DiningHistory' | 'Mates' }[] = [
     { n: num(summary?.checkInCount), l: '혼밥', route: 'DiningHistory' },
@@ -73,6 +76,8 @@ export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
   const menuDetail = (it: MenuItem) => {
     if (it.route === 'DiningHistory') return `${num(summary?.checkInCount)}회 · 일기 ${num(summary?.reviewCount)}편`;
     if (it.route === 'ReceivedRequests') return pendingCount === undefined ? undefined : `${pendingCount}건`;
+    if (it.route === 'ChallengeBadges')
+      return badges.data ? `획득 ${earnedCount(badges.data)} / ${BADGE_DEFS.length}` : undefined;
     return it.d;
   };
   // 뱃지(빨간 카운트)는 받은 신청이 1건 이상일 때만 노출.

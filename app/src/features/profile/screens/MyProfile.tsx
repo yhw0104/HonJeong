@@ -5,14 +5,16 @@ import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Screen, Avatar, Icon, StateView } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useMyProfile, useActivitySummary } from '@/features/users/queries';
+import { useBadges } from '@/features/record/queries';
+import { recentEarned } from '@/features/record/badges';
 import { diningStyleLabel, ageGenderLabel } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
-
-const RECENT_BADGES = ['🌱', '🍚', '🔥', '🤝'];
 
 export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'>) {
   const { data: profile, isLoading, isError, refetch } = useMyProfile();
   const { data: summary } = useActivitySummary();
+  const { data: badgeData } = useBadges();
+  const recent = recentEarned(badgeData ?? [], 4);
   const num = (n?: number) => (n === undefined ? '–' : String(n));
   const stats = [
     { n: num(summary?.checkInCount), l: '혼밥', go: () => navigation.navigate('DiningHistory') },
@@ -102,11 +104,15 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
             </Pressable>
           </View>
           <View style={styles.badgeRow}>
-            {RECENT_BADGES.map((e, i) => (
-              <View key={i} style={styles.badgeCell}>
-                <Text style={{ fontSize: 24 }}>{e}</Text>
-              </View>
-            ))}
+            {recent.length === 0 ? (
+              <Text style={styles.foodEmpty}>아직 뱃지가 없어요 · 혼밥으로 시작해요</Text>
+            ) : (
+              recent.map((b) => (
+                <View key={b.key} style={styles.badgeCell}>
+                  <Text style={{ fontSize: 24 }}>{b.emoji}</Text>
+                </View>
+              ))
+            )}
           </View>
         </View>
         </ScrollView>
