@@ -10,12 +10,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.honjeong.badge.domain.BadgeCatalog;
 import com.honjeong.badge.domain.BadgeMetric;
-import com.honjeong.badge.domain.UserBadge;
 import com.honjeong.badge.dto.BadgeStatusResponse;
 import com.honjeong.badge.repository.UserBadgeRepository;
 import com.honjeong.checkin.repository.CheckInRepository;
@@ -57,7 +55,8 @@ public class BadgeService {
     /**
      * 획득 판정·지급. 카운트를 다시 세서(재계산) 임계 달성 + 미보유 뱃지를 저장한다.
      * notify=true면 새로 지급한 뱃지마다 BADGE_EARNED 알림. 이미 보유는 스킵(멱등),
-     * 동시 지급 경합으로 유니크 위반이 나면 삼킨다(이미 있음 = 성공과 동치).
+     * 동시 지급 경합은 DB 네이티브 ON CONFLICT DO NOTHING으로 예외 없이 흡수한다
+     * (예외 기반 dedup은 실PostgreSQL에서 트랜잭션을 중단시켜 후속 문장까지 실패시키므로 금지).
      */
     @Transactional
     public void checkAndAward(long userId, boolean notify) {
@@ -69,14 +68,12 @@ public class BadgeService {
             }
             long cur = counts.computeIfAbsent(b.metric(), m -> countOf(m, userId));
             if (cur >= b.threshold()) {
-                try {
-                    badgeRepository.save(UserBadge.of(userId, b.key(), now()));
-                } catch (DataIntegrityViolationException e) {
-                    continue; // 동시 지급 경합 — 이미 저장됨
-                }
-                owned.add(b.key());
-                if (notify) {
-                    notificationService.publish(userId, NotificationType.BADGE_EARNED, null);
+                int inserted = badgeRepository.insertIfAbsent(userId, b.key(), now());
+                if (inserted == 1) {
+                    owned.add(b.key());
+                    if (notify) {
+                        notificationService.publish(userId, NotificationType.BADGE_EARNED, null);
+                    }
                 }
             }
         }

@@ -53,4 +53,13 @@ class UserBadgeRepositoryTest extends AbstractPostgresTest {
         assertThatThrownBy(() -> badgeRepository.saveAndFlush(UserBadge.of(userId, "SOLO_1", NOW)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
+
+    @Test
+    @DisplayName("insertIfAbsent: 첫 삽입 1행, 중복이면 0행(예외 없음)·행은 하나만")
+    void insertIfAbsentIdempotent() {
+        Long userId = persistUser("01000000003", "멱등");
+        assertThat(badgeRepository.insertIfAbsent(userId, "SOLO_1", NOW)).isEqualTo(1);
+        assertThat(badgeRepository.insertIfAbsent(userId, "SOLO_1", NOW)).isEqualTo(0);
+        assertThat(badgeRepository.countByUserId(userId)).isEqualTo(1);
+    }
 }

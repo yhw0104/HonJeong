@@ -11,7 +11,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.dao.DataIntegrityViolationException;
 import com.honjeong.badge.domain.UserBadge;
 import com.honjeong.badge.dto.BadgeStatusResponse;
 import com.honjeong.badge.repository.UserBadgeRepository;
@@ -42,40 +41,49 @@ class BadgeServiceTest {
         when(favoriteRepository.countDistinctPlaceByUserId(1L)).thenReturn(fav);
     }
 
+    private void stubInsert() {
+        when(badgeRepository.insertIfAbsent(anyLong(), anyString(), any())).thenReturn(1);
+    }
+
     @Test
     @DisplayName("임계 경계: 혼밥 9면 SOLO_10 미지급, 10이면 지급")
     void thresholdBoundary() {
+        stubInsert();
         when(badgeRepository.findKeysByUserId(1L)).thenReturn(List.of());
         counts(9, 0, 0, 0, 0);
         service.checkAndAward(1L, false);
-        verify(badgeRepository, never()).save(argThat(b -> b.getBadgeKey().equals("SOLO_10")));
-        verify(badgeRepository).save(argThat(b -> b.getBadgeKey().equals("SOLO_1"))); // 9>=1
+        verify(badgeRepository, never()).insertIfAbsent(eq(1L), eq("SOLO_10"), any());
+        verify(badgeRepository).insertIfAbsent(eq(1L), eq("SOLO_1"), any()); // 9>=1
 
         clearInvocations(badgeRepository);
+        stubInsert();
         when(badgeRepository.findKeysByUserId(1L)).thenReturn(List.of());
         counts(10, 0, 0, 0, 0);
         service.checkAndAward(1L, false);
-        verify(badgeRepository).save(argThat(b -> b.getBadgeKey().equals("SOLO_10")));
+        verify(badgeRepository).insertIfAbsent(eq(1L), eq("SOLO_10"), any());
     }
 
     @Test
     @DisplayName("이미 보유한 뱃지는 다시 저장하지 않음(멱등)")
     void skipsOwned() {
+        stubInsert();
         when(badgeRepository.findKeysByUserId(1L)).thenReturn(List.of("SOLO_1"));
         counts(5, 0, 0, 0, 0);
         service.checkAndAward(1L, false);
-        verify(badgeRepository, never()).save(argThat(b -> b.getBadgeKey().equals("SOLO_1")));
+        verify(badgeRepository, never()).insertIfAbsent(eq(1L), eq("SOLO_1"), any());
     }
 
     @Test
     @DisplayName("notify=true면 새 뱃지마다 BADGE_EARNED 발행, false면 미발행")
     void notifyFlag() {
+        stubInsert();
         when(badgeRepository.findKeysByUserId(1L)).thenReturn(List.of());
         counts(1, 0, 0, 0, 0); // SOLO_1 하나만
         service.checkAndAward(1L, true);
         verify(notificationService).publish(1L, NotificationType.BADGE_EARNED, null);
 
         clearInvocations(notificationService, badgeRepository);
+        stubInsert();
         when(badgeRepository.findKeysByUserId(1L)).thenReturn(List.of());
         counts(1, 0, 0, 0, 0);
         service.checkAndAward(1L, false);
@@ -83,12 +91,13 @@ class BadgeServiceTest {
     }
 
     @Test
-    @DisplayName("동시 지급 경합: save가 유니크 위반 던져도 삼키고 계속")
-    void swallowsUniqueViolation() {
+    @DisplayName("동시 지급 경합: insertIfAbsent가 0행(충돌) 반환해도 미알림·무예외")
+    void conflictYieldsNoNotifyNoException() {
         when(badgeRepository.findKeysByUserId(1L)).thenReturn(List.of());
         counts(1, 0, 0, 0, 0);
-        when(badgeRepository.save(any())).thenThrow(new DataIntegrityViolationException("dup"));
+        when(badgeRepository.insertIfAbsent(anyLong(), anyString(), any())).thenReturn(0);
         assertThatCode(() -> service.checkAndAward(1L, true)).doesNotThrowAnyException();
+        verify(notificationService, never()).publish(anyLong(), any(), any());
     }
 
     @Test
