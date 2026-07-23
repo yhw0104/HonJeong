@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.honjeong.badge.repository.UserBadgeRepository;
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
@@ -34,16 +35,19 @@ public class MateProfileService {
     private final CheckInRepository checkInRepository;
     private final UserFoodPreferenceRepository foodRepository;
     private final BlockRepository blockRepository;
+    private final UserBadgeRepository userBadgeRepository;
 
     public MateProfileService(UserRepository userRepository, MateRepository mateRepository,
             MateRequestRepository mateRequestRepository, CheckInRepository checkInRepository,
-            UserFoodPreferenceRepository foodRepository, BlockRepository blockRepository) {
+            UserFoodPreferenceRepository foodRepository, BlockRepository blockRepository,
+            UserBadgeRepository userBadgeRepository) {
         this.userRepository = userRepository;
         this.mateRepository = mateRepository;
         this.mateRequestRepository = mateRequestRepository;
         this.checkInRepository = checkInRepository;
         this.foodRepository = foodRepository;
         this.blockRepository = blockRepository;
+        this.userBadgeRepository = userBadgeRepository;
     }
 
     /**
@@ -110,7 +114,7 @@ public class MateProfileService {
                 foods,
                 checkInRepository.countCompletedByUser(targetId),
                 checkInRepository.countTogetherBetween(viewerId, targetId),  // 함께 먹음(나↔대상 실제 매칭 체크인 pairwise)
-                0L,  // badgeCount — 뱃지 도메인 없음
+                userBadgeRepository.countByUserId(targetId),  // badgeCount — 대상(프로필 주인)의 뱃지 개수
                 online, currentPlaceName, currentPlaceId,
                 isMate, requestStatus(viewerId, targetId));
     }

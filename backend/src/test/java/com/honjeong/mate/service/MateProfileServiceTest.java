@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.honjeong.badge.repository.UserBadgeRepository;
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
@@ -34,9 +35,10 @@ class MateProfileServiceTest {
     private final CheckInRepository checkInRepository = mock(CheckInRepository.class);
     private final UserFoodPreferenceRepository foodRepository = mock(UserFoodPreferenceRepository.class);
     private final BlockRepository blockRepository = mock(BlockRepository.class);
+    private final UserBadgeRepository userBadgeRepository = mock(UserBadgeRepository.class);
     private final MateProfileService service = new MateProfileService(
             userRepository, mateRepository, mateRequestRepository, checkInRepository, foodRepository,
-            blockRepository);
+            blockRepository, userBadgeRepository);
 
     @Test
     @DisplayName("searchUsers: 본인 제외 + 내가 보낸 PENDING이면 requestStatus=PENDING_SENT")
@@ -134,11 +136,12 @@ class MateProfileServiceTest {
     }
 
     @Test
-    @DisplayName("getPublicProfile: 메이트 + ACTIVE 체크인이면 온라인·현재장소 노출 + 선호음식 매핑, mealsTogether·badgeCount=0")
+    @DisplayName("getPublicProfile: 메이트 + ACTIVE 체크인이면 온라인·현재장소 노출 + 선호음식 매핑, mealsTogether=0·badgeCount=대상 실카운트")
     void publicProfile_mate_online() {
         User target = user(2L, "상대");
         when(userRepository.findById(2L)).thenReturn(Optional.of(target));
         when(mateRepository.existsByUser_IdAndMateUser_Id(1L, 2L)).thenReturn(true);
+        when(userBadgeRepository.countByUserId(2L)).thenReturn(3L);
 
         Place place = mock(Place.class);
         when(place.getName()).thenReturn("혼밥국밥집");
@@ -167,7 +170,7 @@ class MateProfileServiceTest {
         assertThat(res.preferredFoods()).containsExactly("한식");
         assertThat(res.checkInCount()).isEqualTo(5L);
         assertThat(res.mealsTogether()).isZero();
-        assertThat(res.badgeCount()).isZero();
+        assertThat(res.badgeCount()).isEqualTo(3L);
     }
 
     @Test
