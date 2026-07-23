@@ -7,6 +7,7 @@ import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.honjeong.badge.service.BadgeService;
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
@@ -41,16 +42,18 @@ public class MateRequestService {
     private final NotificationService notificationService;
     private final BlockRepository blockRepository;
     private final Clock clock;
+    private final BadgeService badgeService;
 
     public MateRequestService(MateRequestRepository mateRequestRepository, MateRepository mateRepository,
             UserRepository userRepository, NotificationService notificationService,
-            BlockRepository blockRepository, Clock clock) {
+            BlockRepository blockRepository, Clock clock, BadgeService badgeService) {
         this.mateRequestRepository = mateRequestRepository;
         this.mateRepository = mateRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
         this.blockRepository = blockRepository;
         this.clock = clock;
+        this.badgeService = badgeService;
     }
 
     /**
@@ -102,6 +105,8 @@ public class MateRequestService {
         if (!mateRepository.existsByUser_IdAndMateUser_Id(b.getId(), a.getId())) {
             mateRepository.save(Mate.create(b, a, now()));
         }
+        badgeService.checkAndAward(a.getId(), true); // 양쪽 메이트 뱃지 지급 체크
+        badgeService.checkAndAward(b.getId(), true);
         // 역방향 PENDING 신청(b→a)이 있으면 함께 ACCEPTED로 닫음
         mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(b.getId(), a.getId(), MateRequestStatus.PENDING)
                 .ifPresent(rev -> rev.accept(now()));

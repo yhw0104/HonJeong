@@ -11,6 +11,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
+import com.honjeong.badge.service.BadgeService;
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
@@ -34,9 +35,10 @@ class MateRequestServiceTest {
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-02T03:00:00Z"), ZoneOffset.UTC);
     private final NotificationService notificationService = mock(NotificationService.class);
     private final BlockRepository blockRepository = mock(BlockRepository.class);
+    private final BadgeService badgeService = mock(BadgeService.class);
     private final MateRequestService service =
             new MateRequestService(mateRequestRepository, mateRepository, userRepository,
-                    notificationService, blockRepository, clock);
+                    notificationService, blockRepository, clock, badgeService);
 
     @Test
     @DisplayName("create: 자기 자신에게 신청하면 MATE_SELF")
@@ -111,6 +113,8 @@ class MateRequestServiceTest {
         verify(mateRepository, times(2)).save(any(Mate.class));
         assertThat(mr.getStatus().name()).isEqualTo("ACCEPTED");
         verify(notificationService).publish(1L, NotificationType.MATE_REQUEST_ACCEPTED, 2L);
+        verify(badgeService).checkAndAward(1L, true); // 발신자(from)
+        verify(badgeService).checkAndAward(2L, true); // 수신자(수락자, to)
     }
 
     @Test
