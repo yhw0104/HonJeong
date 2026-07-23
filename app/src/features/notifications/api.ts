@@ -5,7 +5,8 @@ export type NotificationType =
   | 'MEAL_REQUEST_ACCEPTED'
   | 'MEAL_MATCH_CANCELLED'
   | 'MATE_REQUEST_RECEIVED'
-  | 'MATE_REQUEST_ACCEPTED';
+  | 'MATE_REQUEST_ACCEPTED'
+  | 'BADGE_EARNED';
 
 export type NotificationItem = {
   id: number;

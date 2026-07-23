@@ -8,20 +8,26 @@ const MESSAGE: Record<NotificationType, string> = {
   MEAL_MATCH_CANCELLED: '님이 같이 먹기 약속을 취소했어요',
   MATE_REQUEST_RECEIVED: '님이 메이트를 신청했어요',
   MATE_REQUEST_ACCEPTED: '님이 메이트를 수락했어요',
+  BADGE_EARNED: '새 뱃지를 획득했어요 🎉',
 };
 
 export function notificationMessage(type: NotificationType, actorNickname: string | null): string {
+  if (type === 'BADGE_EARNED') return MESSAGE[type]; // actor 없는 자기 획득 — 닉네임 접두 없음
   return `${actorNickname ?? '누군가'}${MESSAGE[type]}`;
 }
 
 /** 알림 탭 시 이동할 화면. 같이먹기 수락은 '같이 먹는 중' 상태가 보이는 홈 지도로. */
-export function notificationTarget(type: NotificationType): 'ReceivedRequests' | 'MainTabs' | 'Mates' {
+export function notificationTarget(
+  type: NotificationType,
+): 'ReceivedRequests' | 'MainTabs' | 'Mates' | 'ChallengeBadges' {
   if (type === 'MEAL_REQUEST_RECEIVED') return 'ReceivedRequests';
   if (type === 'MEAL_REQUEST_ACCEPTED' || type === 'MEAL_MATCH_CANCELLED') return 'MainTabs';
+  if (type === 'BADGE_EARNED') return 'ChallengeBadges';
   return 'Mates';
 }
 
-/** 알림 아이콘 — 같이먹기 밥(rice) / 메이트 친구(friends). */
+/** 알림 아이콘 — 같이먹기 밥(rice) / 메이트 친구(friends) / 뱃지 획득(badge). */
 export function notificationIcon(type: NotificationType): IconName {
+  if (type === 'BADGE_EARNED') return 'badge';
   return type.startsWith('MEAL_') ? 'rice' : 'friends';
 }

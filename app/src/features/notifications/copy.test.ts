@@ -35,3 +35,10 @@ describe('notificationIcon', () => {
     expect(notificationIcon('MATE_REQUEST_ACCEPTED')).toBe('friends');
   });
 });
+
+describe('BADGE_EARNED', () => {
+  it('문구는 actor 없이 고정', () =>
+    expect(notificationMessage('BADGE_EARNED', null)).toBe('새 뱃지를 획득했어요 🎉'));
+  it('탭 → 뱃지 화면', () => expect(notificationTarget('BADGE_EARNED')).toBe('ChallengeBadges'));
+  it('아이콘 badge', () => expect(notificationIcon('BADGE_EARNED')).toBe('badge'));
+});
