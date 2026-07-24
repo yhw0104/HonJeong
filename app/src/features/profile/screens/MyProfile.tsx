@@ -1,20 +1,27 @@
 // MyProfile — 내 프로필 (원본: screens/MyProfile.jsx)
-// 더보기 프로필 카드에서 진입. 편집→ProfileEdit, 최근 뱃지 전체보기→ChallengeBadges.
+// 더보기 프로필 카드에서 진입. 편집→ProfileEdit, 획득한 뱃지 전체보기→ChallengeBadges.
 import React from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions } from 'react-native';
 import { Screen, Avatar, Icon, StateView } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useMyProfile, useActivitySummary } from '@/features/users/queries';
 import { useBadges } from '@/features/record/queries';
-import { recentEarned } from '@/features/record/badges';
+import { toBadgeViews } from '@/features/record/badges';
+import { BadgeMedal } from '@/features/record/BadgeMedal';
 import { diningStyleLabel, ageGenderLabel } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
+
+// 획득 뱃지 strip — 한 줄에 4개가 폭을 꽉 채우도록 메달 크기 계산(오른쪽 슬랙 제거).
+const BADGE_COLS = 4;
+const BADGE_GAP = 10;
+const BADGE_MEDAL = Math.floor((Dimensions.get('window').width - 40 - BADGE_GAP * (BADGE_COLS - 1)) / BADGE_COLS);
 
 export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'>) {
   const { data: profile, isLoading, isError, refetch } = useMyProfile();
   const { data: summary } = useActivitySummary();
   const { data: badgeData } = useBadges();
-  const recent = recentEarned(badgeData ?? [], 4);
+  // 획득한 뱃지 전부 — 뱃지 화면과 같은 순서(BADGE_DEFS 정의 순, 획득한 것만).
+  const earnedBadges = toBadgeViews(badgeData ?? []).filter((v) => v.earned);
   const num = (n?: number) => (n === undefined ? '–' : String(n));
   const stats = [
     { n: num(summary?.checkInCount), l: '혼밥', go: () => navigation.navigate('DiningHistory') },
@@ -98,19 +105,17 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
         {/* 최근 획득 뱃지 */}
         <View style={{ marginTop: 28 }}>
           <View style={styles.badgeHead}>
-            <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>최근 획득 뱃지</Text>
+            <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>획득한 뱃지</Text>
             <Pressable onPress={() => navigation.navigate('ChallengeBadges')} hitSlop={8}>
               <Text style={styles.viewAll}>전체보기</Text>
             </Pressable>
           </View>
           <View style={styles.badgeRow}>
-            {recent.length === 0 ? (
+            {earnedBadges.length === 0 ? (
               <Text style={styles.foodEmpty}>아직 뱃지가 없어요 · 혼밥으로 시작해요</Text>
             ) : (
-              recent.map((b) => (
-                <View key={b.key} style={styles.badgeCell}>
-                  <Text style={{ fontSize: 24 }}>{b.emoji}</Text>
-                </View>
+              earnedBadges.map((b) => (
+                <BadgeMedal key={b.key} icon={b.icon} tier={b.tier} tierNum={b.tierNum} earned={b.earned} size={BADGE_MEDAL} />
               ))
             )}
           </View>
@@ -151,6 +156,5 @@ const styles = StyleSheet.create({
 
   badgeHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   viewAll: { fontSize: 12, fontWeight: '700', color: T2.brand },
-  badgeRow: { flexDirection: 'row', gap: 10 },
-  badgeCell: { flex: 1, aspectRatio: 1, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: T2.border, alignItems: 'center', justifyContent: 'center' },
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' },
 });

@@ -3,10 +3,10 @@ import { toBadgeViews, earnedCount, recentEarned, BADGE_DEFS } from './badges';
 const S = (key: string, earned: boolean, earnedAt: string | null = null) => ({ key, earned, earnedAt });
 
 describe('toBadgeViews', () => {
-  it('BADGE_DEFS 순서·이모지 결합, 미포함 key는 미획득', () => {
+  it('BADGE_DEFS 순서·아이콘/티어 결합, 미포함 key는 미획득', () => {
     const views = toBadgeViews([S('SOLO_1', true)]);
     expect(views).toHaveLength(10);
-    expect(views[0]).toMatchObject({ key: 'SOLO_1', emoji: '🌱', name: '첫 혼밥', earned: true });
+    expect(views[0]).toMatchObject({ key: 'SOLO_1', icon: 'sprout', tier: 'brand', name: '첫 혼밥', earned: true });
     expect(views.find((v) => v.key === 'SOLO_50')!.earned).toBe(false);
   });
   it('알 수 없는 서버 key는 무시(폴백)', () => {
