@@ -19,6 +19,8 @@ import { formatDistance } from '@/shared/format';
 import { distanceMeters } from '@/shared/location/distance';
 import type { MainTabScreenProps } from '@/navigation/types';
 
+const HONJEONG_ICON = require('../../../../assets/honjeong-icon.png'); // 같이 먹기 버튼 아이콘(혼정 로고)
+
 // 하단 시트 스냅 높이(접힘/펼침). 펼치면 화면의 82%까지 올라와 전체 리스트가 보인다.
 const SHEET_COLLAPSED = 300;
 const SHEET_EXPANDED = Math.round(Dimensions.get('window').height * 0.82);
@@ -270,7 +272,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
             </Pressable>
           ) : (
             <Pressable style={styles.honbabBtn} onPress={() => setPicking(true)}>
-              <Text style={styles.honbabEmoji}>🍚</Text>
+              <Image source={HONJEONG_ICON} style={styles.honbabIcon} />
               <Text style={styles.honbabBtnText}>같이 먹기</Text>
             </Pressable>
           )}
@@ -631,7 +633,7 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 5,
   },
-  honbabEmoji: { fontSize: 16 },
+  honbabIcon: { width: 22, height: 22, resizeMode: 'contain' },
   honbabBtnText: { fontSize: 14, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
   honbabBtnOn: {
     flexShrink: 0,
