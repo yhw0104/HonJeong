@@ -5,6 +5,7 @@ import static org.mockito.Mockito.*;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
@@ -215,6 +216,27 @@ class MateProfileServiceTest {
         PublicProfileResponse res = service.getPublicProfile(1L, 2L);
 
         assertThat(res.requestStatus()).isEqualTo("PENDING_RECEIVED");
+    }
+
+    @Test
+    @DisplayName("getPublicProfile: 공개 프로필 연령대 파생 양성 케이스(생년월일→20대)")
+    void publicProfile_ageGroup() {
+        User target = user(2L, "상대");
+        when(target.getBirthDate()).thenReturn(LocalDate.of(2001, 1, 1));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(target));
+        when(mateRepository.existsByUser_IdAndMateUser_Id(1L, 2L)).thenReturn(false);
+        when(checkInRepository.findByUser_IdAndStatusIn(2L, List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE)))
+                .thenReturn(Optional.empty());
+        when(checkInRepository.countCompletedByUser(2L)).thenReturn(0L);
+        when(foodRepository.findByUserId(2L)).thenReturn(Optional.empty());
+        when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(1L, 2L, MateRequestStatus.PENDING))
+                .thenReturn(Optional.empty());
+        when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(2L, 1L, MateRequestStatus.PENDING))
+                .thenReturn(Optional.empty());
+
+        PublicProfileResponse res = service.getPublicProfile(1L, 2L);
+
+        assertThat(res.ageGroup()).isEqualTo("20대");
     }
 
     @Test
