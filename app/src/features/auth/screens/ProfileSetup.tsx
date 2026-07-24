@@ -8,14 +8,21 @@ import { apiGet, apiPost, ApiError } from '@/shared/api/client';
 import { pickImages, uploadImages } from '@/shared/upload/imageUpload';
 import { useAuth } from '@/shared/auth/AuthContext';
 import { NICKNAME_MAX, NICK_HINT, canSubmitNickname, precheckNickname, type NickStatus } from '@/features/auth/nickname';
+import { type Birth, daysInMonth, isAtLeast14, formatBirth, toIsoDate, clampDay } from '@/features/auth/birthdate';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 const FOODS = ['한식', '일식', '양식', '중식', '면 요리', '매운맛', '디저트'];
-const AGE_GROUPS = ['10대', '20대', '30대', '40대', '50대', '60대 이상'];
 const STYLES_OPT = [
   { key: 'talk', label: '도란도란 대화하며', sub: '가볍게 이야기 나누는 게 좋아요' },
   { key: 'quiet', label: '조용히 각자', sub: '편하게, 말 없이 먹어도 좋아요' },
 ];
+
+// 생년월일 피커 범위: 최소 90세~최대 만14세(연 기준). 실제 만14 판정은 제출 시 isAtLeast14로 한다.
+const NOW_Y = new Date().getFullYear();
+const MIN_YEAR = NOW_Y - 90;
+const MAX_YEAR = NOW_Y - 14;
+const YEARS = Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MAX_YEAR - i); // 최신 연도 먼저
+const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 type Term = { key: string; label: string; req: boolean; detail?: boolean };
 // 약관 키를 백엔드 /auth/terms 필드명과 동일하게 맞춘다(그대로 전송). detail=true면 '보기'로 전문을 연다.
@@ -38,8 +45,9 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
   const [style, setStyle] = useState('talk');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [ageGroup, setAgeGroup] = useState<string | null>(null);
-  const [agePickerOpen, setAgePickerOpen] = useState(false);
+  const [birth, setBirth] = useState<Birth | null>(null);
+  const [birthPickerOpen, setBirthPickerOpen] = useState(false);
+  const [draft, setDraft] = useState<Birth>({ y: MAX_YEAR - 6, m: 1, d: 1 }); // 피커 임시값(확인 시 반영)
   const [terms, setTerms] = useState<Record<string, boolean>>({
     age: false,
     service: false,
@@ -109,6 +117,10 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
       Alert.alert('약관 동의 필요', '필수 약관에 모두 동의해주세요.');
       return;
     }
+    if (birth && !isAtLeast14(birth, new Date())) {
+      Alert.alert('생년월일 확인', '만 14세 이상만 가입할 수 있어요.');
+      return;
+    }
     setSubmitting(true);
     try {
       await apiPost(
@@ -126,7 +138,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
           // region은 보내지 않는다 — '내 동네' 기능 제거 결정(2026-07-04). 서버 필드는 선택이라 생략 가능.
           favoriteFoods: foods,
           profileImageUrl: imageUrl ?? undefined,
-          ageGroup: ageGroup ?? undefined,
+          birthDate: birth ? toIsoDate(birth) : undefined,
         },
         { token: onboardingToken },
       );
@@ -218,10 +230,13 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
             </View>
           </View>
           <View style={{ flex: 1 }}>
-            <FieldLabel>연령대</FieldLabel>
-            <Pressable style={styles.dropdown} onPress={() => setAgePickerOpen(true)}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: ageGroup ? T2.text : T2.textMute, letterSpacing: -0.3 }}>
-                {ageGroup ?? '선택'}
+            <FieldLabel>생년월일</FieldLabel>
+            <Pressable
+              style={styles.dropdown}
+              onPress={() => { setDraft(birth ?? { y: MAX_YEAR - 6, m: 1, d: 1 }); setBirthPickerOpen(true); }}
+            >
+              <Text style={{ fontSize: 14, fontWeight: '700', color: birth ? T2.text : T2.textMute, letterSpacing: -0.3 }}>
+                {birth ? formatBirth(birth) : '선택'}
               </Text>
               <Icon name="chevronDown" size={11} color={T2.textMute} />
             </Pressable>
@@ -348,31 +363,45 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
         />
       </View>
 
-      {/* 연령대 선택 바텀시트 */}
-      <Modal visible={agePickerOpen} transparent animationType="fade" onRequestClose={() => setAgePickerOpen(false)}>
-        <Pressable style={styles.ageBackdrop} onPress={() => setAgePickerOpen(false)}>
+      {/* 생년월일 선택 바텀시트 — 연/월/일 3열 스크롤 */}
+      <Modal visible={birthPickerOpen} transparent animationType="fade" onRequestClose={() => setBirthPickerOpen(false)}>
+        <Pressable style={styles.ageBackdrop} onPress={() => setBirthPickerOpen(false)}>
           <Pressable style={styles.ageSheet} onPress={() => {}}>
-            <Text style={styles.ageSheetTitle}>연령대 선택</Text>
-            {AGE_GROUPS.map((a) => {
-              const on = ageGroup === a;
-              return (
-                <Pressable
-                  key={a}
-                  style={styles.ageOption}
-                  onPress={() => {
-                    setAgeGroup(a);
-                    setAgePickerOpen(false);
-                  }}
-                >
-                  <Text style={[styles.ageOptionText, on && { color: T2.brand, fontWeight: '800' }]}>{a}</Text>
-                  {on ? <Text style={styles.ageCheck}>✓</Text> : null}
-                </Pressable>
-              );
-            })}
+            <Text style={styles.ageSheetTitle}>생년월일 선택</Text>
+            <View style={styles.birthCols}>
+              <BirthColumn data={YEARS} suffix="년" value={draft.y} onSelect={(y) => setDraft((p) => clampDay({ ...p, y }))} />
+              <BirthColumn data={MONTHS} suffix="월" value={draft.m} onSelect={(m) => setDraft((p) => clampDay({ ...p, m }))} />
+              <BirthColumn
+                data={Array.from({ length: daysInMonth(draft.y, draft.m) }, (_, i) => i + 1)}
+                suffix="일"
+                value={draft.d}
+                onSelect={(d) => setDraft((p) => ({ ...p, d }))}
+              />
+            </View>
+            <Pressable style={styles.birthConfirm} onPress={() => { setBirth(draft); setBirthPickerOpen(false); }}>
+              <Text style={styles.birthConfirmText}>확인</Text>
+            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
     </Screen>
+  );
+}
+
+function BirthColumn({ data, suffix, value, onSelect }: {
+  data: number[]; suffix: string; value: number; onSelect: (n: number) => void;
+}) {
+  return (
+    <ScrollView style={styles.birthCol} showsVerticalScrollIndicator={false}>
+      {data.map((n) => {
+        const on = n === value;
+        return (
+          <Pressable key={n} style={styles.birthItem} onPress={() => onSelect(n)}>
+            <Text style={[styles.birthItemText, on && { color: T2.brand, fontWeight: '800' }]}>{n}{suffix}</Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 }
 
@@ -423,9 +452,13 @@ const styles = StyleSheet.create({
   ageBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   ageSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 28 },
   ageSheetTitle: { fontSize: 15, fontWeight: '800', color: T2.text, letterSpacing: -0.3, marginBottom: 8 },
-  ageOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: T2.border },
-  ageOptionText: { fontSize: 15, fontWeight: '600', color: T2.text, letterSpacing: -0.3 },
-  ageCheck: { fontSize: 15, fontWeight: '800', color: T2.brand },
+
+  birthCols: { flexDirection: 'row', gap: 8, height: 200, marginTop: 8 },
+  birthCol: { flex: 1, backgroundColor: T2.bg, borderRadius: 12 },
+  birthItem: { paddingVertical: 12, alignItems: 'center' },
+  birthItemText: { fontSize: 15, fontWeight: '600', color: T2.text, letterSpacing: -0.3 },
+  birthConfirm: { marginTop: 14, paddingVertical: 15, borderRadius: 12, backgroundColor: T2.brand, alignItems: 'center' },
+  birthConfirmText: { fontSize: 15, fontWeight: '800', color: '#fff', letterSpacing: -0.3 },
 
   introInput: {
     paddingVertical: 14,
