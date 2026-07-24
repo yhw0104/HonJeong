@@ -1,7 +1,9 @@
 package com.honjeong.user.dto;
 
+import java.time.LocalDate;
 import java.util.List;
 
+import com.honjeong.user.domain.AgeGroups;
 import com.honjeong.user.domain.DiningStyle;
 import com.honjeong.user.domain.Gender;
 import com.honjeong.user.domain.User;
@@ -24,7 +26,7 @@ import com.honjeong.user.domain.UserStatus;
  * @param regionLng        활동 지역 경도
  * @param diningStyle      식사 성향({@link DiningStyle})
  * @param gender           성별({@link Gender})
- * @param ageGroup         연령대 문자열
+ * @param ageGroup         연령대 문자열(생년월일로 파생, birthDate 자체는 미노출)
  * @param allowMealRequest 같이먹기 신청 수신 허용 여부
  * @param status           회원 상태({@link UserStatus})
  * @param favoriteFoods    선호 음식 목록(0~3개, 없으면 빈 목록)
@@ -42,13 +44,14 @@ public record UserProfileResponse(
      *
      * @param user          변환할 회원 엔티티
      * @param favoriteFoods 선호 음식 목록(0~3개)
+     * @param today         연령대 파생 기준일(KST 오늘)
      * @return 엔티티의 필드 값 + 선호 음식을 담은 새 {@link UserProfileResponse}
      */
-    public static UserProfileResponse from(User user, List<String> favoriteFoods) {
+    public static UserProfileResponse from(User user, List<String> favoriteFoods, LocalDate today) {
         return new UserProfileResponse(
                 user.getId(), user.getPhone(), user.getEmail(), user.getNickname(), user.getProfileImageUrl(),
                 user.getIntroduction(), user.getRegion(), user.getRegionLat(), user.getRegionLng(),
-                user.getDiningStyle(), user.getGender(), user.getAgeGroup(),
+                user.getDiningStyle(), user.getGender(), AgeGroups.rangeOf(user.getBirthDate(), today),
                 user.isAllowMealRequest(), user.getStatus(),
                 favoriteFoods);
     }

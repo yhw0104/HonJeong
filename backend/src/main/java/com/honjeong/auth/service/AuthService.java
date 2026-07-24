@@ -2,7 +2,9 @@ package com.honjeong.auth.service;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -47,6 +49,7 @@ public class AuthService {
 
     private static final Duration CODE_TTL = Duration.ofMinutes(3); // 휴대폰 인증번호 유효기간: 3분
     private static final int MAX_ATTEMPTS = 5;                      // 인증번호 검증 최대 시도 횟수(무차별 대입 방지)
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final UserRepository userRepository;                             // 회원 조회·저장
     private final SocialAccountRepository socialAccountRepository;           // 소셜 계정(공급자별 식별자) 매핑
@@ -287,8 +290,12 @@ public class AuthService {
         if (userRepository.existsByNickname(command.nickname())) { // 닉네임 중복 검사
             throw new BusinessException(ErrorCode.NICKNAME_DUPLICATE);
         }
+        LocalDate today = LocalDate.now(clock.withZone(KST));
+        if (command.birthDate() != null && command.birthDate().isAfter(today.minusYears(14))) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "만 14세 이상만 가입할 수 있어요.");
+        }
         // 프로필을 채워 완성 → 내부에서 회원 상태가 ACTIVE로 전환된다.
-        user.completeProfile(command.nickname(), command.gender(), command.ageGroup(), command.introduction(),
+        user.completeProfile(command.nickname(), command.gender(), command.birthDate(), command.introduction(),
                 command.region(), command.regionLat(), command.regionLng(), command.diningStyle(),
                 command.profileImageUrl());
         foodPreferenceService.replaceFoods(userId, command.favoriteFoods()); // 선호 음식 저장(null이면 미변경)

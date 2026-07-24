@@ -165,7 +165,7 @@ public class AuthController {
     /**
      * 1. API 주소: POST /api/auth/complete
      * 2. 사용 화면: 프로필 설정(ProfileSetup) — 닉네임 등 프로필 제출로 가입 확정(온보딩 2단계)
-     * 3. Request: CompleteProfileRequest(바디) — nickname(필수)·gender·ageGroup·introduction·region·regionLat/Lng·diningStyle·profileImageUrl·favoriteFoods / 인증 사용자(@CurrentUserId, 온보딩 토큰)
+     * 3. Request: CompleteProfileRequest(바디) — nickname(필수)·gender·birthDate·introduction·region·regionLat/Lng·diningStyle·profileImageUrl·favoriteFoods / 인증 사용자(@CurrentUserId, 온보딩 토큰)
      * 4. Response: TokenResponse — accessToken, refreshToken, expiresIn(초)
      *
      * <p>[기존 주석] 프로필 완료(온보딩 2단계) → 가입 확정 및 정식 토큰 발급.

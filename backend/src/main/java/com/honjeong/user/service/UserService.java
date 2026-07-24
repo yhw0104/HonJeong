@@ -1,5 +1,8 @@
 package com.honjeong.user.service;
 
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -22,18 +25,23 @@ import com.honjeong.user.repository.UserRepository;
 @Service
 public class UserService {
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
     private final UserRepository userRepository;
     private final UserFoodPreferenceService foodPreferenceService;
+    private final Clock clock;
 
     /**
      * 의존성을 주입받아 서비스를 구성한다(생성자 주입 + {@code final}).
      *
      * @param userRepository        회원 조회·닉네임 중복확인용 저장소
      * @param foodPreferenceService 선호 음식 upsert·조회 서비스
+     * @param clock                 현재 시각 공급자(테스트 시 고정 주입)
      */
-    public UserService(UserRepository userRepository, UserFoodPreferenceService foodPreferenceService) {
+    public UserService(UserRepository userRepository, UserFoodPreferenceService foodPreferenceService, Clock clock) {
         this.userRepository = userRepository;
         this.foodPreferenceService = foodPreferenceService;
+        this.clock = clock;
     }
 
     /**
@@ -49,7 +57,8 @@ public class UserService {
      */
     @Transactional(readOnly = true)
     public UserProfileResponse getMyProfile(long userId) {
-        return UserProfileResponse.from(findUser(userId), foodPreferenceService.getFoods(userId));
+        return UserProfileResponse.from(findUser(userId), foodPreferenceService.getFoods(userId),
+                LocalDate.now(clock.withZone(KST)));
     }
 
     /**
@@ -79,7 +88,7 @@ public class UserService {
                 command.region(), command.regionLat(), command.regionLng(),
                 command.diningStyle(), command.allowMealRequest());
         List<String> foods = foodPreferenceService.replaceFoods(userId, command.favoriteFoods());
-        return UserProfileResponse.from(user, foods);
+        return UserProfileResponse.from(user, foods, LocalDate.now(clock.withZone(KST)));
     }
 
     /**

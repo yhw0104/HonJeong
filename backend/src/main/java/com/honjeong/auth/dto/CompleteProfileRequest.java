@@ -1,5 +1,6 @@
 package com.honjeong.auth.dto;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import com.honjeong.auth.service.CompleteProfileCommand;
@@ -7,6 +8,7 @@ import com.honjeong.user.domain.DiningStyle;
 import com.honjeong.user.domain.Gender;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -17,7 +19,7 @@ import jakarta.validation.constraints.Size;
  *
  * @param nickname        닉네임(필수, {@code @NotBlank}). 서비스에서 중복 검사를 거친다.
  * @param gender          성별({@link Gender} enum, 선택).
- * @param ageGroup        연령대 문자열(선택).
+ * @param birthDate       생년월일(선택, 과거 날짜)
  * @param introduction    자기소개 문자열(선택).
  * @param region          활동 지역 표시명(선택).
  * @param regionLat       활동 지역 위도(선택).
@@ -29,7 +31,7 @@ import jakarta.validation.constraints.Size;
 public record CompleteProfileRequest(
         @NotBlank String nickname,
         Gender gender,
-        String ageGroup,
+        @Past LocalDate birthDate,
         String introduction,
         String region,
         Double regionLat,
@@ -45,7 +47,7 @@ public record CompleteProfileRequest(
      * 매핑이다 — 컨트롤러는 {@code request.toCommand()}로 변환해 {@code authService.complete(userId, command)}에 넘긴다.
      */
     public CompleteProfileCommand toCommand() {
-        return new CompleteProfileCommand(nickname, gender, ageGroup, introduction, region, regionLat, regionLng,
+        return new CompleteProfileCommand(nickname, gender, birthDate, introduction, region, regionLat, regionLng,
                 diningStyle, profileImageUrl, favoriteFoods);
     }
 }

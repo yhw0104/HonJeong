@@ -3,6 +3,9 @@ package com.honjeong.mate.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -36,9 +39,10 @@ class MateProfileServiceTest {
     private final UserFoodPreferenceRepository foodRepository = mock(UserFoodPreferenceRepository.class);
     private final BlockRepository blockRepository = mock(BlockRepository.class);
     private final UserBadgeRepository userBadgeRepository = mock(UserBadgeRepository.class);
+    private final Clock fixedClock = Clock.fixed(Instant.parse("2026-07-24T00:00:00Z"), ZoneOffset.UTC);
     private final MateProfileService service = new MateProfileService(
             userRepository, mateRepository, mateRequestRepository, checkInRepository, foodRepository,
-            blockRepository, userBadgeRepository);
+            blockRepository, userBadgeRepository, fixedClock);
 
     @Test
     @DisplayName("searchUsers: 본인 제외 + 내가 보낸 PENDING이면 requestStatus=PENDING_SENT")

@@ -8,6 +8,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,12 +39,14 @@ class UserServiceTest {
 
     private final UserRepository userRepository = mock(UserRepository.class);
     private final UserFoodPreferenceService foodPreferenceService = mock(UserFoodPreferenceService.class);
-    private final UserService userService = new UserService(userRepository, foodPreferenceService);
+    private final Clock fixedClock = Clock.fixed(Instant.parse("2026-07-24T00:00:00Z"), ZoneOffset.UTC);
+    private final UserService userService = new UserService(userRepository, foodPreferenceService, fixedClock);
 
     /** 프로필이 채워진 ACTIVE 회원을 만들고, 자동 생성되는 id를 리플렉션으로 강제 주입한다(모킹 반환값으로 쓰려고). */
     private User userWithId(long id) {
         User user = User.pending("01012345678", null);
-        user.completeProfile("기존닉", Gender.MALE, "20s", "기존소개", "서울", 37.5, 127.0, DiningStyle.QUIET, null);
+        user.completeProfile("기존닉", Gender.MALE, LocalDate.of(2000, 1, 1), "기존소개", "서울", 37.5, 127.0,
+                DiningStyle.QUIET, null);
         ReflectionTestUtils.setField(user, "id", id);
         return user;
     }
@@ -74,6 +80,21 @@ class UserServiceTest {
         when(foodPreferenceService.getFoods(1L)).thenReturn(List.of("한식", "일식"));
 
         assertThat(userService.getMyProfile(1L).favoriteFoods()).containsExactly("한식", "일식");
+    }
+
+    /**
+     * given: id 1L 회원(생년월일 2000-01-01) + 고정 Clock(2026-07-24).
+     * when: 내 프로필 조회.
+     * then: 응답의 ageGroup은 저장된 문자열이 아니라 생년월일로 파생된 값("20대")이다.
+     */
+    @Test
+    @DisplayName("getMyProfile: ageGroup은 생년월일로 파생된다")
+    void getMyProfile_derivesAgeGroup() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(userWithId(1L)));
+
+        UserProfileResponse res = userService.getMyProfile(1L);
+
+        assertThat(res.ageGroup()).isEqualTo("20대");
     }
 
     /**

@@ -1,5 +1,8 @@
 package com.honjeong.mate.service;
 
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -17,6 +20,7 @@ import com.honjeong.mate.dto.PublicProfileResponse;
 import com.honjeong.mate.dto.UserSearchResponse;
 import com.honjeong.mate.repository.MateRepository;
 import com.honjeong.mate.repository.MateRequestRepository;
+import com.honjeong.user.domain.AgeGroups;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.domain.UserStatus;
 import com.honjeong.user.repository.UserFoodPreferenceRepository;
@@ -29,6 +33,8 @@ import com.honjeong.user.repository.UserRepository;
 @Service
 public class MateProfileService {
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
     private final UserRepository userRepository;
     private final MateRepository mateRepository;
     private final MateRequestRepository mateRequestRepository;
@@ -36,11 +42,12 @@ public class MateProfileService {
     private final UserFoodPreferenceRepository foodRepository;
     private final BlockRepository blockRepository;
     private final UserBadgeRepository userBadgeRepository;
+    private final Clock clock;
 
     public MateProfileService(UserRepository userRepository, MateRepository mateRepository,
             MateRequestRepository mateRequestRepository, CheckInRepository checkInRepository,
             UserFoodPreferenceRepository foodRepository, BlockRepository blockRepository,
-            UserBadgeRepository userBadgeRepository) {
+            UserBadgeRepository userBadgeRepository, Clock clock) {
         this.userRepository = userRepository;
         this.mateRepository = mateRepository;
         this.mateRequestRepository = mateRequestRepository;
@@ -48,6 +55,7 @@ public class MateProfileService {
         this.foodRepository = foodRepository;
         this.blockRepository = blockRepository;
         this.userBadgeRepository = userBadgeRepository;
+        this.clock = clock;
     }
 
     /**
@@ -109,7 +117,7 @@ public class MateProfileService {
                 t.getId(), t.getNickname(), t.getProfileImageUrl(), t.getIntroduction(),
                 t.getRegion(),
                 t.getGender() == null ? null : t.getGender().name(),
-                t.getAgeGroup(),
+                AgeGroups.rangeOf(t.getBirthDate(), LocalDate.now(clock.withZone(KST))),
                 t.getDiningStyle() == null ? null : t.getDiningStyle().name(),
                 foods,
                 checkInRepository.countCompletedByUser(targetId),

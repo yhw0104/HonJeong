@@ -2,6 +2,8 @@ package com.honjeong.user.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDate;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +18,8 @@ class UserTest {
     /** 프로필이 모두 채워진 ACTIVE 회원을 만든다(부분수정 전 기준 상태). */
     private User activeUser() {
         User user = User.pending("01012345678", null);
-        user.completeProfile("기존닉", Gender.MALE, "20s", "기존소개", "서울", 37.5, 127.0, DiningStyle.QUIET, "img.png");
+        user.completeProfile("기존닉", Gender.MALE, LocalDate.of(2000, 1, 1), "기존소개", "서울", 37.5, 127.0,
+                DiningStyle.QUIET, "img.png");
         return user;
     }
 

@@ -1,5 +1,7 @@
 package com.honjeong.user.domain;
 
+import java.time.LocalDate;
+
 import com.honjeong.global.common.BaseTimeEntity;
 
 import jakarta.persistence.Column;
@@ -41,8 +43,8 @@ public class User extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     private Gender gender;
 
-    // 연령대(예: "20대"). 정밀 나이 대신 구간 문자열로 보관.
-    private String ageGroup;
+    // 생년월일(온보딩 고정). 표시 연령대는 birth_date로 파생, 응답엔 미노출.
+    private LocalDate birthDate;
     // 자기소개 한 줄.
     private String introduction;
     // 활동 지역명(예: "서울 강남구").
@@ -111,7 +113,7 @@ public class User extends BaseTimeEntity {
      *
      * @param nickname        닉네임
      * @param gender          성별
-     * @param ageGroup        연령대
+     * @param birthDate       생년월일
      * @param introduction    자기소개
      * @param region          지역명
      * @param regionLat       지역 위도
@@ -119,11 +121,11 @@ public class User extends BaseTimeEntity {
      * @param diningStyle     식사 성향
      * @param profileImageUrl 프로필 이미지 URL
      */
-    public void completeProfile(String nickname, Gender gender, String ageGroup, String introduction,
+    public void completeProfile(String nickname, Gender gender, LocalDate birthDate, String introduction,
             String region, Double regionLat, Double regionLng, DiningStyle diningStyle, String profileImageUrl) {
         this.nickname = nickname;
         this.gender = gender;
-        this.ageGroup = ageGroup;
+        this.birthDate = birthDate;
         this.introduction = introduction;
         this.region = region;
         this.regionLat = regionLat;
@@ -136,7 +138,7 @@ public class User extends BaseTimeEntity {
     /**
      * 프로필을 부분 수정한다(PATCH). 전달된 값 중 <b>null이 아닌 필드만</b> 반영하고, null인 필드는 기존 값을
      * 보존한다. 빈 문자열("")은 "해당 필드를 비움"으로 취급해 그대로 반영한다. 닉네임 중복 검사는 호출 측
-     * (서비스)에서 미리 수행한다. {@code gender}·{@code ageGroup}은 수정 대상이 아니다(온보딩 시 고정).
+     * (서비스)에서 미리 수행한다. {@code gender}·{@code birthDate}는 수정 대상이 아니다(온보딩 시 고정).
      *
      * @param nickname        새 닉네임(선택)
      * @param profileImageUrl 새 프로필 이미지 URL(선택)
@@ -194,8 +196,8 @@ public class User extends BaseTimeEntity {
         return gender;
     }
 
-    public String getAgeGroup() {
-        return ageGroup;
+    public LocalDate getBirthDate() {
+        return birthDate;
     }
 
     public String getIntroduction() {

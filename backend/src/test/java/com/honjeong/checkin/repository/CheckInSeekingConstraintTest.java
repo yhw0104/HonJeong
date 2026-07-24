@@ -40,7 +40,7 @@ class CheckInSeekingConstraintTest extends AbstractPostgresTest {
     /** 닉네임을 가진 ACTIVE 사용자 1명을 영속화해 반환한다. */
     private User persistUser(String phone, String nickname) {
         User user = User.pending(phone, null);
-        // completeProfile(nickname, gender, ageGroup, introduction, region, regionLat, regionLng, diningStyle, profileImageUrl) — 9개
+        // completeProfile(nickname, gender, birthDate, introduction, region, regionLat, regionLng, diningStyle, profileImageUrl) — 9개
         user.completeProfile(nickname, null, null, null, null, null, null, null, null);
         return em.persist(user);
     }

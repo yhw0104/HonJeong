@@ -1,5 +1,6 @@
 package com.honjeong.auth.service;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import com.honjeong.user.domain.DiningStyle;
@@ -12,7 +13,7 @@ import com.honjeong.user.domain.Gender;
  *
  * @param nickname        닉네임(중복 불가 — 가입 시 유일성 검사 대상)
  * @param gender          성별
- * @param ageGroup        연령대(예: "20대")
+ * @param birthDate       생년월일
  * @param introduction    자기소개 문구
  * @param region          활동 지역명
  * @param regionLat       지역 위도(좌표)
@@ -24,7 +25,7 @@ import com.honjeong.user.domain.Gender;
 public record CompleteProfileCommand(
         String nickname,
         Gender gender,
-        String ageGroup,
+        LocalDate birthDate,
         String introduction,
         String region,
         Double regionLat,

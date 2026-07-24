@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -275,10 +276,31 @@ class AuthServiceTest {
         when(tokenService.issue(1L)).thenReturn(new TokenPair("a", "r", 3600));
 
         CompleteProfileCommand cmd = new CompleteProfileCommand(
-                "닉네임", null, null, null, null, null, null, null, null, List.of("한식", "일식"));
+                "닉네임", null, LocalDate.of(2000, 1, 1), null, null, null, null, null, null, List.of("한식", "일식"));
         authService.complete(1L, cmd);
 
         verify(userFoodPreferenceService).replaceFoods(1L, List.of("한식", "일식"));
+    }
+
+    /**
+     * complete 만 14세 미만 거부 검증.
+     * given: PENDING 회원(id 1)이 조회되고 닉네임은 미사용(existsByNickname=false)이도록 모킹.
+     * when: 고정 시계(2026-06-12) 기준 오늘 막 만 13세가 되는 생년월일로 프로필 완료 시도.
+     * then: 만 14세 미만은 거부되어 BusinessException이 발생한다.
+     */
+    @Test
+    @DisplayName("complete: 만 14세 미만 생년월일은 거절한다")
+    void complete_rejectsUnder14() {
+        User user = userWithId(1L, PHONE, false);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.existsByNickname("닉네임")).thenReturn(false);
+
+        LocalDate under14 = LocalDate.now(clock).minusYears(13);
+        CompleteProfileCommand cmd = new CompleteProfileCommand(
+                "닉네임", null, under14, null, null, null, null, null, null, null);
+
+        assertThatThrownBy(() -> authService.complete(1L, cmd))
+                .isInstanceOf(BusinessException.class);
     }
 
     /**
