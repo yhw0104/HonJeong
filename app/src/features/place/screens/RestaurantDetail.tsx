@@ -797,6 +797,12 @@ function MateTab({ placeId, onMeal, onOpenProfile, soloRating, soloReviewCount }
 }
 
 /* ── 주변 탭 ─────────────────────────────────────── */
+type NearbySort = 'distance' | 'solo';
+const NEARBY_SORTS: { key: NearbySort; label: string }[] = [
+  { key: 'distance', label: '가까운 순' },
+  { key: 'solo', label: '혼밥 좋은 순' },
+];
+
 function NearbyTab({
   placeId,
   placeName,
@@ -808,9 +814,24 @@ function NearbyTab({
   center: { lat: number; lng: number } | null;
   onOpen: (placeId: number, name: string) => void;
 }) {
+  const [sort, setSort] = useState<NearbySort>('distance');
   // 중심 = 이 식당 좌표. 좌표가 아직 없으면(detail 로딩) 호출하지 않는다.
   const q = useNearby(center ?? { lat: 0, lng: 0 }, 1000, center != null);
   const rows = (q.data?.content ?? []).filter((r) => r.placeId !== placeId); // 자기 자신 제외
+  // 정렬 — 가까운 순(거리 asc) / 혼밥 좋은 순(친화도 desc, 평가 없으면 뒤로·거리로 동점 처리).
+  const sorted = [...rows].sort((a, b) => {
+    if (sort === 'solo') {
+      const ra = a.avgSoloFriendlyRating;
+      const rb = b.avgSoloFriendlyRating;
+      if (ra == null && rb == null) return a.distanceMeters - b.distanceMeters;
+      if (ra == null) return 1;
+      if (rb == null) return -1;
+      if (rb !== ra) return rb - ra;
+      return a.distanceMeters - b.distanceMeters;
+    }
+    return a.distanceMeters - b.distanceMeters;
+  });
+  const showList = center != null && !q.isLoading && !q.isError && rows.length > 0;
 
   return (
     <View style={{ marginTop: 12 }}>
@@ -819,23 +840,48 @@ function NearbyTab({
         <Text style={styles.nearbyNoteText}>{placeName} 주변 · 1km 이내</Text>
       </View>
 
+      {/* 정렬 칩 — 목록이 있을 때만 */}
+      {showList ? (
+        <View style={styles.nearbySortRow}>
+          {NEARBY_SORTS.map((s) => {
+            const on = sort === s.key;
+            return (
+              <Pressable
+                key={s.key}
+                onPress={() => setSort(s.key)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                style={[styles.nearbySortChip, { backgroundColor: on ? T2.text : '#fff', borderColor: on ? T2.text : T2.border }]}
+              >
+                <Text style={[styles.nearbySortText, { color: on ? '#fff' : T2.textSub }]}>{s.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+
       {center == null || q.isLoading ? (
         <View style={styles.nearbyStateBox}>
           <ActivityIndicator color={T2.brand} />
         </View>
       ) : q.isError ? (
         <Text style={styles.nearbyStateText}>주변 정보를 불러오지 못했어요.</Text>
-      ) : rows.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <Text style={styles.nearbyStateText}>주변에 등록된 식당이 없어요.</Text>
       ) : (
         <View style={{ marginTop: 6 }}>
-          {rows.map((r, i, arr) => (
+          {sorted.map((r, i, arr) => (
             <Pressable
               key={r.placeId}
               onPress={() => onOpen(r.placeId, r.name)}
               style={[styles.nearbyRow, i < arr.length - 1 && styles.infoDivider]}
             >
-              <ImagePlaceholder w={56} h={56} radius={12} tag="" />
+              {/* 대표 사진(리뷰 사진 최신) — 없으면 placeholder */}
+              {r.photoUrls?.length ? (
+                <Image source={{ uri: r.photoUrls[0] }} style={styles.nearbyThumb} />
+              ) : (
+                <ImagePlaceholder w={56} h={56} radius={12} tag="" />
+              )}
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.nearbyName} numberOfLines={1}>{r.name}</Text>
                 {r.category ? (
@@ -845,12 +891,20 @@ function NearbyTab({
                   <Text style={styles.walkText}>도보 {walkingMinutes(r.distanceMeters)}분</Text>
                   <View style={styles.dotSep} />
                   <Text style={styles.nearbyDist}>{formatDistance(r.distanceMeters)}</Text>
+                  {/* 지금 모집 중이면 라이브 뱃지(거리 뒤 인라인) */}
+                  {r.seekingCount > 0 ? (
+                    <View style={styles.nearbyActive}>
+                      <View style={styles.nearbyActiveDot} />
+                      <Text style={styles.nearbyActiveText}>모집 {r.seekingCount}</Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
-              {r.seekingCount > 0 ? (
-                <View style={styles.nearbyActive}>
-                  <View style={styles.nearbyActiveDot} />
-                  <Text style={styles.nearbyActiveText}>모집 {r.seekingCount}</Text>
+              {/* 혼밥 친화도 — 평가 있을 때만(없으면 정직하게 생략) */}
+              {r.avgSoloFriendlyRating != null ? (
+                <View style={styles.nearbyScore}>
+                  <Text style={styles.nearbyScoreNum}>★ {r.avgSoloFriendlyRating.toFixed(1)}</Text>
+                  <Text style={styles.nearbyScoreLabel}>혼밥친화</Text>
                 </View>
               ) : null}
             </Pressable>
@@ -1022,6 +1076,13 @@ const styles = StyleSheet.create({
   // 주변 탭
   nearbyNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
   nearbyNoteText: { fontSize: 12, color: T2.textMute, letterSpacing: -0.2 },
+  nearbySortRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  nearbySortChip: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
+  nearbySortText: { fontSize: 13, fontWeight: '700', letterSpacing: -0.3 },
+  nearbyThumb: { width: 56, height: 56, borderRadius: 12, backgroundColor: T2.border },
+  nearbyScore: { alignItems: 'flex-end', flexShrink: 0 },
+  nearbyScoreNum: { fontSize: 16, fontWeight: '800', color: T2.brand, letterSpacing: -0.4 },
+  nearbyScoreLabel: { fontSize: 10, color: T2.textMute, marginTop: 1 },
   nearbyRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14 },
   nearbyName: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.4 },
   nearbyCat: { fontSize: 12, color: T2.textMute, marginTop: 3, letterSpacing: -0.2 },
