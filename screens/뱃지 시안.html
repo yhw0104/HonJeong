@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>혼정 · 뱃지 시안</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+:root{
+  --bg:#FFF7ED; --card:#FFFFFF; --text:#2A1F14; --sub:#7A6A58; --mute:#A89684;
+  --brand:#F97316; --brandDeep:#C2410C; --brandSoft:#FED7AA; --tint:#FFEDD5;
+  --gold:#E0A324; --goldDeep:#B57F12; --goldSoft:#F7E3AE;
+  --mint:#10B981; --mintDeep:#047857; --mintSoft:#C6EFDF;
+  --border:#EFE4D2;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Pretendard',-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:56px 32px 80px}
+a{color:var(--brandDeep)}a:hover{color:var(--brand)}
+.wrap{max-width:1080px;margin:0 auto}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:8px;flex-wrap:wrap}
+.h-title{font-size:34px;font-weight:800;letter-spacing:-0.02em}
+.h-sub{color:var(--sub);font-size:15px;margin-top:8px;line-height:1.5;max-width:520px}
+.toggle{display:inline-flex;background:#fff;border:1px solid var(--border);border-radius:999px;padding:4px;gap:2px;box-shadow:0 2px 8px rgba(40,30,15,0.05)}
+.toggle button{border:none;background:none;font:inherit;font-size:13px;font-weight:700;color:var(--mute);padding:8px 16px;border-radius:999px;cursor:pointer;transition:.15s}
+.toggle button.on{background:var(--brand);color:#fff;box-shadow:0 2px 6px rgba(249,115,22,.35)}
+
+.sec-label{display:flex;align-items:center;gap:12px;margin:44px 0 20px;font-size:13px;font-weight:800;letter-spacing:.06em;color:var(--mute)}
+.sec-label::after{content:"";flex:1;height:1px;background:var(--border)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
+.badge{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:26px 18px 22px;text-align:center;box-shadow:0 4px 16px rgba(40,30,15,.05);position:relative;overflow:hidden;transition:.2s}
+.badge:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(40,30,15,.10)}
+
+/* 메달 */
+.medal{width:104px;height:104px;margin:0 auto 16px;position:relative;display:flex;align-items:center;justify-content:center}
+.medal .ring{position:absolute;inset:0;border-radius:50%}
+.medal .disc{width:74px;height:74px;border-radius:50%;display:flex;align-items:center;justify-content:center;position:relative;z-index:2}
+.medal .disc svg{width:34px;height:34px;stroke-width:2}
+.medal .tier{position:absolute;bottom:2px;right:4px;z-index:3;min-width:24px;height:24px;padding:0 6px;border-radius:999px;background:#fff;color:var(--text);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.14)}
+
+/* 티어별 색 */
+.t-brand .ring{background:conic-gradient(from -60deg,var(--brandSoft),var(--brand),var(--brandDeep),var(--brand),var(--brandSoft));box-shadow:0 6px 16px rgba(249,115,22,.30)}
+.t-brand .disc{background:radial-gradient(circle at 38% 32%,#fff8f2,var(--tint));border:2px solid #fff;color:var(--brandDeep)}
+.t-brand .tier{color:var(--brandDeep)}
+.t-gold .ring{background:conic-gradient(from -60deg,var(--goldSoft),var(--gold),var(--goldDeep),var(--gold),var(--goldSoft));box-shadow:0 6px 16px rgba(224,163,36,.30)}
+.t-gold .disc{background:radial-gradient(circle at 38% 32%,#fffdf4,var(--goldSoft));border:2px solid #fff;color:var(--goldDeep)}
+.t-gold .tier{color:var(--goldDeep)}
+.t-mint .ring{background:conic-gradient(from -60deg,var(--mintSoft),var(--mint),var(--mintDeep),var(--mint),var(--mintSoft));box-shadow:0 6px 16px rgba(16,185,129,.28)}
+.t-mint .disc{background:radial-gradient(circle at 38% 32%,#f4fffb,var(--mintSoft));border:2px solid #fff;color:var(--mintDeep)}
+.t-mint .tier{color:var(--mintDeep)}
+
+.b-name{font-size:16px;font-weight:800;letter-spacing:-0.01em}
+.b-desc{font-size:12.5px;color:var(--sub);line-height:1.5;margin-top:6px;text-wrap:pretty}
+.b-cat{position:absolute;top:14px;left:14px;font-size:10px;font-weight:800;letter-spacing:.04em;color:var(--mute);background:#F8F1E6;padding:4px 8px;border-radius:8px}
+
+/* 미획득 상태 */
+body.locked .medal .ring{background:#E9E1D4 !important;box-shadow:none !important}
+body.locked .medal .disc{background:#F3ECE0 !important;filter:grayscale(1);opacity:.5}
+body.locked .medal .tier{display:none}
+body.locked .badge{opacity:.92}
+body.locked .lock{display:flex}
+.lock{display:none;position:absolute;inset:0;z-index:4;align-items:center;justify-content:center}
+.lock span{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.12);font-size:20px}
+
+footer{margin-top:56px;color:var(--mute);font-size:12.5px;text-align:center;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="h-title">뱃지 시안</div>
+      <div class="h-sub">혼정 활동으로 모으는 성취 뱃지 10종. 등급이 올라갈수록 오렌지 → 골드로, 관계형 뱃지는 민트로 구분했어요.</div>
+    </div>
+    <div class="toggle">
+      <button id="btn-earned" class="on">획득</button>
+      <button id="btn-locked">미획득</button>
+    </div>
+  </header>
+
+  <div class="sec-label">혼밥 인증</div>
+  <div class="grid">
+    <div class="badge t-brand"><div class="b-cat">인증</div><div class="medal"><div class="ring"></div><div class="disc"><i data-lucide="sprout"></i></div><div class="lock"><span><i data-lucide="lock"></i></span></div></div><div class="b-name">첫 혼밥</div><div class="b-desc">혼밥을 한 번 인증하면 획득해요</div></div>
+    <div class="badge t-brand"><div class="b-cat">인증</div><div class="medal"><div class="ring"></div><div class="disc"><i data-lucide="utensils"></i></div><div class="tier">10</div><div class="lock"><span><i data-lucide="lock"></i></span></div></div><div class="b-name">혼밥 10회</div><div class="b-desc">혼밥을 10번 인증하면 획득해요</div></div>
+    <div class="badge t-gold"><div class="b-cat">인증</div><div class="medal"><div class="ring"></div><div class="disc"><i data-lucide="trophy"></i></div><div class="tier">50</div><div class="lock"><span><i data-lucide="lock"></i></span></div></div><div class="b-name">혼밥 50회</div><div class="b-desc">혼밥을 50번 인증하면 획득해요</div></div>
+  </div>
+
+  <div class="sec-label">혼밥 일기</div>
+  <div class="grid">
+    <div class="badge t-brand"><div class="b-cat">일기</div><div class="medal"><div class="ring"></div><div class="disc"><i data-lucide="camera"></i></div><div class="lock"><span><i data-lucide="lock"></i></span></div></div><div class="b-name">첫 일기</div><div class="b-desc">혼밥 일기를 한 편 쓰면 획득해요</div></div>
+    <div class="badge t-gold"><div class="b-cat">일기</div><div class="medal"><div class="ring"></div><div class="disc"><i data-lucide="book-open"></i></div><div class="tier">10</div><div class="lock"><span><i data-lucide="lock"></i></span></div></div><div class="b-name">일기 10편</div><div class="b-desc">혼밥 일기를 10편 쓰면 획득해요</div></div>
+  </div>
+
+  <div class="sec-label">같이 먹기 · 메이트</div>
+  <div class="grid">
+    <div class="badge t-mint"><div class="b-cat">같이먹기</div><div class="medal"><div class="ring"></div><div class="disc"><i data-lucide="handshake"></i></div><div class="lock"><span><i data-lucide="lock"></i></span></div></div><div class="b-name">첫 같이 먹기</div><div class="b-desc">같이 먹기를 한 번 성사하면 획득해요</div></div>
+    <div class="badge t-mint"><div class="b-cat">메이트</div><div class="medal"><div class="ring"></div><div class="disc"><i data-lucide="user-plus"></i></div><div class="lock"><span><i data-lucide="lock"></i></span></div></div><div class="b-name">첫 메이트</div><div class="b-desc">메이트를 한 명 맺으면 획득해요</div></div>
+    <div class="badge t-mint"><div class="b-cat">메이트</div><div class="medal"><div class="ring"></div><div class="disc"><i data-lucide="users"></i></div><div class="tier">5</div><div class="lock"><span><i data-lucide="lock"></i></span></div></div><div class="b-name">메이트 5명</div><div class="b-desc">메이트를 5명 맺으면 획득해요</div></div>
+  </div>
+
+  <div class="sec-label">단골 · 즐겨찾기</div>
+  <div class="grid">
+    <div class="badge t-brand"><div class="b-cat">즐겨찾기</div><div class="medal"><div class="ring"></div><div class="disc"><i data-lucide="bookmark"></i></div><div class="lock"><span><i data-lucide="lock"></i></span></div></div><div class="b-name">첫 즐겨찾기</div><div class="b-desc">식당을 한 곳 즐겨찾기하면 획득해요</div></div>
+    <div class="badge t-gold"><div class="b-cat">즐겨찾기</div><div class="medal"><div class="ring"></div><div class="disc"><i data-lucide="house"></i></div><div class="tier">10</div><div class="lock"><span><i data-lucide="lock"></i></span></div></div><div class="b-name">단골 10곳</div><div class="b-desc">식당을 10곳 즐겨찾기하면 획득해요</div></div>
+  </div>
+
+  <footer>메달 색은 등급을 뜻해요 — 오렌지(시작) · 골드(꾸준함) · 민트(사람과 연결). 이모지는 최종 아이콘 자리 표시로, 필요하면 커스텀 아이콘으로 교체할 수 있어요.</footer>
+</div>
+<script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.min.js"></script>
+<script>
+lucide.createIcons();
+const body=document.body,be=document.getElementById('btn-earned'),bl=document.getElementById('btn-locked');
+be.onclick=()=>{body.classList.remove('locked');be.classList.add('on');bl.classList.remove('on')};
+bl.onclick=()=>{body.classList.add('locked');bl.classList.add('on');be.classList.remove('on')};
+</script>
+</body>
+</html>
