@@ -64,6 +64,14 @@ export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'Dining
           ))}
         </View>
 
+        {/* 안내 — 이 목록의 기준 설명 */}
+        <View style={styles.infoBanner}>
+          <Icon name="info" size={15} color={T2.brand} />
+          <Text style={styles.infoText}>
+            혼자 먹은 기록만 모여요. 리뷰(일기)를 쓰면 그 방문에 <Text style={styles.infoStrong}>혼밥 인증</Text> 뱃지가 붙어요.
+          </Text>
+        </View>
+
         {/* 빈 상태 */}
         {groups.length === 0 && (
           <Text style={{ padding: 24, color: T2.textMute, textAlign: 'center' }}>아직 혼밥 기록이 없어요.</Text>
@@ -109,7 +117,12 @@ export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'Dining
                       <Text style={styles.dateDay}>{day}</Text>
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.place}>{e.placeName}</Text>
+                      <View style={styles.placeRow}>
+                        <Text style={[styles.place, { flexShrink: 1 }]} numberOfLines={1}>{e.placeName}</Text>
+                        <View style={styles.verifyChip}>
+                          <Text style={styles.verifyText}>✓ 혼밥 인증</Text>
+                        </View>
+                      </View>
                       {e.review.content ? (
                         <Text style={styles.note}>{e.review.content}</Text>
                       ) : null}
@@ -188,7 +201,15 @@ const styles = StyleSheet.create({
   statNum: { fontSize: 24, fontWeight: '800', letterSpacing: -0.8 },
   statLabel: { fontSize: 11, color: T2.textMute, marginTop: 3 },
 
+  infoBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 16, padding: 12, borderRadius: 12, backgroundColor: T2.brandSoft },
+  infoText: { flex: 1, fontSize: 12, color: T2.textSub, lineHeight: 18, letterSpacing: -0.2 },
+  infoStrong: { fontWeight: '800', color: T2.brand },
+
   monthTitle: { fontSize: 13, fontWeight: '800', color: T2.text, letterSpacing: -0.3, marginBottom: 12 },
+
+  placeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  verifyChip: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: T2.brand },
+  verifyText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: -0.2 },
 
   card: { flexDirection: 'row', gap: 14, padding: 14, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: T2.border },
   dateCell: { width: 40, alignItems: 'center' },
