@@ -446,6 +446,21 @@ class CheckInServiceTest {
     }
 
     @Test
+    @DisplayName("leaveMatch: 매칭 해체(노쇼/취소) 시 mealRequestId로 대화를 닫는다"
+            + "(mealRequestId는 mine.leaveMatch가 null로 지우므로 그 전에 캡처해 넘겨야 함 — endCheckIn/TTL만료/차단정리와 동일 불변식)")
+    void leaveMatch_closesConversation() {
+        CheckIn mine = CheckIn.startTogether(userRef(1L), place(10L), 50L, nowKst);
+        CheckIn partner = CheckIn.startTogether(userRef(2L, "상대"), place(10L), 50L, nowKst);
+        when(checkInRepository.findById(100L)).thenReturn(Optional.of(mine));
+        when(checkInRepository.findTogetherByMealRequestId(50L)).thenReturn(List.of(mine, partner));
+
+        service.leaveMatch(1L, 100L, "ACTIVE");
+
+        assertThat(mine.getMealRequestId()).isNull(); // leaveMatch 후 실제로 null로 지워짐(캡처 필요성 증명)
+        verify(conversationService).close(50L);
+    }
+
+    @Test
     @DisplayName("leaveMatch: to가 ACTIVE/SEEKING/CANCELLED가 아니면 INVALID_INPUT")
     void leaveMatch_invalidTo() {
         assertThatThrownBy(() -> service.leaveMatch(1L, 100L, "ENDED"))

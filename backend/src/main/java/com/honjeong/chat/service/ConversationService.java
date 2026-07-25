@@ -8,6 +8,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.chat.domain.ChatMessage;
 import com.honjeong.chat.domain.Conversation;
 import com.honjeong.chat.domain.MessageType;
@@ -37,16 +38,19 @@ public class ConversationService {
     private final PlaceRepository placeRepository;
     private final UserRepository userRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final BlockRepository blockRepository;
     private final Clock clock;
 
     public ConversationService(ConversationRepository conversationRepository,
                                 PlaceRepository placeRepository,
                                 UserRepository userRepository,
-                                ChatMessageRepository chatMessageRepository, Clock clock) {
+                                ChatMessageRepository chatMessageRepository,
+                                BlockRepository blockRepository, Clock clock) {
         this.conversationRepository = conversationRepository;
         this.placeRepository = placeRepository;
         this.userRepository = userRepository;
         this.chatMessageRepository = chatMessageRepository;
+        this.blockRepository = blockRepository;
         this.clock = clock;
     }
 
@@ -171,25 +175,36 @@ public class ConversationService {
     }
 
     /**
-     * 기능: 내가 참여한 대화 목록(최근 메시지순) — 상대 정보·안읽음 수·마지막 메시지 미리보기 포함
+     * 기능: 내가 참여한 대화 목록(최근 메시지순) — 상대 정보·안읽음 수·마지막 메시지 미리보기 포함, 차단 상대는 제외
      * Request: userId — 조회할 사용자 id / Response: List&lt;ConversationSummaryResponse&gt;
      *
+     * <p>차단(어느 방향이든) 관계인 상대와의 대화는 목록에서 숨긴다(spec §7) — 혼밥러 목록의 상호 은닉(FR-108)과
+     * 같은 패턴({@link BlockRepository#findExclusionIds}, 빈 결과는 -1L 센티널). 대화는 CLOSED로 남아 이력은
+     * 보존되지만(차단 정리가 이미 대화를 닫아둔다), 목록·닉네임·프로필 사진 노출만 막는다.
+     *
      * @param userId 조회할 사용자 id
-     * @return 대화 목록 요약
+     * @return 대화 목록 요약(차단 상대 제외)
      */
     @Transactional(readOnly = true)
     public List<ConversationSummaryResponse> listMine(Long userId) {
-        return conversationRepository.findAllForUser(userId).stream().map(c -> {
-            boolean iAmFrom = c.getFromUser().getId().equals(userId);
-            var partner = iAmFrom ? c.getToUser() : c.getFromUser();
-            long unread = chatMessageRepository.countUnread(c.getId(), userId, c.lastReadAtFor(userId));
-            return new ConversationSummaryResponse(
-                    c.getId(), c.getStatus().name(),
-                    partner.getId(), partner.getNickname(), partner.getProfileImageUrl(),
-                    c.getPlace().getName(),
-                    previewOf(c), // 마지막 메시지 미리보기(아래)
-                    c.getLastMessageAt(), unread);
-        }).toList();
+        List<Long> excluded = blockRepository.findExclusionIds(userId);
+        return conversationRepository.findAllForUser(userId).stream()
+                .filter(c -> {
+                    boolean iAmFrom = c.getFromUser().getId().equals(userId);
+                    Long partnerId = iAmFrom ? c.getToUser().getId() : c.getFromUser().getId();
+                    return !excluded.contains(partnerId);
+                })
+                .map(c -> {
+                    boolean iAmFrom = c.getFromUser().getId().equals(userId);
+                    var partner = iAmFrom ? c.getToUser() : c.getFromUser();
+                    long unread = chatMessageRepository.countUnread(c.getId(), userId, c.lastReadAtFor(userId));
+                    return new ConversationSummaryResponse(
+                            c.getId(), c.getStatus().name(),
+                            partner.getId(), partner.getNickname(), partner.getProfileImageUrl(),
+                            c.getPlace().getName(),
+                            previewOf(c), // 마지막 메시지 미리보기(아래)
+                            c.getLastMessageAt(), unread);
+                }).toList();
     }
 
     private Conversation loadParticipating(Long conversationId, Long userId) {

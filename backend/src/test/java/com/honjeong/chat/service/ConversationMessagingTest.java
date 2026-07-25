@@ -24,6 +24,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.chat.domain.ChatMessage;
 import com.honjeong.chat.domain.Conversation;
 import com.honjeong.chat.domain.MessageType;
@@ -50,6 +51,7 @@ class ConversationMessagingTest {
     @Mock ChatMessageRepository chatMessageRepository;
     @Mock PlaceRepository placeRepository;
     @Mock UserRepository userRepository;
+    @Mock BlockRepository blockRepository;
     // 2026-07-25T03:00:00Z(UTC) == KST(UTC+9) 2026-07-25T12:00:00 — now()가 KST로 변환하는지도 함께 확인.
     Clock clock = Clock.fixed(Instant.parse("2026-07-25T03:00:00Z"), ZoneId.of("UTC"));
     LocalDateTime expectedNow = LocalDateTime.of(2026, 7, 25, 12, 0, 0);
@@ -58,7 +60,7 @@ class ConversationMessagingTest {
     @BeforeEach
     void setUp() {
         service = new ConversationService(conversationRepository, placeRepository, userRepository,
-                chatMessageRepository, clock);
+                chatMessageRepository, blockRepository, clock);
     }
 
     private User userRef(long id) {
@@ -235,6 +237,7 @@ class ConversationMessagingTest {
         lenient().when(place.getName()).thenReturn("혼밥식당");
         Conversation conv = Conversation.open(1L, place, me, partner);
         conv.touch(expectedNow);
+        when(blockRepository.findExclusionIds(10L)).thenReturn(List.of(-1L)); // 차단 없음(센티널)
         when(conversationRepository.findAllForUser(10L)).thenReturn(List.of(conv));
         ChatMessage last = ChatMessage.text(conv, 20L, "마지막 메시지", expectedNow);
         when(chatMessageRepository.findByConversationIdOrderByIdAsc(conv.getId()))
@@ -262,6 +265,7 @@ class ConversationMessagingTest {
         Place place = mock(Place.class);
         lenient().when(place.getName()).thenReturn("혼밥식당");
         Conversation conv = Conversation.open(1L, place, me, partner);
+        when(blockRepository.findExclusionIds(10L)).thenReturn(List.of(-1L)); // 차단 없음(센티널)
         when(conversationRepository.findAllForUser(10L)).thenReturn(List.of(conv));
         ChatMessage last = ChatMessage.image(conv, 20L, "https://img/x.png", expectedNow);
         when(chatMessageRepository.findByConversationIdOrderByIdAsc(conv.getId()))
@@ -271,5 +275,28 @@ class ConversationMessagingTest {
         List<ConversationSummaryResponse> res = service.listMine(10L);
 
         assertThat(res.get(0).lastMessagePreview()).isEqualTo("사진");
+    }
+
+    @Test
+    void listMine은_차단된_상대와의_대화는_목록에서_제외한다() {
+        // given: 나(10)와 차단 상대(20)의 대화 하나, 차단 아닌 상대(30)와의 대화 하나
+        User me = userRef(10L);
+        User blockedPartner = userRef(20L);
+        User okPartner = userRef(30L);
+        Place place = mock(Place.class);
+        lenient().when(place.getName()).thenReturn("혼밥식당");
+        Conversation blockedConv = Conversation.open(1L, place, me, blockedPartner);
+        Conversation okConv = Conversation.open(2L, place, me, okPartner);
+        when(blockRepository.findExclusionIds(10L)).thenReturn(List.of(20L)); // 20L 차단 관계
+        when(conversationRepository.findAllForUser(10L)).thenReturn(List.of(blockedConv, okConv));
+        lenient().when(chatMessageRepository.findByConversationIdOrderByIdAsc(any())).thenReturn(List.of());
+        lenient().when(chatMessageRepository.countUnread(any(), any(), any())).thenReturn(0L);
+
+        // when
+        List<ConversationSummaryResponse> res = service.listMine(10L);
+
+        // then: 차단 상대(20L)와의 대화는 빠지고, 나머지(30L)만 반환된다 — 닉네임·프로필사진 유출 방지
+        assertThat(res).hasSize(1);
+        assertThat(res.get(0).partnerUserId()).isEqualTo(30L);
     }
 }

@@ -246,9 +246,11 @@ public class CheckInService {
     }
 
     /**
-     * 기능: 같이먹기(TOGETHER) 매칭을 깨고 내 체크인을 지정 상태로 전이 — 상대는 항상 SEEKING 복귀 + 알림.
+     * 기능: 같이먹기(TOGETHER) 매칭을 깨고 내 체크인을 지정 상태로 전이 — 상대는 항상 SEEKING 복귀 + 알림 + 대화 닫기.
      * 내가 혼밥 계속(ACTIVE)/다시 모집(SEEKING)/취소(CANCELLED) 중 선택하고, 상대(노쇼자/취소자)는 SEEKING으로
      * 복귀시킨 뒤 MEAL_MATCH_CANCELLED 알림을 발행한다. (상대 식별은 leaveMatch 전에 mealRequestId로 먼저 조회)
+     * mealRequestId는 mine.leaveMatch가 null로 지우므로 그 전에 캡처해 매칭 해체에 연동된 대화를 CLOSED로 닫는다
+     * (노쇼/취소 경로도 endCheckIn·TTL 만료·차단 정리와 동일하게 "매칭 해체 → 대화 닫기" 불변식을 지켜야 한다).
      *
      * @param userId    요청 사용자(체크인 소유자여야 함)
      * @param checkInId 내 TOGETHER 체크인 id
@@ -276,8 +278,10 @@ public class CheckInService {
             throw new BusinessException(ErrorCode.CHECKIN_NOT_TOGETHER);
         }
         LocalDateTime now = now();
-        // 상대(같은 매칭)는 SEEKING으로 복귀 + 알림 — mine.leaveMatch로 mealRequestId가 지워지기 전에 먼저 찾는다.
-        checkInRepository.findTogetherByMealRequestId(mine.getMealRequestId()).stream()
+        // mine.leaveMatch로 mealRequestId가 지워지기 전에 먼저 캡처 — 상대 조회뿐 아니라 대화 닫기에도 필요.
+        Long mrId = mine.getMealRequestId();
+        // 상대(같은 매칭)는 SEEKING으로 복귀 + 알림
+        checkInRepository.findTogetherByMealRequestId(mrId).stream()
                 .filter(x -> !x.getUser().getId().equals(userId))
                 .findFirst()
                 .ifPresent(partner -> {
@@ -285,6 +289,9 @@ public class CheckInService {
                     notificationService.publish(partner.getUser().getId(), NotificationType.MEAL_MATCH_CANCELLED, userId);
                 });
         mine.leaveMatch(to, now);
+        if (mrId != null) {
+            conversationService.close(mrId); // 매칭 해체(노쇼/취소) → 대화 닫기(읽기전용) — 방치 시 estranged 유저가 계속 메시지 가능
+        }
         return CheckInResponse.from(mine);
     }
 

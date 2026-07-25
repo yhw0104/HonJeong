@@ -28,9 +28,10 @@ import com.honjeong.user.repository.UserRepository;
  * Task 4 — 매칭 생성·종료 훅이 실제로 대화(Conversation)를 만들고 닫는지 실 Postgres로 검증하는 통합 테스트.
  *
  * <p>커버 범위: ① accept 시 대화 생성(ACTIVE), ② {@link CheckInService#endCheckIn} TOGETHER 수동 종료 시
- * 대화 CLOSED, ③ {@link BlockService#block} 차단 정리 시 대화 CLOSED. TTL 경로
- * ({@link CheckInService#expireStaleCheckIns()})는 벌크 UPDATE라 이 통합 테스트로 매칭을 자연 경과시키기
- * 비현실적이라 다루지 않는다 — 대신 {@code CheckInServiceTest}에 Mockito 단위 테스트로 배선을 검증한다.
+ * 대화 CLOSED, ③ {@link BlockService#block} 차단 정리 시 대화 CLOSED, ④ {@link CheckInService#leaveMatch}
+ * (노쇼/취소로 매칭 해체) 시 대화 CLOSED. TTL 경로({@link CheckInService#expireStaleCheckIns()})는 벌크
+ * UPDATE라 이 통합 테스트로 매칭을 자연 경과시키기 비현실적이라 다루지 않는다 — 대신 {@code CheckInServiceTest}에
+ * Mockito 단위 테스트로 배선을 검증한다.
  */
 @SpringBootTest
 @Transactional
@@ -115,6 +116,35 @@ class ChatLifecycleTest extends AbstractPostgresTest {
         // then: 그 매칭의 대화가 CLOSED로 전이된다.
         Conversation closed = conversationRepository.findByMealRequestId(mrId)
                 .orElseThrow(() -> new AssertionError("차단 후에도 대화 레코드는 남아있어야 한다"));
+        assertThat(closed.getStatus()).isEqualTo(ConversationStatus.CLOSED);
+    }
+
+    @Test
+    @DisplayName("매칭 후 한쪽이 노쇼/취소로 leaveMatch하면(매칭 해체) 대화가 CLOSED된다"
+            + " — mealRequestId가 null로 지워지는 네 번째 매칭 해체 경로도 endCheckIn/TTL/차단과 동일하게 대화를 닫아야 함")
+    void leaveMatch_afterMatch_closesConversation() {
+        // given: 새 매칭(수신자 Faye가 체크인 → 발신자 Eve가 신청 → Faye가 수락)
+        User sender = createUser("01088880005", "chatEve");
+        User receiver = createUser("01088880006", "chatFaye");
+        Place place = createPlace("CHAT-E2E-003", "챗식당3");
+
+        CheckInResponse receiverCheckIn = checkInService.createCheckIn(
+                receiver.getId(), new CheckInRequest(place.getId()));
+        MealRequestResponse created = mealRequestService.create(
+                sender.getId(), new MealRequestCreateRequest(receiverCheckIn.checkInId(), "같이 드실래요?"));
+        Long mrId = created.mealRequestId();
+        mealRequestService.accept(receiver.getId(), mrId);
+
+        assertThat(conversationRepository.findByMealRequestId(mrId).orElseThrow().getStatus())
+                .isEqualTo(ConversationStatus.ACTIVE);
+
+        // when: 발신자(Eve)가 "상대가 안 나왔어요"로 매칭을 깨고 혼자 먹기로 전환하면(leaveMatch)
+        CheckInResponse senderCheckIn = checkInService.getMyCurrentCheckIn(sender.getId());
+        checkInService.leaveMatch(sender.getId(), senderCheckIn.checkInId(), "ACTIVE");
+
+        // then: 그 매칭의 대화가 CLOSED로 전이된다(estranged 두 유저가 계속 메시지를 주고받지 못하게).
+        Conversation closed = conversationRepository.findByMealRequestId(mrId)
+                .orElseThrow(() -> new AssertionError("leaveMatch 후에도 대화 레코드는 남아있어야 한다"));
         assertThat(closed.getStatus()).isEqualTo(ConversationStatus.CLOSED);
     }
 
