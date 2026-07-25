@@ -2,7 +2,7 @@
 // 베이스 URL + '/api' 접두사와 JSON 헤더를 붙이고, 공통 응답 엔벨로프({success,data,error})를
 // 풀어 성공이면 data만 돌려주고 실패면 ApiError를 던진다. (인증 토큰 주입은 인증 슬라이스에서 추가 예정.)
 import { API_BASE_URL } from '@/shared/config/api';
-import { getAccessToken } from '@/shared/auth/session';
+import { getAccessToken, getRefreshToken, setTokens, type Tokens } from '@/shared/auth/session';
 
 /** 백엔드 공통 응답 엔벨로프: 성공 {success:true,data}, 실패 {success:false,error:{code,message}}. */
 type ApiEnvelope<T> = {
@@ -33,11 +33,51 @@ type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
  */
 type RequestOptions = { token?: string | null };
 
+// 세션 요청 여부: options에 token 키가 없으면 세션 access를 자동 첨부하는 요청.
+function isSessionAuthed(options?: RequestOptions): boolean {
+  return !(options && 'token' in options);
+}
+
+/** 401이고 세션 요청이며 아직 재시도 전이면 refresh 시도 대상. (순수) */
+export function shouldAttemptRefresh(status: number, sessionAuthed: boolean, retried: boolean): boolean {
+  return status === 401 && sessionAuthed && !retried;
+}
+
+let refreshInFlight: Promise<void> | null = null;
+let onSessionExpired: (() => void) | null = null;
+
+/** 세션 만료(refresh 실패) 시 호출될 콜백 등록. AuthContext가 마운트 시 설정. */
+export function setOnSessionExpired(cb: (() => void) | null): void {
+  onSessionExpired = cb;
+}
+
+/** refresh 토큰으로 새 토큰 쌍 발급. single-flight — 동시 호출은 하나의 refresh를 공유(회전 토큰 stale 방지). */
+function refreshSession(): Promise<void> {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      const rt = getRefreshToken();
+      if (!rt) throw new ApiError(401, 'INVALID_REFRESH_TOKEN', '세션이 만료되었습니다.');
+      // token:null → 이 요청은 refresh 로직 대상에서 제외(재귀 없음).
+      const tokens = await request<Tokens>('POST', '/auth/refresh', { refreshToken: rt }, { token: null });
+      await setTokens(tokens);
+    })().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
 /**
  * 백엔드 API를 한 번 호출한다. `${API_BASE_URL}/api${path}`로 요청하고 공통 엔벨로프를 푼다.
  * 성공이면 data(T)를 반환하고, 네트워크 실패·비2xx·success:false면 {@link ApiError}를 던진다.
  */
-async function request<T>(method: Method, path: string, body?: unknown, options?: RequestOptions): Promise<T> {
+async function request<T>(
+  method: Method,
+  path: string,
+  body?: unknown,
+  options?: RequestOptions,
+  retried = false,
+): Promise<T> {
   // options.token이 명시(문자열/null)되면 그 값을, 아니면 세션의 access 토큰을 사용한다.
   const token = options && 'token' in options ? options.token : getAccessToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -61,9 +101,22 @@ async function request<T>(method: Method, path: string, body?: unknown, options?
   }
 
   if (!res.ok || !envelope || !envelope.success) {
-    const code = envelope?.error?.code ?? `HTTP_${res.status}`;
-    const message = envelope?.error?.message ?? `요청 실패 (HTTP ${res.status})`;
-    throw new ApiError(res.status, code, message);
+    const err = new ApiError(
+      res.status,
+      envelope?.error?.code ?? `HTTP_${res.status}`,
+      envelope?.error?.message ?? `요청 실패 (HTTP ${res.status})`,
+    );
+    // 세션 요청이 401이면 refresh 후 원요청을 1회 재시도. refresh 실패면 세션 만료 처리.
+    if (shouldAttemptRefresh(res.status, isSessionAuthed(options), retried)) {
+      try {
+        await refreshSession();
+      } catch {
+        onSessionExpired?.();
+        throw err;
+      }
+      return request<T>(method, path, body, options, true);
+    }
+    throw err;
   }
   // data가 생략된 성공 응답(백엔드 @JsonInclude(NON_NULL)으로 null이면 키째 빠짐)은 null로 통일한다.
   // React Query는 쿼리 함수가 undefined를 반환하면 에러를 내므로, undefined가 새 나가지 않게 막는다.
