@@ -17,22 +17,32 @@ type Props = {
   onEnd: () => void;           // 끝내기(dining/together)
   onDineAlone?: () => void;    // 혼자 먹기 시작(seeking)
   onQuit?: () => void;         // 그만두기(seeking → 취소)
+  onOpenChat?: () => void;     // 라벨 탭 → 대화방 진입(together 전용)
   style?: StyleProp<ViewStyle>;
 };
 
-export function HonbabStatusBar({ mode, place, partnerNickname, onEnd, onDineAlone, onQuit, style }: Props) {
+export function HonbabStatusBar({ mode, place, partnerNickname, onEnd, onDineAlone, onQuit, onOpenChat, style }: Props) {
   const strong = mode === 'together' ? '같이 먹는 중' : mode === 'seeking' ? '같이 먹을 사람 구하는 중' : '혼밥 중';
   const dim = mode === 'together' && partnerNickname ? `  ·  ${partnerNickname} · ${place}` : `  ·  ${place}`;
+  const labelText = (
+    <Text style={styles.label} numberOfLines={1}>
+      <Text style={styles.labelStrong}>{strong}</Text>
+      <Text style={styles.labelDim}>{dim}</Text>
+    </Text>
+  );
   return (
     <View style={[styles.card, style]}>
       <View style={styles.pulse}>
         <View style={styles.halo} />
         <View style={styles.dot} />
       </View>
-      <Text style={styles.label} numberOfLines={1}>
-        <Text style={styles.labelStrong}>{strong}</Text>
-        <Text style={styles.labelDim}>{dim}</Text>
-      </Text>
+      {mode === 'together' ? (
+        <Pressable style={styles.labelWrap} onPress={onOpenChat} hitSlop={6}>
+          {labelText}
+        </Pressable>
+      ) : (
+        labelText
+      )}
       {mode === 'seeking' ? (
         <View style={{ flexDirection: 'row', gap: 6 }}>
           <Pressable style={styles.quitBtn} onPress={onQuit} hitSlop={6}>
@@ -66,6 +76,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 3,
   },
+  labelWrap: { flex: 1 },
   pulse: { width: 8, height: 8, alignItems: 'center', justifyContent: 'center' },
   halo: { position: 'absolute', width: 16, height: 16, borderRadius: 8, backgroundColor: T2.brand, opacity: 0.18 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: T2.brand },

@@ -5,6 +5,7 @@ export type CheckIn = {
   checkInId: number; placeId: number; placeName: string; status: CheckInStatus;
   startedAt: string; endedAt: string | null;
   matchedAt: string | null; partnerUserId: number | null; partnerNickname: string | null;
+  conversationId: number | null;
 };
 export type CheckInStats = { todayCount: number; activeCount: number; seekingCount: number };
 export type MapMarker = {

@@ -201,6 +201,10 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
             onEnd={endHonbab}
             onDineAlone={() => dineAloneMut.mutate(myCheckIn.data!.checkInId)}
             onQuit={() => cancelMut.mutate(myCheckIn.data!.checkInId)}
+            onOpenChat={() => {
+              const cid = myCheckIn.data?.conversationId;
+              if (cid) navigation.navigate('ChatRoom', { conversationId: cid });
+            }}
             style={{ marginTop: 10 }}
           />
         )}

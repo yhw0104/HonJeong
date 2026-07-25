@@ -12,6 +12,8 @@ import { TogetherFeedScreen } from '@/features/together/screens/TogetherFeed';
 import { ConversationListScreen } from '@/features/chat/screens/ConversationList';
 import { FavoritesScreen } from '@/features/favorites/screens/Favorites';
 import { MoreScreen } from '@/features/profile/screens/More';
+import { useConversations } from '@/features/chat/queries';
+import { totalUnread } from '@/features/chat/chatFormat';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -86,11 +88,13 @@ function TabGlyph({ name, color }: { name: keyof MainTabParamList; color: string
 
 function MinTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const unread = totalUnread(useConversations().data ?? []);
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       {state.routes.map((route, index) => {
         const focused = state.index === index;
         const color = focused ? T2.brand : T2.textMute;
+        const name = route.name as keyof MainTabParamList;
         const onPress = () => {
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
           if (!focused && !event.defaultPrevented) {
@@ -99,8 +103,15 @@ function MinTabBar({ state, navigation }: BottomTabBarProps) {
         };
         return (
           <Pressable key={route.key} onPress={onPress} style={styles.item}>
-            <TabGlyph name={route.name as keyof MainTabParamList} color={color} />
-            <Text style={[styles.label, { color }]}>{LABELS[route.name as keyof MainTabParamList]}</Text>
+            <View style={styles.glyphWrap}>
+              <TabGlyph name={name} color={color} />
+              {name === 'Chat' && unread > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unread > 99 ? '99+' : String(unread)}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={[styles.label, { color }]}>{LABELS[name]}</Text>
           </Pressable>
         );
       })}
@@ -133,4 +144,20 @@ const styles = StyleSheet.create({
   },
   item: { flex: 1, alignItems: 'center', gap: 3 },
   label: { fontSize: 11, fontWeight: '700', letterSpacing: -0.2 },
+  glyphWrap: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
+  badge: {
+    position: 'absolute',
+    top: -3,
+    right: -6,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    backgroundColor: T2.brand,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: { fontSize: 9, fontWeight: '800', color: '#fff' },
 });
