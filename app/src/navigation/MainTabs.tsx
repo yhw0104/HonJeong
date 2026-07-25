@@ -9,6 +9,7 @@ import { T2 } from '@/shared/theme';
 import type { MainTabParamList } from './types';
 import { MapHomeScreen } from '@/features/home/screens/MapHome';
 import { TogetherFeedScreen } from '@/features/together/screens/TogetherFeed';
+import { ConversationListScreen } from '@/features/chat/screens/ConversationList';
 import { FavoritesScreen } from '@/features/favorites/screens/Favorites';
 import { MoreScreen } from '@/features/profile/screens/More';
 
@@ -17,6 +18,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const LABELS: Record<keyof MainTabParamList, string> = {
   MapHome: '홈',
   TogetherFeed: '같이먹기',
+  Chat: '대화',
   Favorites: '즐겨찾기',
   More: '더보기',
 };
@@ -52,6 +54,14 @@ function TabGlyph({ name, color }: { name: keyof MainTabParamList; color: string
           strokeLinecap="round"
           strokeLinejoin="round"
         />
+      </Svg>
+    );
+  }
+  if (name === 'Chat') {
+    return (
+      <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+        <Path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"
+          stroke={color} strokeWidth={1.7} strokeLinejoin="round" />
       </Svg>
     );
   }
@@ -106,6 +116,7 @@ export function MainTabs() {
     >
       <Tab.Screen name="MapHome" component={MapHomeScreen} />
       <Tab.Screen name="TogetherFeed" component={TogetherFeedScreen} />
+      <Tab.Screen name="Chat" component={ConversationListScreen} />
       <Tab.Screen name="Favorites" component={FavoritesScreen} />
       <Tab.Screen name="More" component={MoreScreen} />
     </Tab.Navigator>

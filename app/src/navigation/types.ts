@@ -14,6 +14,7 @@ export type RootStackParamList = {
   PlaceSearch: undefined;
   RestaurantDetail: { placeId: number; name?: string };
   MealRequest: { placeId: number; placeName: string };
+  ChatRoom: { conversationId: number };
   Mates: undefined;
   MateProfile: { userId: number };
   ReceivedRequests: undefined;
@@ -40,6 +41,7 @@ export type RootStackParamList = {
 export type MainTabParamList = {
   MapHome: undefined;
   TogetherFeed: undefined;
+  Chat: undefined;
   Favorites: undefined;
   More: undefined;
 };
