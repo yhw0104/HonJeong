@@ -22,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.honjeong.chat.domain.Conversation;
+import com.honjeong.chat.repository.ChatMessageRepository;
 import com.honjeong.chat.repository.ConversationRepository;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.repository.PlaceRepository;
@@ -36,6 +37,7 @@ import com.honjeong.user.repository.UserRepository;
 class ConversationServiceTest {
 
     @Mock ConversationRepository conversationRepository;
+    @Mock ChatMessageRepository chatMessageRepository;
     @Mock PlaceRepository placeRepository;
     @Mock UserRepository userRepository;
     Clock clock = Clock.fixed(Instant.parse("2026-07-25T03:00:00Z"), ZoneId.of("UTC"));
@@ -43,7 +45,8 @@ class ConversationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ConversationService(conversationRepository, placeRepository, userRepository, clock);
+        service = new ConversationService(conversationRepository, placeRepository, userRepository,
+                chatMessageRepository, clock);
     }
 
     /**
