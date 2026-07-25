@@ -13,6 +13,7 @@ import { NewGroupScreen } from '@/features/favorites/screens/NewGroup';
 import { RestaurantDetailScreen } from '@/features/place/screens/RestaurantDetail';
 import { PlaceSearchScreen } from '@/features/place/screens/PlaceSearch';
 import { MealRequestScreen } from '@/features/mate/screens/MealRequest';
+import { ChatRoomScreen } from '@/features/chat/screens/ChatRoom';
 import { MatesScreen } from '@/features/mate/screens/Mates';
 import { MateProfileScreen } from '@/features/mate/screens/MateProfile';
 import { ReceivedRequestsScreen } from '@/features/mate/screens/ReceivedRequests';
@@ -54,6 +55,7 @@ export function RootNavigator() {
           <Stack.Screen name="RestaurantDetail" component={RestaurantDetailScreen} />
           <Stack.Screen name="PlaceSearch" component={PlaceSearchScreen} />
           <Stack.Screen name="MealRequest" component={MealRequestScreen} options={{ presentation: 'modal' }} />
+          <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
           <Stack.Screen name="Mates" component={MatesScreen} />
           <Stack.Screen name="MateProfile" component={MateProfileScreen} />
           <Stack.Screen name="ReceivedRequests" component={ReceivedRequestsScreen} />
