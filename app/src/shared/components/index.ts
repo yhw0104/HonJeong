@@ -1,7 +1,6 @@
 export { Screen } from './Screen';
 export { Avatar } from './Avatar';
 export { ImagePlaceholder } from './ImagePlaceholder';
-export { MiniPin } from './MiniPin';
 export { FieldLabel } from './FieldLabel';
 export { MoreHeader } from './MoreHeader';
 export { MapBackground } from './MapBackground';
