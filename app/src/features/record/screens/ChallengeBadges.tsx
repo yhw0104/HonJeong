@@ -22,7 +22,8 @@ export function ChallengeBadgesScreen({ navigation }: RootStackScreenProps<'Chal
 
   return (
     <Screen bg={T2.bg} edges={['top']}>
-      <MoreHeader title="혼밥 챌린지 · 뱃지" onBack={() => navigation.goBack()} />
+      {/* 챌린지 실기능 대기 → 임시로 '혼밥 뱃지'. 복원 시 title="혼밥 챌린지 · 뱃지" */}
+      <MoreHeader title="혼밥 뱃지" onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* 진행 중 챌린지 카드 — '이번 주 챌린지'는 아직 목업(주간 챌린지 실기능 미구현).

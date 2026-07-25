@@ -33,7 +33,8 @@ const SECTIONS: Section[] = [
     items: [
       { l: '내 혼밥 기록', icon: 'book', route: 'DiningHistory' },
       { l: '내가 쓴 리뷰', icon: 'note', route: 'MyReviews' },
-      { l: '혼밥 챌린지 · 뱃지', icon: 'badge', accent: true, route: 'ChallengeBadges' },
+      // 챌린지 실기능 대기 → 임시로 '혼밥 뱃지'. 복원 시 l: '혼밥 챌린지 · 뱃지'
+      { l: '혼밥 뱃지', icon: 'badge', accent: true, route: 'ChallengeBadges' },
     ],
   },
   {
