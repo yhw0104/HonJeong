@@ -373,6 +373,7 @@ class CheckInServiceTest {
         assertThat(res).isNotNull();
         assertThat(res.status()).isEqualTo("ACTIVE");
         assertThat(res.partnerNickname()).isNull();
+        assertThat(res.conversationId()).isNull(); // 비TOGETHER는 대화 id도 항상 null
 
         when(checkInRepository.findByUser_IdAndStatusIn(eq(2L), anyCollection())).thenReturn(Optional.empty());
         assertThat(service.getMyCurrentCheckIn(2L)).isNull();
@@ -393,6 +394,23 @@ class CheckInServiceTest {
         assertThat(res.status()).isEqualTo("TOGETHER");
         assertThat(res.partnerNickname()).isEqualTo("상대");
         assertThat(res.partnerUserId()).isEqualTo(2L); // 노쇼 신고 대상 지정용
+    }
+
+    @Test
+    @DisplayName("getMyCurrentCheckIn: TOGETHER면 대화방 id(conversationId)도 함께 포함한다 — 상태바→대화 진입용")
+    void getMyCurrent_togetherIncludesConversationId() {
+        CheckIn mine = CheckIn.startTogether(userRef(1L), place(10L), 50L, nowKst);   // 나
+        CheckIn partner = CheckIn.startTogether(userRef(2L, "상대"), place(10L), 50L, nowKst); // 파트너
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection()))
+                .thenReturn(Optional.of(mine));
+        when(checkInRepository.findTogetherByMealRequestId(50L))
+                .thenReturn(List.of(mine, partner));
+        when(conversationService.findIdByMealRequestId(50L)).thenReturn(42L);
+
+        CheckInResponse res = service.getMyCurrentCheckIn(1L);
+
+        assertThat(res.status()).isEqualTo("TOGETHER");
+        assertThat(res.conversationId()).isEqualTo(42L);
     }
 
     @Test

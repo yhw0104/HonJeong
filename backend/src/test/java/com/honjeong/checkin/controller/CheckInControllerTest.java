@@ -62,7 +62,7 @@ class CheckInControllerTest {
     @DisplayName("POST /api/check-ins: USER면 201 + 체크인 응답")
     void create_201() throws Exception {
         when(checkInService.createCheckIn(eq(1L), any())).thenReturn(
-                new CheckInResponse(10L, 3L, "테스트식당", "ACTIVE", LocalDateTime.of(2026, 6, 15, 12, 0), null, null, null, null));
+                new CheckInResponse(10L, 3L, "테스트식당", "ACTIVE", LocalDateTime.of(2026, 6, 15, 12, 0), null, null, null, null, null));
 
         mockMvc.perform(post("/api/check-ins").header("Authorization", userToken())
                         .contentType(MediaType.APPLICATION_JSON).content(body()))
@@ -132,7 +132,7 @@ class CheckInControllerTest {
     void end_200() throws Exception {
         when(checkInService.endCheckIn(1L, 10L)).thenReturn(
                 new CheckInResponse(10L, 3L, "테스트식당", "ENDED", LocalDateTime.of(2026, 6, 15, 12, 0),
-                        LocalDateTime.of(2026, 6, 15, 13, 0), null, null, null));
+                        LocalDateTime.of(2026, 6, 15, 13, 0), null, null, null, null));
 
         mockMvc.perform(patch("/api/check-ins/10/end").header("Authorization", userToken()))
                 .andExpect(status().isOk())
@@ -155,7 +155,7 @@ class CheckInControllerTest {
     void cancel_ok() throws Exception {
         when(checkInService.cancelCheckIn(eq(1L), eq(3L))).thenReturn(
                 new CheckInResponse(3L, 10L, "테스트식당", "CANCELLED", LocalDateTime.of(2026, 6, 15, 12, 0),
-                        LocalDateTime.of(2026, 6, 15, 12, 0), null, null, null));
+                        LocalDateTime.of(2026, 6, 15, 12, 0), null, null, null, null));
 
         mockMvc.perform(patch("/api/check-ins/3/cancel").header("Authorization", userToken()))
                 .andExpect(status().isOk())

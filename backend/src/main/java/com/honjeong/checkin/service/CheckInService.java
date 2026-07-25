@@ -241,7 +241,8 @@ public class CheckInService {
                 .orElse(null);
         Long partnerUserId = partner != null ? partner.getUser().getId() : null;
         String partnerNickname = partner != null ? partner.getUser().getNickname() : null;
-        return CheckInResponse.from(c, partnerUserId, partnerNickname);
+        Long conversationId = conversationService.findIdByMealRequestId(c.getMealRequestId());
+        return CheckInResponse.from(c, partnerUserId, partnerNickname, conversationId);
     }
 
     /**
