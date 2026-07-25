@@ -203,7 +203,8 @@ public class ConversationService {
                             partner.getId(), partner.getNickname(), partner.getProfileImageUrl(),
                             c.getPlace().getName(),
                             previewOf(c), // 마지막 메시지 미리보기(아래)
-                            c.getLastMessageAt(), unread);
+                            c.getLastMessageAt(), unread,
+                            c.lastReadAtFor(partner.getId())); // 상대가 마지막 읽은 시각(내 메시지 읽음 표시용)
                 }).toList();
     }
 

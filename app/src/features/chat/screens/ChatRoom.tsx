@@ -1,5 +1,5 @@
 // ChatRoom — 매칭 대화방. 대화 목록(ConversationList)에서 진입.
-// 말풍선(텍스트/사진) + 입력바 + CLOSED(종료된 대화) 잠금.
+// 카카오톡풍: 연속 메시지는 상대 프로필 1개만·시간·내 메시지 '읽음' 표시. 입력바 + CLOSED(종료) 잠금.
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -15,11 +15,11 @@ import {
   Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Screen, StateView, MoreHeader } from '@/shared/components';
+import { Screen, StateView, Avatar } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { useMessages, useSendMessage, useMarkRead, useConversations } from '../queries';
-import { isClosed } from '../chatFormat';
+import { isClosed, formatTime, readByPartner } from '../chatFormat';
 import type { ChatMessage } from '../types';
 import { pickImages, uploadImages } from '@/shared/upload/imageUpload';
 import { useBlockUser } from '@/features/safety/queries';
@@ -71,6 +71,15 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
   // partnerUserId는 대화 상대 id — 메시지 발신자가 상대가 아니면 내가 보낸 것(현재 앱엔
   // 로그인 사용자 id를 직접 노출하는 훅이 없어, 1:1 대화에서 상대 기준으로 소유를 판정).
   const partnerUserId = conv?.partnerUserId;
+  const partnerLastReadAt = conv?.partnerLastReadAt ?? null;
+  const msgs = messages ?? [];
+  // 내가 보낸 마지막 메시지의 인덱스(그 메시지에만 '읽음'을 붙인다 — 그 이전 내 메시지도 당연히 읽음).
+  const lastMineIndex = (() => {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].senderUserId !== partnerUserId) return i;
+    }
+    return -1;
+  })();
 
   const openReport = () => {
     setMenuOpen(false);
@@ -100,28 +109,71 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
       },
     ]);
   };
-  const renderItem = ({ item }: { item: ChatMessage }) => {
+
+  const renderItem = ({ item, index }: { item: ChatMessage; index: number }) => {
     const mine = item.senderUserId !== partnerUserId;
-    return (
-      <View style={[styles.bubbleRow, mine ? styles.rowMine : styles.rowOther]}>
-        <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleOther]}>
-          {item.type === 'IMAGE' && item.imageUrl ? (
-            <Image source={{ uri: item.imageUrl }} style={styles.image} />
-          ) : (
-            <Text style={[styles.msgText, mine && styles.msgTextMine]}>{item.text}</Text>
-          )}
+    const prev = msgs[index - 1];
+    const next = msgs[index + 1];
+    const firstOfRun = !prev || prev.senderUserId !== item.senderUserId;
+    const lastOfRun = !next || next.senderUserId !== item.senderUserId;
+    const time = lastOfRun ? formatTime(item.createdAt) : '';
+    const showRead = mine && index === lastMineIndex && readByPartner(item.createdAt, partnerLastReadAt);
+
+    const bubble = (
+      <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleOther]}>
+        {item.type === 'IMAGE' && item.imageUrl ? (
+          <Image source={{ uri: item.imageUrl }} style={styles.image} />
+        ) : (
+          <Text style={[styles.msgText, mine && styles.msgTextMine]}>{item.text}</Text>
+        )}
+      </View>
+    );
+
+    if (mine) {
+      return (
+        <View style={[styles.bubbleRow, styles.rowMine, { marginTop: firstOfRun ? 8 : 2 }]}>
+          <View style={styles.metaMine}>
+            {showRead && <Text style={styles.readText}>읽음</Text>}
+            {!!time && <Text style={styles.timeText}>{time}</Text>}
+          </View>
+          {bubble}
         </View>
+      );
+    }
+    return (
+      <View style={[styles.bubbleRow, styles.rowOther, { marginTop: firstOfRun ? 8 : 2 }]}>
+        {firstOfRun ? (
+          <View style={styles.avatarWrap}>
+            <Avatar name={conv?.partnerNickname} uri={conv?.partnerProfileImageUrl} size={32} />
+          </View>
+        ) : (
+          <View style={styles.avatarSpacer} />
+        )}
+        {bubble}
+        {!!time && <Text style={[styles.timeText, styles.timeOther]}>{time}</Text>}
       </View>
     );
   };
 
   return (
     <Screen bg={T2.bg}>
-      <MoreHeader
-        title={conv?.partnerNickname ?? '대화'}
-        onBack={() => navigation.goBack()}
-        right={
-          conv ? (
+      {/* 커스텀 헤더 — 뒤로 / 이름·식당명(중앙, 식당명 길면 …) / … 메뉴 */}
+      <View style={styles.header}>
+        <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.headerBack}>
+          <Text style={styles.headerArrow}>←</Text>
+        </Pressable>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerName} numberOfLines={1}>
+            {conv?.partnerNickname ?? '대화'}
+          </Text>
+          {!!conv?.placeName && (
+            <Text style={styles.headerPlace} numberOfLines={1}>
+              {conv.placeName}
+            </Text>
+          )}
+        </View>
+        <View style={styles.headerRight}>
+          {conv ? (
             <Pressable onPress={() => setMenuOpen(true)} hitSlop={10} style={styles.moreBtn}>
               <View style={styles.dotsRow}>
                 {[0, 1, 2].map((d) => (
@@ -129,9 +181,9 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
                 ))}
               </View>
             </Pressable>
-          ) : undefined
-        }
-      />
+          ) : null}
+        </View>
+      </View>
 
       {/* … 드롭다운 메뉴 — 버튼 아래 카드, 바깥 탭으로 닫힘(MateProfile.tsx와 동일 패턴) */}
       <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
@@ -148,8 +200,6 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
         </Pressable>
       </Modal>
 
-      {conv && <Text style={styles.sub}>{conv.placeName}</Text>}
-
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {isLoading || !conv ? (
           <StateView kind="loading" />
@@ -157,7 +207,7 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
           <StateView kind="error" onRetry={() => refetch()} />
         ) : (
           <FlatList
-            data={messages ?? []}
+            data={msgs}
             keyExtractor={(m) => String(m.id)}
             renderItem={renderItem}
             style={styles.flex}
@@ -205,9 +255,18 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  // 헤더
+  header: { height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
+  headerBack: { width: 32, height: 32, alignItems: 'flex-start', justifyContent: 'center' },
+  headerArrow: { fontSize: 22, color: T2.text },
+  headerCenter: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, overflow: 'hidden' },
+  headerName: { fontSize: 16, fontWeight: '800', color: T2.text, letterSpacing: -0.4 },
+  headerPlace: { flexShrink: 1, fontSize: 12.5, color: T2.textSub, letterSpacing: -0.2 },
+  headerRight: { width: 32, alignItems: 'flex-end' },
   moreBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   dotsRow: { flexDirection: 'row', gap: 3 },
   dot: { width: 3.5, height: 3.5, borderRadius: 2, backgroundColor: T2.text },
+  // 메뉴
   menuBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.12)' },
   menuCard: {
     position: 'absolute',
@@ -228,17 +287,24 @@ const styles = StyleSheet.create({
   menuItemText: { fontSize: 14, fontWeight: '600', color: T2.text, letterSpacing: -0.3 },
   menuItemDanger: { color: '#E1493F' },
   menuDivider: { height: 1, backgroundColor: T2.border, marginHorizontal: 8 },
-  sub: { fontSize: 12, color: T2.textSub, textAlign: 'center', marginBottom: 4 },
-  list: { padding: 12 },
-  bubbleRow: { marginVertical: 3, flexDirection: 'row' },
+  // 메시지
+  list: { paddingHorizontal: 12, paddingVertical: 10 },
+  bubbleRow: { flexDirection: 'row', alignItems: 'flex-end' },
   rowMine: { justifyContent: 'flex-end' },
   rowOther: { justifyContent: 'flex-start' },
-  bubble: { maxWidth: '76%', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
+  avatarWrap: { marginRight: 6, alignSelf: 'flex-start' },
+  avatarSpacer: { width: 32, marginRight: 6 },
+  bubble: { maxWidth: '70%', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
   bubbleMine: { backgroundColor: T2.brand },
   bubbleOther: { backgroundColor: T2.surface, borderWidth: 1, borderColor: T2.border },
   msgText: { fontSize: 14, color: T2.text },
   msgTextMine: { color: '#fff' },
   image: { width: 180, height: 180, borderRadius: 10 },
+  metaMine: { marginRight: 4, alignItems: 'flex-end', justifyContent: 'flex-end' },
+  readText: { fontSize: 10, fontWeight: '700', color: T2.brand, marginBottom: 1 },
+  timeText: { fontSize: 10, color: T2.textMute, marginBottom: 2 },
+  timeOther: { marginLeft: 6 },
+  // 입력바 / 종료
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',

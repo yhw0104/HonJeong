@@ -57,7 +57,8 @@ class ChatControllerTest {
     void list_200() throws Exception {
         when(conversationService.listMine(1L)).thenReturn(List.of(
                 new ConversationSummaryResponse(10L, "ACTIVE", 2L, "옆자리", null,
-                        "큰순두부", "같이 드실래요?", LocalDateTime.of(2026, 6, 18, 12, 0), 3L)));
+                        "큰순두부", "같이 드실래요?", LocalDateTime.of(2026, 6, 18, 12, 0), 3L,
+                        LocalDateTime.of(2026, 6, 18, 12, 5))));
 
         mockMvc.perform(get("/api/conversations").header("Authorization", userToken()))
                 .andExpect(status().isOk())

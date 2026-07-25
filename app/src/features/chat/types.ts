@@ -11,6 +11,8 @@ export type ConversationSummary = {
   lastMessagePreview: string | null;
   lastMessageAt: string | null;
   unreadCount: number;
+  // 상대가 마지막으로 읽은 시각(내 메시지 '읽음' 표시용). 아직 안 읽었으면 null.
+  partnerLastReadAt: string | null;
 };
 
 export type ChatMessage = {
