@@ -119,6 +119,12 @@ public enum ErrorCode {
     /** 자기 자신(또는 자기 리뷰) 신고 시도 — 400 */
     REPORT_SELF(HttpStatus.BAD_REQUEST, "자기 자신(또는 내가 쓴 리뷰)은 신고할 수 없습니다."),
 
+    // 매칭 대화 — 대화방 조회·상태 충돌
+    /** 대화방 없음(잘못된 conversationId 또는 매칭 미성사) — 404 */
+    CONVERSATION_NOT_FOUND(HttpStatus.NOT_FOUND, "대화를 찾을 수 없습니다."),
+    /** 종료(CLOSED)된 대화방에 메시지 전송 등 시도 — 409 */
+    CONVERSATION_CLOSED(HttpStatus.CONFLICT, "종료된 대화입니다."),
+
     // 예기치 못한 서버 내부 오류(처리되지 않은 예외 → 500)
     /** 처리되지 않은 모든 예외의 최종 안전망 — 500 */
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
