@@ -45,7 +45,7 @@ describe('401 자동 refresh', () => {
     (global as any).fetch = jest.fn()
       .mockResolvedValueOnce(resp(401, fail('UNAUTHORIZED')))            // GET
       .mockResolvedValueOnce(resp(401, fail('INVALID_REFRESH_TOKEN')));  // /auth/refresh
-    await expect(apiGet('/thing')).rejects.toBeInstanceOf(ApiError);
+    await expect(apiGet('/thing')).rejects.toMatchObject({ code: 'UNAUTHORIZED', status: 401 });
     expect(expired).toHaveBeenCalledTimes(1);
   });
 
@@ -83,6 +83,15 @@ describe('401 자동 refresh', () => {
     setOnSessionExpired(expired);
     (global as any).fetch = jest.fn().mockResolvedValueOnce(resp(401, fail('UNAUTHORIZED')));
     await expect(apiPost('/public', {}, { token: null })).rejects.toBeInstanceOf(ApiError);
+    expect((global as any).fetch).toHaveBeenCalledTimes(1);
+    expect(expired).not.toHaveBeenCalled();
+  });
+
+  it('token:string(온보딩) 요청의 401은 refresh 안 함', async () => {
+    const expired = jest.fn();
+    setOnSessionExpired(expired);
+    (global as any).fetch = jest.fn().mockResolvedValueOnce(resp(401, fail('UNAUTHORIZED')));
+    await expect(apiPost('/onboard', {}, { token: 'onboarding-tok' })).rejects.toBeInstanceOf(ApiError);
     expect((global as any).fetch).toHaveBeenCalledTimes(1);
     expect(expired).not.toHaveBeenCalled();
   });
