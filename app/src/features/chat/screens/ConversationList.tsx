@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   closedChip: { backgroundColor: T2.bg, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
   closedChipText: { fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: -0.2 },
   preview: { fontSize: 14, color: T2.textSub },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: T2.border, marginLeft: 80 },
+  divider: { height: 1, backgroundColor: T2.borderStrong },
   badge: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: T2.brand, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
 });

@@ -41,7 +41,7 @@ export function HonbabStatusBar({ mode, place, partnerNickname, onEnd, onDineAlo
           {labelText}
         </Pressable>
       ) : (
-        labelText
+        <View style={styles.labelWrap}>{labelText}</View>
       )}
       {mode === 'seeking' ? (
         <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -76,11 +76,11 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 3,
   },
-  labelWrap: { flex: 1 },
+  labelWrap: { flex: 1, justifyContent: 'center' },
   pulse: { width: 8, height: 8, alignItems: 'center', justifyContent: 'center' },
   halo: { position: 'absolute', width: 16, height: 16, borderRadius: 8, backgroundColor: T2.brand, opacity: 0.18 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: T2.brand },
-  label: { flex: 1, fontSize: 13, letterSpacing: -0.2 },
+  label: { fontSize: 13, letterSpacing: -0.2 },
   labelStrong: { color: T2.text, fontWeight: '800' },
   labelDim: { color: T2.textSub, fontWeight: '600' },
   endBtn: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: T2.brandSoft },

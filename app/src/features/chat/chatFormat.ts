@@ -20,3 +20,7 @@ export const formatTime = (iso: string): string => (iso.length >= 16 ? iso.slice
 export const readByPartner = (messageCreatedAt: string, partnerLastReadAt: string | null): boolean =>
   partnerLastReadAt != null &&
   new Date(partnerLastReadAt).getTime() >= new Date(messageCreatedAt).getTime();
+
+/** max 글자를 넘으면 잘라 '…'을 붙인다. "청년다방 수지상현점"(9자), max 8 → "청년다방 수지상…". */
+export const truncate = (s: string, max: number): string =>
+  Array.from(s).length > max ? Array.from(s).slice(0, max).join('') + '…' : s;

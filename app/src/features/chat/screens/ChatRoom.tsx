@@ -19,10 +19,13 @@ import { Screen, StateView, Avatar } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { useMessages, useSendMessage, useMarkRead, useConversations } from '../queries';
-import { isClosed, formatTime, readByPartner } from '../chatFormat';
+import { isClosed, formatTime, readByPartner, truncate } from '../chatFormat';
 import type { ChatMessage } from '../types';
 import { pickImages, uploadImages } from '@/shared/upload/imageUpload';
 import { useBlockUser } from '@/features/safety/queries';
+
+// 헤더 식당명 최대 글자수(초과 시 …). 실기 확인 후 조정 가능.
+const PLACE_MAX_CHARS = 8;
 
 export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'ChatRoom'>) {
   const id = route.params.conversationId;
@@ -168,7 +171,7 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
           </Text>
           {!!conv?.placeName && (
             <Text style={styles.headerPlace} numberOfLines={1}>
-              {conv.placeName}
+              {truncate(conv.placeName, PLACE_MAX_CHARS)}
             </Text>
           )}
         </View>

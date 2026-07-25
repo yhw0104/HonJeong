@@ -1,4 +1,4 @@
-import { totalUnread, messagePreview, isClosed, formatTime, readByPartner } from './chatFormat';
+import { totalUnread, messagePreview, isClosed, formatTime, readByPartner, truncate } from './chatFormat';
 
 describe('chatFormat', () => {
   it('totalUnread는 대화들의 안읽음 합', () => {
@@ -23,5 +23,10 @@ describe('chatFormat', () => {
     expect(readByPartner('2026-07-25T14:30:00', '2026-07-25T14:30:00')).toBe(true);
     expect(readByPartner('2026-07-25T14:30:00', '2026-07-25T14:29:59')).toBe(false);
     expect(readByPartner('2026-07-25T14:30:00', null)).toBe(false);
+  });
+  it('truncate는 max 초과 시 …로 자른다', () => {
+    expect(truncate('청년다방 수지상현점', 8)).toBe('청년다방 수지상…'); // 9자 → 8자 + …
+    expect(truncate('큰순두부', 8)).toBe('큰순두부'); // 짧으면 그대로
+    expect(truncate('12345678', 8)).toBe('12345678'); // 정확히 max면 그대로
   });
 });
