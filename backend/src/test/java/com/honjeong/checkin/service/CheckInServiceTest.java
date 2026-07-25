@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -21,10 +22,13 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
+import org.mockito.Mockito;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import com.honjeong.badge.service.BadgeService;
 import com.honjeong.block.repository.BlockRepository;
+import com.honjeong.chat.service.ConversationService;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.dto.CheckInRequest;
@@ -57,12 +61,13 @@ class CheckInServiceTest {
     private final MealRequestRepository mealRequestRepository = mock(MealRequestRepository.class);
     private final NotificationService notificationService = mock(NotificationService.class);
     private final BadgeService badgeService = mock(BadgeService.class);
+    private final ConversationService conversationService = mock(ConversationService.class);
     // KST 12:00 = UTC 03:00 으로 고정. now()는 ofInstant(instant, KST) = 2026-06-15T12:00.
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneOffset.UTC);
     private final HonjeongCheckInProperties props = new HonjeongCheckInProperties(3, 300_000L, 3, 3);
     private final CheckInService service =
             new CheckInService(checkInRepository, placeService, userRepository, blockRepository,
-                    mealRequestRepository, notificationService, clock, props, badgeService);
+                    mealRequestRepository, notificationService, clock, props, badgeService, conversationService);
 
     private final LocalDateTime nowKst = LocalDateTime.of(2026, 6, 15, 12, 0);
 
@@ -616,7 +621,7 @@ class CheckInServiceTest {
         HonjeongCheckInProperties props2 = new HonjeongCheckInProperties(3, 300_000L, 5, 3);
         CheckInService service2 =
                 new CheckInService(checkInRepository, placeService, userRepository, blockRepository,
-                        mealRequestRepository, notificationService, clock, props2, badgeService);
+                        mealRequestRepository, notificationService, clock, props2, badgeService, conversationService);
         when(checkInRepository.endActiveStartedBefore(any(), any())).thenReturn(2);
         when(checkInRepository.endTogetherMatchedBefore(any(), any())).thenReturn(1);
 
@@ -636,6 +641,37 @@ class CheckInServiceTest {
     }
 
     @Test
+    @DisplayName("expireStaleCheckIns: TOGETHER TTL 만료 대상 mealRequestId를 bulk end 전에 수집해 "
+            + "각각 conversationService.close로 대화를 닫는다(bulk UPDATE는 엔티티를 안 거치므로 별도 배선 필요)")
+    void expire_closesConversationsForExpiredTogether() {
+        LocalDateTime togetherThreshold = nowKst.minusHours(3); // props의 togetherTtlHours=3
+        when(checkInRepository.findMealRequestIdsOfTogetherMatchedBefore(togetherThreshold))
+                .thenReturn(List.of(10L, 20L));
+        when(checkInRepository.endTogetherMatchedBefore(togetherThreshold, nowKst)).thenReturn(2);
+
+        int n = service.expireStaleCheckIns();
+
+        assertThat(n).isEqualTo(2); // endActive(0 기본) + endTogether(2) + cancelSeeking(0 기본)
+        verify(conversationService).close(10L);
+        verify(conversationService).close(20L);
+
+        // 순서 불변식: mealRequestId 수집이 bulk end보다 먼저 일어나야 한다(bulk end 후엔 matchedAt으로 다시 못 찾음).
+        InOrder inOrder = Mockito.inOrder(checkInRepository, conversationService);
+        inOrder.verify(checkInRepository).findMealRequestIdsOfTogetherMatchedBefore(togetherThreshold);
+        inOrder.verify(checkInRepository).endTogetherMatchedBefore(togetherThreshold, nowKst);
+        inOrder.verify(conversationService).close(10L);
+        inOrder.verify(conversationService).close(20L);
+    }
+
+    @Test
+    @DisplayName("expireStaleCheckIns: TOGETHER TTL 만료 대상이 없으면 conversationService를 건드리지 않는다")
+    void expire_noExpiredTogether_touchesNoConversation() {
+        service.expireStaleCheckIns();
+
+        verifyNoInteractions(conversationService);
+    }
+
+    @Test
     @DisplayName("expireStaleCheckIns: SEEKING 만료(CANCELLED)도 seekingTtlHours 기준으로 합산한다"
             + "(threshold 스왑 방지 — 세 ttl을 서로 다른 값으로 구성)")
     void expire_includesSeeking() {
@@ -643,7 +679,7 @@ class CheckInServiceTest {
         HonjeongCheckInProperties props3 = new HonjeongCheckInProperties(3, 300_000L, 5, 7);
         CheckInService service3 =
                 new CheckInService(checkInRepository, placeService, userRepository, blockRepository,
-                        mealRequestRepository, notificationService, clock, props3, badgeService);
+                        mealRequestRepository, notificationService, clock, props3, badgeService, conversationService);
         when(checkInRepository.endActiveStartedBefore(any(), any())).thenReturn(2);
         when(checkInRepository.endTogetherMatchedBefore(any(), any())).thenReturn(1);
         when(checkInRepository.cancelSeekingStartedBefore(any(), any())).thenReturn(4);

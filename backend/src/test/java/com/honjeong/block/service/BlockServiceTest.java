@@ -17,6 +17,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import com.honjeong.block.domain.Block;
 import com.honjeong.block.repository.BlockRepository;
+import com.honjeong.chat.service.ConversationService;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
@@ -39,9 +40,11 @@ class BlockServiceTest {
     private final MealRequestRepository mealRequestRepository = mock(MealRequestRepository.class);
     private final CheckInRepository checkInRepository = mock(CheckInRepository.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-05T03:00:00Z"), ZoneId.of("Asia/Seoul"));
+    private final ConversationService conversationService = mock(ConversationService.class);
 
     private final BlockService service = new BlockService(blockRepository, userRepository,
-            mateRepository, mateRequestRepository, mealRequestRepository, checkInRepository, clock);
+            mateRepository, mateRequestRepository, mealRequestRepository, checkInRepository, clock,
+            conversationService);
 
     private User user(long id) {
         User u = mock(User.class);

@@ -30,6 +30,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import com.honjeong.badge.service.BadgeService;
 import com.honjeong.block.repository.BlockRepository;
+import com.honjeong.chat.service.ConversationService;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
@@ -61,9 +62,10 @@ class MealRequestServiceTest {
     private final NotificationService notificationService = mock(NotificationService.class);
     private final BlockRepository blockRepository = mock(BlockRepository.class);
     private final BadgeService badgeService = mock(BadgeService.class);
+    private final ConversationService conversationService = mock(ConversationService.class);
     private final MealRequestService service =
             new MealRequestService(mealRequestRepository, checkInRepository, userRepository,
-                    notificationService, blockRepository, clock, badgeService);
+                    notificationService, blockRepository, clock, badgeService, conversationService);
 
     private final LocalDateTime nowKst = LocalDateTime.of(2026, 6, 18, 12, 0);
 

@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.honjeong.badge.service.BadgeService;
 import com.honjeong.block.repository.BlockRepository;
+import com.honjeong.chat.service.ConversationService;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.dto.CheckInRequest;
@@ -63,11 +64,13 @@ public class CheckInService {
     private final Clock clock;
     private final HonjeongCheckInProperties props;
     private final BadgeService badgeService;
+    private final ConversationService conversationService;
 
     public CheckInService(CheckInRepository checkInRepository, PlaceService placeService,
             UserRepository userRepository, BlockRepository blockRepository,
             MealRequestRepository mealRequestRepository, NotificationService notificationService,
-            Clock clock, HonjeongCheckInProperties props, BadgeService badgeService) {
+            Clock clock, HonjeongCheckInProperties props, BadgeService badgeService,
+            ConversationService conversationService) {
         this.checkInRepository = checkInRepository;
         this.placeService = placeService;
         this.userRepository = userRepository;
@@ -77,6 +80,7 @@ public class CheckInService {
         this.clock = clock;
         this.props = props;
         this.badgeService = badgeService;
+        this.conversationService = conversationService;
     }
 
     /**
@@ -140,6 +144,7 @@ public class CheckInService {
             // 같은 매칭의 양쪽(나+파트너)을 함께 종료
             checkInRepository.findTogetherByMealRequestId(checkIn.getMealRequestId())
                     .forEach(c -> c.end(now));
+            conversationService.close(checkIn.getMealRequestId()); // 매칭 종료 → 대화 닫기
         } else {
             checkIn.end(now);
             badgeService.checkAndAward(userId, true); // 솔로 완료 → 혼밥 뱃지 지급 체크
@@ -401,7 +406,12 @@ public class CheckInService {
     public int expireStaleCheckIns() {
         LocalDateTime now = now();
         int endedActive = checkInRepository.endActiveStartedBefore(now.minusHours(props.ttlHours()), now);
-        int endedTogether = checkInRepository.endTogetherMatchedBefore(now.minusHours(props.togetherTtlHours()), now);
+        // TOGETHER TTL 만료는 벌크 UPDATE라 엔티티를 로딩하지 않는다 — 대화를 닫으려면 대상 mealRequestId를
+        // bulk end 전에 먼저 수집해둬야 한다(bulk end 후엔 matchedAt 조건으로 다시 찾을 수 없다).
+        LocalDateTime togetherThreshold = now.minusHours(props.togetherTtlHours());
+        List<Long> expiringMrIds = checkInRepository.findMealRequestIdsOfTogetherMatchedBefore(togetherThreshold);
+        int endedTogether = checkInRepository.endTogetherMatchedBefore(togetherThreshold, now);
+        expiringMrIds.forEach(conversationService::close);
         int cancelledSeeking = checkInRepository.cancelSeekingStartedBefore(now.minusHours(props.seekingTtlHours()), now);
         // 방금 SEEKING을 벗어난(만료된) 체크인에 걸려 있던 대기 신청까지 catch-all로 만료
         mealRequestRepository.expirePendingForEndedTargets(now);

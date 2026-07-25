@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.honjeong.badge.service.BadgeService;
 import com.honjeong.block.repository.BlockRepository;
+import com.honjeong.chat.service.ConversationService;
 import com.honjeong.checkin.domain.CheckIn;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
@@ -49,10 +50,12 @@ public class MealRequestService {
     private final BlockRepository blockRepository;
     private final Clock clock;
     private final BadgeService badgeService;
+    private final ConversationService conversationService;
 
     public MealRequestService(MealRequestRepository mealRequestRepository, CheckInRepository checkInRepository,
             UserRepository userRepository, NotificationService notificationService,
-            BlockRepository blockRepository, Clock clock, BadgeService badgeService) {
+            BlockRepository blockRepository, Clock clock, BadgeService badgeService,
+            ConversationService conversationService) {
         this.mealRequestRepository = mealRequestRepository;
         this.checkInRepository = checkInRepository;
         this.userRepository = userRepository;
@@ -60,6 +63,7 @@ public class MealRequestService {
         this.blockRepository = blockRepository;
         this.clock = clock;
         this.badgeService = badgeService;
+        this.conversationService = conversationService;
     }
 
     /**
@@ -154,6 +158,7 @@ public class MealRequestService {
         }
 
         mealRequestRepository.expireOtherPending(target.getId(), mr.getId(), now); // 다른 PENDING은 자리가 차서 만료
+        conversationService.open(mr.getId(), senderId, userId, target.getPlace().getId()); // 매칭 성사 → 대화 개설
         badgeService.checkAndAward(userId, true);    // 수신자 같이먹기 뱃지
         badgeService.checkAndAward(senderId, true);  // 발신자 같이먹기 뱃지
         notificationService.publish(senderId, NotificationType.MEAL_REQUEST_ACCEPTED, userId);

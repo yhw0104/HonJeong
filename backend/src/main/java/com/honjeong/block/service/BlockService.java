@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.honjeong.block.domain.Block;
 import com.honjeong.block.dto.BlockedUserResponse;
 import com.honjeong.block.repository.BlockRepository;
+import com.honjeong.chat.service.ConversationService;
 import com.honjeong.checkin.domain.CheckInStatus;
 import com.honjeong.checkin.repository.CheckInRepository;
 import com.honjeong.global.exception.BusinessException;
@@ -42,10 +43,12 @@ public class BlockService {
     private final MealRequestRepository mealRequestRepository;
     private final CheckInRepository checkInRepository;
     private final Clock clock;
+    private final ConversationService conversationService;
 
     public BlockService(BlockRepository blockRepository, UserRepository userRepository,
             MateRepository mateRepository, MateRequestRepository mateRequestRepository,
-            MealRequestRepository mealRequestRepository, CheckInRepository checkInRepository, Clock clock) {
+            MealRequestRepository mealRequestRepository, CheckInRepository checkInRepository, Clock clock,
+            ConversationService conversationService) {
         this.blockRepository = blockRepository;
         this.userRepository = userRepository;
         this.mateRepository = mateRepository;
@@ -53,6 +56,7 @@ public class BlockService {
         this.mealRequestRepository = mealRequestRepository;
         this.checkInRepository = checkInRepository;
         this.clock = clock;
+        this.conversationService = conversationService;
     }
 
     /**
@@ -100,6 +104,7 @@ public class BlockService {
                             .anyMatch(c -> c.getUser().getId().equals(targetUserId));
                     if (withBlocked) {
                         pair.forEach(c -> c.end(now));
+                        conversationService.close(mine.getMealRequestId()); // 차단 정리로 매칭 종료 → 대화 닫기
                     }
                 });
     }

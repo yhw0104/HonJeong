@@ -310,6 +310,24 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     int endTogetherMatchedBefore(@Param("threshold") LocalDateTime threshold, @Param("now") LocalDateTime now);
 
     /**
+     * 기능: matched_at이 기준 이전인 TOGETHER 체크인들의 meal_request_id를 조회(같이먹기 TTL 만료 시 대화 닫기용)
+     * 쿼리: SELECT DISTINCT meal_request_id FROM check_ins WHERE status = 'TOGETHER' AND matched_at < :threshold
+     *       AND meal_request_id IS NOT NULL
+     * Request: threshold — 만료 기준 시각 / Response: List&lt;Long&gt; — 만료 대상 매칭 id 목록(중복 제거)
+     *
+     * <p>[의도] {@link #endTogetherMatchedBefore}는 벌크 UPDATE라 엔티티를 로딩하지 않아 대화(Conversation)를
+     * 닫는 훅이 걸리지 않는다. 이 조회로 bulk end 직전에 대상 mealRequestId를 미리 확보해, bulk end 후
+     * {@code ConversationService.close}를 각각 호출할 수 있게 한다.
+     *
+     * @param threshold 이 시각 이전 매칭된 TOGETHER가 만료 대상
+     * @return 만료 대상 매칭(meal_request) id 목록(중복 제거)
+     */
+    @Query("SELECT DISTINCT c.mealRequestId FROM CheckIn c "
+            + "WHERE c.status = com.honjeong.checkin.domain.CheckInStatus.TOGETHER "
+            + "AND c.matchedAt < :threshold AND c.mealRequestId IS NOT NULL")
+    List<Long> findMealRequestIdsOfTogetherMatchedBefore(@Param("threshold") LocalDateTime threshold);
+
+    /**
      * 기능: started_at이 기준 이전인 ACTIVE 체크인을 일괄 ENDED 처리(TTL 자동 만료)
      * 쿼리: UPDATE check_ins SET status = 'ENDED', ended_at = :now WHERE status = 'ACTIVE' AND started_at < :threshold
      * Request: threshold — 만료 기준 시각, now — 종료 시각으로 기록할 현재 시각 / Response: int — 만료된 건수
