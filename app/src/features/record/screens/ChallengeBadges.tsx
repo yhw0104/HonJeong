@@ -25,7 +25,8 @@ export function ChallengeBadgesScreen({ navigation }: RootStackScreenProps<'Chal
       <MoreHeader title="혼밥 챌린지 · 뱃지" onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* 진행 중 챌린지 */}
+        {/* 진행 중 챌린지 카드 — '이번 주 챌린지'는 아직 목업(주간 챌린지 실기능 미구현).
+            추후 진행 예정이라 임시 숨김. 복원 시 아래 블록의 주석만 해제(challenge/progress* 스타일 보존됨).
         <View style={styles.challenge}>
           <Text style={styles.challengeEyebrow}>이번 주 챌린지</Text>
           <Text style={styles.challengeTitle}>새로운 동네에서 혼밥하기</Text>
@@ -41,6 +42,7 @@ export function ChallengeBadgesScreen({ navigation }: RootStackScreenProps<'Chal
             </View>
           </View>
         </View>
+        */}
 
         {/* 뱃지 요약 */}
         <View style={styles.badgeHead}>
