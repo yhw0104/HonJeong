@@ -250,8 +250,8 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
               accessibilityLabel="전송"
             >
               <Svg width={18} height={18} viewBox="0 0 24 24">
-                {/* 오른쪽을 향하는 종이비행기(Material 'send') */}
-                <Path d="M2 21L23 12L2 3L2 10L17 12L2 14L2 21Z" fill="#fff" />
+                {/* 오른쪽을 향하는 종이비행기 — 상하좌우 여백을 맞춰 viewBox 정중앙 배치 */}
+                <Path d="M4 5L20 12L4 19L4 13.5L14 12L4 10.5L4 5Z" fill="#fff" />
               </Svg>
             </Pressable>
           </View>
