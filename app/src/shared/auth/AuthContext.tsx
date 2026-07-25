@@ -12,7 +12,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { ActivityIndicator, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { apiPost } from '@/shared/api/client';
+import { apiPost, setOnSessionExpired } from '@/shared/api/client';
 import { clearTokens, getRefreshToken, loadTokens, setTokens, type Tokens } from '@/shared/auth/session';
 
 type AuthStatus = 'loading' | 'authed' | 'guest';
@@ -55,6 +55,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       alive = false;
     };
   }, []);
+
+  // 요청 중 refresh까지 실패(세션 만료) 시 조용히 로그아웃. client가 React 밖이라 콜백으로 연결.
+  useEffect(() => {
+    setOnSessionExpired(() => {
+      void clearTokens();
+      queryClient.clear();
+      setStatus('guest');
+    });
+    return () => setOnSessionExpired(null);
+  }, [queryClient]);
 
   const signIn = useCallback(async (tokens: Tokens) => {
     await setTokens(tokens);
