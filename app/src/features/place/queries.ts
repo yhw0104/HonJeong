@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Coord } from '@/shared/location/pickLocation';
+import { MIN_SEARCH_LEN } from '@/shared/search';
 import { LIVE_REFETCH_MS } from '@/shared/realtime';
 import {
   searchPlaces,
@@ -9,13 +10,13 @@ import {
   fetchPlaceMates,
 } from './api';
 
-/** 식당 이름 검색. 빈 검색어면 호출하지 않는다. */
+/** 식당 이름 검색. 2글자 미만이면 호출하지 않는다(잡음·부하 감소). */
 export function usePlaceSearch(query: string) {
   const q = query.trim();
   return useQuery({
     queryKey: ['places', 'search', q],
     queryFn: () => searchPlaces(q),
-    enabled: q.length > 0,
+    enabled: q.length >= MIN_SEARCH_LEN,
   });
 }
 

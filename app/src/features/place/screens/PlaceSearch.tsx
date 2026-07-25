@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, StateView } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { usePlaceSearch, useNearby } from '@/features/place/queries';
+import { useDebouncedValue } from '@/shared/useDebouncedValue';
+import { MIN_SEARCH_LEN } from '@/shared/search';
 import { useRecentSearches } from '@/features/place/recentSearches';
 import { nearbyDiningPlaces } from '@/features/place/nearbyDining';
 import { useLocation } from '@/shared/location/useLocation';
@@ -16,7 +18,8 @@ import type { RootStackScreenProps } from '@/navigation/types';
 export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSearch'>) {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
-  const { data, isFetching, isError, refetch } = usePlaceSearch(query);
+  const dq = useDebouncedValue(query, 300); // API 호출은 디바운스된 값으로(입력 표시는 query 그대로)
+  const { data, isFetching, isError, refetch } = usePlaceSearch(dq);
   const { recent, add, remove, clear } = useRecentSearches();
   const { coord, source } = useLocation();
   // 주변 혼밥은 실제 GPS가 있을 때만(내 동네·기본좌표면 '주변'이 아니라 숨김). 폴링 없음.
@@ -27,6 +30,7 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
       ? nearbyDiningPlaces(nearbyQuery.data?.content ?? [], 5, myCheckIn.data?.placeId ?? null)
       : [];
   const q = query.trim();
+  const settling = dq.trim() !== q; // 디바운스 정착 전(입력이 아직 API에 반영 안 됨) → 로딩 취급
   const results = data?.content ?? [];
 
   return (
@@ -57,8 +61,8 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
         </View>
       </View>
 
-      {/* 본문 */}
-      {q.length === 0 ? (
+      {/* 본문 — 2글자 미만이면 검색 안 하고 기본 뷰(최근·주변) 유지 */}
+      {q.length < MIN_SEARCH_LEN ? (
         recent.length === 0 && nearby.length === 0 ? (
           <View style={styles.center}>
             <View style={styles.hintIcon}>
@@ -131,7 +135,7 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
-            isFetching ? (
+            isFetching || settling ? (
               <StateView kind="loading" compact />
             ) : (
               <StateView kind="empty" compact message={`‘${q}’ 검색 결과가 없어요.`} />

@@ -5,6 +5,8 @@ import { View, Text, Pressable, ScrollView, TextInput, ActivityIndicator, Alert,
 import { Screen, MoreHeader, EmojiCircle, Icon } from '@/shared/components';
 import { T2, C } from '@/shared/theme';
 import { useFocusEffect } from '@react-navigation/native';
+import { useDebouncedValue } from '@/shared/useDebouncedValue';
+import { MIN_SEARCH_LEN } from '@/shared/search';
 import type { RootStackScreenProps } from '@/navigation/types';
 import {
   useMates,
@@ -33,7 +35,8 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
   const [query, setQuery] = useState('');
 
   const mates = useMates();
-  const search = useSearchUsers(query);
+  const dq = useDebouncedValue(query, 300); // 검색 API는 디바운스된 값으로
+  const search = useSearchUsers(dq);
   const received = useReceivedMateRequests('PENDING');
   const sent = useSentMateRequests();
   const send = useSendMateRequest();
@@ -42,7 +45,8 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
 
   useFocusEffect(useCallback(() => { received.refetch(); sent.refetch(); }, [received.refetch, sent.refetch]));
 
-  const searching = query.trim().length > 0;
+  const searching = query.trim().length >= MIN_SEARCH_LEN; // 2글자 미만은 검색 안 함(메이트 목록 유지)
+  const settling = dq.trim() !== query.trim(); // 디바운스 정착 전 → 로딩 취급
 
   return (
     <Screen bg={T2.bg} edges={['top']}>
@@ -67,7 +71,7 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
           /* 검색 결과 */
           <>
             <Text style={styles.label}>검색 결과</Text>
-            {search.isLoading ? (
+            {search.isLoading || settling ? (
               <ActivityIndicator color={T2.brand} style={{ marginTop: 24 }} />
             ) : search.isError ? (
               <Text style={styles.emptyText}>검색 중 오류가 발생했어요</Text>

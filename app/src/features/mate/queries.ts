@@ -3,6 +3,7 @@ import {
   fetchMyMates, deleteMate, searchUsers, fetchPublicProfile,
   listMateRequests, sendMateRequest, acceptMateRequest, declineMateRequest, cancelMateRequest,
 } from './api';
+import { MIN_SEARCH_LEN } from '@/shared/search';
 
 export function useMates() {
   return useQuery({ queryKey: ['mate', 'list'], queryFn: fetchMyMates });
@@ -26,7 +27,7 @@ export function useSearchUsers(nickname: string) {
   return useQuery({
     queryKey: ['mate', 'search', nickname],
     queryFn: () => searchUsers(nickname),
-    enabled: nickname.trim().length > 0,
+    enabled: nickname.trim().length >= MIN_SEARCH_LEN,
   });
 }
 
