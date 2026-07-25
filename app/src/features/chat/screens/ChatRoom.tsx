@@ -11,6 +11,7 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { Screen, StateView, MoreHeader } from '@/shared/components';
 import { T2 } from '@/shared/theme';
@@ -29,6 +30,7 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
   const sendMut = useSendMessage(id);
   const markRead = useMarkRead(id);
   const [text, setText] = useState('');
+  const [uploading, setUploading] = useState(false);
 
   // 진입/새 메시지 수신 시 읽음 처리. markRead.mutate 참조는 매 렌더 안정적이지 않을 수 있어
   // 의존성엔 넣지 않고 id·메시지 개수 변화에만 반응(무한루프 방지).
@@ -45,11 +47,18 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
   };
 
   const onAttach = async () => {
-    if (sendMut.isPending) return;
+    if (sendMut.isPending || uploading) return;
     const picked = await pickImages(1);
     if (!picked.length) return;
-    const urls = await uploadImages(picked.map((p) => p.uri));
-    if (urls[0]) sendMut.mutate({ type: 'IMAGE', imageUrl: urls[0] });
+    setUploading(true);
+    try {
+      const urls = await uploadImages(picked.map((p) => p.uri));
+      if (urls[0]) sendMut.mutate({ type: 'IMAGE', imageUrl: urls[0] });
+    } catch {
+      Alert.alert('업로드 실패', '사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   // partnerUserId는 대화 상대 id — 메시지 발신자가 상대가 아니면 내가 보낸 것(현재 앱엔
@@ -98,8 +107,8 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
           <View style={styles.inputBar}>
             <Pressable
               onPress={onAttach}
-              style={styles.attach}
-              disabled={sendMut.isPending}
+              style={[styles.attach, uploading && styles.attachDisabled]}
+              disabled={sendMut.isPending || uploading}
               hitSlop={6}
               accessibilityRole="button"
             >
@@ -158,6 +167,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  attachDisabled: { opacity: 0.4 },
   attachText: { fontSize: 20, color: T2.textSub },
   input: {
     flex: 1,
