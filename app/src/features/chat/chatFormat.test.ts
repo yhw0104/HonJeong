@@ -1,4 +1,12 @@
-import { totalUnread, messagePreview, isClosed, formatTime, readByPartner, truncate } from './chatFormat';
+import {
+  totalUnread,
+  messagePreview,
+  isClosed,
+  formatTime,
+  readByPartner,
+  truncate,
+  formatListTime,
+} from './chatFormat';
 
 describe('chatFormat', () => {
   it('totalUnread는 대화들의 안읽음 합', () => {
@@ -25,8 +33,15 @@ describe('chatFormat', () => {
     expect(readByPartner('2026-07-25T14:30:00', null)).toBe(false);
   });
   it('truncate는 max 초과 시 …로 자른다', () => {
-    expect(truncate('청년다방 수지상현점', 8)).toBe('청년다방 수지상…'); // 9자 → 8자 + …
+    expect(truncate('청년다방 수지상현점', 8)).toBe('청년다방 수지상…'); // 10자 → 8자 + …
     expect(truncate('큰순두부', 8)).toBe('큰순두부'); // 짧으면 그대로
     expect(truncate('12345678', 8)).toBe('12345678'); // 정확히 max면 그대로
+  });
+  it('formatListTime: 오늘이면 시간, 지나면 날짜', () => {
+    const now = new Date(2026, 6, 25, 15, 0); // 로컬 2026-07-25 15:00
+    expect(formatListTime('2026-07-25T09:30:00', now)).toBe('09:30'); // 오늘 → 시간
+    expect(formatListTime('2026-07-20T09:30:00', now)).toBe('7월 20일'); // 올해 다른 날 → 날짜
+    expect(formatListTime('2025-12-31T09:30:00', now)).toBe('2025. 12. 31'); // 다른 해 → 연도 포함
+    expect(formatListTime(null, now)).toBe('');
   });
 });

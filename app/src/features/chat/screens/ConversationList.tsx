@@ -7,12 +7,13 @@ import { Screen, Avatar, StateView } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackParamList } from '@/navigation/types';
 import { useConversations } from '../queries';
-import { messagePreview } from '../chatFormat';
+import { messagePreview, formatListTime } from '../chatFormat';
 import type { ConversationSummary } from '../types';
 
 export function ConversationListScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { data, isLoading, isError, refetch } = useConversations();
+  const now = new Date(); // 목록 시각 표시 기준(폴링마다 갱신)
 
   if (isLoading) {
     return (
@@ -60,9 +61,14 @@ export function ConversationListScreen() {
           {item.lastMessagePreview ? messagePreview({ type: 'TEXT', text: item.lastMessagePreview }) : ''}
         </Text>
       </View>
-      {item.unreadCount > 0 && (
-        <View style={styles.badge}><Text style={styles.badgeText}>{item.unreadCount}</Text></View>
-      )}
+      <View style={styles.meta}>
+        {!!item.lastMessageAt && (
+          <Text style={styles.time}>{formatListTime(item.lastMessageAt, now)}</Text>
+        )}
+        {item.unreadCount > 0 && (
+          <View style={styles.badge}><Text style={styles.badgeText}>{item.unreadCount}</Text></View>
+        )}
+      </View>
     </Pressable>
   );
 
@@ -92,6 +98,8 @@ const styles = StyleSheet.create({
   closedChipText: { fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: -0.2 },
   preview: { fontSize: 14, color: T2.textSub },
   divider: { height: 1, backgroundColor: T2.borderStrong },
+  meta: { alignItems: 'flex-end', gap: 5, minWidth: 40 },
+  time: { fontSize: 11, color: T2.textMute },
   badge: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: T2.brand, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
 });

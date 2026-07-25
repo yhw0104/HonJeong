@@ -15,6 +15,7 @@ import {
   Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import { Screen, StateView, Avatar } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
@@ -243,11 +244,20 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
             />
             <Pressable
               onPress={onSendText}
-              style={styles.send}
+              style={[styles.send, (!text.trim() || sendMut.isPending) && styles.sendDisabled]}
               disabled={!text.trim() || sendMut.isPending}
               accessibilityRole="button"
+              accessibilityLabel="전송"
             >
-              <Text style={styles.sendText}>전송</Text>
+              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                <Path
+                  d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z"
+                  stroke="#fff"
+                  strokeWidth={1.9}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </Svg>
             </Pressable>
           </View>
         )}
@@ -338,14 +348,14 @@ const styles = StyleSheet.create({
     color: T2.text,
   },
   send: {
-    paddingHorizontal: 14,
+    width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: T2.brandSoft,
+    backgroundColor: T2.brand,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendText: { color: T2.brand, fontWeight: '800', fontSize: 13 },
+  sendDisabled: { backgroundColor: T2.borderStrong },
   closedBar: {
     padding: 14,
     borderTopWidth: 1,
