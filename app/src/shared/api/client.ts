@@ -51,8 +51,14 @@ export function setOnSessionExpired(cb: (() => void) | null): void {
   onSessionExpired = cb;
 }
 
-/** refresh 토큰으로 새 토큰 쌍 발급. single-flight — 동시 호출은 하나의 refresh를 공유(회전 토큰 stale 방지). */
-function refreshSession(): Promise<void> {
+/** 등록된 세션 만료 콜백을 호출한다(request() 밖의 경로 — 예: 파일 업로드 — 에서 만료 처리에 사용). */
+export function notifySessionExpired(): void {
+  onSessionExpired?.();
+}
+
+/** refresh 토큰으로 새 토큰 쌍 발급. single-flight — 동시 호출은 하나의 refresh를 공유(회전 토큰 stale 방지).
+ *  request() 401 재시도와 request() 밖 경로(파일 업로드)가 공유한다. */
+export function refreshSession(): Promise<void> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
       const rt = getRefreshToken();

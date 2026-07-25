@@ -2,6 +2,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { API_BASE_URL } from '@/shared/config/api';
 import { getAccessToken } from '@/shared/auth/session';
+import { refreshSession, notifySessionExpired } from '@/shared/api/client';
 
 /** 남은 선택 가능 장수(0 미만이면 0). */
 export function remainingSlots(current: number, max: number): number {
@@ -41,30 +42,52 @@ export async function pickImages(remaining: number): Promise<PickedAsset[]> {
  * fieldName='file'은 백엔드 @RequestParam("file")와 일치한다.
  */
 export async function uploadImages(uris: string[], token?: string): Promise<string[]> {
-  // 기본은 세션 access 토큰. 온보딩(ProfileSetup)처럼 아직 로그인 전이면 온보딩 토큰을 넘긴다.
-  const authToken = token ?? getAccessToken();
   const urls: string[] = [];
   for (const uri of uris) {
-    const res = await FileSystem.uploadAsync(`${API_BASE_URL}/api/files`, uri, {
-      httpMethod: 'POST',
-      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-      fieldName: 'file',
-      mimeType: 'image/jpeg',
-      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
-    }).catch(() => {
-      throw new Error('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
-    });
-    if (res.status < 200 || res.status >= 300) {
-      throw new Error('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
-    }
-    let envelope: { success: boolean; data?: { url?: string } };
-    try {
-      envelope = JSON.parse(res.body);
-    } catch {
-      throw new Error('사진 업로드 응답을 해석하지 못했어요.');
-    }
-    if (!envelope?.success) throw new Error('사진 업로드에 실패했어요.');
-    urls.push(extractUploadedUrl(envelope));
+    urls.push(await uploadOne(uri, token));
   }
   return urls;
+}
+
+/**
+ * 한 장 업로드. 세션 토큰 요청(token 미지정)이 401이면 refresh 후 1회 재시도하고,
+ * refresh까지 실패하면 세션 만료 처리(조용한 로그아웃) 후 에러를 던진다 —
+ * client.ts request()의 401 정책을 request() 밖 경로에도 동일 적용.
+ * 온보딩 토큰(token 명시)은 refresh 대상이 아니다(아직 로그인 전).
+ */
+async function uploadOne(uri: string, token: string | undefined, retried = false): Promise<string> {
+  const usingSession = token === undefined; // 세션 access 사용 여부
+  const authToken = token ?? getAccessToken();
+  const res = await FileSystem.uploadAsync(`${API_BASE_URL}/api/files`, uri, {
+    httpMethod: 'POST',
+    uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+    fieldName: 'file',
+    mimeType: 'image/jpeg',
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+  }).catch(() => {
+    throw new Error('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
+  });
+
+  // 세션 토큰 업로드가 401이면 refresh 후 1회 재시도. refresh 실패면 세션 만료(조용한 로그아웃).
+  if (res.status === 401 && usingSession && !retried) {
+    try {
+      await refreshSession();
+    } catch {
+      notifySessionExpired();
+      throw new Error('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
+    }
+    return uploadOne(uri, token, true);
+  }
+
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
+  }
+  let envelope: { success: boolean; data?: { url?: string } };
+  try {
+    envelope = JSON.parse(res.body);
+  } catch {
+    throw new Error('사진 업로드 응답을 해석하지 못했어요.');
+  }
+  if (!envelope?.success) throw new Error('사진 업로드에 실패했어요.');
+  return extractUploadedUrl(envelope);
 }
