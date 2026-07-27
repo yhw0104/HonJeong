@@ -11,7 +11,12 @@ export function initKakao(): void {
     console.warn('[kakao] 네이티브 앱 키가 없어 카카오 로그인을 초기화하지 못했습니다.');
     return;
   }
-  initializeKakaoSDK(KAKAO_NATIVE_APP_KEY);
+  // initializeKakaoSDK는 Promise<void>를 반환한다. 네이티브 모듈이 아직 링크되지 않은 상태(예: dev build 재생성 전)에서는
+  // 이 프로미스가 reject되는데, await 없이 그대로 두면 매 앱 부팅마다 unhandled rejection이 발생한다.
+  // 브리프 의도대로 "실패해도 앱을 죽이지 않고 경고만" 남기도록 catch로 흡수한다.
+  initializeKakaoSDK(KAKAO_NATIVE_APP_KEY).catch((e: unknown) => {
+    console.warn('[kakao] 카카오 SDK 초기화에 실패했습니다.', e);
+  });
 }
 
 /**
@@ -34,8 +39,19 @@ export async function loginWithKakao(): Promise<string | null> {
   }
 }
 
-/** 사용자가 카카오 화면에서 취소한 경우를 판별한다(플랫폼마다 메시지가 달라 넓게 본다). */
+/**
+ * 사용자가 카카오 화면에서 취소한 경우를 판별한다.
+ * RN 브릿지가 reject(code, message, ...) 형태로 던지기 때문에, 던져진 Error에는 카카오 SDK가 실어준
+ * 구조화된 원인이 `code`에 담겨 있다(안드로이드: RNCKakaoUtil.kt에서 `e.reason.name` → 취소 시 "Cancelled",
+ * iOS: RNCkakaoUtil.swift에서 `"\(reason)"` 보간 → 취소 시 소문자 "cancelled"일 수 있음).
+ * 플랫폼마다 대소문자가 다르므로 대소문자 무시로 비교하고, code가 없는 예외적인 경우에만
+ * 기존의 메시지 문자열 매칭을 폴백으로 사용한다.
+ */
 function isUserCancelled(e: unknown): boolean {
+  const code = e && typeof e === 'object' && 'code' in e ? (e as { code?: unknown }).code : undefined;
+  if (typeof code === 'string' && code.length > 0) {
+    return code.toLowerCase() === 'cancelled' || code.toLowerCase() === 'canceled';
+  }
   const message = e instanceof Error ? e.message : String(e);
   return /cancel/i.test(message);
 }
