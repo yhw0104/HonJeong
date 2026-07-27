@@ -42,14 +42,13 @@ function createLoginNonce(): string {
  */
 export async function loginWithKakao(): Promise<string | null> {
   try {
-    // scopes: ['openid'] — 카카오는 로그인 요청에 openid 스코프가 실려 있어야만 ID 토큰(OIDC)을 발급한다.
-    // nonce만으로는 부족하다(nonce는 OIDC 흐름의 재전송 방지용 값일 뿐, 스코프 동의 요청 자체가 아니다).
-    // useKakaoAccountLogin: true — scopes를 비우지 않고 넘기면 JS 래퍼(@react-native-kakao/user index.ts)의
-    // kAssert가 "useKakaoAccountLogin이 false인데 scopes가 있다"며 네이티브 호출 전에 예외를 던진다.
-    // 네이티브(iOS RNCKakaoUserManager.swift / Android RNCKakaoUserModule.kt) 쪽은 scopes가 비어있지 않으면
-    // 이 플래그와 무관하게 loginWithKakaoAccount(scopes: ...)로만 분기하므로, 이 플래그를 true로 둬도
-    // 실제 로그인 방식(카카오톡 앱 전환 등)은 바뀌지 않는다 — 순전히 JS 쪽 검증을 통과시키기 위한 값이다.
-    const token = await login({ nonce: createLoginNonce(), scopes: ['openid'], useKakaoAccountLogin: true });
+    // 주의: scopes 옵션은 넘기지 않는다. scopes가 비어있지 않으면 네이티브 구현
+    // (iOS: RNCKakaoUserManager.swift, Android: RNCKakaoUserModule.kt)이
+    // UserApi.shared.loginWithKakaoAccount(scopes:nonce:)로 분기하는데, 이 API는
+    // "추가 항목 동의 받기"(incremental authorization) 전용이라 이미 발급된 액세스
+    // 토큰을 전제로 한다. 최초 로그인에는 쓸 수 없다 — 실기 확인 결과 로그인 화면 자체가
+    // 뜨지 않고 즉시 `Error: required parameter access_token not presented.`로 실패했다.
+    const token = await login({ nonce: createLoginNonce() });
     if (!token.idToken) {
       // 콘솔에서 OpenID Connect를 켜지 않으면 여기로 온다 — 원인을 그대로 드러낸다.
       // 자격증명(accessToken 등)은 절대 찍지 않고, 어떤 필드가 왔는지(키 이름)만 남겨 원인 판별을 돕는다.
