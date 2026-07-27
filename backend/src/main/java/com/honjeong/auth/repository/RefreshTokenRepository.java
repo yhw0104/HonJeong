@@ -3,6 +3,9 @@ package com.honjeong.auth.repository;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.honjeong.auth.domain.RefreshToken;
 
@@ -23,4 +26,13 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * 클라이언트가 보낸 refresh 토큰을 해시해 이 메서드로 찾은 뒤 사용 가능/회수 여부를 검증한다.
      */
     Optional<RefreshToken> findByTokenHash(String tokenHash);
+
+    /**
+     * 기능: 사용자의 리프레시 토큰을 전부 삭제(탈퇴 시 세션 즉시 무효화용)
+     * 쿼리: DELETE FROM refresh_tokens WHERE user_id = :userId
+     * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
+     */
+    @Modifying
+    @Query("DELETE FROM RefreshToken rt WHERE rt.userId = :userId")
+    int deleteAllByUserId(@Param("userId") Long userId);
 }

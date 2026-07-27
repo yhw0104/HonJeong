@@ -89,4 +89,13 @@ public interface MateRequestRepository extends JpaRepository<MateRequest, Long> 
             """)
     int resolvePendingBetween(@Param("fromId") Long fromId, @Param("toId") Long toId,
             @Param("status") MateRequestStatus status, @Param("now") LocalDateTime now);
+
+    /**
+     * 기능: 사용자가 관련된(발신·수신 무관) 메이트 신청을 전부 삭제(탈퇴 시 관계 정리용)
+     * 쿼리: DELETE FROM mate_requests WHERE from_user_id = :userId OR to_user_id = :userId
+     * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
+     */
+    @Modifying
+    @Query("DELETE FROM MateRequest mr WHERE mr.fromUser.id = :userId OR mr.toUser.id = :userId")
+    int deleteAllInvolvingUser(@Param("userId") Long userId);
 }

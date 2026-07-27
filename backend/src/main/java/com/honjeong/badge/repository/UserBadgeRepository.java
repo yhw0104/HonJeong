@@ -29,4 +29,13 @@ public interface UserBadgeRepository extends JpaRepository<UserBadge, Long> {
             nativeQuery = true)
     int insertIfAbsent(@Param("userId") Long userId, @Param("badgeKey") String badgeKey,
             @Param("earnedAt") LocalDateTime earnedAt);
+
+    /**
+     * 기능: 사용자가 보유한 뱃지를 전부 삭제(탈퇴 시 개인정보 정리용)
+     * 쿼리: DELETE FROM user_badges WHERE user_id = :userId
+     * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
+     */
+    @Modifying
+    @Query("DELETE FROM UserBadge ub WHERE ub.userId = :userId")
+    int deleteAllByUserId(@Param("userId") Long userId);
 }

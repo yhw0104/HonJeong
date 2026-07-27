@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -27,6 +28,7 @@ import com.honjeong.user.domain.UserStatus;
 import com.honjeong.user.dto.ActivitySummaryResponse;
 import com.honjeong.user.dto.NicknameCheckResponse;
 import com.honjeong.user.dto.UserProfileResponse;
+import com.honjeong.user.service.AccountWithdrawalService;
 import com.honjeong.user.service.UserActivityService;
 import com.honjeong.user.service.UserService;
 
@@ -64,6 +66,9 @@ class UserControllerTest extends ActiveUserSliceSupport {
 
     @MockitoBean
     private MateProfileService mateProfileService;
+
+    @MockitoBean
+    private AccountWithdrawalService accountWithdrawalService;
 
     private UserProfileResponse sampleProfile() {
         return new UserProfileResponse(1L, "01012345678", null, "혼밥러", null,
@@ -245,6 +250,35 @@ class UserControllerTest extends ActiveUserSliceSupport {
     @DisplayName("GET /me/activity-summary: 토큰 없으면 401")
     void getActivitySummary_noToken_401() throws Exception {
         mockMvc.perform(get("/api/users/me/activity-summary"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * given: userId 1L의 정식 access 토큰.
+     * when: {@code DELETE /api/users/me} 호출.
+     * then: 200으로 응답하고, 컨트롤러가 {@code accountWithdrawalService.withdraw(1L)}에 위임함을 확인한다
+     *       — {@code @CurrentUserId}로 주입된 userId=1L 전달을 검증한다.
+     */
+    @Test
+    @DisplayName("DELETE /me: access 토큰이면 200이고 탈퇴 서비스에 위임한다")
+    void withdraw_ok() throws Exception {
+        String token = jwtProvider.createAccessToken(1L);
+
+        mockMvc.perform(delete("/api/users/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        verify(accountWithdrawalService).withdraw(1L);
+    }
+
+    /**
+     * given: Authorization 헤더(토큰) 없는 요청.
+     * when: {@code DELETE /api/users/me} 호출.
+     * then: 401(Unauthorized)로 응답한다 — 컨트롤러·서비스 본문에 도달하지 않는다.
+     */
+    @Test
+    @DisplayName("DELETE /me: 토큰 없으면 401")
+    void withdraw_noToken_401() throws Exception {
+        mockMvc.perform(delete("/api/users/me"))
                 .andExpect(status().isUnauthorized());
     }
 }

@@ -3,6 +3,7 @@ package com.honjeong.mate.repository;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.honjeong.mate.domain.Mate;
@@ -45,4 +46,13 @@ public interface MateRepository extends JpaRepository<Mate, Long> {
      * Request: userId — 주체 사용자 ID, mateUserId — 상대 사용자 ID / Response: Optional<Mate> — 관계(없으면 empty)
      */
     Optional<Mate> findByUser_IdAndMateUser_Id(Long userId, Long mateUserId);
+
+    /**
+     * 기능: 사용자가 관련된(양방향) 메이트 관계를 전부 삭제(탈퇴 시 관계 정리용)
+     * 쿼리: DELETE FROM mates WHERE user_id = :userId OR mate_user_id = :userId
+     * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
+     */
+    @Modifying
+    @Query("DELETE FROM Mate m WHERE m.user.id = :userId OR m.mateUser.id = :userId")
+    int deleteAllInvolvingUser(@Param("userId") Long userId);
 }

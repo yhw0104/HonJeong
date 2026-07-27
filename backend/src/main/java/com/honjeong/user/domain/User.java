@@ -136,6 +136,32 @@ public class User extends BaseTimeEntity {
     }
 
     /**
+     * 탈퇴 처리 — 개인정보 필드를 전부 비우고 상태를 WITHDRAWN으로 바꾼다(익명화).
+     *
+     * <p>행 자체는 남긴다. 리뷰·체크인·대화가 이 행을 참조하고 있어 삭제하면 식당 리뷰와 통계,
+     * 상대방의 대화가 함께 사라지기 때문이다. 닉네임이 null이 되므로 표시 계층은
+     * {@code DisplayNames.nicknameOrUnknown}으로 '알 수 없음'을 보여준다.
+     *
+     * <p>phone·nickname이 null이 되면서 재가입 경로가 자연히 열린다 — Postgres는 NULL을 UNIQUE
+     * 중복으로 치지 않으므로 탈퇴자가 여럿이어도 공존하고, 같은 번호로 다시 가입하면 새 행이 만들어진다.
+     */
+    public void withdraw() {
+        this.phone = null;
+        this.email = null;
+        this.nickname = null;
+        this.profileImageUrl = null;
+        this.gender = null;
+        this.birthDate = null;
+        this.introduction = null;
+        this.region = null;
+        this.regionLat = null;
+        this.regionLng = null;
+        this.diningStyle = null;
+        this.allowMealRequest = false;
+        this.status = UserStatus.WITHDRAWN;
+    }
+
+    /**
      * 프로필을 부분 수정한다(PATCH). 전달된 값 중 <b>null이 아닌 필드만</b> 반영하고, null인 필드는 기존 값을
      * 보존한다. 빈 문자열("")은 "해당 필드를 비움"으로 취급해 그대로 반영한다. 닉네임 중복 검사는 호출 측
      * (서비스)에서 미리 수행한다. {@code gender}·{@code birthDate}는 수정 대상이 아니다(온보딩 시 고정).

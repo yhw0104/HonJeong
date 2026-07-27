@@ -3,6 +3,7 @@ package com.honjeong.favorite.repository;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -44,4 +45,13 @@ public interface FavoriteGroupRepository extends JpaRepository<FavoriteGroup, Lo
             GROUP BY g.id, g.name, g.note, g.color, g.isDefault, g.createdAt
             ORDER BY g.createdAt ASC""")
     List<FavoriteGroupSummaryResponse> findSummaries(@Param("userId") Long userId);
+
+    /**
+     * 기능: 사용자의 즐겨찾기 그룹을 전부 삭제(탈퇴 시 개인정보 정리용) — favorites는 DB FK ON DELETE CASCADE로 함께 삭제된다
+     * 쿼리: DELETE FROM favorite_groups WHERE user_id = :userId
+     * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
+     */
+    @Modifying
+    @Query("DELETE FROM FavoriteGroup fg WHERE fg.user.id = :userId")
+    int deleteAllByUserId(@Param("userId") Long userId);
 }

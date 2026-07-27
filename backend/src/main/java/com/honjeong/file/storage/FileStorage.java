@@ -25,4 +25,14 @@ public interface FileStorage {
      * @return 저장된 파일의 접근 URL
      */
     String store(MultipartFile file);
+
+    /**
+     * 기능: 저장된 파일을 URL로 삭제한다
+     * Request: url — {@link #store} 가 반환했던 접근 URL(null·빈 값 허용)
+     * Response: 없음(void)
+     *
+     * <p><b>멱등하게 동작해야 한다</b> — 파일이 이미 없거나 우리가 저장한 URL이 아니면 조용히 무시한다.
+     * 탈퇴처럼 여러 정리를 한 트랜잭션에서 수행하는 흐름이 파일 하나 때문에 실패하면 안 되기 때문이다.
+     */
+    void delete(String url);
 }

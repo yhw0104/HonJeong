@@ -2,6 +2,9 @@ package com.honjeong.notification.repository;
 
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.honjeong.notification.domain.NotificationSettings;
 
@@ -9,4 +12,13 @@ import com.honjeong.notification.domain.NotificationSettings;
 public interface NotificationSettingsRepository extends JpaRepository<NotificationSettings, Long> {
 
     Optional<NotificationSettings> findByUserId(Long userId);
+
+    /**
+     * 기능: 사용자의 알림 설정 행을 삭제(탈퇴 시 개인정보 정리용)
+     * 쿼리: DELETE FROM notification_settings WHERE user_id = :userId
+     * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
+     */
+    @Modifying
+    @Query("DELETE FROM NotificationSettings ns WHERE ns.userId = :userId")
+    int deleteAllByUserId(@Param("userId") Long userId);
 }

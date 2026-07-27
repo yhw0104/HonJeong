@@ -47,4 +47,13 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Notification n SET n.isRead = true WHERE n.user.id = :userId AND n.isRead = false")
     int markAllRead(@Param("userId") Long userId);
+
+    /**
+     * 기능: 내가 받은 알림을 전부 삭제(탈퇴 시 개인정보 정리용)
+     * 쿼리: DELETE FROM notifications WHERE user_id = :userId
+     * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
+     */
+    @Modifying
+    @Query("DELETE FROM Notification n WHERE n.user.id = :userId")
+    int deleteAllByUserId(@Param("userId") Long userId);
 }

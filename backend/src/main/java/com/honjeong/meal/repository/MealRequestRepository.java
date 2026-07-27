@@ -179,4 +179,21 @@ public interface MealRequestRepository extends JpaRepository<MealRequest, Long> 
                     WHERE c.status <> com.honjeong.checkin.domain.CheckInStatus.SEEKING)
             """)
     int expirePendingForEndedTargets(@Param("now") LocalDateTime now);
+
+    /**
+     * 기능: 한 사용자가 관련된 모든 PENDING 같이먹기 신청을 EXPIRED로 종결한다(탈퇴 정리용)
+     * Request: userId — 탈퇴하는 사용자 ID, now — 응답 시각 / Response: int — 갱신된 행 수
+     *
+     * <p>수신자는 to_check_in → check_ins.user_id 로만 식별되므로 서브쿼리로 찾는다.
+     * 상대가 직접 거절한 게 아니므로 DECLINED가 아니라 EXPIRED다(expirePendingBetween과 같은 의도).
+     */
+    @Modifying
+    @Query("""
+            UPDATE MealRequest mr
+            SET mr.status = com.honjeong.meal.domain.MealRequestStatus.EXPIRED, mr.respondedAt = :now
+            WHERE mr.status = com.honjeong.meal.domain.MealRequestStatus.PENDING
+              AND (mr.fromUser.id = :userId
+                OR mr.toCheckIn.id IN (SELECT c.id FROM CheckIn c WHERE c.user.id = :userId))
+            """)
+    int expireAllPendingOf(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 }

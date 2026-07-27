@@ -7,6 +7,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -27,6 +29,8 @@ import com.honjeong.global.exception.ErrorCode;
 @Component
 @ConditionalOnProperty(name = "honjeong.files.mode", havingValue = "mock", matchIfMissing = true)
 public class LocalFileStorage implements FileStorage {
+
+    private static final Logger log = LoggerFactory.getLogger(LocalFileStorage.class);
 
     private final String localDir;
     private final String baseUrl;
@@ -54,6 +58,29 @@ public class LocalFileStorage implements FileStorage {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "파일 저장에 실패했습니다.");
         }
         return baseUrl + "/" + filename;
+    }
+
+    /**
+     * 기능: 저장된 파일을 baseUrl 기반 URL로 지운다(우리가 저장한 파일이 아니거나 이미 없으면 조용히 무시)
+     * Request: url — {@link #store}가 반환했던 접근 URL(null·빈 값 허용) / Response: 없음(void)
+     */
+    @Override
+    public void delete(String url) {
+        if (url == null || !url.startsWith(baseUrl + "/")) {
+            return; // 우리가 저장한 파일이 아니면 건드리지 않는다(외부 URL·null 방어)
+        }
+        String filename = url.substring((baseUrl + "/").length());
+        Path root = Path.of(localDir).toAbsolutePath().normalize();
+        Path target = root.resolve(filename).normalize();
+        if (!target.startsWith(root)) {
+            return; // 경로 조작(../)으로 저장 디렉터리 밖을 지우려는 시도 차단
+        }
+        try {
+            Files.deleteIfExists(target);
+        } catch (IOException e) {
+            // 삭제 실패가 탈퇴 전체를 롤백시키면 안 된다 — 흔적만 남기고 진행한다.
+            log.warn("업로드 파일 삭제 실패: {}", target, e);
+        }
     }
 
     /**

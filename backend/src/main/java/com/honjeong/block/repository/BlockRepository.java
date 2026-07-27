@@ -3,6 +3,7 @@ package com.honjeong.block.repository;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.honjeong.block.domain.Block;
@@ -74,4 +75,13 @@ public interface BlockRepository extends JpaRepository<Block, Long> {
             ORDER BY b.createdAt DESC
             """)
     List<Block> findAllWithBlockedByBlocker(@Param("userId") Long userId);
+
+    /**
+     * 기능: 사용자가 관련된(차단했거나 차단당한) 차단 관계를 전부 삭제(탈퇴 시 관계 정리용)
+     * 쿼리: DELETE FROM blocks WHERE blocker_id = :userId OR blocked_id = :userId
+     * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
+     */
+    @Modifying
+    @Query("DELETE FROM Block b WHERE b.blocker.id = :userId OR b.blocked.id = :userId")
+    int deleteAllInvolvingUser(@Param("userId") Long userId);
 }

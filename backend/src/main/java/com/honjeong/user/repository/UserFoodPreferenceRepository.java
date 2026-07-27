@@ -3,6 +3,9 @@ package com.honjeong.user.repository;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.honjeong.user.domain.UserFoodPreference;
 
@@ -21,4 +24,13 @@ public interface UserFoodPreferenceRepository extends JpaRepository<UserFoodPref
      * <p>[기존 주석] 회원 id로 선호 음식 행을 조회: WHERE user_id = ?. 없으면 Optional.empty().
      */
     Optional<UserFoodPreference> findByUserId(Long userId);
+
+    /**
+     * 기능: 사용자의 선호 음식 행을 삭제(탈퇴 시 개인정보 정리용)
+     * 쿼리: DELETE FROM user_food_preferences WHERE user_id = :userId
+     * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
+     */
+    @Modifying
+    @Query("DELETE FROM UserFoodPreference p WHERE p.userId = :userId")
+    int deleteAllByUserId(@Param("userId") Long userId);
 }

@@ -2,6 +2,7 @@ package com.honjeong.user.controller;
 
 import java.util.List;
 
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,6 +20,7 @@ import com.honjeong.user.dto.ActivitySummaryResponse;
 import com.honjeong.user.dto.NicknameCheckResponse;
 import com.honjeong.user.dto.UpdateProfileRequest;
 import com.honjeong.user.dto.UserProfileResponse;
+import com.honjeong.user.service.AccountWithdrawalService;
 import com.honjeong.user.service.UserActivityService;
 import com.honjeong.user.service.UserService;
 
@@ -50,12 +52,14 @@ public class UserController {
     private final UserService userService;
     private final UserActivityService userActivityService;
     private final MateProfileService mateProfileService;
+    private final AccountWithdrawalService accountWithdrawalService;
 
     public UserController(UserService userService, UserActivityService userActivityService,
-            MateProfileService mateProfileService) {
+            MateProfileService mateProfileService, AccountWithdrawalService accountWithdrawalService) {
         this.userService = userService;
         this.userActivityService = userActivityService;
         this.mateProfileService = mateProfileService;
+        this.accountWithdrawalService = accountWithdrawalService;
     }
 
     /**
@@ -184,5 +188,20 @@ public class UserController {
     @GetMapping("/{id}/profile")
     public ApiResponse<PublicProfileResponse> profile(@CurrentUserId Long userId, @PathVariable Long id) {
         return ApiResponse.success(mateProfileService.getPublicProfile(userId, id));
+    }
+
+    /**
+     * 1. API 주소: DELETE /api/users/me
+     * 2. 기능: 회원 탈퇴 — 개인정보를 파기하고 계정을 익명화한다(되돌릴 수 없음)
+     * 3. Request: 없음(인증 토큰의 주체가 대상)
+     * 4. Response: ApiResponse&lt;Void&gt; — 성공만 알린다
+     *
+     * <p>성공 후 클라이언트는 즉시 로그아웃해야 한다. 남은 access 토큰은 다음 요청에서
+     * {@code ActiveUserFilter}가 401(ACCOUNT_INACTIVE)로 막는다.
+     */
+    @DeleteMapping("/me")
+    public ApiResponse<Void> withdraw(@CurrentUserId Long userId) {
+        accountWithdrawalService.withdraw(userId);
+        return ApiResponse.success(null);
     }
 }
