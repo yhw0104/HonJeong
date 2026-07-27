@@ -25,7 +25,8 @@ import type { ChatMessage } from '../types';
 import { pickImages, uploadImages } from '@/shared/upload/imageUpload';
 import { useBlockUser } from '@/features/safety/queries';
 
-// 헤더 식당명 최대 글자수(초과 시 …). 실기 확인 후 조정 가능.
+// 헤더 식당명 최대 글자수(초과 시 …). 8자로 확정(2026-07-27, 사용자 확인) —
+// 닉네임이 길어도 헤더가 밀리지 않는 폭이 우선.
 const PLACE_MAX_CHARS = 8;
 
 export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'ChatRoom'>) {
