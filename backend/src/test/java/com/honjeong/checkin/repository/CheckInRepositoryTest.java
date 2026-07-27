@@ -702,12 +702,12 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
-    @DisplayName("findMateIdsHereNow: 지금 ACTIVE/SEEKING/TOGETHER인 메이트만(ENDED·취소 제외)")
+    @DisplayName("findMateIdsSeekingNow: 지금 SEEKING(모집중)인 메이트만(ACTIVE·TOGETHER·ENDED 제외)")
     void 메이트_현재체크인() {
-        User u1 = persistUser("01000000001", "A"); // ACTIVE = 여기 있음
-        User u2 = persistUser("01000000002", "B"); // ENDED = 없음
-        User u3 = persistUser("01000000003", "C"); // SEEKING = 여기 있음
-        User u4 = persistUser("01000000004", "D"); // TOGETHER = 여기 있음
+        User u1 = persistUser("01000000001", "A"); // ACTIVE = 혼자 먹는 중 → 신청 불가라 제외
+        User u2 = persistUser("01000000002", "B"); // ENDED = 제외
+        User u3 = persistUser("01000000003", "C"); // SEEKING = 모집중 → 대상
+        User u4 = persistUser("01000000004", "D"); // TOGETHER = 이미 매칭됨 → 제외
         Place place = persistPlace("ext-1", 37.5, 127.0);
         CheckIn u1CheckIn = em.persist(CheckIn.start(u1, place, NOW));
         em.persist(endedCheckIn(u2, place, NOW.minusDays(1)));
@@ -717,10 +717,10 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         em.flush();
         checkInRepository.saveAndFlush(CheckIn.startTogether(u4, place, mealRequest.getId(), NOW));
 
-        var ids = checkInRepository.findMateIdsHereNow(place.getId(),
+        var ids = checkInRepository.findMateIdsSeekingNow(place.getId(),
                 List.of(u1.getId(), u2.getId(), u3.getId(), u4.getId()));
 
-        assertThat(ids).containsExactlyInAnyOrder(u1.getId(), u3.getId(), u4.getId());
+        assertThat(ids).containsExactly(u3.getId());
     }
 
     /**

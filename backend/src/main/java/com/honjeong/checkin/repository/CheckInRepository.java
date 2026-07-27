@@ -547,25 +547,24 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             @Param("mateIds") Collection<Long> mateIds);
 
     /**
-     * 기능: 이 식당에 지금 체크인 중(ACTIVE/SEEKING/TOGETHER)인 내 메이트 id 목록
-     * 쿼리: SELECT DISTINCT user_id ... WHERE place_id=:placeId AND user_id IN :mateIds AND status IN (ACTIVE,SEEKING,TOGETHER)
-     * Request: placeId — 식당 ID, mateIds — 조회 대상 메이트 사용자 ID 목록 / Response: List&lt;Long&gt; — 지금 이 식당에 있는 메이트 id 목록
+     * 기능: 이 식당에서 지금 SEEKING(같이 먹을 사람 모집중)인 내 메이트 id 목록
+     * 쿼리: SELECT DISTINCT user_id ... WHERE place_id=:placeId AND user_id IN :mateIds AND status = SEEKING
+     * Request: placeId — 식당 ID, mateIds — 조회 대상 메이트 사용자 ID 목록 / Response: List&lt;Long&gt; — 지금 모집중인 메이트 id 목록
      *
-     * <p>[의도] 식당상세 메이트 탭에서 "지금 여기 있는 메이트"를 표시하기 위한 조회다. ACTIVE(혼밥중)·SEEKING(모집중)·
-     * TOGETHER(같이먹는중) 모두 "지금 여기 있다"로 취급한다.
+     * <p>[의도] 식당상세 메이트 탭의 "지금 여기서 모집 중" 섹션은 행마다 '같이 먹기' 버튼을 단다. 신청을 받을 수 있는
+     * 상태는 SEEKING뿐이므로(ACTIVE=혼자 먹는 중, TOGETHER=이미 매칭됨) 모집중만 센다 — 누를 수 없는 버튼을
+     * 띄우지 않기 위함. (2026-07-27 변경: 이전엔 ACTIVE/SEEKING/TOGETHER를 모두 "지금 여기 있다"로 취급했다.)
      *
      * <p><b>주의:</b> mateIds가 빈 컬렉션이면 JPQL {@code IN ()} 오류가 발생할 수 있으므로
      * 호출 전 반드시 빈 컬렉션 여부를 확인하고 단락 처리해야 한다.
      *
      * @param placeId 식당 id
      * @param mateIds 조회 대상 메이트 사용자 id 목록
-     * @return 지금 이 식당에 있는 메이트 id 목록(중복 제거)
+     * @return 지금 이 식당에서 모집중인 메이트 id 목록(중복 제거)
      */
     @Query("SELECT DISTINCT c.user.id FROM CheckIn c WHERE c.place.id = :placeId AND c.user.id IN :mateIds "
-            + "AND c.status IN (com.honjeong.checkin.domain.CheckInStatus.ACTIVE, "
-            + "com.honjeong.checkin.domain.CheckInStatus.SEEKING, "
-            + "com.honjeong.checkin.domain.CheckInStatus.TOGETHER)")
-    List<Long> findMateIdsHereNow(@Param("placeId") Long placeId,
+            + "AND c.status = com.honjeong.checkin.domain.CheckInStatus.SEEKING")
+    List<Long> findMateIdsSeekingNow(@Param("placeId") Long placeId,
             @Param("mateIds") Collection<Long> mateIds);
 
     /** 메이트 방문 집계 projection: 사용자별 방문수·마지막 방문시각. */

@@ -679,7 +679,8 @@ function MateTab({ placeId, onMeal, onOpenProfile, soloRating, soloReviewCount }
   if (st === 'error') return <View style={{ marginTop: 20 }}><StateView kind="error" message="메이트 정보를 불러오지 못했어요" onRetry={() => q.refetch()} /></View>;
 
   const { visitedCount, mates, savedCount, savedMates } = q.data!;
-  const hereNowMates = mates.filter((m) => m.hereNow);
+  // '같이 먹기' 버튼을 다는 섹션이라, 신청을 받을 수 있는 상태(모집중)인 메이트만 띄운다.
+  const seekingMates = mates.filter((m) => m.seekingNow);
   // 저장 아바타 스택 — 저장한 메이트 최대 4명 + 나머지("+N"). N = 전체 저장자 - 보여준 메이트 수.
   const savedShown = savedMates.slice(0, 4);
   const savedOverflow = savedCount - savedShown.length;
@@ -724,15 +725,15 @@ function MateTab({ placeId, onMeal, onOpenProfile, soloRating, soloReviewCount }
         </View>
       </View>
 
-      {/* 지금 여기서 혼밥 중 — 섹션 라벨 + 라이브 카드(각 메이트 한 박스) */}
-      {hereNowMates.length > 0 ? (
+      {/* 지금 여기서 모집 중 — 섹션 라벨 + 라이브 카드(각 메이트 한 박스) */}
+      {seekingMates.length > 0 ? (
         <View style={styles.mateSection}>
           <View style={styles.mateSectionHead}>
-            <Text style={styles.mateSectionTitle}>지금 여기서 혼밥 중</Text>
-            <Text style={styles.mateSectionCount}>{hereNowMates.length}</Text>
+            <Text style={styles.mateSectionTitle}>지금 여기서 모집 중</Text>
+            <Text style={styles.mateSectionCount}>{seekingMates.length}</Text>
           </View>
           <View style={{ gap: 10 }}>
-            {hereNowMates.map((m) => (
+            {seekingMates.map((m) => (
               <View key={m.userId} style={styles.mateLiveRow}>
                 <Pressable
                   onPress={() => onOpenProfile(m.userId)}
@@ -1056,7 +1057,7 @@ const styles = StyleSheet.create({
   mateAvatarStack: { flexDirection: 'row' },
   mateSummaryLine: { fontSize: 14, fontWeight: '600', color: T2.text, letterSpacing: -0.3, lineHeight: 20 },
   mateSummarySub: { marginTop: 2, fontSize: 13, color: T2.textSub, letterSpacing: -0.3, lineHeight: 18 },
-  // 섹션 라벨(지금 혼밥중 / 즐겨찾기)
+  // 섹션 라벨(지금 모집중 / 즐겨찾기)
   mateSection: { marginTop: 26 },
   mateSectionHead: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginBottom: 12 },
   mateSectionTitle: { fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: 0.6 },

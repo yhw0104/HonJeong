@@ -49,7 +49,8 @@ export const fetchPlaceCheckinSummary = (placeId: number) =>
 export type MateAtPlace = {
   userId: number;
   nickname: string;
-  hereNow: boolean;
+  /** 지금 이 식당에서 같이 먹을 사람 모집중(SEEKING)인지 — 신청 받을 수 있는 상태만 true. */
+  seekingNow: boolean;
   soloFriendlyRating: number | null;
   reviewContent: string | null;
   togetherCount: number;

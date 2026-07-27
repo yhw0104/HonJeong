@@ -58,7 +58,7 @@ class PlaceMateControllerTest {
                 .andExpect(jsonPath("$.data.savedMates[0].profileImageUrl").value("https://img/11"))
                 .andExpect(jsonPath("$.data.mates[0].nickname").value("에이"))
                 .andExpect(jsonPath("$.data.mates[0].profileImageUrl").value("https://img/11"))
-                .andExpect(jsonPath("$.data.mates[0].hereNow").value(true));
+                .andExpect(jsonPath("$.data.mates[0].seekingNow").value(true));
     }
 
     @Test

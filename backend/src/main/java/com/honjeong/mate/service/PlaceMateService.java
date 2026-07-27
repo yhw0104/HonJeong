@@ -44,8 +44,8 @@ public class PlaceMateService {
     }
 
     /**
-     * 기능: 이 식당에 다녀갔거나(방문 이력) 지금 있는(hereNow) 내 메이트 목록을 조립한다.
-     * 후보 = 방문(aggregate) ∪ 현재체크인(hereNow). 정렬 = hereNow 우선 → lastVisitedAt 최신(null 마지막).
+     * 기능: 이 식당에 다녀갔거나(방문 이력) 지금 모집중(seekingNow)인 내 메이트 목록을 조립한다.
+     * 후보 = 방문(aggregate) ∪ 모집중 체크인(seekingNow). 정렬 = 모집중 우선 → lastVisitedAt 최신(null 마지막).
      * Request: viewerId — 조회하는 사용자(나) ID, placeId — 식당 ID
      * Response: PlaceMatesResponse — visitedCount(방문>0 메이트 수) + 정렬된 메이트 목록
      */
@@ -75,7 +75,7 @@ public class PlaceMateService {
         Map<Long, CheckInRepository.MateVisitRow> visitByUser = checkInRepository
                 .aggregateMateVisitsAtPlace(placeId, mateIds).stream()
                 .collect(Collectors.toMap(CheckInRepository.MateVisitRow::getUserId, r -> r));
-        Set<Long> hereNow = new HashSet<>(checkInRepository.findMateIdsHereNow(placeId, mateIds));
+        Set<Long> seekingNow = new HashSet<>(checkInRepository.findMateIdsSeekingNow(placeId, mateIds));
 
         Map<Long, Review> latestReviewByUser = new LinkedHashMap<>();
         for (Review r : reviewRepository.findByPlace_IdAndUser_IdInOrderByVisitedAtDesc(placeId, mateIds)) {
@@ -86,9 +86,9 @@ public class PlaceMateService {
                 .collect(Collectors.toMap(CheckInRepository.TogetherPairRow::getPartnerId,
                         p -> (int) p.getCnt()));
 
-        // 후보 = 방문했거나(visitByUser) 지금 여기 있는(hereNow) 메이트
+        // 후보 = 방문했거나(visitByUser) 지금 여기서 모집중인(seekingNow) 메이트
         Set<Long> candidateIds = new LinkedHashSet<>(visitByUser.keySet());
-        candidateIds.addAll(hereNow);
+        candidateIds.addAll(seekingNow);
 
         List<MateAtPlace> list = new ArrayList<>();
         int visitedCount = 0;
@@ -102,7 +102,7 @@ public class PlaceMateService {
             list.add(new MateAtPlace(
                     uid,
                     nicknameById.get(uid),
-                    hereNow.contains(uid),
+                    seekingNow.contains(uid),
                     rv != null ? rv.getSoloFriendlyRating() : null,
                     rv != null ? rv.getContent() : null,
                     togetherByPartner.getOrDefault(uid, 0),
@@ -110,9 +110,9 @@ public class PlaceMateService {
                     v != null ? v.getLastVisitedAt() : null,
                     profileImageById.get(uid)));
         }
-        // 정렬: hereNow 우선 → lastVisitedAt 최신(null 마지막) → userId(결정적 tie-break)
+        // 정렬: 모집중(seekingNow) 우선 → lastVisitedAt 최신(null 마지막) → userId(결정적 tie-break)
         list.sort(Comparator
-                .comparing(MateAtPlace::hereNow, Comparator.reverseOrder())
+                .comparing(MateAtPlace::seekingNow, Comparator.reverseOrder())
                 .thenComparing(MateAtPlace::lastVisitedAt, Comparator.nullsLast(Comparator.reverseOrder()))
                 .thenComparing(MateAtPlace::userId));
         return new PlaceMatesResponse(visitedCount, list, savedCount, savedMateCount, savedMates);

@@ -56,7 +56,7 @@ class PlaceMateServiceTest {
     }
 
     @Test
-    @DisplayName("조립: 방문+리뷰+같이먹음 병합, hereNow 우선 정렬, visitedCount=방문>0 메이트 수")
+    @DisplayName("조립: 방문+리뷰+같이먹음 병합, 모집중 우선 정렬, visitedCount=방문>0 메이트 수")
     void 조립_정렬() {
         // 메이트 A(id 11, 방문2·리뷰★5·같이3), B(id 12, 방문0·지금 여기·리뷰없음)
         // 스텁 헬퍼(mateStub/visitRow/reviewStub/togetherRow)는 내부에서 when()을 호출하므로,
@@ -67,14 +67,14 @@ class PlaceMateServiceTest {
         List<Mate> mates = List.of(mateStub(a), mateStub(b));
         List<CheckInRepository.MateVisitRow> visitRows =
                 List.of(visitRow(11L, 2, LocalDateTime.of(2026, 7, 18, 12, 0)));
-        List<Long> hereNowIds = List.of(12L);
+        List<Long> seekingIds = List.of(12L);
         List<Review> reviews = List.of(reviewStub(a, 5, "조용해요"));
         List<CheckInRepository.TogetherPairRow> togetherRows = List.of(togetherRow(11L, 3));
         List<FavoriteRepository.SaverMateRow> saverRows = List.of(saverRow(11L, "에이", "img11"), saverRow(12L, "비", null));
 
         when(mateRepository.findMatesWithUserByUserId(1L)).thenReturn(mates);
         when(checkInRepository.aggregateMateVisitsAtPlace(eq(9L), anyCollection())).thenReturn(visitRows);
-        when(checkInRepository.findMateIdsHereNow(eq(9L), anyCollection())).thenReturn(hereNowIds);
+        when(checkInRepository.findMateIdsSeekingNow(eq(9L), anyCollection())).thenReturn(seekingIds);
         when(reviewRepository.findByPlace_IdAndUser_IdInOrderByVisitedAtDesc(eq(9L), anyCollection()))
                 .thenReturn(reviews);
         when(checkInRepository.countTogetherPairsForUser(1L)).thenReturn(togetherRows);
@@ -89,9 +89,9 @@ class PlaceMateServiceTest {
         assertThat(res.savedMates()).extracting("userId", "nickname", "profileImageUrl")
                 .containsExactly(tuple(11L, "에이", "img11"), tuple(12L, "비", null));
         assertThat(res.mates()).hasSize(2);
-        // hereNow(B) 우선
+        // 모집중(B) 우선
         assertThat(res.mates().get(0).userId()).isEqualTo(12L);
-        assertThat(res.mates().get(0).hereNow()).isTrue();
+        assertThat(res.mates().get(0).seekingNow()).isTrue();
         assertThat(res.mates().get(0).visitCount()).isZero();
         var aOut = res.mates().get(1);
         assertThat(aOut.userId()).isEqualTo(11L);
@@ -103,7 +103,7 @@ class PlaceMateServiceTest {
     }
 
     @Test
-    @DisplayName("정렬: hereNow 동일(둘 다 false)이면 lastVisitedAt 최신이 먼저")
+    @DisplayName("정렬: 모집중 동일(둘 다 false)이면 lastVisitedAt 최신이 먼저")
     void 정렬_lastVisitedAt_최신우선() {
         User a = userStub(21L, "에이");
         User b = userStub(22L, "비");
@@ -111,13 +111,13 @@ class PlaceMateServiceTest {
         List<CheckInRepository.MateVisitRow> visitRows = List.of(
                 visitRow(21L, 1, LocalDateTime.of(2026, 7, 10, 12, 0)),
                 visitRow(22L, 1, LocalDateTime.of(2026, 7, 15, 12, 0)));
-        List<Long> hereNowIds = List.of();
+        List<Long> seekingIds = List.of();
         List<Review> reviews = List.of();
         List<CheckInRepository.TogetherPairRow> togetherRows = List.of();
 
         when(mateRepository.findMatesWithUserByUserId(1L)).thenReturn(mates);
         when(checkInRepository.aggregateMateVisitsAtPlace(eq(9L), anyCollection())).thenReturn(visitRows);
-        when(checkInRepository.findMateIdsHereNow(eq(9L), anyCollection())).thenReturn(hereNowIds);
+        when(checkInRepository.findMateIdsSeekingNow(eq(9L), anyCollection())).thenReturn(seekingIds);
         when(reviewRepository.findByPlace_IdAndUser_IdInOrderByVisitedAtDesc(eq(9L), anyCollection()))
                 .thenReturn(reviews);
         when(checkInRepository.countTogetherPairsForUser(1L)).thenReturn(togetherRows);
@@ -131,17 +131,17 @@ class PlaceMateServiceTest {
     @DisplayName("정렬: lastVisitedAt null(방문이력 없음)은 non-null보다 뒤로")
     void 정렬_lastVisitedAt_null은_마지막() {
         User a = userStub(23L, "에이"); // 방문이력 있음(lastVisitedAt non-null)
-        User b = userStub(24L, "비"); // hereNow만, 방문이력 없음(lastVisitedAt=null)
+        User b = userStub(24L, "비"); // 모집중만, 방문이력 없음(lastVisitedAt=null)
         List<Mate> mates = List.of(mateStub(a), mateStub(b));
         List<CheckInRepository.MateVisitRow> visitRows =
                 List.of(visitRow(23L, 1, LocalDateTime.of(2026, 7, 10, 12, 0)));
-        List<Long> hereNowIds = List.of(23L, 24L); // 둘 다 hereNow=true로 맞춰 lastVisitedAt만 비교되게 함
+        List<Long> seekingIds = List.of(23L, 24L); // 둘 다 모집중=true로 맞춰 lastVisitedAt만 비교되게 함
         List<Review> reviews = List.of();
         List<CheckInRepository.TogetherPairRow> togetherRows = List.of();
 
         when(mateRepository.findMatesWithUserByUserId(1L)).thenReturn(mates);
         when(checkInRepository.aggregateMateVisitsAtPlace(eq(9L), anyCollection())).thenReturn(visitRows);
-        when(checkInRepository.findMateIdsHereNow(eq(9L), anyCollection())).thenReturn(hereNowIds);
+        when(checkInRepository.findMateIdsSeekingNow(eq(9L), anyCollection())).thenReturn(seekingIds);
         when(reviewRepository.findByPlace_IdAndUser_IdInOrderByVisitedAtDesc(eq(9L), anyCollection()))
                 .thenReturn(reviews);
         when(checkInRepository.countTogetherPairsForUser(1L)).thenReturn(togetherRows);
@@ -152,19 +152,19 @@ class PlaceMateServiceTest {
     }
 
     @Test
-    @DisplayName("정렬: hereNow·lastVisitedAt 동률이면 userId 오름차순(결정적 tie-break)")
+    @DisplayName("정렬: 모집중·lastVisitedAt 동률이면 userId 오름차순(결정적 tie-break)")
     void 정렬_동률이면_userId_오름차순() {
         User a = userStub(30L, "에이");
         User b = userStub(25L, "비");
         List<Mate> mates = List.of(mateStub(a), mateStub(b)); // 입력 순서를 일부러 내림차순으로
         List<CheckInRepository.MateVisitRow> visitRows = List.of(); // 방문이력 없음 → 둘 다 lastVisitedAt=null
-        List<Long> hereNowIds = List.of(30L, 25L); // 둘 다 hereNow=true → 동률
+        List<Long> seekingIds = List.of(30L, 25L); // 둘 다 모집중=true → 동률
         List<Review> reviews = List.of();
         List<CheckInRepository.TogetherPairRow> togetherRows = List.of();
 
         when(mateRepository.findMatesWithUserByUserId(1L)).thenReturn(mates);
         when(checkInRepository.aggregateMateVisitsAtPlace(eq(9L), anyCollection())).thenReturn(visitRows);
-        when(checkInRepository.findMateIdsHereNow(eq(9L), anyCollection())).thenReturn(hereNowIds);
+        when(checkInRepository.findMateIdsSeekingNow(eq(9L), anyCollection())).thenReturn(seekingIds);
         when(reviewRepository.findByPlace_IdAndUser_IdInOrderByVisitedAtDesc(eq(9L), anyCollection()))
                 .thenReturn(reviews);
         when(checkInRepository.countTogetherPairsForUser(1L)).thenReturn(togetherRows);
@@ -183,13 +183,13 @@ class PlaceMateServiceTest {
         List<CheckInRepository.MateVisitRow> visitRows = List.of(
                 visitRow(11L, 1, LocalDateTime.of(2026, 7, 18, 12, 0)),
                 visitRow(12L, 1, LocalDateTime.of(2026, 7, 17, 12, 0)));
-        List<Long> hereNowIds = List.of();
+        List<Long> seekingIds = List.of();
         List<Review> reviews = List.of();
         List<CheckInRepository.TogetherPairRow> togetherRows = List.of(togetherRow(11L, 3)); // 12L은 없음
 
         when(mateRepository.findMatesWithUserByUserId(1L)).thenReturn(mates);
         when(checkInRepository.aggregateMateVisitsAtPlace(eq(9L), anyCollection())).thenReturn(visitRows);
-        when(checkInRepository.findMateIdsHereNow(eq(9L), anyCollection())).thenReturn(hereNowIds);
+        when(checkInRepository.findMateIdsSeekingNow(eq(9L), anyCollection())).thenReturn(seekingIds);
         when(reviewRepository.findByPlace_IdAndUser_IdInOrderByVisitedAtDesc(eq(9L), anyCollection()))
                 .thenReturn(reviews);
         when(checkInRepository.countTogetherPairsForUser(1L)).thenReturn(togetherRows);
@@ -207,7 +207,7 @@ class PlaceMateServiceTest {
         List<Mate> mates = List.of(mateStub(a));
         List<CheckInRepository.MateVisitRow> visitRows =
                 List.of(visitRow(11L, 2, LocalDateTime.of(2026, 7, 18, 12, 0)));
-        List<Long> hereNowIds = List.of();
+        List<Long> seekingIds = List.of();
         // DESC로 이미 정렬돼서 온다고 가정 — 첫 건이 최신, putIfAbsent라 첫 건이 채택돼야 함
         List<Review> reviews = List.of(
                 reviewStub(a, 5, "최신 리뷰"),
@@ -216,7 +216,7 @@ class PlaceMateServiceTest {
 
         when(mateRepository.findMatesWithUserByUserId(1L)).thenReturn(mates);
         when(checkInRepository.aggregateMateVisitsAtPlace(eq(9L), anyCollection())).thenReturn(visitRows);
-        when(checkInRepository.findMateIdsHereNow(eq(9L), anyCollection())).thenReturn(hereNowIds);
+        when(checkInRepository.findMateIdsSeekingNow(eq(9L), anyCollection())).thenReturn(seekingIds);
         when(reviewRepository.findByPlace_IdAndUser_IdInOrderByVisitedAtDesc(eq(9L), anyCollection()))
                 .thenReturn(reviews);
         when(checkInRepository.countTogetherPairsForUser(1L)).thenReturn(togetherRows);
