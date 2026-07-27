@@ -52,7 +52,6 @@ export function MealRequestScreen({ navigation, route }: RootStackScreenProps<'M
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.placeCard}>
-            <View style={styles.placeThumb}><Text style={{ fontSize: 22 }}>🍲</Text></View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.placeName}>{placeName}</Text>
               <Text style={styles.placeMeta}>지금 모집 중 {list.length}명</Text>
@@ -142,7 +141,6 @@ const styles = StyleSheet.create({
   topTitle: { fontSize: 16, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
   scroll: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 24 },
   placeCard: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 14, marginTop: 4, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: T2.border },
-  placeThumb: { width: 50, height: 50, borderRadius: 12, backgroundColor: T2.mapBg, borderWidth: 1, borderColor: T2.border, alignItems: 'center', justifyContent: 'center' },
   placeName: { fontSize: 15, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
   placeMeta: { fontSize: 12, color: T2.textSub, marginTop: 4 },
   labelRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
