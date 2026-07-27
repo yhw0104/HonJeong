@@ -3,8 +3,10 @@ package com.honjeong.user.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -61,6 +63,8 @@ import com.honjeong.notification.repository.NotificationSettingsRepository;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.repository.PlaceRepository;
 import com.honjeong.support.AbstractPostgresTest;
+import com.honjeong.user.domain.DiningStyle;
+import com.honjeong.user.domain.Gender;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.domain.UserFoodPreference;
 import com.honjeong.user.domain.UserStatus;
@@ -135,10 +139,13 @@ class AccountWithdrawalIntegrationTest extends AbstractPostgresTest {
     // ============================================================
 
     @Test
-    @DisplayName("탈퇴 후 같은 휴대폰 번호로 다시 가입하면 새 계정이 만들어진다")
+    @DisplayName("탈퇴 후 같은 휴대폰 번호로 다시 가입하면 새 계정이 만들어지고 이전 계정의 기록을 물려받지 않는다")
     void resignUpWithSamePhoneCreatesNewAccount() {
-        String phone = "01050000001";
+        String phone = freshPhone();
         Long oldId = signUpWithPhone(phone);
+        // FIX 5: "새 계정은 이전 기록을 물려받지 않는다"는 주장을 newId != oldId만으로 증명하지 않기 위해,
+        // 옛 계정에 뱃지 하나를 심어 두고 탈퇴 후 새 계정에 그 흔적이 없는지까지 직접 확인한다.
+        userBadgeRepository.save(UserBadge.of(oldId, "FIRST_CHECKIN", LocalDateTime.now()));
 
         withdrawalService.withdraw(oldId);
 
@@ -148,6 +155,7 @@ class AccountWithdrawalIntegrationTest extends AbstractPostgresTest {
 
         Long newId = signUpWithPhone(phone);
         assertThat(newId).isNotEqualTo(oldId);
+        assertThat(userBadgeRepository.findByUserId(newId)).isEmpty();
     }
 
     @Test
@@ -155,13 +163,15 @@ class AccountWithdrawalIntegrationTest extends AbstractPostgresTest {
     void resignUpWithSameSocialCreatesNewAccount() {
         // MockOAuthVerifier는 "mock-kakao-{idToken}"을 providerUserId로 만든다(결정론적).
         // 같은 idToken을 두 번 넘기면 같은 소셜 신원이 되므로 재가입 경로를 그대로 재현할 수 있다.
-        // (honjeong.oauth.mode 기본값 mock — test 프로파일).
-        AuthResult first = authService.oauthLogin(Provider.KAKAO, "withdraw-test-sub");
+        // (honjeong.oauth.mode 기본값 mock — test 프로파일). idToken 자체는 freshKakaoSub()로 실행마다
+        // 달라지게 한다(FIX 4) — 같은 값을 쓰면 이 테스트가 커밋한 소셜 계정이 다음 실행과 충돌한다.
+        String sub = freshKakaoSub();
+        AuthResult first = authService.oauthLogin(Provider.KAKAO, sub);
         Long oldId = completeOnboarding(first);
 
         withdrawalService.withdraw(oldId);
 
-        AuthResult second = authService.oauthLogin(Provider.KAKAO, "withdraw-test-sub");
+        AuthResult second = authService.oauthLogin(Provider.KAKAO, sub);
         Long newId = completeOnboarding(second);
         assertThat(newId).isNotEqualTo(oldId);
     }
@@ -169,7 +179,7 @@ class AccountWithdrawalIntegrationTest extends AbstractPostgresTest {
     @Test
     @DisplayName("탈퇴한 계정은 같은 신원으로 로그인해도 이전 기록을 되찾을 수 없다")
     void withdrawnAccountCannotBeResurrected() {
-        String phone = "01050000003";
+        String phone = freshPhone();
         Long oldId = signUpWithPhone(phone);
         withdrawalService.withdraw(oldId);
 
@@ -183,7 +193,7 @@ class AccountWithdrawalIntegrationTest extends AbstractPostgresTest {
     @Test
     @DisplayName("정지된 계정은 재로그인해도 온보딩 토큰을 받지 못한다")
     void suspendedAccountCannotReenter() {
-        String phone = "01050000004";
+        String phone = freshPhone();
         Long id = signUpWithPhone(phone);
         User u = userRepository.findById(id).orElseThrow();
         suspend(u);
@@ -227,8 +237,13 @@ class AccountWithdrawalIntegrationTest extends AbstractPostgresTest {
         Long groupId = group.getId();
         mateRepository.save(Mate.create(user, other, now));   // 메이트는 양방향 2행
         mateRepository.save(Mate.create(other, user, now));
+        // mate_requests·blocks도 양방향으로 심는다(FIX 2) — 한쪽만 심으면 :271-274의 OR 단언이
+        // 한 방향에서는 항상 0행("존재하지 않아서 통과")이 되어, 리포지토리 쿼리가 한쪽 방향만
+        // 지워도(관계가 반쯤 살아남는 버그) 초록불이 뜬다.
         mateRequestRepository.save(MateRequest.create(other, user, now));
+        mateRequestRepository.save(MateRequest.create(user, other, now));
         blockRepository.save(Block.create(user, other, now));
+        blockRepository.save(Block.create(other, user, now));
         notificationRepository.save(Notification.create(user, other, NotificationType.MATE_REQUEST_RECEIVED, now));
         notificationSettingsRepository.save(NotificationSettings.of(userId));
         userBadgeRepository.save(UserBadge.of(userId, "FIRST_CHECKIN", now));
@@ -248,6 +263,7 @@ class AccountWithdrawalIntegrationTest extends AbstractPostgresTest {
         assertThat(reloaded.getPhone()).isNull();
         assertThat(reloaded.getNickname()).isNull();
         assertThat(reloaded.getEmail()).isNull();
+        assertThat(reloaded.getProfileImageUrl()).isNull();
         assertThat(reloaded.getGender()).isNull();
         assertThat(reloaded.getBirthDate()).isNull();
         assertThat(reloaded.getIntroduction()).isNull();
@@ -401,11 +417,39 @@ class AccountWithdrawalIntegrationTest extends AbstractPostgresTest {
         authService.verifyPhone(phone, "000000");
     }
 
-    /** 온보딩 절차 없이 ACTIVE 상태 회원을 바로 저장한다(ChatLifecycleTest와 같은 최소 프로필 패턴). */
+    /**
+     * ACTIVE 상태 회원을 바로 저장한다(ChatLifecycleTest와 같은 최소 프로필 패턴 — 온보딩 절차는 생략).
+     *
+     * <p><b>FIX 1.</b> {@link User#withdraw()}가 비우는 필드(email·gender·birthDate·introduction·
+     * region·regionLat·regionLng·diningStyle·profileImageUrl) 전부를 서로 구분되는 값으로 채운다.
+     * 예전에는 전부 null로 남겨 뒀는데, 그러면 탈퇴 후 "null인지" 확인하는 단언이 애초에 채워진 적 없는
+     * 값이 계속 null인 것만 확인하는 셈이라 {@code withdraw()}에서 해당 필드를 지우는 줄을 통째로 지워도
+     * 테스트가 계속 초록불이었다(익명화가 실제로는 안 됐는데 안 걸림).
+     */
     private User createActiveUser(String phone, String nickname) {
-        User user = User.pending(phone, null);
-        user.completeProfile(nickname, null, null, null, null, null, null, null, null);
+        User user = User.pending(phone, nickname + "@test.honjeong.com");
+        user.completeProfile(nickname, Gender.FEMALE, LocalDate.of(1996, 3, 14), nickname + "입니다",
+                "서울 강남구", 37.4979, 127.0276, DiningStyle.QUIET,
+                "https://cdn.example.com/profile/" + nickname + ".png");
         return userRepository.save(user);
+    }
+
+    // FIX 4: 아래 두 헬퍼는 매 "호출 시점"에 값을 만든다(클래스 로딩 시 한 번 고정되는 static final이 아니다).
+    // 이 파일의 재가입 4테스트는 @Transactional이 없어 실제로 커밋되므로, phone은 UNIQUE·(provider,
+    // provider_user_id)는 UNIQUE 제약을 진짜로 건드린다 — 같은 JVM에서 클래스가 두 번 실행돼도(IDE
+    // 재실행 등) 이전 실행이 남긴 값과 부딪히지 않도록, 실행 시각(밀리초)과 호출 순번을 함께 조합한다.
+    private static final AtomicLong FIXTURE_SEQ = new AtomicLong();
+
+    /** 실행마다 값이 달라지는(따라서 재실행에도 안전한) 휴대폰 번호를 만든다. */
+    private static String freshPhone() {
+        long ms = System.currentTimeMillis() % 100_000L;
+        long seq = FIXTURE_SEQ.incrementAndGet() % 1000L;
+        return String.format("010%05d%03d", ms, seq);
+    }
+
+    /** 실행마다 값이 달라지는(따라서 재실행에도 안전한) 카카오 idToken(=재가입 시 사용할 소셜 신원 시드)을 만든다. */
+    private static String freshKakaoSub() {
+        return "withdraw-test-sub-" + System.currentTimeMillis() + "-" + FIXTURE_SEQ.incrementAndGet();
     }
 
     /** 공공데이터 마스터 기반 최소 장소를 저장한다. */
