@@ -5,7 +5,7 @@ import {
   View, Text, TextInput, Pressable, ScrollView, ActivityIndicator,
   KeyboardAvoidingView, Platform, Alert, StyleSheet,
 } from 'react-native';
-import { Screen } from '@/shared/components';
+import { Screen, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useSeekers } from '@/features/checkin/queries';
 import { useCreateMealRequest } from '@/features/meal/queries';
@@ -52,6 +52,8 @@ export function MealRequestScreen({ navigation, route }: RootStackScreenProps<'M
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.placeCard}>
+            {/* 이모지 대신 브랜드 핀 타일 — 받은 신청 카드의 핀 아이콘과 같은 언어. */}
+            <View style={styles.placeThumb}><Icon name="pin" size={22} color={T2.brand} /></View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.placeName}>{placeName}</Text>
               <Text style={styles.placeMeta}>지금 모집 중 {list.length}명</Text>
@@ -141,6 +143,7 @@ const styles = StyleSheet.create({
   topTitle: { fontSize: 16, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
   scroll: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 24 },
   placeCard: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 14, marginTop: 4, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: T2.border },
+  placeThumb: { width: 46, height: 46, borderRadius: 12, backgroundColor: T2.brandSoft, alignItems: 'center', justifyContent: 'center' },
   placeName: { fontSize: 15, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
   placeMeta: { fontSize: 12, color: T2.textSub, marginTop: 4 },
   labelRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
