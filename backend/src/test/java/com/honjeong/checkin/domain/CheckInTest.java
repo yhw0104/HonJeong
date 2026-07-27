@@ -52,6 +52,26 @@ class CheckInTest {
     }
 
     @Test
+    @DisplayName("cancel: SEEKING도 CANCELLED로 전이한다 — end()는 SEEKING을 무시하므로 회원 탈퇴 등에서는 반드시 cancel()을 써야 한다")
+    void cancel_fromSeeking() {
+        CheckIn c = CheckIn.startSeeking(mock(User.class), mock(Place.class), t0);
+        c.cancel(t0.plusMinutes(5));
+
+        assertThat(c.getStatus()).isEqualTo(CheckInStatus.CANCELLED);
+        assertThat(c.getEndedAt()).isEqualTo(t0.plusMinutes(5));
+    }
+
+    @Test
+    @DisplayName("end: SEEKING에는 가드로 인해 아무 효과가 없다(silent no-op) — 그래서 SEEKING 종료엔 cancel()을 써야 한다")
+    void end_isNoOpForSeeking() {
+        CheckIn c = CheckIn.startSeeking(mock(User.class), mock(Place.class), t0);
+        c.end(t0.plusMinutes(5));
+
+        assertThat(c.getStatus()).isEqualTo(CheckInStatus.SEEKING);
+        assertThat(c.getEndedAt()).isNull();
+    }
+
+    @Test
     @DisplayName("end: TOGETHER도 ENDED로 종료한다")
     void end_fromTogether() {
         CheckIn c = CheckIn.startTogether(mock(User.class), mock(Place.class), 77L, t0);

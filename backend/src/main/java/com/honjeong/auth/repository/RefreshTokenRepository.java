@@ -31,8 +31,11 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * 기능: 사용자의 리프레시 토큰을 전부 삭제(탈퇴 시 세션 즉시 무효화용)
      * 쿼리: DELETE FROM refresh_tokens WHERE user_id = :userId
      * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
+     *
+     * <p>벌크 DELETE라 영속성 컨텍스트를 우회하므로 clearAutomatically로 1차 캐시를 비운다
+     * (같은 트랜잭션에서 이미 로딩된 엔티티가 삭제 후에도 stale 상태로 남는 것을 막는다).
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("DELETE FROM RefreshToken rt WHERE rt.userId = :userId")
     int deleteAllByUserId(@Param("userId") Long userId);
 }

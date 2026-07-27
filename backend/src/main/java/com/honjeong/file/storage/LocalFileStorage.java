@@ -70,16 +70,18 @@ public class LocalFileStorage implements FileStorage {
             return; // 우리가 저장한 파일이 아니면 건드리지 않는다(외부 URL·null 방어)
         }
         String filename = url.substring((baseUrl + "/").length());
-        Path root = Path.of(localDir).toAbsolutePath().normalize();
-        Path target = root.resolve(filename).normalize();
-        if (!target.startsWith(root)) {
-            return; // 경로 조작(../)으로 저장 디렉터리 밖을 지우려는 시도 차단
-        }
         try {
+            Path root = Path.of(localDir).toAbsolutePath().normalize();
+            Path target = root.resolve(filename).normalize();
+            if (!target.startsWith(root)) {
+                return; // 경로 조작(../)으로 저장 디렉터리 밖을 지우려는 시도 차단
+            }
             Files.deleteIfExists(target);
-        } catch (IOException e) {
-            // 삭제 실패가 탈퇴 전체를 롤백시키면 안 된다 — 흔적만 남기고 진행한다.
-            log.warn("업로드 파일 삭제 실패: {}", target, e);
+        } catch (Exception e) {
+            // 삭제 실패가 탈퇴 전체를 롤백시키면 안 된다(FileStorage.delete 계약) — IOException뿐 아니라
+            // Path.resolve의 InvalidPathException, deleteIfExists의 SecurityException 같은 unchecked
+            // 예외까지 전부 여기서 삼키고 흔적만 남긴 채 진행한다.
+            log.warn("업로드 파일 삭제 실패: {}", filename, e);
         }
     }
 

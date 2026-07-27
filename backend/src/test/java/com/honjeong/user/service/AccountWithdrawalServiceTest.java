@@ -28,6 +28,7 @@ import com.honjeong.mate.repository.MateRequestRepository;
 import com.honjeong.meal.repository.MealRequestRepository;
 import com.honjeong.notification.repository.NotificationRepository;
 import com.honjeong.notification.repository.NotificationSettingsRepository;
+import com.honjeong.auth.repository.PhoneVerificationRepository;
 import com.honjeong.auth.repository.RefreshTokenRepository;
 import com.honjeong.auth.repository.SocialAccountRepository;
 import com.honjeong.badge.repository.UserBadgeRepository;
@@ -53,6 +54,7 @@ class AccountWithdrawalServiceTest {
     private final UserFoodPreferenceRepository foodPreferenceRepository = mock(UserFoodPreferenceRepository.class);
     private final RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
     private final SocialAccountRepository socialAccountRepository = mock(SocialAccountRepository.class);
+    private final PhoneVerificationRepository phoneVerificationRepository = mock(PhoneVerificationRepository.class);
     private final ConversationService conversationService = mock(ConversationService.class);
     private final FileStorage fileStorage = mock(FileStorage.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-28T03:00:00Z"), ZoneId.of("Asia/Seoul"));
@@ -61,7 +63,7 @@ class AccountWithdrawalServiceTest {
             userRepository, checkInRepository, mealRequestRepository, mateRequestRepository, mateRepository,
             blockRepository, notificationRepository, notificationSettingsRepository, userBadgeRepository,
             favoriteGroupRepository, foodPreferenceRepository, refreshTokenRepository, socialAccountRepository,
-            conversationService, fileStorage, clock);
+            phoneVerificationRepository, conversationService, fileStorage, clock);
 
     @Test
     @DisplayName("탈퇴하면 개인정보가 익명화되고 상태가 WITHDRAWN이 된다")
@@ -160,6 +162,39 @@ class AccountWithdrawalServiceTest {
 
         verify(solo).end(any(LocalDateTime.class));
         verify(conversationService, never()).close(anyLong());
+    }
+
+    @Test
+    @DisplayName("모집중(SEEKING)이면 end가 아니라 cancel로 종료한다 — end()는 SEEKING을 무시하는 가드가 있다")
+    void cancelsSeekingCheckInInsteadOfEnding() {
+        User user = activeUser(1L, null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        CheckIn seeking = mock(CheckIn.class);
+        when(seeking.getStatus()).thenReturn(CheckInStatus.SEEKING);
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.of(seeking));
+
+        service.withdraw(1L);
+
+        verify(seeking).cancel(any(LocalDateTime.class));
+        verify(seeking, never()).end(any(LocalDateTime.class));
+    }
+
+    @Test
+    @DisplayName("휴대폰 번호가 있으면 인증 기록도 지우고, 소셜 온리(휴대폰 없음) 계정은 건드리지 않는다")
+    void deletesPhoneVerificationsOnlyWhenPhonePresent() {
+        User withPhone = activeUser(1L, null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(withPhone));
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(1L), anyCollection())).thenReturn(Optional.empty());
+        service.withdraw(1L);
+        verify(phoneVerificationRepository).deleteAllByPhone("01011111");
+
+        User socialOnly = User.pending(null, "a@b.com");
+        ReflectionTestUtils.setField(socialOnly, "id", 2L);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(socialOnly));
+        when(checkInRepository.findByUser_IdAndStatusIn(eq(2L), anyCollection())).thenReturn(Optional.empty());
+        service.withdraw(2L);
+        verify(phoneVerificationRepository, never()).deleteAllByPhone(null);
     }
 
     @Test

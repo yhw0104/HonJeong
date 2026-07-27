@@ -8,6 +8,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.honjeong.auth.repository.PhoneVerificationRepository;
 import com.honjeong.auth.repository.RefreshTokenRepository;
 import com.honjeong.auth.repository.SocialAccountRepository;
 import com.honjeong.badge.repository.UserBadgeRepository;
@@ -61,6 +62,7 @@ public class AccountWithdrawalService {
     private final UserFoodPreferenceRepository foodPreferenceRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final SocialAccountRepository socialAccountRepository;
+    private final PhoneVerificationRepository phoneVerificationRepository;
     private final ConversationService conversationService;
     private final FileStorage fileStorage;
     private final Clock clock;
@@ -73,6 +75,7 @@ public class AccountWithdrawalService {
             UserBadgeRepository userBadgeRepository, FavoriteGroupRepository favoriteGroupRepository,
             UserFoodPreferenceRepository foodPreferenceRepository,
             RefreshTokenRepository refreshTokenRepository, SocialAccountRepository socialAccountRepository,
+            PhoneVerificationRepository phoneVerificationRepository,
             ConversationService conversationService, FileStorage fileStorage, Clock clock) {
         this.userRepository = userRepository;
         this.checkInRepository = checkInRepository;
@@ -87,6 +90,7 @@ public class AccountWithdrawalService {
         this.foodPreferenceRepository = foodPreferenceRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.socialAccountRepository = socialAccountRepository;
+        this.phoneVerificationRepository = phoneVerificationRepository;
         this.conversationService = conversationService;
         this.fileStorage = fileStorage;
         this.clock = clock;
@@ -106,7 +110,7 @@ public class AccountWithdrawalService {
         LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), KST);
 
         endOngoing(userId, now);
-        deletePersonalData(userId, user.getProfileImageUrl());
+        deletePersonalData(userId, user.getProfileImageUrl(), user.getPhone());
         user.withdraw();
     }
 
@@ -114,6 +118,8 @@ public class AccountWithdrawalService {
     private void endOngoing(Long userId, LocalDateTime now) {
         // ① 진행 중인 체크인 종료. TOGETHER면 파트너도 함께 끝내고 대화를 닫는다
         //    — 한쪽만 끝내면 상대가 "같이 먹는 중"에 갇힌다(CheckInService.endCheckIn과 같은 규칙).
+        //    SEEKING은 end()가 (ACTIVE/TOGETHER 전용 가드 때문에) 조용히 무시하므로 cancel()로 보낸다 —
+        //    end()로 두면 SEEKING인 채로 남아 익명화된 계정이 모집중 목록·지도 집계에 계속 잡힌다.
         checkInRepository.findByUser_IdAndStatusIn(userId,
                         List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE, CheckInStatus.TOGETHER))
                 .ifPresent(mine -> {
@@ -121,6 +127,8 @@ public class AccountWithdrawalService {
                         checkInRepository.findTogetherByMealRequestId(mine.getMealRequestId())
                                 .forEach(c -> c.end(now));
                         conversationService.close(mine.getMealRequestId());
+                    } else if (mine.getStatus() == CheckInStatus.SEEKING) {
+                        mine.cancel(now);
                     } else {
                         mine.end(now);
                     }
@@ -137,8 +145,11 @@ public class AccountWithdrawalService {
      * <p>소프트 탈퇴라 {@code ON DELETE CASCADE}가 동작하지 않으므로(users 행을 지우지 않는다)
      * 전부 명시적으로 삭제한다. mates·mate_requests·blocks는 <b>양방향</b>이다 — 내 쪽만 지우면
      * 상대가 나를 향해 만든 행이 남아 관계가 반쯤 살아 있게 된다.
+     *
+     * <p>{@code phone_verifications}는 {@code users} FK가 없어(번호만으로 기록) 이 정리 대상에서
+     * 빠지기 쉽다 — 원문 휴대폰 번호가 남는 테이블이라 phone 값 기준으로 별도 삭제한다.
      */
-    private void deletePersonalData(Long userId, String profileImageUrl) {
+    private void deletePersonalData(Long userId, String profileImageUrl, String phone) {
         socialAccountRepository.deleteAllByUserId(userId);   // 재가입에 필수
         refreshTokenRepository.deleteAllByUserId(userId);    // 세션 즉시 무효화
         foodPreferenceRepository.deleteAllByUserId(userId);
@@ -149,7 +160,14 @@ public class AccountWithdrawalService {
         notificationRepository.deleteAllByUserId(userId);    // 내가 받은 것만. 내가 일으킨 알림(actor)은 상대 알림함에 남는다
         notificationSettingsRepository.deleteAllByUserId(userId);
         userBadgeRepository.deleteAllByUserId(userId);
+        if (phone != null) {
+            // users FK가 없어 하드 삭제 스윕에 걸리지 않던 테이블 — 소셜 온리 계정은 phone이 애초에 null.
+            phoneVerificationRepository.deleteAllByPhone(phone);
+        }
         if (profileImageUrl != null) {
+            // 커밋 전에 파일부터 지운다 — 이후 flush 실패로 트랜잭션이 롤백되면 DB는 되돌아가도 파일은
+            // 이미 사라진 상태가 된다. after-commit 훅이 더 정확하지만, 이 한 흐름을 위해 훅 인프라를
+            // 새로 두는 비용은 아니라고 보고 의도적으로 감수한다(오밤중 실수 아님).
             fileStorage.delete(profileImageUrl);
         }
     }
