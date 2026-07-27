@@ -99,14 +99,17 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
             <Icon name="kakao" size={18} color={C.kakaoText} />
             <Text style={[styles.btnText, { color: C.kakaoText }]}>카카오로 계속하기</Text>
           </Pressable>
-          {/* Apple */}
-          <Pressable
+          {/* Apple — 실연동 전까지 숨김.
+              onPress가 MainTabs로 바로 보내는 목업 상태였는데, MainTabs는 로그인 후 스택이라
+              비로그인 상태에서 눌러도 아무 일도 일어나지 않는 죽은 버튼이었다.
+              애플 로그인 슬라이스에서 onPress를 실제 연동으로 바꾸면서 되살릴 것. */}
+          {/* <Pressable
             style={[styles.btn, { backgroundColor: T2.text }]}
             onPress={() => navigation.navigate('MainTabs')}
           >
             <Icon name="apple" size={16} color="#fff" />
             <Text style={[styles.btnText, { color: '#fff' }]}>Apple로 계속하기</Text>
-          </Pressable>
+          </Pressable> */}
           {/* 휴대폰 — 문서상의 인증 흐름 진입점 */}
           <Pressable
             style={[styles.btn, { backgroundColor: T2.brand }]}
