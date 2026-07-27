@@ -27,6 +27,7 @@ import com.honjeong.mate.repository.MateRepository;
 import com.honjeong.mate.repository.MateRequestRepository;
 import com.honjeong.place.domain.Place;
 import com.honjeong.user.domain.DiningStyle;
+import com.honjeong.user.domain.Gender;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.domain.UserFoodPreference;
 import com.honjeong.user.repository.UserFoodPreferenceRepository;
@@ -267,10 +268,12 @@ class MateProfileServiceTest {
     @Test
     @DisplayName("탈퇴한 사용자의 공개 프로필은 404로 존재를 숨긴다")
     void withdrawnUserProfileIsHidden() {
+        // 실 사용자는 ACTIVE(프로필 완료)를 거쳐야 탈퇴할 수 있다 — PENDING에서 바로 withdraw하는 건 실제 전이가 아니다.
         User target = userWithId(2L);
+        target.completeProfile("상대닉", Gender.NONE, LocalDate.of(1995, 1, 1), "소개", "서울 강남구",
+                37.5, 127.0, DiningStyle.QUIET, null);
         target.withdraw();
         when(userRepository.findById(2L)).thenReturn(Optional.of(target));
-        when(blockRepository.existsBlockBetween(1L, 2L)).thenReturn(false);
 
         assertThatThrownBy(() -> service.getPublicProfile(1L, 2L))
                 .isInstanceOf(BusinessException.class)

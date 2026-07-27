@@ -266,6 +266,24 @@ class ConversationMessagingTest {
     }
 
     @Test
+    void listMine은_탈퇴한_상대의_닉네임을_알수없음으로_표시한다() {
+        User me = userRef(10L);
+        User partner = userRef(20L);
+        lenient().when(partner.getNickname()).thenReturn(null); // 탈퇴로 닉네임이 사라짐
+        Place place = mock(Place.class);
+        lenient().when(place.getName()).thenReturn("혼밥식당");
+        Conversation conv = withId(Conversation.open(1L, place, me, partner), 7L);
+        when(blockRepository.findExclusionIds(10L)).thenReturn(List.of(-1L)); // 차단 없음(센티널)
+        when(conversationRepository.findAllForUser(10L)).thenReturn(List.of(conv));
+        lenient().when(chatMessageRepository.findLastMessagesByConversationIds(List.of(7L))).thenReturn(List.of());
+        lenient().when(chatMessageRepository.countUnread(any(), any(), any())).thenReturn(0L);
+
+        List<ConversationSummaryResponse> res = service.listMine(10L);
+
+        assertThat(res.get(0).partnerNickname()).isEqualTo("알 수 없음");
+    }
+
+    @Test
     void listMine의_미리보기는_IMAGE_메시지면_사진으로_표시한다() {
         User me = userRef(10L);
         User partner = userRef(20L);

@@ -100,6 +100,34 @@ class NotificationServiceTest {
     }
 
     @Test
+    @DisplayName("getNotifications: 탈퇴한 주체(닉네임 null)는 actorNickname이 '알 수 없음'")
+    void list_withdrawnActor_showsUnknown() {
+        User withdrawnActor = user(2L, null); // 주체는 있지만 탈퇴로 닉네임이 사라짐
+        Notification n = Notification.create(user(1L, "나"), withdrawnActor,
+                NotificationType.MATE_REQUEST_ACCEPTED, LocalDateTime.of(2026, 7, 4, 11, 0));
+        when(notificationRepository.findTop30ByUser_IdAndCreatedAtAfterOrderByCreatedAtDesc(
+                org.mockito.ArgumentMatchers.eq(1L), any(LocalDateTime.class))).thenReturn(List.of(n));
+
+        List<NotificationResponse> got = service.getNotifications(1L);
+
+        assertThat(got.get(0).actorNickname()).isEqualTo("알 수 없음");
+    }
+
+    @Test
+    @DisplayName("getNotifications: 주체 자체가 없는 알림(예: BADGE_EARNED)은 actorNickname이 null 그대로 유지된다"
+            + "(탈퇴자의 '알 수 없음'과 혼동하면 안 됨)")
+    void list_noActor_staysNull() {
+        Notification n = Notification.create(user(1L, "나"), null,
+                NotificationType.BADGE_EARNED, LocalDateTime.of(2026, 7, 4, 11, 0));
+        when(notificationRepository.findTop30ByUser_IdAndCreatedAtAfterOrderByCreatedAtDesc(
+                org.mockito.ArgumentMatchers.eq(1L), any(LocalDateTime.class))).thenReturn(List.of(n));
+
+        List<NotificationResponse> got = service.getNotifications(1L);
+
+        assertThat(got.get(0).actorNickname()).isNull();
+    }
+
+    @Test
     @DisplayName("markRead: 본인 알림이 아니면 NOTIFICATION_NOT_FOUND")
     void markRead_ownershipGuard() {
         Notification others = Notification.create(user(99L, "남"), user(2L, "상대"),

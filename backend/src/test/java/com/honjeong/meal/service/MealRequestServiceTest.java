@@ -514,6 +514,31 @@ class MealRequestServiceTest {
     }
 
     @Test
+    @DisplayName("getMealRequests: 탈퇴한 신청자·수신자(닉네임 null)는 fromUser·toUser 모두 '알 수 없음'으로 표시된다")
+    void list_withdrawnFromAndToUser_showUnknown() {
+        User from = mock(User.class);
+        when(from.getId()).thenReturn(20L);
+        when(from.getNickname()).thenReturn(null); // 탈퇴한 신청자
+        User to = mock(User.class);
+        when(to.getId()).thenReturn(30L);
+        when(to.getNickname()).thenReturn(null); // 탈퇴한 수신자
+        CheckIn ci = mock(CheckIn.class);
+        when(ci.getUser()).thenReturn(to);
+        Place place = mock(Place.class);
+        when(place.getId()).thenReturn(3L);
+        when(place.getName()).thenReturn("큰순두부");
+        MealRequest mr = MealRequest.create(from, ci, place, "같이 드실래요?", nowKst);
+        when(mealRequestRepository.findReceived(eq(1L), isNull(), anyList())).thenReturn(List.of(mr));
+
+        List<MealRequestListItemResponse> result = service.getMealRequests(1L, "received", null);
+
+        assertThat(result).hasSize(1);
+        MealRequestListItemResponse item = result.get(0);
+        assertThat(item.fromUser().nickname()).isEqualTo("알 수 없음");
+        assertThat(item.toUser().nickname()).isEqualTo("알 수 없음");
+    }
+
+    @Test
     @DisplayName("getMealRequests: 잘못된 role이면 INVALID_INPUT(400)")
     void list_badRole() {
         assertThatThrownBy(() -> service.getMealRequests(1L, "garbage", null))

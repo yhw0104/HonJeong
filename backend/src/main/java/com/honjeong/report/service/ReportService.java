@@ -6,6 +6,7 @@ import java.time.ZoneId;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.honjeong.global.common.DisplayNames;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.report.domain.Report;
@@ -74,14 +75,16 @@ public class ReportService {
             if (target.getId().equals(reporterId)) {
                 throw new BusinessException(ErrorCode.REPORT_SELF);
             }
-            return target.getNickname();
+            // 탈퇴자는 닉네임이 null이라 그대로 저장하면 target_nickname NOT NULL 위반(500)이 난다 — '알 수 없음'으로 대체.
+            return DisplayNames.nicknameOrUnknown(target.getNickname());
         }
         Review review = reviewRepository.findById(targetId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.REPORT_TARGET_NOT_FOUND));
         if (review.getUser().getId().equals(reporterId)) {
             throw new BusinessException(ErrorCode.REPORT_SELF);
         }
-        return review.getUser().getNickname();
+        // 탈퇴자는 닉네임이 null이라 그대로 저장하면 target_nickname NOT NULL 위반(500)이 난다 — '알 수 없음'으로 대체.
+        return DisplayNames.nicknameOrUnknown(review.getUser().getNickname());
     }
 
     /**

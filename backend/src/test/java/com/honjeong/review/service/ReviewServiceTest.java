@@ -445,6 +445,19 @@ class ReviewServiceTest {
         verify(reviewRepository).findByPlaceWithUserAndTags(PLACE_ID, List.of(5L, 6L));
     }
 
+    @Test
+    @DisplayName("getPlaceReviews: 탈퇴한 작성자(닉네임 null)의 리뷰는 작성자명이 '알 수 없음'으로 표시된다")
+    void getPlaceReviews_withdrawnAuthor_showsUnknown() {
+        Review review = reviewWithId(10L, null);
+        when(reviewPhotoRepository.findByPlaceFlattened(PLACE_ID)).thenReturn(List.of());
+        when(blockRepository.findExclusionIds(USER_ID)).thenReturn(List.of(-1L));
+        when(reviewRepository.findByPlaceWithUserAndTags(PLACE_ID, List.of(-1L))).thenReturn(List.of(review));
+
+        List<PlaceReviewResponse> result = service.getPlaceReviews(PLACE_ID, USER_ID);
+
+        assertThat(result.get(0).user().nickname()).isEqualTo("알 수 없음");
+    }
+
     private static ReviewPhotoRepository.ReviewPhotoRow rowOf(Long reviewId, String url) {
         ReviewPhotoRepository.ReviewPhotoRow row = mock(ReviewPhotoRepository.ReviewPhotoRow.class);
         when(row.getReviewId()).thenReturn(reviewId);
@@ -453,10 +466,14 @@ class ReviewServiceTest {
     }
 
     private static Review reviewWithId(Long id) {
+        return reviewWithId(id, "닉네임");
+    }
+
+    private static Review reviewWithId(Long id, String authorNickname) {
         Review r = mock(Review.class);
         when(r.getId()).thenReturn(id);
         User user = mock(User.class);
-        when(user.getNickname()).thenReturn("닉네임");
+        when(user.getNickname()).thenReturn(authorNickname);
         when(user.getId()).thenReturn(USER_ID);
         when(r.getUser()).thenReturn(user);
         when(r.getVisitedAt()).thenReturn(LocalDateTime.of(2026, 6, 25, 12, 0));

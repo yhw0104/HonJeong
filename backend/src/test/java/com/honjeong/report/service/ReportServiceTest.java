@@ -97,6 +97,44 @@ class ReportServiceTest {
     }
 
     @Test
+    @DisplayName("탈퇴한 사용자(USER) 신고: 닉네임이 null이어도 '알 수 없음'으로 스냅샷 저장(NOT NULL 위반으로 인한 500 방지)")
+    void create_userTarget_withdrawn() {
+        User target = mock(User.class);
+        when(target.getId()).thenReturn(2L);
+        when(target.getNickname()).thenReturn(null);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(target));
+        Report saved = mock(Report.class);
+        when(saved.getId()).thenReturn(12L);
+        when(saved.getStatus()).thenReturn(ReportStatus.RECEIVED);
+        when(reportRepository.save(any(Report.class))).thenReturn(saved);
+
+        ReportCreateResponse res = service.create(1L, new ReportCreateRequest("USER", 2L, "SPAM", null));
+
+        assertThat(res.reportId()).isEqualTo(12L);
+        ArgumentCaptor<Report> captor = ArgumentCaptor.forClass(Report.class);
+        verify(reportRepository).save(captor.capture());
+        assertThat(captor.getValue().getTargetNickname()).isEqualTo("알 수 없음");
+    }
+
+    @Test
+    @DisplayName("탈퇴한 사용자가 쓴 리뷰(REVIEW) 신고: 작성자 닉네임이 null이어도 '알 수 없음'으로 스냅샷 저장(NOT NULL 위반으로 인한 500 방지)")
+    void create_reviewTarget_withdrawnAuthor() {
+        Review review = review(5L, 2L, null);
+        when(reviewRepository.findById(5L)).thenReturn(Optional.of(review));
+        Report saved = mock(Report.class);
+        when(saved.getId()).thenReturn(13L);
+        when(saved.getStatus()).thenReturn(ReportStatus.RECEIVED);
+        when(reportRepository.save(any(Report.class))).thenReturn(saved);
+
+        ReportCreateResponse res = service.create(1L, new ReportCreateRequest("REVIEW", 5L, "ABUSE", null));
+
+        assertThat(res.reportId()).isEqualTo(13L);
+        ArgumentCaptor<Report> captor = ArgumentCaptor.forClass(Report.class);
+        verify(reportRepository).save(captor.capture());
+        assertThat(captor.getValue().getTargetNickname()).isEqualTo("알 수 없음");
+    }
+
+    @Test
     @DisplayName("자기 자신 USER 신고 → REPORT_SELF")
     void create_selfUser_throws() {
         User self = user(1L);
