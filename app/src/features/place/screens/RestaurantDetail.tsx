@@ -308,6 +308,10 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
             onEnd={() => setEnding(myCheckIn.data!)}
             onDineAlone={() => dineAloneMut.mutate(myCheckIn.data!.checkInId)}
             onQuit={() => cancelMut.mutate(myCheckIn.data!.checkInId)}
+            onOpenChat={() => {
+              const cid = myCheckIn.data?.conversationId;
+              if (cid) navigation.navigate('ChatRoom', { conversationId: cid });
+            }}
           />
         </View>
       )}
