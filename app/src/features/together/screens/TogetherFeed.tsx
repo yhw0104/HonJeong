@@ -15,7 +15,11 @@ import {
 import { mealErrorMessage } from '@/features/meal/mealCopy';
 import { MealRequestSegments, MealRequestLists, type MealTab } from '@/features/meal/components/MealRequestList';
 import { fetchMyCheckIn } from '@/features/checkin/api';
+import { nearbyDiningPlaces } from '@/features/place/nearbyDining';
 import { LIVE_REFETCH_MS } from '@/shared/realtime';
+
+// 가로 카드 최대 개수 — /places/nearby 한 페이지(20)와 같게 둬서 사실상 전부 보여준다.
+const MAX_LIVE_CARDS = 20;
 
 export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherFeed'>) {
   const [tab, setTab] = useState<MealTab>('received');
@@ -31,7 +35,8 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
 
   // 이 화면에 있는 동안만 내 체크인을 폴링해 매칭(TOGETHER) 전이를 빠르게 반영한다.
   // useMyCheckIn(다른 화면)과 동일한 쿼리 키를 써서 캐시를 공유하되, 기본 훅 자체는 건드리지 않는다.
-  useQuery({
+  // 내가 모집중인 식당을 인원에서 나만 빼는 데도 쓴다(seekingCount에 내가 포함돼 있어서).
+  const myCheckIn = useQuery({
     queryKey: ['checkin', 'me'],
     queryFn: fetchMyCheckIn,
     refetchInterval: LIVE_REFETCH_MS,
@@ -48,7 +53,13 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
     setRefreshing(false);
   }, [qc]);
 
-  const livePlaces = (nearby.data?.content ?? []).filter((p) => p.activeCount > 0);
+  // 같이먹기 탭이므로 "혼자 먹는 중(ACTIVE)"이 아니라 "같이 먹을 사람 구하는 중(SEEKING)"인 식당만 띄운다.
+  // 검색 첫 화면과 같은 순수 로직을 재사용 — 기준이 갈리지 않게(가까운 순·본인 제외).
+  const livePlaces = nearbyDiningPlaces(
+    nearby.data?.content ?? [],
+    MAX_LIVE_CARDS,
+    myCheckIn.data?.placeId ?? null,
+  );
   const receivedList = received.data ?? [];
   const sentList = sent.data ?? [];
 
@@ -67,16 +78,16 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T2.brand} />}
       >
-        {/* 주변 혼밥 식당 — nearby 재사용 */}
+        {/* 주변 모집중 식당 — nearby 재사용 */}
         <View style={styles.liveHead}>
           <View style={styles.liveHeadLeft}>
             <View style={styles.liveDot} />
-            <Text style={styles.liveLabel}>지금 주변에 혼밥러가 있어요</Text>
+            <Text style={styles.liveLabel}>지금 주변에서 같이 먹을 사람 구하는 중</Text>
           </View>
           <Text style={styles.liveCount}>내 주변 {livePlaces.length}</Text>
         </View>
         {livePlaces.length === 0 ? (
-          <Text style={styles.emptyInline}>주변에 혼밥 중인 식당이 아직 없어요.</Text>
+          <Text style={styles.emptyInline}>주변에 같이 먹을 사람을 구하는 식당이 아직 없어요.</Text>
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.liveScroll} contentContainerStyle={styles.liveScrollContent}>
             {livePlaces.map((p) => (
@@ -85,7 +96,7 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
                 accessibilityRole="button">
                 <Text style={styles.livePlace} numberOfLines={1}>{p.name}</Text>
                 <Text style={styles.liveMeta}>{formatDistance(p.distanceMeters)}</Text>
-                <View style={styles.liveBadge}><Text style={styles.liveBadgeText}>{p.activeCount}명 혼밥 중</Text></View>
+                <View style={styles.liveBadge}><Text style={styles.liveBadgeText}>{p.seekingCount}명 모집 중</Text></View>
               </Pressable>
             ))}
           </ScrollView>
