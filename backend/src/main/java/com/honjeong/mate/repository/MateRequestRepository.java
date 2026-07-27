@@ -94,11 +94,8 @@ public interface MateRequestRepository extends JpaRepository<MateRequest, Long> 
      * 기능: 사용자가 관련된(발신·수신 무관) 메이트 신청을 전부 삭제(탈퇴 시 관계 정리용)
      * 쿼리: DELETE FROM mate_requests WHERE from_user_id = :userId OR to_user_id = :userId
      * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
-     *
-     * <p>벌크 DELETE라 영속성 컨텍스트를 우회하므로 clearAutomatically로 1차 캐시를 비운다
-     * (같은 트랜잭션에서 이미 로딩된 엔티티가 삭제 후에도 stale 상태로 남는 것을 막는다).
      */
-    @Modifying(clearAutomatically = true)
+    @Modifying
     @Query("DELETE FROM MateRequest mr WHERE mr.fromUser.id = :userId OR mr.toUser.id = :userId")
     int deleteAllInvolvingUser(@Param("userId") Long userId);
 }

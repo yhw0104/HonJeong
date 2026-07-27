@@ -148,6 +148,17 @@ public class AccountWithdrawalService {
      *
      * <p>{@code phone_verifications}는 {@code users} FK가 없어(번호만으로 기록) 이 정리 대상에서
      * 빠지기 쉽다 — 원문 휴대폰 번호가 남는 테이블이라 phone 값 기준으로 별도 삭제한다.
+     *
+     * <p><b>주의 — 이 11개 삭제 메서드에 {@code @Modifying(clearAutomatically = true)}를 절대
+     * 걸지 말 것.</b> {@code em.clear()}는 삭제 대상 테이블에 국한되지 않고 영속성 컨텍스트 전체를
+     * 비운다. {@link #withdraw(Long)}는 이 호출 이전에 관리 중인 {@code User}를 들고 있고(위쪽의
+     * {@code user} 참조), {@link #endOngoing}이 만든 체크인 {@code cancel}/{@code end}·대화
+     * {@code close} 변경도 아직 flush되지 않은 채다 — 삭제 쿼리들의 쿼리 스페이스가 이 테이블들과
+     * 겹치지 않아 Hibernate가 자동 flush도 하지 않는다. 그 상태에서 clear가 실행되면 User는 detach되고
+     * 체크인·대화 변경은 ActionQueue에서 통째로 버려진다. 그 결과 {@code user.withdraw()}가 평범한
+     * POJO를 고치는 셈이 되어 커밋 시 UPDATE가 나가지 않고, 개인정보만 삭제된 채 계정은 ACTIVE로
+     * 살아남는다(실제로 발생했던 장애). 다른 도메인의 "벌크 DELETE는 clearAutomatically로 캐시를
+     * 비운다" 관례를 여기서 "복원"하면 이 버그가 재발한다 — 이 트랜잭션에 한해서는 절대 금지.
      */
     private void deletePersonalData(Long userId, String profileImageUrl, String phone) {
         socialAccountRepository.deleteAllByUserId(userId);   // 재가입에 필수
