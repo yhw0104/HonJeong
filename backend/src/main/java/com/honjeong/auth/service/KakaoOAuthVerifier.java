@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -51,6 +52,10 @@ public class KakaoOAuthVerifier implements OAuthVerifier {
      * @param jwksUri 공개키 목록 주소
      * @param appKey  ID 토큰의 aud로 기대하는 우리 앱 키
      */
+    // 생성자가 (아래 테스트용 private 생성자와) 둘이라 스프링이 어느 쪽을 쓸지 스스로 정하지 못하고
+    // 기본(무인자) 생성자를 찾다가 부팅에 실패한다("No default constructor found"). @Autowired로
+    // 이 생성자를 쓰도록 명시한다.
+    @Autowired
     public KakaoOAuthVerifier(@Value("${honjeong.oauth.kakao.issuer}") String issuer,
             @Value("${honjeong.oauth.kakao.jwks-uri}") String jwksUri,
             @Value("${honjeong.oauth.kakao.app-key}") String appKey) {
