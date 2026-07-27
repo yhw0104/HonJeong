@@ -7,11 +7,15 @@ import { AuthProvider } from '@/shared/auth/AuthContext';
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { setupRealtimeFocus } from '@/shared/realtime';
 import { ErrorBoundary } from '@/shared/components';
+import { initKakao } from '@/features/auth/kakaoLogin';
 
 // 앱 전역 데이터 캐시("공용 게시판"). 여러 화면이 같은 캐시를 구독해 한 곳이 바뀌면 함께 갱신된다.
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 10_000 } },
 });
+
+// 앱 시작 시 1회만 실행되어야 하므로 컴포넌트 바깥(모듈 최상위)에서 호출한다.
+initKakao();
 
 export default function App() {
   // 앱이 포그라운드로 돌아오면 활성 쿼리를 즉시 갱신(폴링과 함께 실시간성 확보).
