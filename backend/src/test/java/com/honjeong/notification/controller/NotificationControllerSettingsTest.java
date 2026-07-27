@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,7 @@ import com.honjeong.notification.dto.NotificationSettingsRequest;
 import com.honjeong.notification.dto.NotificationSettingsResponse;
 import com.honjeong.notification.service.NotificationService;
 import com.honjeong.notification.service.NotificationSettingsService;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 /**
  * NotificationController 알림 설정 엔드포인트 슬라이스 테스트(@WebMvcTest).
@@ -31,7 +33,7 @@ import com.honjeong.notification.service.NotificationSettingsService;
  */
 @WebMvcTest(controllers = NotificationController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class NotificationControllerSettingsTest {
+class NotificationControllerSettingsTest extends ActiveUserSliceSupport {
 
     @Autowired
     private MockMvc mockMvc;

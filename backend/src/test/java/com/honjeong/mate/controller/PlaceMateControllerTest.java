@@ -22,13 +22,14 @@ import com.honjeong.mate.dto.MateAtPlace;
 import com.honjeong.mate.dto.PlaceMatesResponse;
 import com.honjeong.mate.dto.SavedMate;
 import com.honjeong.mate.service.PlaceMateService;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 /**
  * {@link PlaceMateController} 웹 슬라이스 테스트 — 식당 상세 메이트 탭 엔드포인트의 매핑·인가를 검증한다.
  */
 @WebMvcTest(controllers = PlaceMateController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class PlaceMateControllerTest {
+class PlaceMateControllerTest extends ActiveUserSliceSupport {
 
     @Autowired
     private MockMvc mockMvc;

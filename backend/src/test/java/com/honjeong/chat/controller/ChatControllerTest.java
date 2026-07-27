@@ -31,13 +31,14 @@ import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.global.security.JwtProvider;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 /**
  * {@link ChatController} 웹 슬라이스 테스트. HTTP 매핑·상태코드·인가·{@code @Valid}를 검증하고 로직은 서비스 모킹.
  */
 @WebMvcTest(controllers = ChatController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class ChatControllerTest {
+class ChatControllerTest extends ActiveUserSliceSupport {
 
     @Autowired
     private MockMvc mockMvc;

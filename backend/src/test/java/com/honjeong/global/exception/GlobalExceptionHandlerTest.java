@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.honjeong.support.ActiveUserSliceSupport;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
@@ -29,7 +31,7 @@ import jakarta.validation.constraints.NotBlank;
 @WebMvcTest(controllers = GlobalExceptionHandlerTest.TestController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @Import({GlobalExceptionHandler.class, GlobalExceptionHandlerTest.TestController.class})
-class GlobalExceptionHandlerTest {
+class GlobalExceptionHandlerTest extends ActiveUserSliceSupport {
 
     @Autowired
     private MockMvc mockMvc;

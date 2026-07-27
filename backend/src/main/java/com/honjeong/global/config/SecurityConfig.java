@@ -1,6 +1,5 @@
 package com.honjeong.global.config;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.util.List;
 
@@ -8,8 +7,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -18,14 +15,15 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 
 import com.honjeong.global.exception.ErrorCode;
+import com.honjeong.global.security.ActiveUserFilter;
 import com.honjeong.global.security.JwtProvider;
-
-import jakarta.servlet.http.HttpServletResponse;
+import com.honjeong.global.security.SecurityErrorWriter;
 
 /**
  * 1. 기능: 무상태 JWT 보안 설정 — JwtProvider/JwtDecoder 빈 등록, 경로별 인가 규칙, typ 클레임→ROLE 매핑, 401/403 공통 엔벨로프 응답
@@ -89,11 +87,13 @@ public class SecurityConfig {
      *
      * @param http Security DSL 빌더
      * @param jwtDecoder 들어온 JWT를 검증할 디코더
+     * @param activeUserFilter 인증된 요청마다 users.status가 ACTIVE인지 확인하는 필터
      * @return 빌드된 SecurityFilterChain
      * @throws Exception DSL 구성 중 발생할 수 있는 예외
      */
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder jwtDecoder) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder jwtDecoder, ActiveUserFilter activeUserFilter)
+            throws Exception {
         http
                 // 토큰 기반 무상태 API라 CSRF 보호가 불필요하므로 끈다.
                 .csrf(AbstractHttpConfigurer::disable)
@@ -126,7 +126,9 @@ public class SecurityConfig {
                 .exceptionHandling(e -> e
                         // 인증 실패(토큰 없음/위조/만료) → 401, 권한 부족(역할 불충분) → 403.
                         .authenticationEntryPoint(unauthorizedEntryPoint())
-                        .accessDeniedHandler(forbiddenHandler()));
+                        .accessDeniedHandler(forbiddenHandler()))
+                // 인증(Bearer 토큰 검증) 직후에 계정 상태를 확인한다. 이 위치여야 SecurityContext가 채워져 있다.
+                .addFilterAfter(activeUserFilter, BearerTokenAuthenticationFilter.class);
         return http.build();
     }
 
@@ -164,7 +166,7 @@ public class SecurityConfig {
      * @return UNAUTHORIZED(401)을 내려주는 AuthenticationEntryPoint
      */
     private AuthenticationEntryPoint unauthorizedEntryPoint() {
-        return (request, response, ex) -> writeError(response, ErrorCode.UNAUTHORIZED);
+        return (request, response, ex) -> SecurityErrorWriter.write(response, ErrorCode.UNAUTHORIZED);
     }
 
     /**
@@ -177,28 +179,6 @@ public class SecurityConfig {
      * @return FORBIDDEN(403)을 내려주는 AccessDeniedHandler
      */
     private AccessDeniedHandler forbiddenHandler() {
-        return (request, response, ex) -> writeError(response, ErrorCode.FORBIDDEN);
-    }
-
-    /**
-     * 기능: 보안 필터 단계(컨트롤러 진입 전)에서 발생한 401/403을 공통 응답 엔벨로프 JSON으로 직접 직렬화한다
-     * Request: response — 응답 객체(상태·콘텐츠타입·본문 기록 대상), code — 내려줄 에러 코드(상태·코드명·메시지의 출처)
-     * Response: 없음(void) — response 본문에 {success:false,error:{code,message}} JSON 기록
-     *
-     * <p>[기존 주석] 보안 필터 단계(컨트롤러 진입 전)에서 발생한 401/403을 공통 응답 엔벨로프 JSON으로 직접 직렬화한다.
-     * 이 시점엔 {@code GlobalExceptionHandler}(@RestControllerAdvice)가 동작하지 않으므로 문자열로 직접 작성한다.
-     *
-     * @param response 응답 객체(상태·콘텐츠타입·인코딩을 세팅하고 본문을 기록)
-     * @param code 내려줄 에러 코드(상태·코드명·메시지의 출처)
-     * @throws IOException 응답 본문 기록 중 입출력 예외
-     */
-    private static void writeError(HttpServletResponse response, ErrorCode code) throws IOException {
-        HttpStatus status = code.status();
-        response.setStatus(status.value());
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
-        // ApiResponse.error(...)와 동일한 형태를 손으로 만든 JSON. 필터 계층이라 메시지 컨버터를 거치지 않는다.
-        response.getWriter().write(
-                "{\"success\":false,\"error\":{\"code\":\"" + code.code() + "\",\"message\":\"" + code.message() + "\"}}");
+        return (request, response, ex) -> SecurityErrorWriter.write(response, ErrorCode.FORBIDDEN);
     }
 }

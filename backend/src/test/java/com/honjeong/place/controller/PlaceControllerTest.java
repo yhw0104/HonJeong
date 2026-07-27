@@ -29,6 +29,7 @@ import com.honjeong.place.dto.PlaceDetailResponse;
 import com.honjeong.place.dto.PlaceNearbyResponse;
 import com.honjeong.place.dto.PlaceSearchResponse;
 import com.honjeong.place.service.PlaceService;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 /**
  * {@link PlaceController}의 웹 계층 슬라이스 테스트.
@@ -38,7 +39,7 @@ import com.honjeong.place.service.PlaceService;
  */
 @WebMvcTest(controllers = PlaceController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class PlaceControllerTest {
+class PlaceControllerTest extends ActiveUserSliceSupport {
 
     @Autowired
     private MockMvc mockMvc;

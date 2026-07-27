@@ -27,13 +27,14 @@ import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.global.security.JwtProvider;
 import com.honjeong.review.dto.ReviewResponse;
 import com.honjeong.review.service.ReviewService;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 /**
  * {@link ReviewController} 웹 슬라이스 테스트. HTTP 매핑·상태코드·인가·{@code @Valid}를 검증하고 로직은 서비스 모킹.
  */
 @WebMvcTest(controllers = ReviewController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class ReviewControllerTest {
+class ReviewControllerTest extends ActiveUserSliceSupport {
 
     @Autowired
     private MockMvc mockMvc;

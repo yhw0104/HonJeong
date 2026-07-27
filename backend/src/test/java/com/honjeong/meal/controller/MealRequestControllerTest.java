@@ -30,13 +30,14 @@ import com.honjeong.meal.dto.MealRequestListItemResponse;
 import com.honjeong.meal.dto.MealRequestResponse;
 import com.honjeong.meal.dto.MealRequestStatusResponse;
 import com.honjeong.meal.service.MealRequestService;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 /**
  * {@link MealRequestController} 웹 슬라이스 테스트. HTTP 매핑·상태코드·인가·{@code @Valid}를 검증하고 로직은 서비스 모킹.
  */
 @WebMvcTest(controllers = MealRequestController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class MealRequestControllerTest {
+class MealRequestControllerTest extends ActiveUserSliceSupport {
 
     @Autowired
     private MockMvc mockMvc;

@@ -22,6 +22,7 @@ import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.global.security.JwtProvider;
 import com.honjeong.favorite.service.FavoriteGroupService;
 import com.honjeong.user.domain.User;
+import com.honjeong.user.domain.UserStatus;
 import com.honjeong.user.repository.UserRepository;
 import com.honjeong.user.service.UserFoodPreferenceService;
 
@@ -173,9 +174,15 @@ public class AuthService {
         verification.markVerified();                                
 
         // users 테이블에 phone으로 해당 유저 있는지 판단.
-        // 이미 정상 회원 → 즉시 로그인
         Optional<User> existing = userRepository.findByPhone(phone);
-        if (existing.isPresent() && existing.get().isActive()) {     
+
+        // 정지·탈퇴 계정은 온보딩으로 되돌려 보내지 않는다. 되돌려 보내면 complete()가 status를 ACTIVE로
+        // 되돌려버려 제재가 무력화된다(부활 경로).
+        existing.filter(u -> u.getStatus() == UserStatus.SUSPENDED || u.getStatus() == UserStatus.WITHDRAWN)
+                .ifPresent(u -> { throw new BusinessException(ErrorCode.ACCOUNT_INACTIVE); });
+
+        // 이미 정상 회원 → 즉시 로그인
+        if (existing.isPresent() && existing.get().isActive()) {
             return AuthResult.login(tokenService.issue(existing.get().getId()));
         }
 
@@ -216,6 +223,9 @@ public class AuthService {
         if (account.isPresent()) { // 이미 가입한 소셜 계정(재방문)
             User user = userRepository.findById(account.get().getUserId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+            if (user.getStatus() == UserStatus.SUSPENDED || user.getStatus() == UserStatus.WITHDRAWN) {
+                throw new BusinessException(ErrorCode.ACCOUNT_INACTIVE);
+            }
             return user.isActive()
                     ? AuthResult.login(tokenService.issue(user.getId()))                     // 정상 회원 → 로그인
                     : AuthResult.onboarding(jwtProvider.createOnboardingToken(user.getId())); // 미완 → 온보딩 계속
@@ -287,6 +297,11 @@ public class AuthService {
     public TokenPair complete(long userId, CompleteProfileCommand command) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        // 온보딩 완료는 PENDING 회원만 밟을 수 있다. 정지·탈퇴 계정이 온보딩 토큰을 얻어 이 경로로
+        // ACTIVE가 되는 것을 막는다(completeProfile()이 status를 무조건 ACTIVE로 만들기 때문).
+        if (user.getStatus() != UserStatus.PENDING) {
+            throw new BusinessException(ErrorCode.ACCOUNT_INACTIVE);
+        }
         if (userRepository.existsByNickname(command.nickname())) { // 닉네임 중복 검사
             throw new BusinessException(ErrorCode.NICKNAME_DUPLICATE);
         }

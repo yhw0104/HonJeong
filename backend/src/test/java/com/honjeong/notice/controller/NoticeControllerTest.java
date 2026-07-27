@@ -20,10 +20,11 @@ import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.security.JwtProvider;
 import com.honjeong.notice.dto.NoticesResponse;
 import com.honjeong.notice.service.NoticeService;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 @WebMvcTest(controllers = NoticeController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class NoticeControllerTest {
+class NoticeControllerTest extends ActiveUserSliceSupport {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtProvider jwtProvider;

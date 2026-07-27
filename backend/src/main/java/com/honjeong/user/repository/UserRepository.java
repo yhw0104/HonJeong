@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.honjeong.user.domain.User;
 import com.honjeong.user.domain.UserStatus;
@@ -56,4 +58,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * @return 조건에 맞는 회원 목록(최대 20건)
      */
     List<User> findTop20ByNicknameContainingIgnoreCaseAndStatus(String nickname, UserStatus status);
+
+    /**
+     * 기능: 사용자 상태만 조회한다(요청마다 호출되므로 엔티티 전체를 로딩하지 않는다)
+     * 쿼리: SELECT status FROM users WHERE id = :id
+     */
+    @Query("SELECT u.status FROM User u WHERE u.id = :id")
+    Optional<UserStatus> findStatusById(@Param("id") Long id);
 }

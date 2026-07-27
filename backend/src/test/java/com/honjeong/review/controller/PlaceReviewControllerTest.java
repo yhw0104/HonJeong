@@ -21,10 +21,11 @@ import com.honjeong.global.security.JwtProvider;
 import com.honjeong.review.dto.PlacePhotoResponse;
 import com.honjeong.review.dto.PlaceReviewResponse;
 import com.honjeong.review.service.ReviewService;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 @WebMvcTest(controllers = PlaceReviewController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class PlaceReviewControllerTest {
+class PlaceReviewControllerTest extends ActiveUserSliceSupport {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtProvider jwtProvider;

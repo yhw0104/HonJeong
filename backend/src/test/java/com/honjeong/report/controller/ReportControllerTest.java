@@ -22,10 +22,11 @@ import com.honjeong.global.security.JwtProvider;
 import com.honjeong.report.dto.MyReportResponse;
 import com.honjeong.report.dto.ReportCreateResponse;
 import com.honjeong.report.service.ReportService;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 @WebMvcTest(controllers = ReportController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class ReportControllerTest {
+class ReportControllerTest extends ActiveUserSliceSupport {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtProvider jwtProvider;

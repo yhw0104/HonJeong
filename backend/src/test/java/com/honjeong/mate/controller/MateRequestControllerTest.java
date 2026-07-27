@@ -23,10 +23,11 @@ import com.honjeong.mate.dto.MateRequestListItemResponse;
 import com.honjeong.mate.dto.MateRequestResponse;
 import com.honjeong.mate.dto.MateRequestStatusResponse;
 import com.honjeong.mate.service.MateRequestService;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 @WebMvcTest(controllers = MateRequestController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class MateRequestControllerTest {
+class MateRequestControllerTest extends ActiveUserSliceSupport {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtProvider jwtProvider;

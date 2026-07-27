@@ -26,6 +26,8 @@ public enum ErrorCode {
     // 인증·계정 — 토큰 재발급, 휴대폰 인증, 약관 동의, 닉네임/사용자 조회 등 가입·로그인 흐름의 에러
     /** 리프레시 토큰이 없거나 만료·폐기됨(재로그인 필요) — 401 */
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 리프레시 토큰입니다."),
+    /** 정지·탈퇴 등으로 사용할 수 없는 계정 */
+    ACCOUNT_INACTIVE(HttpStatus.UNAUTHORIZED, "이용할 수 없는 계정입니다."),
     /** 휴대폰 인증번호 불일치 — 400 */
     PHONE_CODE_MISMATCH(HttpStatus.BAD_REQUEST, "인증번호가 일치하지 않습니다."),
     /** 휴대폰 인증번호 유효시간 초과 — 400 */

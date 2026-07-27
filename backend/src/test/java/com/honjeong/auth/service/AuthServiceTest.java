@@ -28,8 +28,10 @@ import com.honjeong.auth.repository.SocialAccountRepository;
 import com.honjeong.auth.repository.TermsAgreementRepository;
 import com.honjeong.favorite.service.FavoriteGroupService;
 import com.honjeong.global.exception.BusinessException;
+import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.global.security.JwtProvider;
 import com.honjeong.user.domain.User;
+import com.honjeong.user.domain.UserStatus;
 import com.honjeong.user.repository.UserRepository;
 import com.honjeong.user.service.UserFoodPreferenceService;
 
@@ -85,6 +87,23 @@ class AuthServiceTest {
     /** 닉네임만 지정하고 나머지 프로필 항목은 null인 프로필 완료 명령을 만든다. */
     private CompleteProfileCommand command(String nickname) {
         return new CompleteProfileCommand(nickname, null, null, null, null, null, null, null, null, null);
+    }
+
+    /**
+     * 임의의 status(SUSPENDED/WITHDRAWN 등)를 강제 주입한 회원을 만든다. {@code User.pending(...)}으로 만든 뒤
+     * id·status를 리플렉션으로 덮어써, 정상 팩토리 메서드로는 만들 수 없는 상태 조합(예: 정지)을 테스트에서 재현한다.
+     */
+    private User userWithStatus(long id, UserStatus status) {
+        User user = User.pending(null, null);
+        ReflectionTestUtils.setField(user, "id", id);
+        ReflectionTestUtils.setField(user, "status", status);
+        return user;
+    }
+
+    /** 주어진 (phone, code)로 "방금 검증에 성공할 수 있는" 유효한 인증번호 발송 이력이 조회되도록 모킹한다. */
+    private void givenVerifiedPhoneCode(String phone, String code) {
+        PhoneVerification verification = PhoneVerification.issue(phone, code, LocalDateTime.now(clock).plusMinutes(3));
+        when(phoneVerificationRepository.findTopByPhoneOrderByCreatedAtDesc(phone)).thenReturn(Optional.of(verification));
     }
 
     /**
@@ -320,5 +339,79 @@ class AuthServiceTest {
         authService.complete(1L, command("닉네임"));
 
         verify(favoriteGroupService).createDefaultGroup(1L);
+    }
+
+    // --- 계정 상태 강제: 정지·탈퇴 회원이 재로그인/온보딩 경로로 부활하지 못하는지 검증 ---
+
+    /**
+     * verifyPhone 정지 계정 검증.
+     * given: 정지된 회원이 해당 번호로 조회되고, 인증번호는 유효하도록 모킹.
+     * when/then: 검증하면 온보딩으로 돌려보내는 대신 ACCOUNT_INACTIVE로 즉시 거부된다(온보딩에 들어가면
+     * complete()가 status를 ACTIVE로 되돌려 제재가 무력화되는 부활 경로를 막는다).
+     */
+    @Test
+    @DisplayName("verifyPhone: 정지된 계정은 휴대폰 인증을 통과해도 온보딩 토큰을 받지 못하고 ACCOUNT_INACTIVE로 거부된다")
+    void verifyPhone_suspendedUser_throwsAccountInactive() {
+        User suspended = userWithStatus(6L, UserStatus.SUSPENDED);
+        givenVerifiedPhoneCode("01011112222", "000000");
+        when(userRepository.findByPhone("01011112222")).thenReturn(Optional.of(suspended));
+
+        assertThatThrownBy(() -> authService.verifyPhone("01011112222", "000000"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ACCOUNT_INACTIVE);
+    }
+
+    /**
+     * verifyPhone 탈퇴 계정 검증.
+     * given: 탈퇴한 회원이 해당 번호로 조회되고, 인증번호는 유효하도록 모킹.
+     * when/then: 정지와 같은 경로로 ACCOUNT_INACTIVE로 거부된다.
+     */
+    @Test
+    @DisplayName("verifyPhone: 탈퇴한 계정도 같은 경로로 거부된다")
+    void verifyPhone_withdrawnUser_throwsAccountInactive() {
+        User withdrawn = userWithStatus(7L, UserStatus.WITHDRAWN);
+        givenVerifiedPhoneCode("01033334444", "000000");
+        when(userRepository.findByPhone("01033334444")).thenReturn(Optional.of(withdrawn));
+
+        assertThatThrownBy(() -> authService.verifyPhone("01033334444", "000000"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ACCOUNT_INACTIVE);
+    }
+
+    /**
+     * oauthLogin 정지 계정 검증.
+     * given: 소셜 신원 검증은 통과하고, 그 신원에 연결된 소셜 계정이 있으며, 연결된 회원이 정지 상태이도록 모킹.
+     * when/then: 온보딩 토큰이 아니라 ACCOUNT_INACTIVE로 거부된다.
+     */
+    @Test
+    @DisplayName("oauthLogin: 정지된 계정은 소셜 로그인으로도 온보딩 토큰을 받지 못한다")
+    void oauthLogin_suspendedUser_throwsAccountInactive() {
+        when(oAuthVerifier.verify(Provider.KAKAO, "tok"))
+                .thenReturn(new OAuthIdentity(Provider.KAKAO, "kakao-sub", null));
+        SocialAccount account = SocialAccount.of(8L, Provider.KAKAO, "kakao-sub", null);
+        when(socialAccountRepository.findByProviderAndProviderUserId(Provider.KAKAO, "kakao-sub"))
+                .thenReturn(Optional.of(account));
+        when(userRepository.findById(8L)).thenReturn(Optional.of(userWithStatus(8L, UserStatus.SUSPENDED)));
+
+        assertThatThrownBy(() -> authService.oauthLogin(Provider.KAKAO, "tok"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ACCOUNT_INACTIVE);
+    }
+
+    /**
+     * complete PENDING 아닌 회원 검증.
+     * given: 정지 상태인 회원(id 9)이 조회되도록 모킹.
+     * when/then: 온보딩 토큰을 어떻게든 얻어 이 경로로 들어와도, PENDING이 아니면 ACCOUNT_INACTIVE로 거부되어
+     * complete()의 무조건 ACTIVE 전환으로 부활하는 것을 막는다.
+     */
+    @Test
+    @DisplayName("complete: PENDING이 아닌 회원은 프로필을 완료할 수 없다 — 정지·탈퇴 계정 부활 차단")
+    void complete_nonPendingUser_throwsAccountInactive() {
+        User suspended = userWithStatus(9L, UserStatus.SUSPENDED);
+        when(userRepository.findById(9L)).thenReturn(Optional.of(suspended));
+
+        assertThatThrownBy(() -> authService.complete(9L, command("아무개")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ACCOUNT_INACTIVE);
     }
 }

@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,13 +23,14 @@ import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.global.security.JwtProvider;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 /**
  * {@link FileController}의 웹 계층 슬라이스 테스트. 멀티파트 업로드 + 인가(온보딩/USER 허용, 무토큰 401)·검증(400)을 본다.
  */
 @WebMvcTest(controllers = FileController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class FileControllerTest {
+class FileControllerTest extends ActiveUserSliceSupport {
 
     @Autowired
     private MockMvc mockMvc;

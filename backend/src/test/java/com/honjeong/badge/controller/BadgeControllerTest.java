@@ -21,6 +21,7 @@ import com.honjeong.badge.service.BadgeService;
 import com.honjeong.global.config.SecurityConfig;
 import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.security.JwtProvider;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 /**
  * {@link BadgeController}의 웹 계층 슬라이스 테스트.
@@ -33,7 +34,7 @@ import com.honjeong.global.security.JwtProvider;
  */
 @WebMvcTest(controllers = BadgeController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class BadgeControllerTest {
+class BadgeControllerTest extends ActiveUserSliceSupport {
 
     @Autowired
     private MockMvc mockMvc;

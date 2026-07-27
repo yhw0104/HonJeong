@@ -4,16 +4,19 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.honjeong.global.config.SecurityConfig;
 import com.honjeong.global.config.WebConfig;
+import com.honjeong.support.ActiveUserSliceSupport;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 
 /**
@@ -22,7 +25,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
  */
 @WebMvcTest(controllers = SecurityPingTest.PingController.class)
 @Import({SecurityConfig.class, WebConfig.class, SecurityPingTest.PingController.class})
-class SecurityPingTest {
+class SecurityPingTest extends ActiveUserSliceSupport {
 
     @Autowired
     private MockMvc mockMvc;

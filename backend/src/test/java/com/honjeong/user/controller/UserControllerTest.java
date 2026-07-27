@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +23,7 @@ import com.honjeong.global.config.SecurityConfig;
 import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.security.JwtProvider;
 import com.honjeong.mate.service.MateProfileService;
+import com.honjeong.support.ActiveUserSliceSupport;
 import com.honjeong.user.domain.UserStatus;
 import com.honjeong.user.dto.ActivitySummaryResponse;
 import com.honjeong.user.dto.NicknameCheckResponse;
@@ -47,7 +49,7 @@ import com.honjeong.user.service.UserService;
  */
 @WebMvcTest(controllers = UserController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class UserControllerTest {
+class UserControllerTest extends ActiveUserSliceSupport {
 
     @Autowired
     private MockMvc mockMvc;

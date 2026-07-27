@@ -21,10 +21,11 @@ import com.honjeong.block.service.BlockService;
 import com.honjeong.global.config.SecurityConfig;
 import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.security.JwtProvider;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 @WebMvcTest(controllers = BlockController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class BlockControllerTest {
+class BlockControllerTest extends ActiveUserSliceSupport {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtProvider jwtProvider;

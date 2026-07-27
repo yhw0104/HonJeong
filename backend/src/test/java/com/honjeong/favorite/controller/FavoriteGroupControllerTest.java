@@ -30,10 +30,11 @@ import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.global.security.JwtProvider;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 @WebMvcTest(controllers = {FavoriteGroupController.class, FavoriteController.class})
 @Import({SecurityConfig.class, WebConfig.class})
-class FavoriteGroupControllerTest {
+class FavoriteGroupControllerTest extends ActiveUserSliceSupport {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtProvider jwtProvider;

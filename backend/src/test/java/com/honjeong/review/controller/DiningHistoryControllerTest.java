@@ -21,10 +21,11 @@ import com.honjeong.global.security.JwtProvider;
 import com.honjeong.review.dto.DiningHistoryResponse;
 import com.honjeong.review.dto.MyReviewsResponse;
 import com.honjeong.review.service.ReviewService;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 @WebMvcTest(controllers = DiningHistoryController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class DiningHistoryControllerTest {
+class DiningHistoryControllerTest extends ActiveUserSliceSupport {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtProvider jwtProvider;

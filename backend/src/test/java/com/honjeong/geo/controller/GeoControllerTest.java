@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,13 +22,14 @@ import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.global.security.JwtProvider;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 /**
  * {@link GeoController}의 웹 계층 슬라이스 테스트. 역지오코딩 응답·입력검증·인가(온보딩 허용)를 확인한다.
  */
 @WebMvcTest(controllers = GeoController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class GeoControllerTest {
+class GeoControllerTest extends ActiveUserSliceSupport {
 
     @Autowired
     private MockMvc mockMvc;

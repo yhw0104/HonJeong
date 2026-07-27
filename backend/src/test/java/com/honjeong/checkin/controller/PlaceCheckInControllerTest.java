@@ -21,13 +21,14 @@ import com.honjeong.checkin.service.CheckInService;
 import com.honjeong.global.config.SecurityConfig;
 import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.security.JwtProvider;
+import com.honjeong.support.ActiveUserSliceSupport;
 
 /**
  * {@link PlaceCheckInController} 웹 슬라이스 테스트 — 혼밥러 목록 엔드포인트의 매핑·인가를 검증한다.
  */
 @WebMvcTest(controllers = PlaceCheckInController.class)
 @Import({SecurityConfig.class, WebConfig.class})
-class PlaceCheckInControllerTest {
+class PlaceCheckInControllerTest extends ActiveUserSliceSupport {
 
     @Autowired
     private MockMvc mockMvc;
