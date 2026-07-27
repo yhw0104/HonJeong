@@ -20,6 +20,21 @@ export function initKakao(): void {
 }
 
 /**
+ * 카카오 로그인 요청마다 새로 만드는 nonce.
+ * - 용도: 카카오 SDK에 nonce를 실어 보내면 그것이 "OIDC 요청"이라는 신호가 되어 scope=openid가 실리고
+ *   id_token이 발급된다(nonce 없이 로그인하면 카카오가 OIDC가 아닌 일반 로그인으로 취급해 idToken을 주지 않는다).
+ * - 정직한 한계: 우리 서버는 무상태이고 이 nonce 값을 저장하지도, id_token의 nonce claim과 대조 검증하지도 않는다.
+ *   즉 이 값은 재전송 공격을 서버 측에서 막아주는 보안 장치가 아니라, 순수히 카카오에게 OIDC 플로우를 타게 만드는
+ *   트리거 값일 뿐이다. 매 로그인 시도마다 새로 만들어 재사용하지 않는 정도만 지킨다.
+ * - expo-crypto 등 새 패키지 없이(네이티브 재빌드 회피) Math.random 두 번 + 타임스탬프 조합으로 충분히
+ *   예측하기 어려운 문자열을 만든다.
+ */
+function createLoginNonce(): string {
+  const random = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  return `${Date.now().toString(36)}${random}`;
+}
+
+/**
  * 카카오 로그인 → OIDC ID 토큰.
  * - 성공: idToken 문자열
  * - 사용자가 취소: null (에러 알림을 띄우면 안 되는 정상 이탈)
@@ -27,7 +42,7 @@ export function initKakao(): void {
  */
 export async function loginWithKakao(): Promise<string | null> {
   try {
-    const token = await login();
+    const token = await login({ nonce: createLoginNonce() });
     if (!token.idToken) {
       // 콘솔에서 OpenID Connect를 켜지 않으면 여기로 온다 — 원인을 그대로 드러낸다.
       throw new Error('카카오에서 ID 토큰을 받지 못했습니다. 콘솔의 OpenID Connect 활성화를 확인하세요.');
