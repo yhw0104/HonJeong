@@ -1,15 +1,20 @@
 // Welcome — 웰컴 / 로그인 진입 (원본: screens/Welcome.jsx)
 // absolute 레이아웃을 flex 컬럼(상단 타이포 / 중단 카운터 / 하단 CTA)으로 재배치.
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { Screen, Icon } from '@/shared/components';
 import { T2, C } from '@/shared/theme';
-import { apiGet } from '@/shared/api/client';
+import { apiGet, apiPost, ApiError } from '@/shared/api/client';
+import { useAuth } from '@/shared/auth/AuthContext';
+import { loginWithKakao } from '@/features/auth/kakaoLogin';
+import { oauthNext, type OAuthResponse } from '@/features/auth/oauthResult';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
   // 모집중·혼밥중 카운트(사회적 증거). 비로그인 공개 통계라 로그인 전에도 호출 가능. 실패/로딩 시 '–'.
   const [counts, setCounts] = useState<{ seekingCount: number; activeCount: number } | null>(null);
+  const { signIn } = useAuth();
+  const [kakaoBusy, setKakaoBusy] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -18,6 +23,30 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
       .catch(() => { /* 연결 실패 시 폴백('–') 유지 */ });
     return () => { alive = false; };
   }, []);
+
+  // 카카오 로그인 → 서버 검증 → 신규면 프로필 설정, 기존이면 바로 입장.
+  // 휴대폰 인증(VerifyCode.tsx)과 같은 분기 구조를 유지한다.
+  const onKakao = async () => {
+    if (kakaoBusy) return; // 더블탭 방지
+    setKakaoBusy(true);
+    try {
+      const idToken = await loginWithKakao();
+      if (idToken === null) return; // 사용자가 취소 — 알림 없이 조용히 복귀
+      const result = await apiPost<OAuthResponse>('/auth/oauth/kakao', { idToken });
+      const next = oauthNext(result);
+      if (next.kind === 'onboarding') {
+        navigation.navigate('ProfileSetup', { onboardingToken: next.onboardingToken });
+      } else if (next.kind === 'login') {
+        await signIn(next.tokens);
+      } else {
+        Alert.alert('로그인 오류', '예상치 못한 응답입니다. 다시 시도해주세요.');
+      }
+    } catch (e) {
+      Alert.alert('로그인 실패', e instanceof ApiError ? e.message : '잠시 후 다시 시도해주세요.');
+    } finally {
+      setKakaoBusy(false);
+    }
+  };
 
   return (
     <Screen bg={T2.bg}>
@@ -56,10 +85,11 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
 
         {/* 하단 CTA */}
         <View style={styles.cta}>
-          {/* 카카오 — 대표 소셜 로그인 (UI 목업: 즉시 입장) */}
+          {/* 카카오 — 대표 소셜 로그인 */}
           <Pressable
             style={[styles.btn, { backgroundColor: C.kakao }]}
-            onPress={() => navigation.navigate('MainTabs')}
+            onPress={onKakao}
+            disabled={kakaoBusy}
           >
             <Icon name="kakao" size={18} color={C.kakaoText} />
             <Text style={[styles.btnText, { color: C.kakaoText }]}>카카오로 계속하기</Text>
