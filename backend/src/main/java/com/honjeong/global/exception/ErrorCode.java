@@ -42,6 +42,8 @@ public enum ErrorCode {
     NICKNAME_DUPLICATE(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다."),
     /** 사용자 없음(탈퇴·잘못된 id) — 404 */
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
+    /** 이미 온보딩을 마친(ACTIVE) 계정이 complete()를 재호출(더블탭·네트워크 재시도 등) — 409 */
+    ONBOARDING_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 가입이 완료된 계정입니다."),
 
     // 장소 — 존재하지 않는 장소 조회
     /** 장소(places) 없음 — 잘못된 placeId 조회 — 404 */

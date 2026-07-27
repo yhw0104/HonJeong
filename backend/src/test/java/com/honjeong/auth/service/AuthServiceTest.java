@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -17,6 +18,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.honjeong.auth.domain.PhoneVerification;
@@ -104,6 +106,20 @@ class AuthServiceTest {
     private void givenVerifiedPhoneCode(String phone, String code) {
         PhoneVerification verification = PhoneVerification.issue(phone, code, LocalDateTime.now(clock).plusMinutes(3));
         when(phoneVerificationRepository.findTopByPhoneOrderByCreatedAtDesc(phone)).thenReturn(Optional.of(verification));
+    }
+
+    /**
+     * jwtProvider가 Mockito 모킹이라 실제 서명은 필요 없다 — {@code decode(...)}가 이 값을 돌려주도록 스텁해
+     * "새 access 토큰의 sub가 userId다"를 재현하는 최소한의 {@link Jwt}만 만든다.
+     */
+    private Jwt jwtWithSubject(long userId) {
+        Instant now = Instant.now();
+        return Jwt.withTokenValue("t")
+                .header("alg", "none")
+                .claim("sub", String.valueOf(userId))
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(60))
+                .build();
     }
 
     /**
@@ -413,5 +429,68 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.complete(9L, command("아무개")))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.ACCOUNT_INACTIVE);
+    }
+
+    /**
+     * complete 이미 ACTIVE인 회원(재시도) 검증.
+     * given: 이미 ACTIVE인 회원(id 10)이 조회되도록 모킹(더블탭·네트워크 재시도로 같은 온보딩 토큰이 두 번
+     * 들어온 상황을 재현).
+     * when/then: 정지·탈퇴와 같은 401이 아니라 409 ONBOARDING_ALREADY_COMPLETED로 거부된다 — 401이면 앱의
+     * 401 인터셉터가 방금 만든 세션을 로그아웃시켜버리기 때문에 재시도로 복구 가능한 409여야 한다.
+     */
+    @Test
+    @DisplayName("complete: 이미 ACTIVE인 회원(재시도)은 401이 아니라 409로 거부된다")
+    void complete_alreadyActiveUser_throwsConflict() {
+        User active = userWithStatus(10L, UserStatus.ACTIVE);
+        when(userRepository.findById(10L)).thenReturn(Optional.of(active));
+
+        assertThatThrownBy(() -> authService.complete(10L, command("아무개")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ONBOARDING_ALREADY_COMPLETED);
+    }
+
+    // --- refresh: /api/auth/refresh는 permitAll이라 ActiveUserFilter를 거치지 않는다. 비ACTIVE 계정이 회전으로
+    // refresh TTL을 계속 연장하지 못하도록, 회전 직후 새 토큰의 sub로 상태를 확인해야 한다. ---
+
+    /**
+     * refresh 정상 경로 검증.
+     * given: rotate가 새 토큰 쌍을 돌려주고, 그 access 토큰의 sub(42)가 ACTIVE 회원으로 조회되도록 모킹.
+     * when: refresh 호출.
+     * then: 새 토큰 쌍이 그대로 반환되고, revoke는 호출되지 않는다(정상 회전에는 추가 회수가 없다).
+     */
+    @Test
+    @DisplayName("refresh: ACTIVE 회원이면 새 토큰 쌍을 그대로 반환한다")
+    void refresh_activeUser_returnsNewPair() {
+        TokenPair pair = new TokenPair("new-access", "new-refresh", 3600);
+        when(tokenService.rotate("old-refresh")).thenReturn(pair);
+        when(jwtProvider.decode("new-access")).thenReturn(jwtWithSubject(42L));
+        when(userRepository.findStatusById(42L)).thenReturn(Optional.of(UserStatus.ACTIVE));
+
+        TokenPair result = authService.refresh("old-refresh");
+
+        assertThat(result).isEqualTo(pair);
+        verify(tokenService, never()).revoke(any());
+    }
+
+    /**
+     * refresh 비ACTIVE(정지) 회원 검증 — 회전으로 계정이 죽지 않는 것을 막는 핵심 시나리오.
+     * given: rotate가 이미 새 토큰 쌍을 발급했고(TokenService 입장에서는 정상 회전), 그 sub(43)가 SUSPENDED로
+     * 조회되도록 모킹.
+     * when/then: ACCOUNT_INACTIVE로 거부되고, 방금 발급된(그러나 클라에는 전달되지 않을) refresh가 즉시
+     * revoke된다 — 비ACTIVE 계정에 살아있는 refresh를 남기지 않기 위함.
+     */
+    @Test
+    @DisplayName("refresh: 정지된 회원은 새로 발급된 refresh도 즉시 회수되고 ACCOUNT_INACTIVE로 거부된다")
+    void refresh_suspendedUser_revokesNewTokenAndThrows() {
+        TokenPair pair = new TokenPair("new-access", "new-refresh", 3600);
+        when(tokenService.rotate("old-refresh")).thenReturn(pair);
+        when(jwtProvider.decode("new-access")).thenReturn(jwtWithSubject(43L));
+        when(userRepository.findStatusById(43L)).thenReturn(Optional.of(UserStatus.SUSPENDED));
+
+        assertThatThrownBy(() -> authService.refresh("old-refresh"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ACCOUNT_INACTIVE);
+
+        verify(tokenService).revoke("new-refresh");
     }
 }

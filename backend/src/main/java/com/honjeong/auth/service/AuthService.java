@@ -177,8 +177,9 @@ public class AuthService {
         Optional<User> existing = userRepository.findByPhone(phone);
 
         // 정지·탈퇴 계정은 온보딩으로 되돌려 보내지 않는다. 되돌려 보내면 complete()가 status를 ACTIVE로
-        // 되돌려버려 제재가 무력화된다(부활 경로).
-        existing.filter(u -> u.getStatus() == UserStatus.SUSPENDED || u.getStatus() == UserStatus.WITHDRAWN)
+        // 되돌려버려 제재가 무력화된다(부활 경로). "SUSPENDED/WITHDRAWN이면"이 아니라 "PENDING도 ACTIVE도
+        // 아니면"으로 표현해, 나중에 상태가 늘어나도(DORMANT 등) 새 상태가 fail-closed로 걸러지게 한다.
+        existing.filter(u -> u.getStatus() != UserStatus.PENDING && u.getStatus() != UserStatus.ACTIVE)
                 .ifPresent(u -> { throw new BusinessException(ErrorCode.ACCOUNT_INACTIVE); });
 
         // 이미 정상 회원 → 즉시 로그인
@@ -223,7 +224,8 @@ public class AuthService {
         if (account.isPresent()) { // 이미 가입한 소셜 계정(재방문)
             User user = userRepository.findById(account.get().getUserId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-            if (user.getStatus() == UserStatus.SUSPENDED || user.getStatus() == UserStatus.WITHDRAWN) {
+            // verifyPhone과 같은 이유로 같은 모양("PENDING도 ACTIVE도 아니면")으로 fail-closed 판정한다.
+            if (user.getStatus() != UserStatus.PENDING && user.getStatus() != UserStatus.ACTIVE) {
                 throw new BusinessException(ErrorCode.ACCOUNT_INACTIVE);
             }
             return user.isActive()
@@ -282,6 +284,10 @@ public class AuthService {
      * <p>동작 단계:
      * <ol>
      *   <li>userId로 회원을 조회한다(없으면 {@code USER_NOT_FOUND}).</li>
+     *   <li>PENDING도 ACTIVE도 아니면(정지·탈퇴 등) {@code ACCOUNT_INACTIVE}로 거부한다.</li>
+     *   <li>이미 ACTIVE면(더블탭·네트워크 재시도로 같은 온보딩 토큰이 두 번 들어온 경우) 부활 경로는 아니므로
+     *       {@code ONBOARDING_ALREADY_COMPLETED}(409)로 거부한다 — 401이 아니어야 클라의 401 인터셉터가
+     *       "재로그인 필요"로 오인해 방금 만든 세션을 파괴하지 않는다.</li>
      *   <li>입력한 닉네임이 이미 사용 중이면 {@code NICKNAME_DUPLICATE}로 거부한다.</li>
      *   <li>프로필 정보(닉네임·성별·연령대·소개·지역·좌표·식사스타일·프로필이미지)를 채워
      *       프로필을 완성한다 — 이 시점에 회원 상태가 ACTIVE로 바뀐다.</li>
@@ -291,16 +297,24 @@ public class AuthService {
      * @param userId  온보딩을 끝낼 사용자(온보딩 토큰의 주체)
      * @param command 프로필 입력값 묶음
      * @return 새로 발급된 정식 토큰 쌍
-     * @throws BusinessException 회원이 없거나({@code USER_NOT_FOUND}) 닉네임이 중복일 때({@code NICKNAME_DUPLICATE})
+     * @throws BusinessException 회원이 없거나({@code USER_NOT_FOUND}), 정지·탈퇴 등 사용 불가 상태이거나
+     *         ({@code ACCOUNT_INACTIVE}), 이미 온보딩을 마쳤거나({@code ONBOARDING_ALREADY_COMPLETED})
+     *         닉네임이 중복일 때({@code NICKNAME_DUPLICATE})
      */
     @Transactional // 닉네임 검증·프로필 완료·토큰 발급을 한 트랜잭션으로 묶는다
     public TokenPair complete(long userId, CompleteProfileCommand command) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        // 온보딩 완료는 PENDING 회원만 밟을 수 있다. 정지·탈퇴 계정이 온보딩 토큰을 얻어 이 경로로
-        // ACTIVE가 되는 것을 막는다(completeProfile()이 status를 무조건 ACTIVE로 만들기 때문).
-        if (user.getStatus() != UserStatus.PENDING) {
+        UserStatus status = user.getStatus();
+        // "PENDING이 아니면 거부"가 아니라 "PENDING도 ACTIVE도 아니면 거부"로 표현해, 새 상태(DORMANT 등)가
+        // 추가돼도 fail-closed로 걸러지게 한다. 정지·탈퇴 등은 온보딩 토큰으로 부활을 시도하는 것이므로 401.
+        if (status != UserStatus.PENDING && status != UserStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.ACCOUNT_INACTIVE);
+        }
+        // 이미 ACTIVE면 부활이 아니라 "이미 끝난 온보딩을 다시 호출"한 것뿐이다(더블탭·앱의 401 재시도 등).
+        // 이 경우까지 401을 주면 클라의 401 인터셉터가 방금 만든 세션을 로그아웃시켜버리므로 409로 구분한다.
+        if (status == UserStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.ONBOARDING_ALREADY_COMPLETED);
         }
         if (userRepository.existsByNickname(command.nickname())) { // 닉네임 중복 검사
             throw new BusinessException(ErrorCode.NICKNAME_DUPLICATE);
@@ -319,19 +333,42 @@ public class AuthService {
     }
 
     /**
-     * 기능: refresh 토큰 회전으로 access 토큰 재발급(TokenService.rotate 위임)
+     * 기능: refresh 토큰 회전으로 access 토큰 재발급 + 회전 직후 회원 상태 확인(비ACTIVE면 새 토큰도 즉시 회수)
      * Request: rawRefreshToken — 클라가 보관 중인 refresh 원문
      * Response: TokenPair — 새로 발급된 토큰 쌍
      *
-     * <p>[기존 주석] access 토큰 재발급. 클라가 보관한 refresh 원문으로 {@link TokenService#rotate}를 호출하는 얇은
-     * 위임 메서드다(기존 refresh 회수 + 새 토큰 쌍 발급). 토큰 회전 자체는 트랜잭션이 필요하므로
-     * 여기서는 별도 {@code @Transactional}을 두지 않고 TokenService에 위임한다.
+     * <p>{@link TokenService}는 토큰 메커니즘(발급·해시·만료)만 아는 계층이라 {@code users.status}를 모른다
+     * ({@code UserRepository}·{@code UserStatus}를 의도적으로 참조하지 않는다). 그래서 회원 상태 확인은 그
+     * 도메인 지식을 이미 가진 이 서비스가 맡는다 — {@link TokenService#rotate}로 새 토큰 쌍을 받은 뒤, 그
+     * access 토큰의 sub(userId)로 상태를 조회해 ACTIVE가 아니면 방금 발급된 refresh까지 즉시 회수하고
+     * {@code ACCOUNT_INACTIVE}로 거부한다. {@code ActiveUserFilter}가 이미 로그인된 세션의 API 호출은
+     * 막아 주지만, {@code /api/auth/refresh}는 {@code permitAll}이라 그 필터를 거치지 않으므로 여기서 막지
+     * 않으면 정지·탈퇴 계정이 회전할 때마다 refresh TTL을 계속 연장해 계정이 죽지 않는다.
+     *
+     * <p>동작 단계:
+     * <ol>
+     *   <li>{@link TokenService#rotate}로 기존 refresh를 회수하고 새 토큰 쌍을 발급한다.</li>
+     *   <li>새 access 토큰을 디코드해 sub(userId)를 얻는다.</li>
+     *   <li>그 userId의 현재 상태를 조회한다(없으면 null 취급).</li>
+     *   <li>ACTIVE가 아니면, 방금 발급된 refresh를 즉시 회수해(살아있는 토큰을 남기지 않고)
+     *       {@code ACCOUNT_INACTIVE}로 거부한다.</li>
+     *   <li>ACTIVE면 새 토큰 쌍을 그대로 반환한다.</li>
+     * </ol>
      *
      * @param rawRefreshToken 클라가 보관 중인 refresh 원문
      * @return 새로 발급된 토큰 쌍
+     * @throws BusinessException refresh가 무효하거나({@code INVALID_REFRESH_TOKEN}) 회원이 ACTIVE가
+     *         아닐 때({@code ACCOUNT_INACTIVE})
      */
     public TokenPair refresh(String rawRefreshToken) {
-        return tokenService.rotate(rawRefreshToken);
+        TokenPair pair = tokenService.rotate(rawRefreshToken);
+        long userId = Long.parseLong(jwtProvider.decode(pair.accessToken()).getSubject());
+        UserStatus status = userRepository.findStatusById(userId).orElse(null);
+        if (status != UserStatus.ACTIVE) {
+            tokenService.revoke(pair.refreshToken()); // 비ACTIVE 계정에 살아있는 refresh를 남기지 않는다
+            throw new BusinessException(ErrorCode.ACCOUNT_INACTIVE);
+        }
+        return pair;
     }
 
     /**

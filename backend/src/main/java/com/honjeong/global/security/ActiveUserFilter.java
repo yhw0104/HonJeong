@@ -49,8 +49,7 @@ public class ActiveUserFilter extends OncePerRequestFilter {
                 && auth.getPrincipal() instanceof Jwt
                 && auth.getAuthorities().stream().anyMatch(a -> ROLE_USER.equals(a.getAuthority()));
         if (isUserToken) {
-            Long userId = Long.valueOf(((Jwt) auth.getPrincipal()).getSubject());
-            UserStatus status = userRepository.findStatusById(userId).orElse(null);
+            UserStatus status = resolveStatus(((Jwt) auth.getPrincipal()).getSubject());
             if (status != UserStatus.ACTIVE) {
                 SecurityContextHolder.clearContext();
                 SecurityErrorWriter.write(response, ErrorCode.ACCOUNT_INACTIVE);
@@ -58,5 +57,24 @@ public class ActiveUserFilter extends OncePerRequestFilter {
             }
         }
         chain.doFilter(request, response);
+    }
+
+    /**
+     * 기능: JWT sub(문자열)를 userId로 파싱해 상태를 조회 — sub이 숫자가 아니면(위조·손상 등) 예외를 던지지 않고
+     * "확인 불가"로 취급해 fail-closed 처리한다
+     *
+     * <p>{@link JwtProvider}가 만드는 access 토큰의 sub은 항상 {@code String.valueOf(long)}이라 정상 경로로는
+     * 도달하지 않지만, 보안 필터는 입력을 신뢰하지 않고 실패 시 열어주는 대신 닫아야 한다({@code NumberFormatException}이
+     * 그대로 새어나가면 500으로 응답해 인증 실패가 인증 우회처럼 보이는 스택트레이스를 노출하게 된다).
+     *
+     * @param subject JWT의 sub 클레임(정상적으로는 userId 문자열)
+     * @return 해당 userId의 상태(없거나 sub이 숫자가 아니면 null)
+     */
+    private UserStatus resolveStatus(String subject) {
+        try {
+            return userRepository.findStatusById(Long.valueOf(subject)).orElse(null);
+        } catch (NumberFormatException e) {
+            return null; // 숫자가 아닌 sub은 "상태 확인 불가"로 취급 — 아래에서 ACTIVE가 아니므로 401
+        }
     }
 }

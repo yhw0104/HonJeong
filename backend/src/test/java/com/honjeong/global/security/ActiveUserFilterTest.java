@@ -31,6 +31,7 @@ class ActiveUserFilterTest extends AbstractPostgresTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private UserRepository userRepository;
     @Autowired private TokenService tokenService;
+    @Autowired private JwtProvider jwtProvider;
 
     @Test
     @DisplayName("ACTIVE 회원의 토큰은 통과한다")
@@ -48,6 +49,18 @@ class ActiveUserFilterTest extends AbstractPostgresTest {
         // Task 1 시점에는 User.withdraw()가 아직 없다(Task 2에서 추가). 상태만 직접 주입해 재현한다.
         ReflectionTestUtils.setField(user, "status", UserStatus.WITHDRAWN);
         userRepository.saveAndFlush(user);
+
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("ACCOUNT_INACTIVE"));
+    }
+
+    @Test
+    @DisplayName("users에 없는 사용자 id의 (정상 서명된) 토큰은 401 ACCOUNT_INACTIVE로 막힌다 — 500이 아니다")
+    void unknownUserBlocked() throws Exception {
+        // findStatusById가 empty를 돌려주는 fail-closed 분기: 서명은 유효하지만 그 sub의 회원 행이 없다
+        // (탈퇴 후 완전 삭제·데이터 정합성 붕괴 등). orElse(null) 경로가 실제로 401로 이어지는지 확인한다.
+        String token = jwtProvider.createAccessToken(999_999_999L);
 
         mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized())
