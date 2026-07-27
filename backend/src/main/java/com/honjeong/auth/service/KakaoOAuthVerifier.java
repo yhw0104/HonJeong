@@ -2,6 +2,8 @@ package com.honjeong.auth.service;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -14,6 +16,7 @@ import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.stereotype.Component;
+import org.springframework.util.Assert;
 
 import com.honjeong.auth.domain.Provider;
 import com.honjeong.global.exception.BusinessException;
@@ -33,10 +36,16 @@ import com.honjeong.global.exception.ErrorCode;
 @ConditionalOnProperty(name = "honjeong.oauth.mode", havingValue = "real")
 public class KakaoOAuthVerifier implements OAuthVerifier {
 
+    private static final Logger log = LoggerFactory.getLogger(KakaoOAuthVerifier.class);
+
     private final JwtDecoder decoder;
 
     /**
      * 운영용 — 설정값으로 카카오 JWKS 기반 디코더를 만든다.
+     *
+     * <p>{@code app-key}는 기본값이 빈 문자열(`${KAKAO_APP_KEY:}`)이라, 환경변수를 채우지 않고
+     * mode=real로 띄우면 aud 검증({@code aud.contains("")})이 항상 false가 되어 <b>모든 로그인이
+     * 조용히 401</b>로 실패한다. 그 고장을 런타임이 아니라 부팅 시점에 드러내기 위해 필수값을 검사한다.
      *
      * @param issuer  발급자(카카오 고정값)
      * @param jwksUri 공개키 목록 주소
@@ -45,6 +54,11 @@ public class KakaoOAuthVerifier implements OAuthVerifier {
     public KakaoOAuthVerifier(@Value("${honjeong.oauth.kakao.issuer}") String issuer,
             @Value("${honjeong.oauth.kakao.jwks-uri}") String jwksUri,
             @Value("${honjeong.oauth.kakao.app-key}") String appKey) {
+        Assert.hasText(issuer, "honjeong.oauth.kakao.issuer 설정이 비어 있습니다.");
+        Assert.hasText(jwksUri, "honjeong.oauth.kakao.jwks-uri 설정이 비어 있습니다.");
+        Assert.hasText(appKey,
+                "honjeong.oauth.kakao.app-key 설정이 비어 있습니다. 환경변수 KAKAO_APP_KEY를 채워주세요"
+                        + "(카카오 개발자 콘솔 > 앱 설정 > 앱 키 > REST API 키).");
         NimbusJwtDecoder nimbus = NimbusJwtDecoder.withJwkSetUri(jwksUri).build();
         nimbus.setJwtValidator(validators(issuer, appKey));
         this.decoder = nimbus;
@@ -87,6 +101,9 @@ public class KakaoOAuthVerifier implements OAuthVerifier {
             Jwt jwt = decoder.decode(idToken);
             return new OAuthIdentity(Provider.KAKAO, jwt.getSubject(), null);
         } catch (JwtException e) {
+            // aud 불일치/만료/위조 서명/JWKS 조회 실패/앱 키 오설정이 모두 여기로 모이므로 원인을 남긴다.
+            // ID 토큰 원문은 자격증명이라 절대 로깅하지 않고, 예외 메시지만 남긴다.
+            log.warn("카카오 ID 토큰 검증 실패: {}", e.getMessage());
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "카카오 로그인 검증에 실패했어요.");
         }
     }

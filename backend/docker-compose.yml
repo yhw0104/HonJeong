@@ -27,6 +27,10 @@ services:
       DB_URL: jdbc:postgresql://db:5432/honjeong
       DB_USERNAME: honjeong
       DB_PASSWORD: honjeong
+      # 카카오 실검증 스위치. 둘 다 안 주면 mock으로 뜨고, real인데 KAKAO_APP_KEY가 비면
+      # 부팅 시점에 실패한다(KakaoOAuthVerifier 참고) — 조용한 401을 막기 위함.
+      KAKAO_APP_KEY: ${KAKAO_APP_KEY:-}
+      OAUTH_MODE: ${OAUTH_MODE:-mock}
     ports:
       - "8080:8080"
 

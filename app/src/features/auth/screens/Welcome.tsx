@@ -32,7 +32,9 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
     try {
       const idToken = await loginWithKakao();
       if (idToken === null) return; // 사용자가 취소 — 알림 없이 조용히 복귀
-      const result = await apiPost<OAuthResponse>('/auth/oauth/kakao', { idToken });
+      // token:null — 공개 엔드포인트(로그인 전)라 세션 토큰을 붙이지 않는다. 안 붙이면 세션 요청으로
+      // 분류돼 401 시 refresh를 시도하다 실패해 세션 만료 처리(캐시 초기화)가 헛돌기 때문.
+      const result = await apiPost<OAuthResponse>('/auth/oauth/kakao', { idToken }, { token: null });
       const next = oauthNext(result);
       if (next.kind === 'onboarding') {
         navigation.navigate('ProfileSetup', { onboardingToken: next.onboardingToken });
