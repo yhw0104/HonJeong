@@ -44,6 +44,9 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
         Alert.alert('로그인 오류', '예상치 못한 응답입니다. 다시 시도해주세요.');
       }
     } catch (e) {
+      // 사용자에게는 지금처럼 친절한 문구만 보여주되, 실제 원인(ID 토큰 미발급/SDK 오류/네트워크 등)은
+      // 콘솔에 남겨 매번 시뮬레이터 시스템 로그를 뒤지지 않고도 원인을 바로 확인할 수 있게 한다.
+      console.warn('[kakao] 로그인 실패', e);
       Alert.alert('로그인 실패', e instanceof ApiError ? e.message : '잠시 후 다시 시도해주세요.');
     } finally {
       setKakaoBusy(false);
