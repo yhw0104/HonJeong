@@ -23,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.chat.domain.ChatMessage;
@@ -71,6 +72,12 @@ class ConversationMessagingTest {
 
     private Conversation activeConversation(long fromId, long toId) {
         return Conversation.open(1L, mock(Place.class), userRef(fromId), userRef(toId));
+    }
+
+    /** DB가 채우는 id를 단위 테스트에서 주입 — 미리보기 배치 조회가 대화방별로 정확히 매칭되는지 보려면 id가 필요하다. */
+    private Conversation withId(Conversation conversation, long id) {
+        ReflectionTestUtils.setField(conversation, "id", id);
+        return conversation;
     }
 
     @Test
@@ -235,12 +242,12 @@ class ConversationMessagingTest {
         lenient().when(partner.getProfileImageUrl()).thenReturn("https://img/partner.png");
         Place place = mock(Place.class);
         lenient().when(place.getName()).thenReturn("혼밥식당");
-        Conversation conv = Conversation.open(1L, place, me, partner);
+        Conversation conv = withId(Conversation.open(1L, place, me, partner), 7L);
         conv.touch(expectedNow);
         when(blockRepository.findExclusionIds(10L)).thenReturn(List.of(-1L)); // 차단 없음(센티널)
         when(conversationRepository.findAllForUser(10L)).thenReturn(List.of(conv));
         ChatMessage last = ChatMessage.text(conv, 20L, "마지막 메시지", expectedNow);
-        when(chatMessageRepository.findByConversationIdOrderByIdAsc(conv.getId()))
+        when(chatMessageRepository.findLastMessagesByConversationIds(List.of(7L)))
                 .thenReturn(List.of(last));
         when(chatMessageRepository.countUnread(conv.getId(), 10L, conv.lastReadAtFor(10L))).thenReturn(3L);
 
@@ -264,11 +271,11 @@ class ConversationMessagingTest {
         User partner = userRef(20L);
         Place place = mock(Place.class);
         lenient().when(place.getName()).thenReturn("혼밥식당");
-        Conversation conv = Conversation.open(1L, place, me, partner);
+        Conversation conv = withId(Conversation.open(1L, place, me, partner), 7L);
         when(blockRepository.findExclusionIds(10L)).thenReturn(List.of(-1L)); // 차단 없음(센티널)
         when(conversationRepository.findAllForUser(10L)).thenReturn(List.of(conv));
         ChatMessage last = ChatMessage.image(conv, 20L, "https://img/x.png", expectedNow);
-        when(chatMessageRepository.findByConversationIdOrderByIdAsc(conv.getId()))
+        when(chatMessageRepository.findLastMessagesByConversationIds(List.of(7L)))
                 .thenReturn(List.of(last));
         lenient().when(chatMessageRepository.countUnread(any(), any(), any())).thenReturn(0L);
 
@@ -285,11 +292,11 @@ class ConversationMessagingTest {
         User okPartner = userRef(30L);
         Place place = mock(Place.class);
         lenient().when(place.getName()).thenReturn("혼밥식당");
-        Conversation blockedConv = Conversation.open(1L, place, me, blockedPartner);
-        Conversation okConv = Conversation.open(2L, place, me, okPartner);
+        Conversation blockedConv = withId(Conversation.open(1L, place, me, blockedPartner), 100L);
+        Conversation okConv = withId(Conversation.open(2L, place, me, okPartner), 200L);
         when(blockRepository.findExclusionIds(10L)).thenReturn(List.of(20L)); // 20L 차단 관계
         when(conversationRepository.findAllForUser(10L)).thenReturn(List.of(blockedConv, okConv));
-        lenient().when(chatMessageRepository.findByConversationIdOrderByIdAsc(any())).thenReturn(List.of());
+        lenient().when(chatMessageRepository.findLastMessagesByConversationIds(any())).thenReturn(List.of());
         lenient().when(chatMessageRepository.countUnread(any(), any(), any())).thenReturn(0L);
 
         // when
@@ -298,5 +305,21 @@ class ConversationMessagingTest {
         // then: 차단 상대(20L)와의 대화는 빠지고, 나머지(30L)만 반환된다 — 닉네임·프로필사진 유출 방지
         assertThat(res).hasSize(1);
         assertThat(res.get(0).partnerUserId()).isEqualTo(30L);
+        // and: 미리보기 배치 조회도 차단 대화(100L)를 제외한 id만 넘긴다(필터 후 조회)
+        verify(chatMessageRepository).findLastMessagesByConversationIds(List.of(200L));
+    }
+
+    @Test
+    void listMine은_대화가_하나도_없으면_미리보기_쿼리를_호출하지_않는다() {
+        // given: 참여 중인 대화 0건 — 빈 IN 절로 미리보기 쿼리를 부르면 안 된다
+        when(blockRepository.findExclusionIds(10L)).thenReturn(List.of(-1L));
+        when(conversationRepository.findAllForUser(10L)).thenReturn(List.of());
+
+        // when
+        List<ConversationSummaryResponse> res = service.listMine(10L);
+
+        // then
+        assertThat(res).isEmpty();
+        verify(chatMessageRepository, never()).findLastMessagesByConversationIds(any());
     }
 }

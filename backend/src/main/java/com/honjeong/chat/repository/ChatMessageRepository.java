@@ -48,4 +48,24 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
     long countUnread(@Param("conversationId") Long conversationId,
             @Param("userId") Long userId,
             @Param("lastReadAt") LocalDateTime lastReadAt);
+
+    /**
+     * 기능: 여러 대화방의 "마지막 메시지"를 한 번의 쿼리로 조회(대화 목록 미리보기 배치용)
+     * 쿼리: SELECT m.* FROM chat_messages m WHERE m.conversation_id IN :conversationIds
+     *       AND m.id = (SELECT MAX(m2.id) FROM chat_messages m2 WHERE m2.conversation_id = m.conversation_id)
+     * Request: conversationIds — 대화방 id 목록(비어 있으면 안 됨) / Response: List&lt;ChatMessage&gt; — 대화방당 최대 1건
+     *
+     * <p>목록 화면이 대화마다 메시지를 다시 읽던 N+1을 없앤다. 마지막 메시지 = id 최대값(작성순 = id 오름차순).
+     * 메시지가 하나도 없는 대화방은 결과에 포함되지 않으므로, 호출부는 "없으면 미리보기 null"로 처리한다.
+     * 빈 목록을 넘기면 IN () 이 되어 DB마다 동작이 다르므로 호출부에서 빈 목록을 걸러 호출한다.
+     *
+     * @param conversationIds 대화방 id 목록(비어 있지 않아야 함)
+     * @return 대화방별 마지막 메시지(메시지 없는 대화방은 제외)
+     */
+    @Query("""
+            SELECT m FROM ChatMessage m
+            WHERE m.conversation.id IN :conversationIds
+              AND m.id = (SELECT MAX(m2.id) FROM ChatMessage m2 WHERE m2.conversation.id = m.conversation.id)
+            """)
+    List<ChatMessage> findLastMessagesByConversationIds(@Param("conversationIds") List<Long> conversationIds);
 }

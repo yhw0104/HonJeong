@@ -3,7 +3,9 @@ package com.honjeong.chat.service;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,7 @@ import com.honjeong.chat.repository.ConversationRepository;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.repository.PlaceRepository;
+import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
 /**
@@ -188,24 +191,30 @@ public class ConversationService {
     @Transactional(readOnly = true)
     public List<ConversationSummaryResponse> listMine(Long userId) {
         List<Long> excluded = blockRepository.findExclusionIds(userId);
-        return conversationRepository.findAllForUser(userId).stream()
-                .filter(c -> {
-                    boolean iAmFrom = c.getFromUser().getId().equals(userId);
-                    Long partnerId = iAmFrom ? c.getToUser().getId() : c.getFromUser().getId();
-                    return !excluded.contains(partnerId);
-                })
+        List<Conversation> mine = conversationRepository.findAllForUser(userId).stream()
+                .filter(c -> !excluded.contains(partnerOf(c, userId).getId()))
+                .toList();
+        if (mine.isEmpty()) {
+            return List.of(); // 빈 IN 절로 미리보기 쿼리를 부르지 않는다
+        }
+        Map<Long, String> previews = previewsOf(mine);
+        return mine.stream()
                 .map(c -> {
-                    boolean iAmFrom = c.getFromUser().getId().equals(userId);
-                    var partner = iAmFrom ? c.getToUser() : c.getFromUser();
+                    var partner = partnerOf(c, userId);
                     long unread = chatMessageRepository.countUnread(c.getId(), userId, c.lastReadAtFor(userId));
                     return new ConversationSummaryResponse(
                             c.getId(), c.getStatus().name(),
                             partner.getId(), partner.getNickname(), partner.getProfileImageUrl(),
                             c.getPlace().getName(),
-                            previewOf(c), // 마지막 메시지 미리보기(아래)
+                            previews.get(c.getId()), // 마지막 메시지 미리보기(메시지 없으면 null)
                             c.getLastMessageAt(), unread,
                             c.lastReadAtFor(partner.getId())); // 상대가 마지막 읽은 시각(내 메시지 읽음 표시용)
                 }).toList();
+    }
+
+    /** 대화 상대(내가 fromUser면 toUser, 아니면 fromUser). */
+    private User partnerOf(Conversation c, Long userId) {
+        return c.getFromUser().getId().equals(userId) ? c.getToUser() : c.getFromUser();
     }
 
     private Conversation loadParticipating(Long conversationId, Long userId) {
@@ -214,11 +223,17 @@ public class ConversationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND));
     }
 
-    // N+1: listMine 항목마다 메시지를 다시 로드한다 — MVP 허용(매칭 대화 소수). backlog: 목록 미리보기 배치화.
-    private String previewOf(Conversation c) {
-        var msgs = chatMessageRepository.findByConversationIdOrderByIdAsc(c.getId());
-        if (msgs.isEmpty()) return null;
-        var last = msgs.get(msgs.size() - 1);
-        return last.getType() == MessageType.IMAGE ? "사진" : last.getText();
+    /**
+     * 목록의 모든 대화방에 대한 마지막 메시지 미리보기를 한 번의 쿼리로 만든다(대화마다 메시지를 다시 읽던 N+1 제거).
+     * 메시지가 없는 대화방은 맵에 없으므로 {@code get}이 null → 미리보기 없음.
+     */
+    private Map<Long, String> previewsOf(List<Conversation> conversations) {
+        List<Long> ids = conversations.stream().map(Conversation::getId).toList();
+        Map<Long, String> previews = new HashMap<>();
+        for (ChatMessage last : chatMessageRepository.findLastMessagesByConversationIds(ids)) {
+            previews.put(last.getConversation().getId(),
+                    last.getType() == MessageType.IMAGE ? "사진" : last.getText());
+        }
+        return previews;
     }
 }

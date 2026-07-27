@@ -1,6 +1,7 @@
 package com.honjeong.chat.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -136,5 +137,43 @@ class ConversationRepositoryTest extends AbstractPostgresTest {
         // then
         assertThat(unreadAfterT1).isEqualTo(2);
         assertThat(unreadNeverRead).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("findLastMessagesByConversationIds: 대화방마다 마지막 메시지 1건씩만, 한 번의 쿼리로 반환한다(메시지 없는 방은 결과에 없음)")
+    void 대화방별_마지막메시지를_한번에_조회한다() {
+        // given: 대화 3개 — conv1은 메시지 2건, conv2는 1건, conv3은 0건
+        User me = persistUser("01000000001", "나");
+        User partner1 = persistUser("01000000002", "상대1");
+        User partner2 = persistUser("01000000003", "상대2");
+        User partner3 = persistUser("01000000004", "상대3");
+        Place place1 = persistPlace("p1");
+        Place place2 = persistPlace("p2");
+        Place place3 = persistPlace("p3");
+
+        Conversation conv1 = em.persist(
+                Conversation.open(persistAcceptedMealRequestId(me, partner1, place1), place1, me, partner1));
+        Conversation conv2 = em.persist(
+                Conversation.open(persistAcceptedMealRequestId(me, partner2, place2), place2, me, partner2));
+        Conversation conv3 = em.persist(
+                Conversation.open(persistAcceptedMealRequestId(me, partner3, place3), place3, me, partner3));
+
+        em.persist(ChatMessage.text(conv1, me.getId(), "conv1 첫 메시지", NOW));
+        em.persist(ChatMessage.text(conv1, partner1.getId(), "conv1 마지막 메시지", NOW.plusMinutes(5)));
+        em.persist(ChatMessage.text(conv2, partner2.getId(), "conv2 유일 메시지", NOW.plusMinutes(1)));
+        em.flush();
+        em.clear();
+
+        // when
+        List<ChatMessage> last = chatMessageRepository
+                .findLastMessagesByConversationIds(List.of(conv1.getId(), conv2.getId(), conv3.getId()));
+
+        // then: 메시지 있는 대화 2개만, 각 대화의 마지막 1건
+        assertThat(last).hasSize(2);
+        assertThat(last)
+                .extracting(m -> m.getConversation().getId(), ChatMessage::getText)
+                .containsExactlyInAnyOrder(
+                        tuple(conv1.getId(), "conv1 마지막 메시지"),
+                        tuple(conv2.getId(), "conv2 유일 메시지"));
     }
 }
