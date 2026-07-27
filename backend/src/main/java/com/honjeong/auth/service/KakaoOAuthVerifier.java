@@ -103,7 +103,7 @@ public class KakaoOAuthVerifier implements OAuthVerifier {
         } catch (JwtException e) {
             // aud 불일치/만료/위조 서명/JWKS 조회 실패/앱 키 오설정이 모두 여기로 모이므로 원인을 남긴다.
             // ID 토큰 원문은 자격증명이라 절대 로깅하지 않고, 예외 메시지만 남긴다.
-            log.warn("카카오 ID 토큰 검증 실패: {}", e.getMessage());
+            log.warn("카카오 ID 토큰 검증 실패: {}", e.getMessage(), e);
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "카카오 로그인 검증에 실패했어요.");
         }
     }

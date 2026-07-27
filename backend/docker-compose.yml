@@ -27,10 +27,12 @@ services:
       DB_URL: jdbc:postgresql://db:5432/honjeong
       DB_USERNAME: honjeong
       DB_PASSWORD: honjeong
-      # 카카오 실검증 스위치. 둘 다 안 주면 mock으로 뜨고, real인데 KAKAO_APP_KEY가 비면
-      # 부팅 시점에 실패한다(KakaoOAuthVerifier 참고) — 조용한 401을 막기 위함.
+      # 카카오 실검증 스위치. prod 프로파일(application-prod.yml)이 이미 OAUTH_MODE 기본값을
+      # real로 선언하므로, 여기서 다른 기본값을 주면 그 선언을 덮어써 mock으로 조용히 뜬다.
+      # 그래서 기본값도 real로 맞춘다 — 호스트가 값을 안 주면 real, 그런데 KAKAO_APP_KEY가
+      # 비어 있으면 부팅 시점에 실패한다(KakaoOAuthVerifier 참고) — 조용한 인증 우회를 막기 위함.
       KAKAO_APP_KEY: ${KAKAO_APP_KEY:-}
-      OAUTH_MODE: ${OAUTH_MODE:-mock}
+      OAUTH_MODE: ${OAUTH_MODE:-real}
     ports:
       - "8080:8080"
 
