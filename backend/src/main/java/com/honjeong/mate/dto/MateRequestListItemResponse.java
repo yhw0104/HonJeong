@@ -27,6 +27,10 @@ public record MateRequestListItemResponse(
     public static MateRequestListItemResponse from(MateRequest mr) {
         return new MateRequestListItemResponse(
                 mr.getId(),
+                // DisplayNames로 감쌀 필요 없음(fromUser/toUser 둘 다): 탈퇴 시 AccountWithdrawalService
+                // .deletePersonalData가 mate_requests 행 자체를 하드 삭제하므로(mateRequestRepository
+                // .deleteAllInvolvingUser) 여기 도달하는 신청은 항상 양쪽 다 비탈퇴 상태다. 이 하드 삭제
+                // 범위가 좁아지면(예: soft 삭제로 전환) 닉네임이 null로 새어나간다.
                 new MateUser(mr.getFromUser().getId(), mr.getFromUser().getNickname(),
                         mr.getFromUser().getProfileImageUrl()),
                 new MateUser(mr.getToUser().getId(), mr.getToUser().getNickname(),

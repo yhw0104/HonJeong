@@ -12,12 +12,16 @@ describe('termsListItems', () => {
     }
   });
 
-  it('TERMS_CONTENT에 순서 목록이 다루지 않는 키가 추가되면 조용히 누락되는 대신 즉시 실패한다', () => {
+  it('TERMS_CONTENT에 순서 목록이 다루지 않는 키가 추가되면 던지지 않고 콘솔 경고만 남긴 채 나머지 문서는 정상 반환한다', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     TERMS_CONTENT.__drift_test__ = { title: '드리프트 테스트', body: '' };
     try {
-      expect(() => termsListItems()).toThrow();
+      expect(() => termsListItems()).not.toThrow();
+      expect(termsListItems().map((t) => t.key)).toEqual(['service', 'privacy', 'location', 'marketing']);
+      expect(warnSpy).toHaveBeenCalledTimes(2); // 위 termsListItems() 두 번 호출分
     } finally {
       delete TERMS_CONTENT.__drift_test__;
+      warnSpy.mockRestore();
     }
   });
 });

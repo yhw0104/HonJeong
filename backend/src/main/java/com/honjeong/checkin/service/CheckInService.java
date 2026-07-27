@@ -240,6 +240,10 @@ public class CheckInService {
                 .findFirst()
                 .orElse(null);
         Long partnerUserId = partner != null ? partner.getUser().getId() : null;
+        // DisplayNames로 감쌀 필요 없음: 탈퇴 시 AccountWithdrawalService.endOngoing이 TOGETHER 체크인
+        // 양쪽을 즉시 end()하므로(한쪽만 끝내면 상대가 "같이 먹는 중"에 갇히기 때문), 여기 도달하는 시점
+        // (c.getStatus()==TOGETHER)의 partner는 항상 비탈퇴 상태다. endOngoing이 TOGETHER 정리를
+        // 건너뛰도록(정리 범위 축소) 바뀌면 이 가정이 깨지고 partnerNickname이 null로 새어나간다.
         String partnerNickname = partner != null ? partner.getUser().getNickname() : null;
         Long conversationId = conversationService.findIdByMealRequestId(c.getMealRequestId());
         return CheckInResponse.from(c, partnerUserId, partnerNickname, conversationId);
@@ -372,6 +376,10 @@ public class CheckInService {
                 .map(c -> new CheckInUserResponse(
                         c.getId(),
                         c.getUser().getId(),
+                        // DisplayNames로 감쌀 필요 없음: 탈퇴 시 AccountWithdrawalService.endOngoing이 SEEKING
+                        // 체크인을 cancel()로 정리하므로(end()는 SEEKING을 무시해 모집중 목록·지도 집계에 계속
+                        // 잡히기 때문), 여기 조회되는 SEEKING 체크인의 사용자는 항상 비탈퇴 상태다. endOngoing이
+                        // SEEKING 정리를 빼도록(정리 범위 축소) 바뀌면 이 가정이 깨지고 닉네임이 null로 새어나간다.
                         c.getUser().getNickname(),
                         c.getStartedAt(),
                         Duration.between(c.getStartedAt(), now).toMinutes()))

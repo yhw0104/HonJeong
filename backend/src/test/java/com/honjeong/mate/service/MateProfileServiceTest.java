@@ -30,6 +30,7 @@ import com.honjeong.user.domain.DiningStyle;
 import com.honjeong.user.domain.Gender;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.domain.UserFoodPreference;
+import com.honjeong.user.domain.UserStatus;
 import com.honjeong.user.repository.UserFoodPreferenceRepository;
 import com.honjeong.user.repository.UserRepository;
 
@@ -280,6 +281,21 @@ class MateProfileServiceTest {
                 .extracting("errorCode").isEqualTo(ErrorCode.USER_NOT_FOUND);
     }
 
+    @Test
+    @DisplayName("정지(SUSPENDED)된 사용자의 공개 프로필도 404로 존재를 숨긴다 — fail-closed(!= ACTIVE)")
+    void suspendedUserProfileIsHidden() {
+        // User 도메인에 suspend() 전이 메서드가 없어(정지는 이 브랜치의 관심사가 아님) 상태만 직접 주입해 재현한다.
+        User target = userWithId(2L);
+        target.completeProfile("상대닉", Gender.NONE, LocalDate.of(1995, 1, 1), "소개", "서울 강남구",
+                37.5, 127.0, DiningStyle.QUIET, null);
+        ReflectionTestUtils.setField(target, "status", UserStatus.SUSPENDED);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(target));
+
+        assertThatThrownBy(() -> service.getPublicProfile(1L, 2L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
+
     /** 탈퇴(withdraw()) 같은 실제 상태 변화가 필요한 테스트용 — mock이 아닌 진짜 User 엔티티에 id만 강제 주입한다. */
     private User userWithId(Long id) {
         User u = User.pending(null, null);
@@ -290,6 +306,9 @@ class MateProfileServiceTest {
     private User user(Long id, String nickname) {
         User u = mock(User.class);
         when(u.getId()).thenReturn(id);
+        // getPublicProfile의 fail-closed 상태 가드(!= ACTIVE)가 적용되므로, 이 헬퍼로 만든 대상은
+        // 기본적으로 ACTIVE로 스텁한다(대부분의 테스트는 상태 자체가 관심사가 아니다).
+        lenient().when(u.getStatus()).thenReturn(UserStatus.ACTIVE);
         lenient().when(u.getNickname()).thenReturn(nickname);
         return u;
     }

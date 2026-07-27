@@ -1,7 +1,10 @@
 package com.honjeong.global.security;
 
 import java.io.IOException;
+import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -33,6 +36,8 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class ActiveUserFilter extends OncePerRequestFilter {
 
+    private static final Logger log = LoggerFactory.getLogger(ActiveUserFilter.class);
+
     private static final String ROLE_USER = "ROLE_USER";
 
     private final UserRepository userRepository;
@@ -49,8 +54,14 @@ public class ActiveUserFilter extends OncePerRequestFilter {
                 && auth.getPrincipal() instanceof Jwt
                 && auth.getAuthorities().stream().anyMatch(a -> ROLE_USER.equals(a.getAuthority()));
         if (isUserToken) {
-            UserStatus status = resolveStatus(((Jwt) auth.getPrincipal()).getSubject());
+            String subject = ((Jwt) auth.getPrincipal()).getSubject();
+            UserStatus status = resolveStatus(subject);
             if (status != UserStatus.ACTIVE) {
+                if (status != null) {
+                    // 상태 조회는 정상적으로 됐지만 ACTIVE가 아님(정지·탈퇴·온보딩 중 남은 토큰) — 흔히 벌어지는
+                    // 정상적인 401 사유라 DEBUG로만 남긴다. 토큰 원문은 남기지 않는다.
+                    log.debug("비활성 계정 접근 차단: userId={}, status={}", subject, status);
+                }
                 SecurityContextHolder.clearContext();
                 SecurityErrorWriter.write(response, ErrorCode.ACCOUNT_INACTIVE);
                 return;
@@ -60,21 +71,38 @@ public class ActiveUserFilter extends OncePerRequestFilter {
     }
 
     /**
-     * 기능: JWT sub(문자열)를 userId로 파싱해 상태를 조회 — sub이 숫자가 아니면(위조·손상 등) 예외를 던지지 않고
-     * "확인 불가"로 취급해 fail-closed 처리한다
+     * 기능: JWT sub(문자열)를 userId로 파싱해 상태를 조회 — sub이 숫자가 아니거나 그 id의 회원 행이 없으면
+     * 예외를 던지지 않고 "확인 불가"(null)로 취급해 fail-closed 처리한다
      *
-     * <p>{@link JwtProvider}가 만드는 access 토큰의 sub은 항상 {@code String.valueOf(long)}이라 정상 경로로는
-     * 도달하지 않지만, 보안 필터는 입력을 신뢰하지 않고 실패 시 열어주는 대신 닫아야 한다({@code NumberFormatException}이
-     * 그대로 새어나가면 500으로 응답해 인증 실패가 인증 우회처럼 보이는 스택트레이스를 노출하게 된다).
+     * <p>{@link JwtProvider}가 만드는 access 토큰의 sub은 항상 {@code String.valueOf(long)}이고 그 id는
+     * 정상적으로 존재하는 회원이라 두 실패 경로 모두 정상 경로로는 도달하지 않는다. 그럼에도 보안 필터는
+     * 입력을 신뢰하지 않고 실패 시 열어주는 대신 닫아야 한다({@code NumberFormatException}이 그대로
+     * 새어나가면 500으로 응답해 인증 실패가 인증 우회처럼 보이는 스택트레이스를 노출하게 된다).
+     *
+     * <p>두 실패 경로는 로그 레벨을 다르게 남긴다 — 둘 다 "일상적인 정지/탈퇴"와는 성격이 다르고(서명은
+     * 유효한 요청인데 우리 쪽 데이터/토큰 발급 경로가 어긋난 정황), 서명 키 로테이션이나 상태 조회 자체가
+     * 깨지는 사고가 나면 사용자 전원이 이 분기로 몰려 로그로만 원인을 구분할 수 있기 때문이다.
      *
      * @param subject JWT의 sub 클레임(정상적으로는 userId 문자열)
      * @return 해당 userId의 상태(없거나 sub이 숫자가 아니면 null)
      */
     private UserStatus resolveStatus(String subject) {
+        Long userId;
         try {
-            return userRepository.findStatusById(Long.valueOf(subject)).orElse(null);
+            userId = Long.valueOf(subject);
         } catch (NumberFormatException e) {
-            return null; // 숫자가 아닌 sub은 "상태 확인 불가"로 취급 — 아래에서 ACTIVE가 아니므로 401
+            // sub이 숫자가 아님 — 정상 발급 경로로는 나오지 않는 값이라 위조·손상된 토큰일 가능성이 있다.
+            // 토큰 원문은 로깅하지 않는다.
+            log.warn("JWT sub이 숫자가 아니라 상태 확인 불가(위조 또는 손상된 토큰일 수 있음)");
+            return null;
         }
+        Optional<UserStatus> found = userRepository.findStatusById(userId);
+        if (found.isEmpty()) {
+            // 서명은 유효한데 그 userId의 회원 행이 없음 — 정상 흐름에서는 발생하지 않는다. 이게 대량으로
+            // 찍히면 정지 물결이 아니라 상태 조회 자체가 깨진 사고(마이그레이션·서명 키 로테이션 등)다.
+            log.warn("userId={}에 해당하는 사용자 행이 없어 상태 확인 불가", userId);
+            return null;
+        }
+        return found.get();
     }
 }

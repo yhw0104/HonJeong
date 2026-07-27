@@ -26,10 +26,16 @@ const KEPT = [
   '혼밥 횟수 통계 — 누가 남긴 기록인지는 알 수 없게 됩니다',
 ];
 
-/** 서버가 보낸 진짜 업무 오류(4xx)는 그대로 보여주고, 그 외(5xx·네트워크 등 예기치 못한 실패)는
- *  client.ts가 합성한 "요청 실패 (HTTP 500)" 같은 원문 대신 사람이 읽을 문구로 감춘다. */
+/** 서버가 보낸 진짜 업무 오류(4xx + 서버 에러코드)는 그대로 보여주고, 그 외(5xx·네트워크 등 예기치
+ *  못한 실패)는 client.ts가 합성한 "요청 실패 (HTTP 500)" 같은 원문 대신 사람이 읽을 문구로 감춘다.
+ *  4xx라도 code가 `HTTP_`로 시작하면(client.ts가 비정상 응답 본문을 보고 합성한 코드 — 프록시/게이트웨이가
+ *  내려준 4xx 등) 실제 업무 오류가 아니므로 걸러낸다. 네트워크 실패(status=0)는 '서버에 연결할 수 없다'는
+ *  더 정확한 문구를 그대로 보여준다. */
 function withdrawErrorMessage(e: unknown): string {
-  if (e instanceof ApiError && e.status >= 400 && e.status < 500) return e.message;
+  if (e instanceof ApiError) {
+    if (e.status === 0) return e.message;
+    if (e.status >= 400 && e.status < 500 && !e.code.startsWith('HTTP_')) return e.message;
+  }
   return '잠시 후 다시 시도해주세요.';
 }
 
@@ -44,7 +50,10 @@ export function WithdrawAccountScreen({ navigation }: RootStackScreenProps<'With
   // 먼저 언마운트한다(게스트 스택 전환) — 그 뒤에 catch가 도는 것이므로 언마운트 여부를 확인해야 한다
   // (AuthContext/Welcome의 alive 플래그와 같은 목적이지만, 이펙트 밖 콜백에서 읽어야 해서 ref로 둔다).
   const aliveRef = useRef(true);
-  useEffect(() => () => { aliveRef.current = false; }, []);
+  useEffect(() => {
+    aliveRef.current = true; // StrictMode 등으로 effect가 재실행돼도 마운트 상태로 재무장한다
+    return () => { aliveRef.current = false; };
+  }, []);
 
   const confirm = () => {
     if (busyRef.current) return; // 더블탭 방지
