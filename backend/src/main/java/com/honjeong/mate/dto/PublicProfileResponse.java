@@ -16,7 +16,7 @@ import java.util.List;
  * @param preferredFoods   선호 음식 목록
  * @param checkInCount     누적 체크인 횟수(취소 제외)
  * @param mealsTogether    조회자와 함께 먹은(같이먹기 수락) 횟수
- * @param badgeCount       뱃지 수(뱃지 도메인 미구현 — 현재 항상 0)
+ * @param badgeCount       뱃지 수(대상 사용자가 획득한 뱃지 개수)
  * @param isOnline         현재 체크인 중 여부
  * @param currentPlaceName 체크인 중인 장소 이름(오프라인이면 null)
  * @param currentPlaceId   체크인 중인 장소 ID(오프라인이면 null)

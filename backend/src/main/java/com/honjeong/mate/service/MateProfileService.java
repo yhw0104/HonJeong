@@ -91,6 +91,10 @@ public class MateProfileService {
     public PublicProfileResponse getPublicProfile(Long viewerId, Long targetId) {
         User t = userRepository.findById(targetId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        // 탈퇴한 회원은 존재 자체를 숨긴다(404) — 차단과 같은 방식. 익명화돼 보여줄 프로필도 남아 있지 않다.
+        if (t.getStatus() == UserStatus.WITHDRAWN) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
         // 차단 관계면 존재 자체를 숨긴다(404) — 차단당한 쪽이 눈치 못 채게(스토킹 방지, NFR-03).
         if (blockRepository.existsBlockBetween(viewerId, targetId)) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);

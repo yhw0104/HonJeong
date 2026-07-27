@@ -2,6 +2,7 @@ package com.honjeong.meal.dto;
 
 import java.time.LocalDateTime;
 
+import com.honjeong.global.common.DisplayNames;
 import com.honjeong.meal.domain.MealRequest;
 
 /**
@@ -38,8 +39,11 @@ public record MealRequestListItemResponse(
     public static MealRequestListItemResponse from(MealRequest mr) {
         return new MealRequestListItemResponse(
                 mr.getId(),
-                new FromUser(mr.getFromUser().getId(), mr.getFromUser().getNickname()),
-                new ToUser(mr.getToCheckIn().getUser().getId(), mr.getToCheckIn().getUser().getNickname()),
+                // 탈퇴자는 닉네임이 null이라 '알 수 없음'으로 표시한다(DisplayNames).
+                new FromUser(mr.getFromUser().getId(), DisplayNames.nicknameOrUnknown(mr.getFromUser().getNickname())),
+                // 탈퇴자는 닉네임이 null이라 '알 수 없음'으로 표시한다(DisplayNames).
+                new ToUser(mr.getToCheckIn().getUser().getId(),
+                        DisplayNames.nicknameOrUnknown(mr.getToCheckIn().getUser().getNickname())),
                 mr.getPlace().getId(),
                 mr.getPlace().getName(),
                 mr.getMessage(),

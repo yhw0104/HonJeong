@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 import com.honjeong.badge.repository.UserBadgeRepository;
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.checkin.domain.CheckIn;
@@ -261,6 +262,26 @@ class MateProfileServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("탈퇴한 사용자의 공개 프로필은 404로 존재를 숨긴다")
+    void withdrawnUserProfileIsHidden() {
+        User target = userWithId(2L);
+        target.withdraw();
+        when(userRepository.findById(2L)).thenReturn(Optional.of(target));
+        when(blockRepository.existsBlockBetween(1L, 2L)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.getPublicProfile(1L, 2L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
+
+    /** 탈퇴(withdraw()) 같은 실제 상태 변화가 필요한 테스트용 — mock이 아닌 진짜 User 엔티티에 id만 강제 주입한다. */
+    private User userWithId(Long id) {
+        User u = User.pending(null, null);
+        ReflectionTestUtils.setField(u, "id", id);
+        return u;
     }
 
     private User user(Long id, String nickname) {

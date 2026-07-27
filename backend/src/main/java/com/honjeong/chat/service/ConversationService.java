@@ -19,6 +19,7 @@ import com.honjeong.chat.dto.ConversationSummaryResponse;
 import com.honjeong.chat.dto.SendMessageRequest;
 import com.honjeong.chat.repository.ChatMessageRepository;
 import com.honjeong.chat.repository.ConversationRepository;
+import com.honjeong.global.common.DisplayNames;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.repository.PlaceRepository;
@@ -204,7 +205,9 @@ public class ConversationService {
                     long unread = chatMessageRepository.countUnread(c.getId(), userId, c.lastReadAtFor(userId));
                     return new ConversationSummaryResponse(
                             c.getId(), c.getStatus().name(),
-                            partner.getId(), partner.getNickname(), partner.getProfileImageUrl(),
+                            partner.getId(),
+                            // 탈퇴자는 닉네임이 null이라 '알 수 없음'으로 표시한다(DisplayNames).
+                            DisplayNames.nicknameOrUnknown(partner.getNickname()), partner.getProfileImageUrl(),
                             c.getPlace().getName(),
                             previews.get(c.getId()), // 마지막 메시지 미리보기(메시지 없으면 null)
                             c.getLastMessageAt(), unread,

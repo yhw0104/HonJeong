@@ -3,6 +3,7 @@ package com.honjeong.review.dto;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.honjeong.global.common.DisplayNames;
 import com.honjeong.review.domain.Review;
 import com.honjeong.review.domain.ReviewTag;
 
@@ -36,7 +37,8 @@ public record PlaceReviewResponse(
     public static PlaceReviewResponse from(Review r, Long currentUserId, List<String> imageUrls) {
         return new PlaceReviewResponse(
                 r.getId(),
-                new Author(r.getUser().getNickname()),
+                // 탈퇴자는 닉네임이 null이라 '알 수 없음'으로 표시한다(DisplayNames).
+                new Author(DisplayNames.nicknameOrUnknown(r.getUser().getNickname())),
                 r.getVisitedAt(),
                 r.getContent(),
                 r.getTasteRating(),
