@@ -82,12 +82,12 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
         <View style={styles.liveHead}>
           <View style={styles.liveHeadLeft}>
             <View style={styles.liveDot} />
-            <Text style={styles.liveLabel}>지금 주변에서 같이 먹을 사람 구하는 중</Text>
+            <Text style={styles.liveLabel}>지금 모집 중</Text>
           </View>
           <Text style={styles.liveCount}>내 주변 {livePlaces.length}</Text>
         </View>
         {livePlaces.length === 0 ? (
-          <Text style={styles.emptyInline}>주변에 같이 먹을 사람을 구하는 식당이 아직 없어요.</Text>
+          <Text style={styles.emptyInline}>주변에 모집 중인 식당이 없어요.</Text>
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.liveScroll} contentContainerStyle={styles.liveScrollContent}>
             {livePlaces.map((p) => (
