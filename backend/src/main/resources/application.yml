@@ -11,9 +11,14 @@ spring:
 
 # 애플리케이션 고유 설정 (모든 프로파일 공통 — prod에서 일부 override)
 honjeong:
-  # 외부 연동 모드: mock(기본) | real. real은 application-prod.yml에서 지정.
+  # 외부 연동 모드: mock(기본) | real. real은 환경변수 OAUTH_MODE=real로 켠다.
   oauth:
-    mode: mock
+    mode: ${OAUTH_MODE:mock}
+    kakao:
+      # ID 토큰의 aud로 기대하는 값(카카오 콘솔 앱 키). 로컬은 backend/.env에서 주입.
+      app-key: ${KAKAO_APP_KEY:}
+      issuer: https://kauth.kakao.com
+      jwks-uri: https://kauth.kakao.com/.well-known/jwks.json
   sms:
     mode: mock
   files:
