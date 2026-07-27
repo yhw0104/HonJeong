@@ -23,8 +23,18 @@ type MenuRoute =
   | 'BlockReport'
   | 'NotificationSettings'
   | 'Notices'
-  | 'Support';
-type MenuItem = { l: string; d?: string; icon: IconName; accent?: boolean; badge?: string; route?: MenuRoute };
+  | 'Support'
+  | 'TermsList'
+  | 'WithdrawAccount';
+type MenuItem = {
+  l: string;
+  d?: string;
+  icon: IconName;
+  accent?: boolean;
+  muted?: boolean; // 회원 탈퇴처럼 눈에 띄되 경쟁하지 않아야 하는 항목
+  badge?: string;
+  route?: MenuRoute;
+};
 type Section = { title: string; items: MenuItem[] };
 
 const SECTIONS: Section[] = [
@@ -51,6 +61,9 @@ const SECTIONS: Section[] = [
       { l: '알림 설정', icon: 'bell', route: 'NotificationSettings' },
       { l: '공지사항', icon: 'note', route: 'Notices' },
       { l: '고객센터 · 문의', icon: 'help', route: 'Support' },
+      { l: '약관 및 정책', icon: 'note', route: 'TermsList' },
+      // 최하단 · 뮤트 스타일 — 애플이 요구하는 건 "찾을 수 있는" 삭제 경로이지, 눈에 띄는 경로가 아니다.
+      { l: '회원 탈퇴', icon: 'shield', muted: true, route: 'WithdrawAccount' },
     ],
   },
 ];
@@ -146,9 +159,9 @@ export function MoreScreen({ navigation }: MainTabScreenProps<'More'>) {
                   onPress={it.route ? () => navigation.navigate(it.route!) : undefined}
                 >
                   <View style={[styles.menuIcon, { backgroundColor: it.accent ? T2.brandSoft : T2.bg }]}>
-                    <Icon name={it.icon} size={20} color={it.accent ? T2.brand : T2.text} />
+                    <Icon name={it.icon} size={20} color={it.accent ? T2.brand : it.muted ? T2.textMute : T2.text} />
                   </View>
-                  <Text style={styles.menuLabel}>{it.l}</Text>
+                  <Text style={[styles.menuLabel, it.muted && styles.menuLabelMuted]}>{it.l}</Text>
                   {menuBadge(it) ? (
                     <View style={styles.menuBadge}>
                       <Text style={styles.menuBadgeText}>{menuBadge(it)}</Text>
@@ -196,6 +209,7 @@ const styles = StyleSheet.create({
   menuDivider: { borderBottomWidth: 1, borderBottomColor: T2.border },
   menuIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   menuLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: T2.text, letterSpacing: -0.3 },
+  menuLabelMuted: { color: T2.textMute, fontWeight: '500' },
   menuBadge: {
     minWidth: 18,
     height: 18,

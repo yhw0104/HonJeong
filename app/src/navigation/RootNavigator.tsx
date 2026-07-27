@@ -28,6 +28,8 @@ import { NotificationsScreen } from '@/features/notifications/screens/Notificati
 import { NoticesScreen } from '@/features/settings/screens/Notices';
 import { BlockReportScreen } from '@/features/settings/screens/BlockReport';
 import { SupportScreen } from '@/features/settings/screens/Support';
+import { TermsListScreen } from '@/features/settings/screens/TermsList';
+import { WithdrawAccountScreen } from '@/features/settings/screens/WithdrawAccount';
 import { ReportFormScreen } from '@/features/safety/screens/ReportForm';
 import { MainTabs } from './MainTabs';
 
@@ -71,6 +73,11 @@ export function RootNavigator() {
           <Stack.Screen name="BlockReport" component={BlockReportScreen} />
           <Stack.Screen name="ReportForm" component={ReportFormScreen} options={{ presentation: 'modal' }} />
           <Stack.Screen name="Support" component={SupportScreen} />
+          {/* TermsView는 온보딩(guest)에서도 쓰이지만, 가입 후에도 '약관 및 정책'에서 다시 열람할 수 있어야 해서
+              authed 그룹에도 등록한다(TermsList → TermsView). */}
+          <Stack.Screen name="TermsView" component={TermsViewScreen} />
+          <Stack.Screen name="TermsList" component={TermsListScreen} />
+          <Stack.Screen name="WithdrawAccount" component={WithdrawAccountScreen} />
         </>
       )}
     </Stack.Navigator>
