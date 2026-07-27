@@ -32,6 +32,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * 쿼리: DELETE FROM refresh_tokens WHERE user_id = :userId
      * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
      */
+    // clearAutomatically 금지 — AccountWithdrawalService.deletePersonalData Javadoc 참조
     @Modifying
     @Query("DELETE FROM RefreshToken rt WHERE rt.userId = :userId")
     int deleteAllByUserId(@Param("userId") Long userId);

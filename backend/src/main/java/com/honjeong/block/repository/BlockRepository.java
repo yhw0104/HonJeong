@@ -81,6 +81,7 @@ public interface BlockRepository extends JpaRepository<Block, Long> {
      * 쿼리: DELETE FROM blocks WHERE blocker_id = :userId OR blocked_id = :userId
      * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
      */
+    // clearAutomatically 금지 — AccountWithdrawalService.deletePersonalData Javadoc 참조
     @Modifying
     @Query("DELETE FROM Block b WHERE b.blocker.id = :userId OR b.blocked.id = :userId")
     int deleteAllInvolvingUser(@Param("userId") Long userId);

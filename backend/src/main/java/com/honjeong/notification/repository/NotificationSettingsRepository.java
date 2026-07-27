@@ -18,6 +18,7 @@ public interface NotificationSettingsRepository extends JpaRepository<Notificati
      * 쿼리: DELETE FROM notification_settings WHERE user_id = :userId
      * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
      */
+    // clearAutomatically 금지 — AccountWithdrawalService.deletePersonalData Javadoc 참조
     @Modifying
     @Query("DELETE FROM NotificationSettings ns WHERE ns.userId = :userId")
     int deleteAllByUserId(@Param("userId") Long userId);

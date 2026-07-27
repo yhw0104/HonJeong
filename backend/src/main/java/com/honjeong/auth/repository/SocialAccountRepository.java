@@ -32,6 +32,7 @@ public interface SocialAccountRepository extends JpaRepository<SocialAccount, Lo
      * 쿼리: DELETE FROM social_accounts WHERE user_id = :userId
      * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
      */
+    // clearAutomatically 금지 — AccountWithdrawalService.deletePersonalData Javadoc 참조
     @Modifying
     @Query("DELETE FROM SocialAccount sa WHERE sa.userId = :userId")
     int deleteAllByUserId(@Param("userId") Long userId);

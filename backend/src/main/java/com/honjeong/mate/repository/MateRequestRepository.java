@@ -95,6 +95,7 @@ public interface MateRequestRepository extends JpaRepository<MateRequest, Long> 
      * 쿼리: DELETE FROM mate_requests WHERE from_user_id = :userId OR to_user_id = :userId
      * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
      */
+    // clearAutomatically 금지 — AccountWithdrawalService.deletePersonalData Javadoc 참조
     @Modifying
     @Query("DELETE FROM MateRequest mr WHERE mr.fromUser.id = :userId OR mr.toUser.id = :userId")
     int deleteAllInvolvingUser(@Param("userId") Long userId);

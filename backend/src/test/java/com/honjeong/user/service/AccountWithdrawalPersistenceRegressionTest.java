@@ -24,8 +24,8 @@ import com.honjeong.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 
 /**
- * Critical 회귀 방지 — {@code AccountWithdrawalService.withdraw}가 실제 Postgres에 커밋 가능한
- * 형태로 회원을 익명화하는지(모킹으로는 절대 잡을 수 없는 flush 경계 버그) 검증하는 단일 통합 테스트.
+ * Critical 회귀 방지 — {@code AccountWithdrawalService.withdraw}가 실제 Postgres에 flush 수준으로
+ * 회원을 익명화하는지(모킹으로는 절대 잡을 수 없는 flush 경계 버그) 검증하는 단일 통합 테스트.
  *
  * <p><b>배경.</b> 이전 커밋이 탈퇴 정리용 bulk DELETE 11건에 {@code @Modifying(clearAutomatically = true)}를
  * 붙였다. {@code em.clear()}는 삭제 대상 테이블에 국한되지 않고 영속성 컨텍스트 전체를 비우므로,
@@ -47,7 +47,7 @@ import jakarta.persistence.EntityManager;
  */
 @SpringBootTest
 @Transactional
-class AccountWithdrawalIntegrationTest extends AbstractPostgresTest {
+class AccountWithdrawalPersistenceRegressionTest extends AbstractPostgresTest {
 
     @Autowired
     private UserRepository userRepository;
@@ -98,6 +98,6 @@ class AccountWithdrawalIntegrationTest extends AbstractPostgresTest {
         assertThat(reloaded.getNickname()).isNull();
 
         CheckIn reloadedCheckIn = checkInRepository.findById(checkInId).orElseThrow();
-        assertThat(reloadedCheckIn.getStatus()).isNotEqualTo(CheckInStatus.SEEKING);
+        assertThat(reloadedCheckIn.getStatus()).isEqualTo(CheckInStatus.CANCELLED);
     }
 }

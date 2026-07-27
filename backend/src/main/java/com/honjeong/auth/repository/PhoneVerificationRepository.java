@@ -36,6 +36,7 @@ public interface PhoneVerificationRepository extends JpaRepository<PhoneVerifica
      * <p>이 테이블은 {@code users} FK가 없어(번호 단위 기록) 탈퇴 시 FK 기반 정리 스윕에 걸리지 않는다.
      * 원문 휴대폰 번호가 남는 테이블이라 phone 값을 키로 별도 삭제해야 한다.
      */
+    // clearAutomatically 금지 — AccountWithdrawalService.deletePersonalData Javadoc 참조
     @Modifying
     @Query("DELETE FROM PhoneVerification pv WHERE pv.phone = :phone")
     int deleteAllByPhone(@Param("phone") String phone);
