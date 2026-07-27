@@ -250,6 +250,24 @@ class AccountWithdrawalIntegrationTest extends AbstractPostgresTest {
         // phone_verifications는 users FK가 없어(번호 단위 기록) 별도로 심는다.
         phoneVerificationRepository.save(PhoneVerification.issue(capturedPhone, "000000", now.plusMinutes(3)));
 
+        // given: 11개 벌크 삭제 대상과 favorites가 실제로 DB에 들어갔는지 사전에 확인한다.
+        // 사후 0건 단언이 무의미해지지 않도록, 픽스처 행이 실제로 들어갔는지 먼저 확인한다.
+        assertThat(countRows("SELECT COUNT(*) FROM social_accounts WHERE user_id = ?", userId)).isNotZero();
+        assertThat(countRows("SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?", userId)).isNotZero();
+        assertThat(countRows("SELECT COUNT(*) FROM user_food_preferences WHERE user_id = ?", userId)).isNotZero();
+        assertThat(countRows("SELECT COUNT(*) FROM favorite_groups WHERE user_id = ?", userId)).isNotZero();
+        assertThat(countRows("SELECT COUNT(*) FROM favorites WHERE group_id = ?", groupId)).isNotZero();
+        assertThat(countRows("SELECT COUNT(*) FROM mates WHERE user_id = ? OR mate_user_id = ?", userId, userId))
+                .isNotZero();
+        assertThat(countRows("SELECT COUNT(*) FROM mate_requests WHERE from_user_id = ? OR to_user_id = ?",
+                userId, userId)).isNotZero();
+        assertThat(countRows("SELECT COUNT(*) FROM blocks WHERE blocker_id = ? OR blocked_id = ?", userId, userId))
+                .isNotZero();
+        assertThat(countRows("SELECT COUNT(*) FROM notifications WHERE user_id = ?", userId)).isNotZero();
+        assertThat(countRows("SELECT COUNT(*) FROM notification_settings WHERE user_id = ?", userId)).isNotZero();
+        assertThat(countRows("SELECT COUNT(*) FROM user_badges WHERE user_id = ?", userId)).isNotZero();
+        assertThat(countRows("SELECT COUNT(*) FROM phone_verifications WHERE phone = ?", capturedPhone)).isNotZero();
+
         // when
         withdrawalService.withdraw(userId);
         // 벌크 DELETE 11건 + user.withdraw()가 실제로 SQL로 나갔는지 강제로 흘려보내고, 1차 캐시를 비워
@@ -440,11 +458,13 @@ class AccountWithdrawalIntegrationTest extends AbstractPostgresTest {
     // 재실행 등) 이전 실행이 남긴 값과 부딪히지 않도록, 실행 시각(밀리초)과 호출 순번을 함께 조합한다.
     private static final AtomicLong FIXTURE_SEQ = new AtomicLong();
 
-    /** 실행마다 값이 달라지는(따라서 재실행에도 안전한) 휴대폰 번호를 만든다. */
+    /** 실행마다 값이 달라지는(따라서 재실행에도 안전한) 휴대폰 번호를 만든다.
+     *  0102xxxxx 범위(0107·0109 회피)를 사용해 CheckInMealHappyPathE2eTest(0107777x)·
+     *  AuthServicePhoneAttemptIntegrationTest(0109999x)와의 JVM 내 충돌을 방지한다. */
     private static String freshPhone() {
-        long ms = System.currentTimeMillis() % 100_000L;
-        long seq = FIXTURE_SEQ.incrementAndGet() % 1000L;
-        return String.format("010%05d%03d", ms, seq);
+        long ms = System.currentTimeMillis() % 10_000L;  // 0-9999
+        long seq = FIXTURE_SEQ.incrementAndGet() % 1000L;  // 0-999
+        return String.format("0102%04d%03d", ms, seq);
     }
 
     /** 실행마다 값이 달라지는(따라서 재실행에도 안전한) 카카오 idToken(=재가입 시 사용할 소셜 신원 시드)을 만든다. */
