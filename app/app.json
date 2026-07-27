@@ -9,9 +9,10 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.honjeong"
+      "bundleIdentifier": "com.honjeong.app"
     },
     "android": {
+      "package": "com.honjeong.app",
       "adaptiveIcon": {
         "backgroundColor": "#F7EEDD",
         "foregroundImage": "./assets/android-icon-foreground.png"
