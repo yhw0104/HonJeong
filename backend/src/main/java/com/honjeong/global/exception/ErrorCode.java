@@ -6,7 +6,7 @@ import org.springframework.http.HttpStatus;
  * 전 도메인이 공유하는 에러 코드 enum — 각 상수가 HTTP 상태와 기본 사용자 메시지를 함께 정의한다.
  * BusinessException에 담겨 던져지고 GlobalExceptionHandler·SecurityConfig가 이 값으로 에러 응답을 만든다.
  *
- * <p>[기존 주석] 도메인 공통 에러 코드. {@code code()}는 enum 이름을 그대로 노출한다(예: CHECKIN_ALREADY_ACTIVE).
+ * <p>{@code code()}는 enum 이름을 그대로 노출한다(예: CHECKIN_ALREADY_ACTIVE).
  * 각 슬라이스에서 도메인별 코드를 추가한다.
  */
 public enum ErrorCode {
@@ -138,11 +138,7 @@ public enum ErrorCode {
     private final String message;
 
     /**
-     * 기능: 각 에러 코드를 HTTP 상태·기본 메시지와 함께 정의하는 enum 생성자
-     * Request: status — 이 에러에 대응하는 HTTP 상태, message — 기본 사용자 메시지
-     * Response: 없음(생성자)
-     *
-     * <p>[기존 주석] 각 에러 코드를 HTTP 상태·기본 메시지와 함께 정의하는 enum 생성자.
+     * 각 에러 코드를 HTTP 상태·기본 메시지와 함께 정의하는 enum 생성자.
      *
      * @param status 이 에러에 대응하는 HTTP 상태
      * @param message 기본 사용자 메시지
@@ -153,33 +149,27 @@ public enum ErrorCode {
     }
 
     /**
-     * 기능: 이 에러의 HTTP 상태 조회
-     * Request: 없음
-     * Response: HttpStatus — 응답에 쓸 HTTP 상태(예: 404 NOT_FOUND)
+     * 이 에러의 HTTP 상태를 반환한다.
      *
-     * <p>[기존 주석] 이 에러의 HTTP 상태를 반환한다(예: 404 NOT_FOUND).
+     * @return 응답에 쓸 HTTP 상태(예: 404 NOT_FOUND)
      */
     public HttpStatus status() {
         return status;
     }
 
     /**
-     * 기능: 클라이언트에 노출할 코드 문자열 조회 — enum 이름을 그대로 사용
-     * Request: 없음
-     * Response: String — 코드 문자열(예: "NOT_FOUND")
+     * 클라이언트에 노출할 코드 문자열을 반환한다 — enum 이름을 그대로 사용한다.
      *
-     * <p>[기존 주석] 클라이언트에 노출할 코드 문자열을 반환한다 — enum 이름을 그대로 사용한다(예: "NOT_FOUND").
+     * @return 코드 문자열(예: "NOT_FOUND")
      */
     public String code() {
         return name();
     }
 
     /**
-     * 기능: 이 에러의 기본 사용자 메시지 조회
-     * Request: 없음
-     * Response: String — 기본 메시지
+     * 이 에러의 기본 사용자 메시지를 반환한다.
      *
-     * <p>[기존 주석] 이 에러의 기본 메시지를 반환한다.
+     * @return 기본 메시지
      */
     public String message() {
         return message;

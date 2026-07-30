@@ -11,12 +11,13 @@ import jakarta.persistence.EntityListeners;
 import jakarta.persistence.MappedSuperclass;
 
 /**
- * 1. 기능: 생성/수정 시각 감사 컬럼(created_at·updated_at)을 자동으로 채워 주는 공통 매핑 상위 클래스(@MappedSuperclass)
- * 2. 사용처: 두 컬럼을 모두 가진 엔티티가 상속 — User·UserFoodPreference·Place·Review·FavoriteGroup·Notice·RefreshToken·SocialAccount (자동 채움은 JpaConfig의 @EnableJpaAuditing 필요)
+ * 생성/수정 시각 감사 컬럼(created_at·updated_at)을 자동으로 채워 주는 공통 매핑 상위 클래스.
  *
- * <p>[기존 주석] 생성/수정 시각 감사 컬럼(created_at·updated_at)을 제공하는 매핑 상위 클래스.
- * 두 컬럼을 모두 가진 엔티티(users·places·refresh_tokens·social_accounts)가 상속한다.
- * created_at만 있는 엔티티(check_ins·meal_requests 등)는 개별 매핑한다.
+ * <p>사용처: 두 컬럼을 모두 가진 엔티티가 상속한다 — User·UserFoodPreference·Place·Review·
+ * FavoriteGroup·Notice·RefreshToken·SocialAccount. 자동 채움은 JpaConfig의
+ * {@code @EnableJpaAuditing}이 있어야 동작한다.
+ *
+ * <p>created_at만 있는 엔티티(check_ins·meal_requests 등)는 개별 매핑한다.
  */
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
@@ -35,22 +36,18 @@ public abstract class BaseTimeEntity {
     private LocalDateTime updatedAt;
 
     /**
-     * 기능: 엔티티 생성 시각 조회
-     * Request: 없음
-     * Response: LocalDateTime — created_at 값(생성 후 변경되지 않음)
+     * 엔티티가 처음 저장된 시각을 반환한다.
      *
-     * <p>[기존 주석] 엔티티가 처음 저장된 시각을 반환한다(생성 후 변경되지 않음).
+     * @return created_at 값(생성 후 변경되지 않음)
      */
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
 
     /**
-     * 기능: 엔티티 마지막 수정 시각 조회
-     * Request: 없음
-     * Response: LocalDateTime — updated_at 값(매 변경 시 갱신)
+     * 엔티티가 마지막으로 수정된 시각을 반환한다.
      *
-     * <p>[기존 주석] 엔티티가 마지막으로 수정된 시각을 반환한다(매 변경 시 갱신).
+     * @return updated_at 값(매 변경 시 갱신)
      */
     public LocalDateTime getUpdatedAt() {
         return updatedAt;

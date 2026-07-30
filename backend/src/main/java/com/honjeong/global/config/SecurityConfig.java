@@ -26,11 +26,14 @@ import com.honjeong.global.security.JwtProvider;
 import com.honjeong.global.security.SecurityErrorWriter;
 
 /**
- * 1. 기능: 무상태 JWT 보안 설정 — JwtProvider/JwtDecoder 빈 등록, 경로별 인가 규칙, typ 클레임→ROLE 매핑, 401/403 공통 엔벨로프 응답
- * 2. 사용처: 스프링 시큐리티 필터 체인으로 전 API 요청에 자동 적용(직접 참조 없음) — JwtProvider 빈은 AuthService·TokenService가 주입받음
+ * 무상태 JWT 보안 설정(Spring Security 7) — JwtProvider/JwtDecoder 빈 등록, 경로별 인가 규칙,
+ * typ 클레임→ROLE 매핑, 401/403 공통 엔벨로프 응답.
  *
- * <p>[기존 주석] 무상태 JWT 보안(Spring Security 7). 토큰의 {@code typ} 클레임을 권한으로 매핑한다:
- * typ=access → ROLE_USER, typ=onboarding → ROLE_ONBOARDING.
+ * <p>사용처: 스프링 시큐리티 필터 체인으로 전 API 요청에 자동 적용된다(직접 참조 없음).
+ * JwtProvider 빈은 AuthService·TokenService가 주입받는다.
+ *
+ * <p>토큰의 {@code typ} 클레임을 권한으로 매핑한다: typ=access → ROLE_USER,
+ * typ=onboarding → ROLE_ONBOARDING.
  *
  * <p>인가: 인증/헬스는 공개, 온보딩 엔드포인트는 ONBOARDING|USER, 그 외 전부 USER.
  * (⚠️ {@code anyRequest().authenticated()}를 쓰면 온보딩 토큰이 일반 API를 통과하므로 USER로 게이팅.)
@@ -41,15 +44,12 @@ import com.honjeong.global.security.SecurityErrorWriter;
 public class SecurityConfig {
 
     /**
-     * 기능: 자체 발급 JWT(access·onboarding)의 생성·검증을 담당하는 JwtProvider를 빈으로 등록한다
-     * Request: props — honjeong.jwt.* 설정값(시크릿·access/onboarding TTL)
-     * Response: JwtProvider — 시크릿·TTL·UTC Clock으로 구성된 발급/검증기
+     * 자체 발급 JWT(access·onboarding)의 생성·검증을 담당하는 {@link JwtProvider}를 빈으로 등록한다.
      *
-     * <p>[기존 주석] 자체 발급 JWT(access·onboarding)의 생성·검증을 담당하는 {@link JwtProvider}를 빈으로 등록한다.
-     * 시크릿·TTL은 {@link HonjeongJwtProperties}에서 받고, 시각은 UTC Clock으로 고정한다.
+     * <p>시크릿·TTL은 {@link HonjeongJwtProperties}에서 받고, 시각은 UTC Clock으로 고정한다.
      *
      * @param props honjeong.jwt.* 설정값(시크릿·access/onboarding TTL)
-     * @return 구성된 JwtProvider
+     * @return 시크릿·TTL·UTC Clock으로 구성된 발급/검증기
      */
     @Bean
     JwtProvider jwtProvider(HonjeongJwtProperties props) {
@@ -58,12 +58,10 @@ public class SecurityConfig {
     }
 
     /**
-     * 기능: 리소스 서버가 들어온 Bearer 토큰을 검증할 때 쓸 JwtDecoder를 빈으로 등록한다
-     * Request: jwtProvider — 토큰 발급/검증 컴포넌트
-     * Response: JwtDecoder — JwtProvider 내부 디코더(발급과 같은 대칭키·HS256)
+     * 리소스 서버({@code oauth2ResourceServer().jwt()})가 들어온 Bearer 토큰을 검증할 때 쓸
+     * {@link JwtDecoder}를 빈으로 등록한다.
      *
-     * <p>[기존 주석] 리소스 서버(oauth2ResourceServer().jwt())가 들어온 토큰을 검증할 때 쓸 {@link JwtDecoder} 빈.
-     * JwtProvider가 가진 디코더(같은 대칭키·HS256)를 그대로 노출해 발급과 검증의 키를 일치시킨다.
+     * <p>JwtProvider가 가진 디코더(같은 대칭키·HS256)를 그대로 노출해 발급과 검증의 키를 일치시킨다.
      *
      * @param jwtProvider 토큰 발급/검증 컴포넌트
      * @return JwtProvider 내부 디코더
@@ -74,11 +72,8 @@ public class SecurityConfig {
     }
 
     /**
-     * 기능: 무상태(STATELESS) JWT 기반 보안 필터 체인을 구성한다 — CSRF 끔, 세션 미생성, 경로별 인가, 토큰 검증·401/403 처리기 연결
-     * Request: http — Security DSL 빌더, jwtDecoder — 들어온 JWT를 검증할 디코더
-     * Response: SecurityFilterChain — 빌드된 보안 필터 체인
+     * 무상태(STATELESS) JWT 기반 보안 필터 체인을 구성한다.
      *
-     * <p>[기존 주석] 무상태(STATELESS) JWT 기반 보안 필터 체인을 구성한다.
      * <ul>
      *   <li>CSRF 비활성화(쿠키·세션 미사용, Bearer 토큰만 받는 API라 불필요).</li>
      *   <li>세션을 만들지 않음(STATELESS) — 매 요청을 토큰으로만 인증한다.</li>
@@ -133,12 +128,9 @@ public class SecurityConfig {
     }
 
     /**
-     * 기능: JWT의 typ 클레임을 Spring Security 권한(ROLE_*)으로 매핑하는 컨버터를 만든다
-     * Request: 없음
-     * Response: JwtAuthenticationConverter — typ=onboarding→ROLE_ONBOARDING, 그 외→ROLE_USER 매핑 적용
+     * JWT의 {@code typ} 클레임을 Spring Security 권한(ROLE_*)으로 매핑하는 컨버터를 만든다.
      *
-     * <p>[기존 주석] JWT의 {@code typ} 클레임을 Spring Security 권한(ROLE_*)으로 매핑하는 컨버터를 만든다.
-     * typ=onboarding이면 ROLE_ONBOARDING, 그 외(access 포함)는 ROLE_USER를 부여한다.
+     * <p>typ=onboarding이면 ROLE_ONBOARDING, 그 외(access 포함)는 ROLE_USER를 부여한다.
      * 이 매핑이 위 인가 규칙(hasRole/hasAnyRole)의 판정 근거가 된다.
      *
      * @return typ→ROLE 매핑이 적용된 JwtAuthenticationConverter
@@ -156,12 +148,9 @@ public class SecurityConfig {
     }
 
     /**
-     * 기능: 인증 실패(미인증) 시 401과 공통 에러 엔벨로프 JSON을 내려주는 진입점을 만든다
-     * Request: 없음
-     * Response: AuthenticationEntryPoint — UNAUTHORIZED(401) 응답기
+     * 인증 실패(미인증) 시 호출되는 진입점. 401과 함께 공통 에러 엔벨로프 JSON을 직접 쓴다.
      *
-     * <p>[기존 주석] 인증 실패(미인증) 시 호출되는 진입점. 401과 함께 공통 에러 엔벨로프 JSON을 직접 쓴다.
-     * (스프링 기본 응답 대신 우리 {@code {success:false,error:{...}}} 포맷으로 통일하기 위함.)
+     * <p>스프링 기본 응답 대신 우리 {@code {success:false,error:{...}}} 포맷으로 통일하기 위함이다.
      *
      * @return UNAUTHORIZED(401)을 내려주는 AuthenticationEntryPoint
      */
@@ -170,11 +159,7 @@ public class SecurityConfig {
     }
 
     /**
-     * 기능: 인가 실패(권한 부족) 시 403과 공통 에러 엔벨로프 JSON을 내려주는 핸들러를 만든다
-     * Request: 없음
-     * Response: AccessDeniedHandler — FORBIDDEN(403) 응답기
-     *
-     * <p>[기존 주석] 인가 실패(권한 부족) 시 호출되는 핸들러. 403과 함께 공통 에러 엔벨로프 JSON을 직접 쓴다.
+     * 인가 실패(권한 부족) 시 호출되는 핸들러. 403과 함께 공통 에러 엔벨로프 JSON을 직접 쓴다.
      *
      * @return FORBIDDEN(403)을 내려주는 AccessDeniedHandler
      */

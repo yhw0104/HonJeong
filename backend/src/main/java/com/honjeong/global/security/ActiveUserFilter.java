@@ -21,8 +21,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * 1. 기능: 정식 회원(ROLE_USER) 토큰으로 들어온 요청마다 users.status가 ACTIVE인지 확인해, 아니면 401로 끊는다
- * 2. 사용처: SecurityConfig 필터 체인(BearerTokenAuthenticationFilter 뒤)
+ * 정식 회원(ROLE_USER) 토큰으로 들어온 요청마다 users.status가 ACTIVE인지 확인해, 아니면 401로 끊는다.
+ *
+ * <p>사용처: SecurityConfig 필터 체인(BearerTokenAuthenticationFilter 뒤).
  *
  * <p><b>왜 필요한가.</b> JWT는 무상태라 발급된 access 토큰(TTL 1시간)을 서버가 회수할 수 없다. 이 필터가 없으면
  * 탈퇴 직후에도 남은 토큰으로 최대 1시간 API를 쓸 수 있고, 정지(SUSPENDED) 제재도 이미 로그인한 사용자에게
@@ -71,8 +72,8 @@ public class ActiveUserFilter extends OncePerRequestFilter {
     }
 
     /**
-     * 기능: JWT sub(문자열)를 userId로 파싱해 상태를 조회 — sub이 숫자가 아니거나 그 id의 회원 행이 없으면
-     * 예외를 던지지 않고 "확인 불가"(null)로 취급해 fail-closed 처리한다
+     * JWT sub(문자열)를 userId로 파싱해 상태를 조회한다 — sub이 숫자가 아니거나 그 id의 회원 행이 없으면
+     * 예외를 던지지 않고 "확인 불가"(null)로 취급해 fail-closed 처리한다.
      *
      * <p>{@link JwtProvider}가 만드는 access 토큰의 sub은 항상 {@code String.valueOf(long)}이고 그 id는
      * 정상적으로 존재하는 회원이라 두 실패 경로 모두 정상 경로로는 도달하지 않는다. 그럼에도 보안 필터는

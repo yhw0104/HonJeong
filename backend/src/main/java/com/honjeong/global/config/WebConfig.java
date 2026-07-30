@@ -12,10 +12,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import com.honjeong.global.security.CurrentUserIdArgumentResolver;
 
 /**
- * 1. 기능: 스프링 MVC 커스터마이즈 설정 — @CurrentUserId 인자 리졸버 등록 + 업로드 파일(/files/**) 로컬 정적 서빙 매핑
- * 2. 사용처: 스프링 MVC가 자동 적용(직접 참조 없음) — 효과는 @CurrentUserId를 쓰는 모든 컨트롤러와 프로필 사진 등 파일 URL 응답에 미침
+ * 스프링 MVC 커스터마이즈 — {@code @CurrentUserId} 인자 리졸버 등록 + 업로드 파일({@code /files/**})
+ * 로컬 정적 서빙 매핑.
  *
- * <p>[기존 주석] MVC 커스터마이즈 — {@code @CurrentUserId} 인자 리졸버 + 업로드 파일 정적 서빙 등록.
+ * <p>사용처: 스프링 MVC가 자동 적용한다(직접 참조 없음). 효과는 {@code @CurrentUserId}를 쓰는 모든
+ * 컨트롤러와 프로필 사진 등 파일 URL 응답에 미친다.
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
@@ -25,12 +26,9 @@ public class WebConfig implements WebMvcConfigurer {
     private String fileLocalDir;
 
     /**
-     * 기능: 커스텀 핸들러 인자 리졸버(CurrentUserIdArgumentResolver)를 등록해 @CurrentUserId Long 파라미터에 JWT 사용자 id가 주입되게 한다
-     * Request: resolvers — 스프링 MVC 인자 리졸버 목록(여기에 우리 리졸버를 추가)
-     * Response: 없음(void)
+     * 커스텀 핸들러 메서드 인자 리졸버를 등록한다.
      *
-     * <p>[기존 주석] 커스텀 핸들러 메서드 인자 리졸버를 등록한다.
-     * {@link CurrentUserIdArgumentResolver}를 추가해 컨트롤러의 {@code @CurrentUserId Long} 파라미터에
+     * <p>{@link CurrentUserIdArgumentResolver}를 추가해 컨트롤러의 {@code @CurrentUserId Long} 파라미터에
      * JWT의 사용자 id가 주입되도록 한다.
      *
      * @param resolvers 스프링 MVC가 사용하는 인자 리졸버 목록(여기에 우리 리졸버를 더한다)
@@ -41,12 +39,10 @@ public class WebConfig implements WebMvcConfigurer {
     }
 
     /**
-     * 기능: 업로드된 파일(프로필 사진 등)을 /files/** 경로로 정적 서빙하도록 로컬 업로드 디렉터리를 매핑한다
-     * Request: registry — 리소스 핸들러 레지스트리
-     * Response: 없음(void)
+     * 업로드된 파일(프로필 사진 등)을 {@code /files/**} 경로로 정적 서빙한다.
      *
-     * <p>[기존 주석] 업로드된 파일(프로필 사진 등)을 {@code /files/**} 경로로 정적 서빙한다 — 개발(mock) 저장소가 돌려준 URL이
-     * 실제로 열리도록 로컬 디렉터리를 매핑한다. (운영에선 S3가 직접 서빙하므로 불필요.)
+     * <p>개발(mock) 저장소가 돌려준 URL이 실제로 열리도록 로컬 디렉터리를 매핑한다.
+     * 운영에선 S3가 직접 서빙하므로 불필요하다.
      *
      * @param registry 리소스 핸들러 레지스트리
      */
