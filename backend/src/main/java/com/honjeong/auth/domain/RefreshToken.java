@@ -79,7 +79,7 @@ public class RefreshToken extends BaseTimeEntity {
     }
 
     /**
-     * 지금 사용 가능한 토큰인지 판정한다. 사용 가능 = 미회수(!revoked) && 미만료(만료시각이 now보다 미래).
+     * 지금 사용 가능한 토큰인지 판정한다. 사용 가능 = 미회수(!revoked) {@code &&} 미만료(만료시각이 now보다 미래).
      *
      * @param now 판정 기준 현재 시각
      * @return 회수되지 않았고 아직 만료 전이면 true
