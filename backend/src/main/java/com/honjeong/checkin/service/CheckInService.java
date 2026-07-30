@@ -381,6 +381,7 @@ public class CheckInService {
                         // 잡히기 때문), 여기 조회되는 SEEKING 체크인의 사용자는 항상 비탈퇴 상태다. endOngoing이
                         // SEEKING 정리를 빼도록(정리 범위 축소) 바뀌면 이 가정이 깨지고 닉네임이 null로 새어나간다.
                         c.getUser().getNickname(),
+                        c.getUser().getProfileImageUrl(),
                         c.getStartedAt(),
                         Duration.between(c.getStartedAt(), now).toMinutes()))
                 .toList();

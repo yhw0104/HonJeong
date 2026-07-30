@@ -72,8 +72,7 @@ export function MealRequestLists({
         {receivedList.map((r) => (
           <View key={r.mealRequestId} style={styles.recvCard}>
             <Pressable style={styles.recvTop} onPress={() => onOpenProfile(r.fromUser.userId)} accessibilityRole="button">
-              {/* 같이먹기 신청 API(MealRequestListItemResponse)는 사진을 안 내려줘 앱 아이콘이 나온다. */}
-              <Avatar size={46} />
+              <Avatar uri={r.fromUser.profileImageUrl} size={46} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.recvName}>{r.fromUser.nickname}</Text>
                 <Text style={styles.recvMeta}>{(r.status === 'PENDING' ? '새 신청' : mealStatusLabelReceived(r.status)) + ' · ' + formatTimeAgo(r.createdAt, now)}</Text>
@@ -115,7 +114,7 @@ export function MealRequestLists({
         return (
           <Pressable key={s.mealRequestId} style={[styles.sentRow, i < sentList.length - 1 && styles.sentRowBorder]}
             onPress={() => onOpenProfile(s.toUser.userId)} accessibilityRole="button">
-            <Avatar size={44} dimmed={closed} />
+            <Avatar uri={s.toUser.profileImageUrl} size={44} dimmed={closed} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.sentName, { color: closed ? T2.textMute : T2.text }]}>{s.toUser.nickname}</Text>
               <Text style={styles.sentMeta} numberOfLines={1}>{s.placeName + ' · ' + formatTimeAgo(s.createdAt, now)}</Text>

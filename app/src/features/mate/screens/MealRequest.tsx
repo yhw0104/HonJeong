@@ -79,8 +79,7 @@ export function MealRequestScreen({ navigation, route }: RootStackScreenProps<'M
                       style={[styles.personRow, { borderColor: on ? T2.brand : T2.border }]}
                       accessibilityRole="button"
                     >
-                      {/* 모집중 목록(Seeker)에는 사진 필드가 없어 앱 아이콘이 나온다. */}
-                      <Avatar size={44} />
+                      <Avatar uri={d.profileImageUrl} size={44} />
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.personName}>{d.nickname}</Text>
                         <Text style={styles.personMeta}>{formatElapsed(d.elapsedMinutes)}</Text>

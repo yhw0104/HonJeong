@@ -43,13 +43,15 @@ class PlaceCheckInControllerTest extends ActiveUserSliceSupport {
     @DisplayName("GET /api/places/{id}/check-ins: USER면 200 + 모집중 목록(닉네임·경과)")
     void diners_200() throws Exception {
         when(checkInService.getSeekers(1L, 3L)).thenReturn(List.of(
-                new CheckInUserResponse(10L, 5L, "혼밥러", LocalDateTime.of(2026, 6, 15, 12, 0), 15L)));
+                new CheckInUserResponse(10L, 5L, "혼밥러", "http://x/seeker.jpg",
+                        LocalDateTime.of(2026, 6, 15, 12, 0), 15L)));
 
         mockMvc.perform(get("/api/places/3/check-ins")
                         .header("Authorization", "Bearer " + jwtProvider.createAccessToken(1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].userId").value(5))
                 .andExpect(jsonPath("$.data[0].nickname").value("혼밥러"))
+                .andExpect(jsonPath("$.data[0].profileImageUrl").value("http://x/seeker.jpg"))
                 .andExpect(jsonPath("$.data[0].elapsedMinutes").value(15));
     }
 

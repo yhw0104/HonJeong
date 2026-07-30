@@ -127,8 +127,8 @@ class MealRequestControllerTest extends ActiveUserSliceSupport {
         when(mealRequestService.getMealRequests(eq(1L), eq("received"), any()))
                 .thenReturn(List.of(new MealRequestListItemResponse(
                         7L,
-                        new MealRequestListItemResponse.FromUser(20L, "옆자리"),
-                        new MealRequestListItemResponse.ToUser(30L, "수신자"),
+                        new MealRequestListItemResponse.FromUser(20L, "옆자리", "http://x/from.jpg"),
+                        new MealRequestListItemResponse.ToUser(30L, "수신자", null),
                         3L, "큰순두부", "같이 드실래요?", "PENDING",
                         java.time.LocalDateTime.of(2026, 6, 18, 12, 0))));
 
@@ -137,10 +137,14 @@ class MealRequestControllerTest extends ActiveUserSliceSupport {
                 .andExpect(jsonPath("$.data[0].mealRequestId").value(7))
                 .andExpect(jsonPath("$.data[0].fromUser.userId").value(20))
                 .andExpect(jsonPath("$.data[0].fromUser.nickname").value("옆자리"))
+                .andExpect(jsonPath("$.data[0].fromUser.profileImageUrl").value("http://x/from.jpg"))
                 .andExpect(jsonPath("$.data[0].placeId").value(3))
                 .andExpect(jsonPath("$.data[0].status").value("PENDING"))
                 .andExpect(jsonPath("$.data[0].toUser.userId").value(30))
                 .andExpect(jsonPath("$.data[0].toUser.nickname").value("수신자"))
+                // 사진 없는 사용자는 null로 내려간다(앱이 앱 아이콘으로 대체). 이 DTO엔 @JsonInclude(NON_NULL)이
+                // 없어 필드 자체는 존재해야 한다 — 빠지면 앱에서 undefined 접근이 된다.
+                .andExpect(jsonPath("$.data[0].toUser.profileImageUrl").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data[0].placeName").value("큰순두부"));
     }
 

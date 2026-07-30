@@ -14,7 +14,8 @@ export type MapMarker = {
 };
 /** 모집중(SEEKING) 한 명 — 같이먹기 신청 대상. (구 ActiveDiner) */
 export type Seeker = {
-  checkInId: number; userId: number; nickname: string; startedAt: string; elapsedMinutes: number;
+  checkInId: number; userId: number; nickname: string; profileImageUrl: string | null;
+  startedAt: string; elapsedMinutes: number;
 };
 
 /** 내 현재 체크인(SEEKING/ACTIVE/TOGETHER, 없으면 null). */

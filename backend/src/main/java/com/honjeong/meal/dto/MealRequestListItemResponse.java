@@ -28,22 +28,25 @@ public record MealRequestListItemResponse(
         String status,
         LocalDateTime createdAt) {
 
-    /** 신청자 요약(userId + 닉네임). */
-    public record FromUser(Long userId, String nickname) {
+    /** 신청자 요약(userId + 닉네임 + 프로필 사진). 사진이 없으면 null이고 앱이 앱 아이콘으로 대체한다. */
+    public record FromUser(Long userId, String nickname, String profileImageUrl) {
     }
 
-    /** 수신자 요약(userId + 닉네임). */
-    public record ToUser(Long userId, String nickname) {
+    /** 수신자 요약(userId + 닉네임 + 프로필 사진). 사진이 없으면 null이고 앱이 앱 아이콘으로 대체한다. */
+    public record ToUser(Long userId, String nickname, String profileImageUrl) {
     }
 
     public static MealRequestListItemResponse from(MealRequest mr) {
         return new MealRequestListItemResponse(
                 mr.getId(),
-                // 탈퇴자는 닉네임이 null이라 '알 수 없음'으로 표시한다(DisplayNames).
-                new FromUser(mr.getFromUser().getId(), DisplayNames.nicknameOrUnknown(mr.getFromUser().getNickname())),
-                // 탈퇴자는 닉네임이 null이라 '알 수 없음'으로 표시한다(DisplayNames).
+                // 탈퇴자는 닉네임이 null이라 '알 수 없음'으로 표시한다(DisplayNames). 사진은 탈퇴 시 파일까지
+                // 지워지고 URL도 null이 되므로(AccountWithdrawalService) 그대로 내려보내면 앱이 앱 아이콘을 쓴다.
+                new FromUser(mr.getFromUser().getId(),
+                        DisplayNames.nicknameOrUnknown(mr.getFromUser().getNickname()),
+                        mr.getFromUser().getProfileImageUrl()),
                 new ToUser(mr.getToCheckIn().getUser().getId(),
-                        DisplayNames.nicknameOrUnknown(mr.getToCheckIn().getUser().getNickname())),
+                        DisplayNames.nicknameOrUnknown(mr.getToCheckIn().getUser().getNickname()),
+                        mr.getToCheckIn().getUser().getProfileImageUrl()),
                 mr.getPlace().getId(),
                 mr.getPlace().getName(),
                 mr.getMessage(),

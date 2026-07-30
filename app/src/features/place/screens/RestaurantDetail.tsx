@@ -419,8 +419,7 @@ function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, 
                 onPress={() => onDinerPress(d.userId)}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
               >
-                {/* 혼밥러 목록 API(CheckInUserResponse)는 사진을 내려주지 않아 항상 앱 아이콘이 나온다. */}
-                <Avatar size={32} />
+                <Avatar uri={d.profileImageUrl} size={32} />
                 <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: T2.text }}>{d.nickname}</Text>
                 <Text style={{ fontSize: 12, color: T2.textMute }}>{formatElapsed(d.elapsedMinutes)}</Text>
               </Pressable>
