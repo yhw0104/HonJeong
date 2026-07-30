@@ -117,7 +117,8 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
       Alert.alert('약관 동의 필요', '필수 약관에 모두 동의해주세요.');
       return;
     }
-    if (birth && !isAtLeast14(birth, new Date())) {
+    // 생년월일 미선택은 CTA 비활성으로 이미 막힌다 — !birth는 타입 좁히기 겸 백스톱이라 별도 안내를 두지 않는다.
+    if (!birth || !isAtLeast14(birth, new Date())) {
       Alert.alert('생년월일 확인', '만 14세 이상만 가입할 수 있어요.');
       return;
     }
@@ -138,7 +139,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
           // region은 보내지 않는다 — '내 동네' 기능 제거 결정(2026-07-04). 서버 필드는 선택이라 생략 가능.
           favoriteFoods: foods,
           profileImageUrl: imageUrl ?? undefined,
-          birthDate: birth ? toIsoDate(birth) : undefined,
+          birthDate: toIsoDate(birth),
         },
         { token: onboardingToken },
       );
@@ -171,8 +172,9 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
         <Pressable style={styles.photoRow} onPress={onPickPhoto} disabled={uploadingPhoto}>
           <View>
             <Avatar uri={imageUrl} size={72} bg={T2.border} />
+            {/* 프로필 편집(ProfileEdit) 화면의 사진 배지와 동일 — 이모지 대신 카메라 아이콘, 배지 크기도 같게. */}
             <View style={styles.cameraBadge}>
-              <Text style={{ fontSize: 12 }}>📷</Text>
+              <Icon name="camera" size={15} color="#fff" />
             </View>
           </View>
           <View style={{ flex: 1 }}>
@@ -240,6 +242,8 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
               </Text>
               <Icon name="chevronDown" size={11} color={T2.textMute} />
             </Pressable>
+            {/* 필수인데 버튼만 비활성이면 이유를 알 수 없다 — 닉네임 힌트와 같은 자리에 이유를 적는다. */}
+            <Text style={styles.hint}>필수 · 만 14세 이상</Text>
           </View>
         </View>
 
@@ -358,7 +362,8 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
         <CTAButton
           label="시작하기"
           // 닉네임은 중복확인 통과(available)까지 필요 — 1글자(idle)로 확인을 우회하는 구멍 차단.
-          disabled={submitting || !requiredOk || !canSubmitNickname(nickname, nickStatus)}
+          // 생년월일(birth)도 필수 — 미선택이면 버튼 자체를 막고, onComplete에서 한 번 더 확인한다.
+          disabled={submitting || !requiredOk || !birth || !canSubmitNickname(nickname, nickStatus)}
           onPress={onComplete}
         />
       </View>
@@ -414,15 +419,16 @@ const styles = StyleSheet.create({
   lead: { fontSize: 14, color: T2.textSub, marginTop: 12, lineHeight: 21, letterSpacing: -0.3 },
 
   photoRow: { marginTop: 28, flexDirection: 'row', alignItems: 'center', gap: 16 },
+  // ProfileEdit.cameraBadge와 같은 값(30·r15·보더3) — 두 화면의 사진 배지가 달라 보이지 않게 맞춘다.
   cameraBadge: {
     position: 'absolute',
     right: -2,
     bottom: -2,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: T2.brand,
-    borderWidth: 2.5,
+    borderWidth: 3,
     borderColor: T2.bg,
     alignItems: 'center',
     justifyContent: 'center',
