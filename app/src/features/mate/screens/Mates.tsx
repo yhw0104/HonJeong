@@ -2,7 +2,7 @@
 // 더보기 프로필 '메이트' 스탯에서 진입. 내 메이트 + 받은 메이트 신청.
 import React, { useState, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput, ActivityIndicator, Alert, StyleSheet } from 'react-native';
-import { Screen, MoreHeader, EmojiCircle, Icon } from '@/shared/components';
+import { Screen, MoreHeader, Avatar, Icon } from '@/shared/components';
 import { T2, C } from '@/shared/theme';
 import { useFocusEffect } from '@react-navigation/native';
 import { useDebouncedValue } from '@/shared/useDebouncedValue';
@@ -19,10 +19,6 @@ import {
 } from '@/features/mate/queries';
 import { mateErrorMessage } from '@/features/mate/mateCopy';
 import { diningStyleLabel } from '@/shared/format';
-
-function emojiFor(nickname: string | null): string {
-  return nickname?.[0] ?? '?';
-}
 
 // 메이트 카드 태그 칩용 짧은 라벨(풀 라벨은 shared/format의 diningStyleLabel).
 function diningStyleTag(style: 'TALK' | 'QUIET' | null): string | null {
@@ -95,7 +91,7 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
                       style={styles.card}
                       onPress={() => navigation.navigate('MateProfile', { userId: item.userId })}
                     >
-                      <EmojiCircle emoji={emojiFor(item.nickname)} size={48} />
+                      <Avatar uri={item.profileImageUrl} size={48} />
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.name}>{item.nickname ?? '알 수 없음'}</Text>
                         {/* 내 동네 표기는 제거(설정 기능 없음) — 식사 성향으로 대체. */}
@@ -147,7 +143,7 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
                           style={styles.card}
                           onPress={() => navigation.navigate('MateProfile', { userId: m.mateUserId })}
                         >
-                          <EmojiCircle emoji={emojiFor(m.nickname)} size={48} online={m.isOnline} />
+                          <Avatar uri={m.profileImageUrl} size={48} online={m.isOnline} />
                           <View style={{ flex: 1, minWidth: 0 }}>
                             <View style={styles.nameRow}>
                               <Text style={styles.name}>{m.nickname ?? '알 수 없음'}</Text>
@@ -204,7 +200,7 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
                 <View style={{ gap: 10 }}>
                   {(received.data ?? []).map((req) => (
                     <View key={req.mateRequestId} style={styles.card}>
-                      <EmojiCircle emoji={emojiFor(req.fromUser.nickname)} size={48} />
+                      <Avatar uri={req.fromUser.profileImageUrl} size={48} />
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.name}>{req.fromUser.nickname ?? '알 수 없음'}</Text>
                       </View>
@@ -263,7 +259,7 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
                           style={styles.card}
                           onPress={() => navigation.navigate('MateProfile', { userId: req.toUser.userId })}
                         >
-                          <EmojiCircle emoji={emojiFor(req.toUser.nickname)} size={48} />
+                          <Avatar uri={req.toUser.profileImageUrl} size={48} />
                           <View style={{ flex: 1, minWidth: 0 }}>
                             <Text style={styles.name}>{req.toUser.nickname ?? '알 수 없음'}</Text>
                           </View>

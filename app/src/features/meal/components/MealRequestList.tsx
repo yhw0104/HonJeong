@@ -2,7 +2,7 @@
 // 두 화면의 디자인을 한 곳에서 관리해 어긋나지 않게 한다. 가로 여백은 감싸는 화면(scroll/wrapper)이 준다.
 import React from 'react';
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
-import { EmojiCircle, Icon } from '@/shared/components';
+import { Avatar, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { formatTimeAgo } from '@/shared/format';
 import type { MealRequestListItem } from '@/features/meal/api';
@@ -72,7 +72,8 @@ export function MealRequestLists({
         {receivedList.map((r) => (
           <View key={r.mealRequestId} style={styles.recvCard}>
             <Pressable style={styles.recvTop} onPress={() => onOpenProfile(r.fromUser.userId)} accessibilityRole="button">
-              <EmojiCircle emoji={r.fromUser.nickname[0] ?? '?'} size={46} />
+              {/* 같이먹기 신청 API(MealRequestListItemResponse)는 사진을 안 내려줘 앱 아이콘이 나온다. */}
+              <Avatar size={46} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.recvName}>{r.fromUser.nickname}</Text>
                 <Text style={styles.recvMeta}>{(r.status === 'PENDING' ? '새 신청' : mealStatusLabelReceived(r.status)) + ' · ' + formatTimeAgo(r.createdAt, now)}</Text>
@@ -114,7 +115,7 @@ export function MealRequestLists({
         return (
           <Pressable key={s.mealRequestId} style={[styles.sentRow, i < sentList.length - 1 && styles.sentRowBorder]}
             onPress={() => onOpenProfile(s.toUser.userId)} accessibilityRole="button">
-            <EmojiCircle emoji={s.toUser.nickname[0] ?? '?'} size={44} dimmed={closed} />
+            <Avatar size={44} dimmed={closed} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.sentName, { color: closed ? T2.textMute : T2.text }]}>{s.toUser.nickname}</Text>
               <Text style={styles.sentMeta} numberOfLines={1}>{s.placeName + ' · ' + formatTimeAgo(s.createdAt, now)}</Text>

@@ -149,7 +149,7 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
       <View style={[styles.bubbleRow, styles.rowOther, { marginTop: firstOfRun ? 8 : 2 }]}>
         {firstOfRun ? (
           <View style={styles.avatarWrap}>
-            <Avatar name={conv?.partnerNickname} uri={conv?.partnerProfileImageUrl} size={32} />
+            <Avatar uri={conv?.partnerProfileImageUrl} size={32} />
           </View>
         ) : (
           <View style={styles.avatarSpacer} />

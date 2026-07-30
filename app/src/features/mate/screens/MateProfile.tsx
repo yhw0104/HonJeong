@@ -122,7 +122,7 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* 프로필 헤더 */}
         <View style={styles.profile}>
-          <Avatar uri={p.profileImageUrl} name={p.nickname ?? ''} size={84} />
+          <Avatar uri={p.profileImageUrl} size={84} />
           <View style={styles.nameRow}>
             <Text style={styles.name}>{p.nickname ?? '(이름 없음)'}</Text>
             {p.mealsTogether > 0 && (

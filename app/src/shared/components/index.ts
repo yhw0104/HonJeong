@@ -9,7 +9,6 @@ export type { HonjeongMapHandle } from './HonjeongMap';
 export { CTAButton } from './CTAButton';
 export { StepProgress } from './StepProgress';
 export { Toggle } from './Toggle';
-export { EmojiCircle } from './EmojiCircle';
 export { Icon } from './Icon';
 export type { IconName } from './Icon';
 export { HonbabStatusBar, HONBAB_BAR_H } from './HonbabStatusBar';

@@ -5,7 +5,7 @@ import {
   View, Text, TextInput, Pressable, ScrollView, ActivityIndicator,
   KeyboardAvoidingView, Platform, Alert, StyleSheet,
 } from 'react-native';
-import { Screen, Icon } from '@/shared/components';
+import { Screen, Icon, Avatar } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useSeekers } from '@/features/checkin/queries';
 import { useCreateMealRequest } from '@/features/meal/queries';
@@ -79,7 +79,8 @@ export function MealRequestScreen({ navigation, route }: RootStackScreenProps<'M
                       style={[styles.personRow, { borderColor: on ? T2.brand : T2.border }]}
                       accessibilityRole="button"
                     >
-                      <View style={styles.personEmo}><Text style={{ fontSize: 18, fontWeight: '800', color: T2.textSub }}>{d.nickname[0] ?? '?'}</Text></View>
+                      {/* 모집중 목록(Seeker)에는 사진 필드가 없어 앱 아이콘이 나온다. */}
+                      <Avatar size={44} />
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.personName}>{d.nickname}</Text>
                         <Text style={styles.personMeta}>{formatElapsed(d.elapsedMinutes)}</Text>
@@ -151,7 +152,6 @@ const styles = StyleSheet.create({
   labelHint: { fontSize: 11, fontWeight: '700', color: T2.brand, letterSpacing: -0.2 },
   stateText: { fontSize: 13, color: T2.textMute, marginTop: 14 },
   personRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1.5 },
-  personEmo: { width: 44, height: 44, borderRadius: 22, backgroundColor: T2.bg, borderWidth: 1, borderColor: T2.border, alignItems: 'center', justifyContent: 'center' },
   personName: { fontSize: 15, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
   personMeta: { fontSize: 12, color: T2.textMute, marginTop: 4 },
   radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },

@@ -77,7 +77,7 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
     }
   };
 
-  // 사진 삭제: 미리보기를 기본(👤)으로 되돌린다. 저장 시 빈 문자열을 보내 서버 사진을 비운다.
+  // 사진 삭제: 미리보기를 기본(앱 아이콘)으로 되돌린다. 저장 시 빈 문자열을 보내 서버 사진을 비운다.
   const onRemovePhoto = () => setImageUrl(null);
 
   const toggleFood = (f: string) => {

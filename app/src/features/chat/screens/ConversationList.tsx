@@ -44,7 +44,7 @@ export function ConversationListScreen() {
 
   const renderItem = ({ item }: { item: ConversationSummary }) => (
     <Pressable style={styles.row} onPress={() => nav.navigate('ChatRoom', { conversationId: item.conversationId })}>
-      <Avatar name={item.partnerNickname} uri={item.partnerProfileImageUrl} size={52} />
+      <Avatar uri={item.partnerProfileImageUrl} size={52} />
       <View style={styles.body}>
         <View style={styles.line}>
           <Text style={styles.name} numberOfLines={1}>{item.partnerNickname}</Text>
