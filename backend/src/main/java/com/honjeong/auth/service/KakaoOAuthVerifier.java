@@ -24,9 +24,10 @@ import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 
 /**
- * 1. 기능: 카카오 실검증 OAuth 구현체 — 카카오가 발급한 OIDC ID 토큰의 서명·발급자·대상·만료를 검증해 신원 추출
- *    (honjeong.oauth.mode=real일 때만 등록되어 {@link MockOAuthVerifier}를 대체)
- * 2. 사용처: AuthService(oauthLogin)
+ * 카카오 실검증 OAuth 구현체 — 카카오가 발급한 OIDC ID 토큰의 서명·발급자·대상·만료를 검증해 신원을
+ * 추출한다. {@code honjeong.oauth.mode=real}일 때만 등록되어 {@link MockOAuthVerifier}를 대체한다.
+ *
+ * <p>사용처: AuthService(oauthLogin).
  *
  * <p><b>aud 검증이 보안의 핵심이다.</b> 사용자 정보 조회 API만 호출하는 방식은 "다른 앱에서 발급된 카카오 토큰"으로도
  * 우리 서비스에 가입할 수 있다. ID 토큰의 aud(대상 앱)를 우리 앱 키와 대조해 그 경로를 막는다.
@@ -90,10 +91,11 @@ public class KakaoOAuthVerifier implements OAuthVerifier {
     }
 
     /**
-     * 기능: 카카오 ID 토큰 검증 → 신원 추출
-     * Request: provider — KAKAO만 지원, idToken — 카카오 OIDC ID 토큰
-     * Response: OAuthIdentity — providerUserId=sub(카카오 회원번호), email=null(수집 안 함)
+     * 카카오 ID 토큰을 검증해 신원을 추출한다.
      *
+     * @param provider 소셜 공급자 — KAKAO만 지원한다
+     * @param idToken 카카오 OIDC ID 토큰
+     * @return providerUserId=sub(카카오 회원번호), email=null(수집하지 않음)
      * @throws BusinessException INVALID_INPUT(미지원 공급자) 또는 UNAUTHORIZED(토큰 검증 실패)
      */
     @Override

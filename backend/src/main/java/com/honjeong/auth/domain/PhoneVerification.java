@@ -16,9 +16,9 @@ import jakarta.persistence.Table;
 
 /**
  * 휴대폰 인증번호 발송 1건의 기록(코드·만료·시도횟수·성공여부)을 나타내는 엔티티.
- * (엔티티: 매핑 테이블 phone_verifications)
+ * (매핑 테이블: phone_verifications)
  *
- * <p>[기존 주석] 휴대폰 인증 발송 기록. 회원과 무관한 발송도 있어 phone 기준(FK 없음).
+ * <p>회원과 무관한 발송도 있어 phone 기준으로 기록한다(FK 없음).
  * created_at만 가지므로 BaseTimeEntity(updated 포함) 대신 {@code @CreatedDate}만 둔다.
  * 인증번호는 단기(3분)·rate-limit 대상이라 P1에서는 평문 저장(추후 해시 하드닝 가능).
  */

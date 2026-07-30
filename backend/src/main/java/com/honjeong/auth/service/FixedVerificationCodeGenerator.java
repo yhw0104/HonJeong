@@ -4,10 +4,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * 1. 기능: 개발용 Mock 인증번호 생성기 — 항상 고정 코드 "000000" 발급(honjeong.sms.mode=mock 또는 미지정 시 활성)
- * 2. 사용처: AuthService(sendPhoneCode) — VerificationCodeGenerator 구현체로 주입
+ * 개발용 Mock 인증번호 생성기 — 랜덤 대신 항상 고정 코드 "000000"을 발급한다.
  *
- * <p>[기존 주석] 개발용 Mock 구현. 랜덤 대신 항상 고정 인증번호 "000000"을 발급한다. 인증번호가 매번 같으므로,
+ * <p>사용처: AuthService(sendPhoneCode) — VerificationCodeGenerator 구현체로 주입된다.
+ *
+ * <p>인증번호가 매번 같으므로,
  * 개발자가 SMS를 받지 않고도 curl이나 수동 테스트에서 "000000"을 입력해 가입 흐름을 끝까지 진행할 수 있다.
  *
  * <p>{@code @ConditionalOnProperty(..., matchIfMissing = true)}: {@code honjeong.sms.mode}가 "mock"이거나
@@ -19,11 +20,7 @@ import org.springframework.stereotype.Component;
 public class FixedVerificationCodeGenerator implements VerificationCodeGenerator {
 
     /**
-     * 기능: 항상 같은 고정 인증번호 "000000" 반환
-     * Request: 없음
-     * Response: String — 고정 코드 "000000"
-     *
-     * <p>[기존 주석] 항상 같은 고정 인증번호를 반환한다.
+     * 항상 같은 고정 인증번호를 반환한다.
      *
      * @return 고정 코드 "000000"
      */

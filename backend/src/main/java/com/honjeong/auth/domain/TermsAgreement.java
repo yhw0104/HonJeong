@@ -10,10 +10,11 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * 온보딩 시 사용자의 약관 동의 내역(필수 3종 + 선택 마케팅)을 나타내는 엔티티.
- * (엔티티: 매핑 테이블 terms_agreements)
+ * 온보딩 시 사용자의 약관 동의 내역을 나타내는 엔티티.
+ * (매핑 테이블: terms_agreements)
  *
- * <p>[기존 주석] 약관 동의(사용자당 1행, UNIQUE(user_id)). 필수 3종(service·privacy·location) + 선택(marketing).
+ * <p>사용자당 1행이며 user_id에 UNIQUE 제약이 걸린다. 필수 4종(age·service·privacy·location)에 모두
+ * 동의해야 온보딩을 통과하고, marketing은 선택이다({@code AuthService.agreeTerms}가 검증).
  */
 @Entity
 @Table(name = "terms_agreements")

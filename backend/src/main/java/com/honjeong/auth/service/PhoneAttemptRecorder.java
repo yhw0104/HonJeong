@@ -8,10 +8,10 @@ import com.honjeong.auth.domain.PhoneVerification;
 import com.honjeong.auth.repository.PhoneVerificationRepository;
 
 /**
- * 1. 기능: 휴대폰 인증번호 시도 횟수(attempts)를 REQUIRES_NEW 독립 트랜잭션으로 누적·커밋
- * 2. 사용처: AuthService(verifyPhone)
+ * 휴대폰 인증번호 시도 횟수(attempts)를 {@link Propagation#REQUIRES_NEW} <b>독립 트랜잭션</b>으로
+ * 누적·커밋하는 컴포넌트.
  *
- * <p>[기존 주석] 휴대폰 인증번호 시도 횟수(attempts)를 <b>독립 트랜잭션</b>으로 누적·커밋하는 컴포넌트.
+ * <p>사용처: AuthService(verifyPhone).
  *
  * <p>왜 별도 빈·별도 트랜잭션인가: 시도 카운트는 무차별 대입 방어(rate-limit)의 근거 데이터라,
  * 인증번호가 틀려 {@code verifyPhone}이 예외를 던지고 그 트랜잭션이 롤백되더라도 <b>반드시 DB에 남아야</b> 한다.
@@ -32,11 +32,7 @@ public class PhoneAttemptRecorder {
     }
 
     /**
-     * 기능: 발송 기록의 시도 횟수를 1 증가시켜 독립 트랜잭션으로 즉시 커밋(바깥 롤백과 무관하게 유지)
-     * Request: verificationId — 시도 횟수를 누적할 PhoneVerification의 id
-     * Response: 없음(void)
-     *
-     * <p>[기존 주석] 주어진 발송 기록의 시도 횟수를 1 증가시켜 독립 트랜잭션으로 커밋한다.
+     * 주어진 발송 기록의 시도 횟수를 1 증가시켜 독립 트랜잭션으로 즉시 커밋한다.
      *
      * <p>대상을 id로 새로 조회해(바깥 트랜잭션의 영속성 컨텍스트와 분리된 새 세션) 증가시키므로, 변경은 이 트랜잭션
      * 커밋 시 flush 되어 바깥 롤백과 무관하게 영속된다. 기록이 없으면(이미 삭제 등) 조용히 무시한다.

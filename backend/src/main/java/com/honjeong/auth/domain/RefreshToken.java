@@ -13,10 +13,10 @@ import jakarta.persistence.Table;
 
 /**
  * 서버가 보관하는 리프레시 토큰(원문이 아닌 SHA-256 해시)을 나타내는 엔티티.
- * (엔티티: 매핑 테이블 refresh_tokens)
+ * (매핑 테이블: refresh_tokens)
  *
- * <p>[기존 주석] 저장된 refresh 토큰(원문 대신 해시). 재발급 시 회전(기존 revoke + 신규 발급),
- * 로그아웃/탈취 시 revoke로 무효화. user_id는 단순 컬럼으로 매핑(연관관계 없이 결합도↓).
+ * <p>재발급 시 회전(기존 revoke + 신규 발급)하고, 로그아웃/탈취 시 revoke로 무효화한다.
+ * user_id는 연관관계 없이 단순 컬럼으로 매핑해 결합도를 낮춘다.
  */
 @Entity
 @Table(name = "refresh_tokens")

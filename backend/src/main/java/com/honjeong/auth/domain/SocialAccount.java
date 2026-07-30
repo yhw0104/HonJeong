@@ -13,10 +13,10 @@ import jakarta.persistence.Table;
 
 /**
  * 회원과 소셜 로그인 계정(공급자·공급자 사용자 id)의 연동 매핑을 나타내는 엔티티.
- * (엔티티: 매핑 테이블 social_accounts)
+ * (매핑 테이블: social_accounts)
  *
- * <p>[기존 주석] 소셜 로그인 연동 매핑. 공급자 토큰은 저장하지 않고 (provider, providerUserId)로 회원을 식별한다.
- * UNIQUE(provider, provider_user_id)는 Flyway 스키마에서 강제.
+ * <p>공급자 토큰은 저장하지 않고 (provider, providerUserId)로 회원을 식별한다.
+ * UNIQUE(provider, provider_user_id)는 Flyway 스키마에서 강제한다.
  */
 @Entity
 @Table(name = "social_accounts")
