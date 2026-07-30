@@ -2,7 +2,7 @@ package com.honjeong.mate.dto;
 
 /**
  * 사용자 검색 결과 한 건을 나타내는 응답 DTO (GET /api/users/search 목록 항목).
- * <p>[기존 주석] 사용자 검색 결과 한 건. {@code GET /api/users/search}의 목록 항목이다.
+ * <p>사용자 검색 결과 한 건. {@code GET /api/users/search}의 목록 항목이다.
  *
  * @param userId          대상 사용자 id
  * @param nickname        닉네임

@@ -28,10 +28,14 @@ public class MateRequestController {
     }
 
     /**
-     * 1. API 주소: POST /api/mate-requests
-     * 2. 사용 화면: 메이트 목록(MatesScreen) — 사용자 검색 결과의 신청 버튼 / 메이트 프로필(MateProfileScreen) — 메이트 신청 버튼
-     * 3. Request: MateRequestCreateRequest(요청바디) — toUserId(신청 상대 사용자 ID) / 인증 사용자(@CurrentUserId)
-     * 4. Response: MateRequestResponse — 생성된 신청 ID, 상대 사용자 ID, 상태(PENDING)
+     * 메이트 신청을 보낸다(201 Created).
+     *
+     * <p>사용 화면: 메이트 목록(MatesScreen)의 검색 결과 신청 버튼, 메이트 프로필(MateProfileScreen)의
+     * 메이트 신청 버튼.
+     *
+     * @param userId 인증 사용자 ID(신청자)
+     * @param request toUserId(신청 상대 사용자 ID)
+     * @return 생성된 신청 ID, 상대 사용자 ID, 상태(PENDING)
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -41,10 +45,14 @@ public class MateRequestController {
     }
 
     /**
-     * 1. API 주소: GET /api/mate-requests?role=received|sent&status=PENDING
-     * 2. 사용 화면: 메이트 목록(MatesScreen) — 받은 신청(PENDING)·보낸 신청 목록 표시
-     * 3. Request: role(쿼리, 기본 received) — received|sent, status(쿼리, 선택) — 상태 필터(PENDING 등) / 인증 사용자(@CurrentUserId)
-     * 4. Response: List<MateRequestListItemResponse> — 신청 ID·발신/수신 사용자 요약·상태·생성 시각(최신순)
+     * 받은/보낸 메이트 신청 목록을 최신순으로 조회한다.
+     *
+     * <p>사용 화면: 메이트 목록(MatesScreen)의 받은 신청(PENDING)·보낸 신청 목록.
+     *
+     * @param userId 인증 사용자 ID
+     * @param role received(기본)|sent
+     * @param status 상태 필터(선택 — PENDING 등)
+     * @return 신청 ID·발신/수신 사용자 요약·상태·생성 시각
      */
     @GetMapping
     public ApiResponse<List<MateRequestListItemResponse>> list(@CurrentUserId Long userId,
@@ -54,10 +62,13 @@ public class MateRequestController {
     }
 
     /**
-     * 1. API 주소: PATCH /api/mate-requests/{id}/accept
-     * 2. 사용 화면: 메이트 목록(MatesScreen) — 받은 신청 수락 버튼
-     * 3. Request: id(경로) — 신청 ID / 인증 사용자(@CurrentUserId, 수신자만 가능)
-     * 4. Response: MateRequestStatusResponse — 신청 ID, 상태(ACCEPTED), 응답 시각
+     * 받은 메이트 신청을 수락한다.
+     *
+     * <p>사용 화면: 메이트 목록(MatesScreen)의 수락 버튼.
+     *
+     * @param userId 인증 사용자 ID(수신자만 가능)
+     * @param id 신청 ID
+     * @return 신청 ID, 상태(ACCEPTED), 응답 시각
      */
     @PatchMapping("/{id}/accept")
     public ApiResponse<MateRequestStatusResponse> accept(@CurrentUserId Long userId, @PathVariable Long id) {
@@ -65,10 +76,13 @@ public class MateRequestController {
     }
 
     /**
-     * 1. API 주소: PATCH /api/mate-requests/{id}/decline
-     * 2. 사용 화면: 메이트 목록(MatesScreen) — 받은 신청 거절 버튼
-     * 3. Request: id(경로) — 신청 ID / 인증 사용자(@CurrentUserId, 수신자만 가능)
-     * 4. Response: MateRequestStatusResponse — 신청 ID, 상태(DECLINED), 응답 시각
+     * 받은 메이트 신청을 거절한다.
+     *
+     * <p>사용 화면: 메이트 목록(MatesScreen)의 거절 버튼.
+     *
+     * @param userId 인증 사용자 ID(수신자만 가능)
+     * @param id 신청 ID
+     * @return 신청 ID, 상태(DECLINED), 응답 시각
      */
     @PatchMapping("/{id}/decline")
     public ApiResponse<MateRequestStatusResponse> decline(@CurrentUserId Long userId, @PathVariable Long id) {
@@ -76,10 +90,14 @@ public class MateRequestController {
     }
 
     /**
-     * 1. API 주소: PATCH /api/mate-requests/{id}/cancel
-     * 2. 사용 화면: (앱 미사용 — 프론트에 API 함수(features/mate/api.ts cancelMateRequest)만 정의돼 있고 호출 화면 없음)
-     * 3. Request: id(경로) — 신청 ID / 인증 사용자(@CurrentUserId, 발신자만 가능)
-     * 4. Response: MateRequestStatusResponse — 신청 ID, 상태(CANCELED), 응답 시각
+     * 내가 보낸 메이트 신청을 취소한다.
+     *
+     * <p>사용 화면: 앱에서는 아직 쓰지 않는다 — 프론트에 API 함수
+     * (features/mate/api.ts cancelMateRequest)만 정의돼 있고 호출하는 화면이 없다.
+     *
+     * @param userId 인증 사용자 ID(발신자만 가능)
+     * @param id 신청 ID
+     * @return 신청 ID, 상태(CANCELED), 응답 시각
      */
     @PatchMapping("/{id}/cancel")
     public ApiResponse<MateRequestStatusResponse> cancel(@CurrentUserId Long userId, @PathVariable Long id) {

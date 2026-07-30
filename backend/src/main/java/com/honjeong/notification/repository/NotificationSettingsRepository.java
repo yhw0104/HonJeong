@@ -14,9 +14,10 @@ public interface NotificationSettingsRepository extends JpaRepository<Notificati
     Optional<NotificationSettings> findByUserId(Long userId);
 
     /**
-     * 기능: 사용자의 알림 설정 행을 삭제(탈퇴 시 개인정보 정리용)
-     * 쿼리: DELETE FROM notification_settings WHERE user_id = :userId
-     * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
+     * 사용자의 알림 설정 행을 삭제(탈퇴 시 개인정보 정리용).
+     *
+     * @param userId 대상 사용자 ID
+     * @return 삭제된 행 수
      */
     // clearAutomatically 금지 — AccountWithdrawalService.deletePersonalData Javadoc 참조
     @Modifying

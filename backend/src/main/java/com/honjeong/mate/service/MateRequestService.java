@@ -26,8 +26,9 @@ import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
 /**
- * 1. 기능: 메이트 신청 생성·수락·거절·취소와 신청 목록 조회 비즈니스 로직
- * 2. 사용 Controller: MateRequestController
+ * 메이트 신청 생성·수락·거절·취소와 신청 목록 조회 비즈니스 로직.
+ *
+ * <p>사용처: MateRequestController.
  */
 @Service
 public class MateRequestService {
@@ -57,9 +58,11 @@ public class MateRequestService {
     }
 
     /**
-     * 기능: 메이트 신청 생성 — 자기 자신·미존재 사용자·차단 관계·이미 메이트·중복 PENDING 방지, 수신자에게 알림 발행
-     * Request: userId — 신청자 ID, request — MateRequestCreateRequest(toUserId: 상대 사용자 ID)
-     * Response: MateRequestResponse — 생성된 신청 ID·상대 ID·상태(PENDING)
+     * 메이트 신청 생성 — 자기 자신·미존재 사용자·차단 관계·이미 메이트·중복 PENDING 방지, 수신자에게 알림 발행.
+     *
+     * @param userId 신청자 ID
+     * @param request MateRequestCreateRequest(toUserId: 상대 사용자 ID)
+     * @return 생성된 신청 ID·상대 ID·상태(PENDING)
      */
     @Transactional
     public MateRequestResponse create(Long userId, MateRequestCreateRequest request) {
@@ -88,9 +91,11 @@ public class MateRequestService {
     }
 
     /**
-     * 기능: 받은 신청 수락 — 양방향 Mate 2행 멱등 저장, 역방향 PENDING 신청도 함께 수락 처리, 발신자에게 알림 발행
-     * Request: userId — 수락하는 사용자(수신자) ID, id — 신청 ID
-     * Response: MateRequestStatusResponse — 신청 ID·상태(ACCEPTED)·응답 시각
+     * 받은 신청 수락 — 양방향 Mate 2행 멱등 저장, 역방향 PENDING 신청도 함께 수락 처리, 발신자에게 알림 발행.
+     *
+     * @param userId 수락하는 사용자(수신자) ID
+     * @param id 신청 ID
+     * @return 신청 ID·상태(ACCEPTED)·응답 시각
      */
     @Transactional
     public MateRequestStatusResponse accept(Long userId, Long id) {
@@ -116,9 +121,11 @@ public class MateRequestService {
     }
 
     /**
-     * 기능: 받은 신청 거절 (수신자만 가능, PENDING 상태만 처리)
-     * Request: userId — 거절하는 사용자(수신자) ID, id — 신청 ID
-     * Response: MateRequestStatusResponse — 신청 ID·상태(DECLINED)·응답 시각
+     * 받은 신청 거절 (수신자만 가능, PENDING 상태만 처리).
+     *
+     * @param userId 거절하는 사용자(수신자) ID
+     * @param id 신청 ID
+     * @return 신청 ID·상태(DECLINED)·응답 시각
      */
     @Transactional
     public MateRequestStatusResponse decline(Long userId, Long id) {
@@ -128,9 +135,11 @@ public class MateRequestService {
     }
 
     /**
-     * 기능: 보낸 신청 취소 (발신자만 가능, PENDING 상태만 처리)
-     * Request: userId — 취소하는 사용자(발신자) ID, id — 신청 ID
-     * Response: MateRequestStatusResponse — 신청 ID·상태(CANCELED)·응답 시각
+     * 보낸 신청 취소 (발신자만 가능, PENDING 상태만 처리).
+     *
+     * @param userId 취소하는 사용자(발신자) ID
+     * @param id 신청 ID
+     * @return 신청 ID·상태(CANCELED)·응답 시각
      */
     @Transactional
     public MateRequestStatusResponse cancel(Long userId, Long id) {
@@ -160,9 +169,12 @@ public class MateRequestService {
     }
 
     /**
-     * 기능: 받은/보낸 메이트 신청 목록 조회 (상태 필터 선택, 차단 상대 상호 은닉)
-     * Request: userId — 사용자 ID, role — received|sent(기본 received), status — 상태 필터(선택, 예: PENDING)
-     * Response: List<MateRequestListItemResponse> — 신청 목록(최신순)
+     * 받은/보낸 메이트 신청 목록 조회 (상태 필터 선택, 차단 상대 상호 은닉).
+     *
+     * @param userId 사용자 ID
+     * @param role received|sent(기본 received)
+     * @param status 상태 필터(선택, 예: PENDING)
+     * @return 신청 목록(최신순)
      */
     @Transactional(readOnly = true)
     public List<MateRequestListItemResponse> getMateRequests(Long userId, String role, String status) {

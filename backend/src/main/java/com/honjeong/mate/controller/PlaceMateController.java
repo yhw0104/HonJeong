@@ -22,10 +22,13 @@ public class PlaceMateController {
     }
 
     /**
-     * 1. API 주소: GET /api/places/{placeId}/mates
-     * 2. 사용 화면: 식당 상세(RestaurantDetail) 메이트 탭
-     * 3. Request: placeId(경로) + 인증 사용자(@CurrentUserId)
-     * 4. Response: PlaceMatesResponse — visitedCount + 메이트 목록(모집중 우선)
+     * 이 식당과 관련된 내 메이트 정보를 조회한다.
+     *
+     * <p>사용 화면: 식당 상세(RestaurantDetail)의 메이트 탭.
+     *
+     * @param userId 인증 사용자 ID
+     * @param placeId 조회할 식당 ID
+     * @return visitedCount + 메이트 목록(모집중 우선)
      */
     @GetMapping("/{placeId}/mates")
     public ApiResponse<PlaceMatesResponse> matesAtPlace(@CurrentUserId Long userId,

@@ -23,10 +23,12 @@ public class MateController {
     }
 
     /**
-     * 1. API 주소: GET /api/mates
-     * 2. 사용 화면: 메이트 목록(MatesScreen) — 내 메이트 탭 리스트(온라인 상태·통계 포함) 표시
-     * 3. Request: 인증 사용자(@CurrentUserId)
-     * 4. Response: List<MateResponse> — 메이트별 닉네임·프로필·식사성향·온라인(체크인) 상태·누적 체크인·함께 먹은 횟수·메이트 시작일
+     * 내 메이트 목록을 조회한다.
+     *
+     * <p>사용 화면: 메이트 목록(MatesScreen)의 내 메이트 탭(온라인 상태·통계 포함).
+     *
+     * @param userId 인증 사용자 ID
+     * @return 메이트별 닉네임·프로필·식사성향·온라인(체크인) 상태·누적 체크인·함께 먹은 횟수·메이트 시작일
      */
     @GetMapping
     public ApiResponse<List<MateResponse>> myMates(@CurrentUserId Long userId) {
@@ -34,10 +36,13 @@ public class MateController {
     }
 
     /**
-     * 1. API 주소: DELETE /api/mates/{mateUserId}
-     * 2. 사용 화면: 메이트 프로필(MateProfileScreen) — 메이트 해제 버튼
-     * 3. Request: mateUserId(경로) — 해제할 상대 사용자 ID / 인증 사용자(@CurrentUserId)
-     * 4. Response: SuccessBody — success(처리 성공 여부)
+     * 메이트 관계를 해제한다.
+     *
+     * <p>사용 화면: 메이트 프로필(MateProfileScreen)의 메이트 해제 버튼.
+     *
+     * @param userId 인증 사용자 ID
+     * @param mateUserId 해제할 상대 사용자 ID
+     * @return 처리 성공 여부를 담은 바디
      */
     @DeleteMapping("/{mateUserId}")
     public ApiResponse<SuccessBody> delete(@CurrentUserId Long userId, @PathVariable Long mateUserId) {

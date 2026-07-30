@@ -19,8 +19,9 @@ import com.honjeong.global.security.CurrentUserId;
 import jakarta.validation.Valid;
 
 /**
- * 1. 기능: 매칭 대화(match chat) HTTP 엔드포인트 — 목록/메시지 조회/전송/읽음 처리
- * 2. 사용처: 프론트 채팅 화면(대화 목록·메시지 스레드·전송·읽음 동기화)
+ * 매칭 대화(match chat) HTTP 엔드포인트 — 목록/메시지 조회/전송/읽음 처리.
+ *
+ * <p>사용처: 프론트 채팅 화면(대화 목록·메시지 스레드·전송·읽음 동기화).
  */
 @RestController
 @RequestMapping("/api/conversations")

@@ -24,8 +24,9 @@ import com.honjeong.review.domain.Review;
 import com.honjeong.review.repository.ReviewRepository;
 
 /**
- * 1. 기능: 식당 상세 메이트 탭 — 내 메이트 중 이 식당 다녀갔거나 지금 있는 사람을 방문·리뷰·같이먹음 데이터와 조립(읽기 전용)
- * 2. 사용 Controller: PlaceMateController — 식당상세 메이트 탭
+ * 식당 상세 메이트 탭 — 내 메이트 중 이 식당 다녀갔거나 지금 있는 사람을 방문·리뷰·같이먹음 데이터와 조립(읽기 전용).
+ *
+ * <p>사용처: PlaceMateController — 식당상세 메이트 탭.
  */
 @Service
 public class PlaceMateService {
@@ -44,10 +45,11 @@ public class PlaceMateService {
     }
 
     /**
-     * 기능: 이 식당에 다녀갔거나(방문 이력) 지금 모집중(seekingNow)인 내 메이트 목록을 조립한다.
-     * 후보 = 방문(aggregate) ∪ 모집중 체크인(seekingNow). 정렬 = 모집중 우선 → lastVisitedAt 최신(null 마지막).
-     * Request: viewerId — 조회하는 사용자(나) ID, placeId — 식당 ID
-     * Response: PlaceMatesResponse — visitedCount(방문>0 메이트 수) + 정렬된 메이트 목록
+     * 이 식당에 다녀갔거나(방문 이력) 지금 모집중(seekingNow)인 내 메이트 목록을 조립한다. 후보 = 방문(aggregate) ∪ 모집중 체크인(seekingNow). 정렬 = 모집중 우선 → lastVisitedAt 최신(null 마지막).
+     *
+     * @param viewerId 조회하는 사용자(나) ID
+     * @param placeId 식당 ID
+     * @return visitedCount(방문>0 메이트 수) + 정렬된 메이트 목록
      */
     @Transactional(readOnly = true)
     public PlaceMatesResponse getMatesAtPlace(Long viewerId, Long placeId) {

@@ -10,9 +10,9 @@ import com.honjeong.notification.dto.NotificationSettingsResponse;
 import com.honjeong.notification.repository.NotificationSettingsRepository;
 
 /**
- * 1. 기능: 사용자별 알림 수신 설정 조회/갱신 + 발행 게이팅용 판정(isEnabled)
- * 2. 사용 Controller: NotificationController(get/update), NotificationService(publish 게이팅)
+ * 사용자별 알림 수신 설정 조회/갱신 + 발행 게이팅용 판정(isEnabled).
  *
+ * <p>사용처: NotificationController(get/update), NotificationService(publish 게이팅).
  * <p>행이 없으면 기본값으로 간주한다(lazy — 백필 불필요). 저장은 upsert(없으면 기본값 행 생성 후 갱신).
  */
 @Service
