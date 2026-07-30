@@ -25,9 +25,13 @@ export type CreateReviewResult = {
   authenticated: boolean;
 };
 
+/** 리뷰 작성자 프로필을 열 수 없는 이유(서버 판단) — 열 수 있으면 null이 온다. */
+export type AuthorUnavailable = 'WITHDRAWN' | 'SUSPENDED' | 'UNKNOWN';
+
 export type PlaceReview = {
   reviewId: number;
-  user: { nickname: string };
+  /** userId는 프로필로 이동할 수 있는 작성자에게만 온다 — 탈퇴·정지는 null이고 unavailable에 이유가 담긴다. */
+  user: { userId: number | null; nickname: string; unavailable: AuthorUnavailable | null };
   visitedAt: string;
   content: string | null;
   tasteRating: number;

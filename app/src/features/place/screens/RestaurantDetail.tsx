@@ -22,6 +22,7 @@ import type { RootStackScreenProps } from '@/navigation/types';
 import { listState, type ListState } from '@/shared/state/listState';
 import { usePlaceReviews, usePlaceReviewSummary, useDeleteReview, usePlacePhotos } from '@/features/review/queries';
 import type { PlaceReview, PlaceReviewSummary } from '@/features/review/api';
+import { reviewAuthorUnavailableMessage } from '@/features/review/reviewAuthorCopy';
 import { FavoriteSheet } from '@/features/favorites/components/FavoriteSheet';
 import { DirectionsSheet } from '@/features/place/components/DirectionsSheet';
 import { useFavoriteStatus } from '@/features/favorites/queries';
@@ -94,6 +95,16 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
     });
   const reportReview = (r: PlaceReview) =>
     navigation.navigate('ReportForm', { targetType: 'REVIEW', targetId: r.reviewId, targetNickname: r.user.nickname });
+  // 리뷰 작성자 닉네임 탭 → 프로필. 내 리뷰는 내 프로필로 보낸다(MateProfile은 남의 프로필용이라
+  // 나 자신에게 '메이트 신청' CTA가 뜬다). 갈 수 없는 작성자(탈퇴·정지)는 이유를 안내한다.
+  const openReviewAuthor = (r: PlaceReview) => {
+    if (r.user.userId == null) {
+      Alert.alert(reviewAuthorUnavailableMessage(r.user.unavailable));
+      return;
+    }
+    if (r.mine) navigation.navigate('MyProfile');
+    else navigation.navigate('MateProfile', { userId: r.user.userId });
+  };
 
   const copy = async () => {
     await Clipboard.setStringAsync(fullAddr); // 전체 주소(시·도 포함)를 복사
@@ -233,6 +244,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
               onEdit={editReview}
               onDelete={confirmDelete}
               onReport={reportReview}
+              onOpenAuthor={openReviewAuthor}
             />
           )}
           {stab === 'photo' && <PhotoTab placeId={placeId} />}
@@ -407,7 +419,8 @@ function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, 
                 onPress={() => onDinerPress(d.userId)}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
               >
-                <Avatar name={d.nickname[0] ?? '?'} bg="#525252" size={32} />
+                {/* 혼밥러 목록 API(CheckInUserResponse)는 사진을 내려주지 않아 항상 앱 아이콘이 나온다. */}
+                <Avatar size={32} />
                 <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: T2.text }}>{d.nickname}</Text>
                 <Text style={{ fontSize: 12, color: T2.textMute }}>{formatElapsed(d.elapsedMinutes)}</Text>
               </Pressable>
@@ -545,10 +558,11 @@ function MenuTab() {
 }
 
 /* ── 리뷰 탭 ─────────────────────────────────────── */
-function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete, onReport }: {
+function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete, onReport, onOpenAuthor }: {
   reviews: PlaceReview[];
   isLoading: boolean; isError: boolean; onWrite: () => void;
   onEdit: (r: PlaceReview) => void; onDelete: (reviewId: number) => void; onReport: (r: PlaceReview) => void;
+  onOpenAuthor: (r: PlaceReview) => void;
 }) {
   return (
     <View style={{ marginTop: 4 }}>
@@ -573,7 +587,10 @@ function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete, onR
         reviews.map((r, i, arr) => (
           <View key={r.reviewId} style={[styles.reviewCard, i < arr.length - 1 && styles.reviewDivider]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: T2.text }}>{r.user.nickname}</Text>
+              {/* 닉네임 탭 → 작성자 프로필. 갈 수 없는 작성자(탈퇴·정지)는 이동 대신 이유를 안내한다. */}
+              <Pressable hitSlop={6} onPress={() => onOpenAuthor(r)} accessibilityRole="button">
+                <Text style={styles.reviewAuthor}>{r.user.nickname}</Text>
+              </Pressable>
               {r.authenticated ? <Text style={{ fontSize: 11, color: T2.brand }}>✔ 혼밥</Text> : null}
               {!r.mine && (
                 <Pressable hitSlop={8} style={{ marginLeft: 'auto' }} onPress={() => onReport(r)}>
@@ -695,7 +712,7 @@ function MateTab({ placeId, onMeal, onOpenProfile, soloRating, soloReviewCount }
           <View style={styles.mateAvatarStack}>
             {stackMates.map((m, i) => (
               <View key={m.userId} style={{ marginLeft: i ? -10 : 0 }}>
-                <Avatar name={m.nickname[0] ?? '?'} uri={m.profileImageUrl} bg="#525252" size={36} ring="#fff" />
+                <Avatar uri={m.profileImageUrl} size={36} ring="#fff" />
               </View>
             ))}
           </View>
@@ -741,7 +758,7 @@ function MateTab({ placeId, onMeal, onOpenProfile, soloRating, soloReviewCount }
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}
                 >
                   <View style={styles.liveAvatarWrap}>
-                    <Avatar name={m.nickname[0] ?? '?'} uri={m.profileImageUrl} bg="#525252" size={44} ring={T2.brandSoft} />
+                    <Avatar uri={m.profileImageUrl} size={44} ring={T2.brandSoft} />
                     <View style={styles.liveAvatarDot} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
@@ -775,7 +792,7 @@ function MateTab({ placeId, onMeal, onOpenProfile, soloRating, soloReviewCount }
               <View style={styles.mateAvatarStack}>
                 {savedShown.map((s, i) => (
                   <View key={s.userId} style={{ marginLeft: i ? -10 : 0 }}>
-                    <Avatar name={s.nickname[0] ?? '?'} uri={s.profileImageUrl} bg="#525252" size={38} ring={T2.bg} />
+                    <Avatar uri={s.profileImageUrl} size={38} ring={T2.bg} />
                   </View>
                 ))}
                 {savedOverflow > 0 ? (
@@ -1045,6 +1062,8 @@ const styles = StyleSheet.create({
   reviewCard: { paddingBottom: 22, marginBottom: 22 },
   reviewDivider: { borderBottomWidth: 1, borderBottomColor: T2.border },
   reviewReport: { fontSize: 12, color: T2.textMute, letterSpacing: -0.2 },
+  // 작성자 이름은 눌러도(프로필 이동) 안 눌러도(탈퇴자) 같은 모양 — 탈퇴자만 회색으로 뜨면 낙인이 된다.
+  reviewAuthor: { fontSize: 14, fontWeight: '700', color: T2.text },
   heroCounter: { position: 'absolute', right: 12, bottom: 12, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   heroCounterText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
