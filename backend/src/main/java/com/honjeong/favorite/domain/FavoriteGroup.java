@@ -67,29 +67,36 @@ public class FavoriteGroup extends BaseTimeEntity {
     }
 
     /**
-     * 기능: 즐겨찾기 그룹 인스턴스 생성(정적 팩토리)
-     * Request: user — 소유 사용자, name — 그룹 이름, note — 메모, color — 색상, isDefault — 기본 그룹 여부
-     * Response: FavoriteGroup — 저장 전 새 그룹 엔티티
+     * 즐겨찾기 그룹 인스턴스 생성(정적 팩토리).
+     *
+     * @param user 소유 사용자
+     * @param name 그룹 이름
+     * @param note 메모
+     * @param color 색상
+     * @param isDefault 기본 그룹 여부
+     * @return 저장 전 새 그룹 엔티티
      */
     public static FavoriteGroup create(User user, String name, String note, String color, boolean isDefault) {
         return new FavoriteGroup(user, name, note, color, isDefault);
     }
 
     /**
-     * 기능: 가입 시 자동 생성되는 기본 그룹("기본 그룹", 기본 색 #FF5A1F, isDefault=true) 생성(정적 팩토리)
-     * Request: user — 소유 사용자
-     * Response: FavoriteGroup — 저장 전 기본 그룹 엔티티
+     * 가입 시 자동 생성되는 기본 그룹("기본 그룹", 기본 색 #FF5A1F, isDefault=true) 생성(정적 팩토리).
+     *
+     * @param user 소유 사용자
+     * @return 저장 전 기본 그룹 엔티티
      */
     public static FavoriteGroup createDefault(User user) {
         return new FavoriteGroup(user, "기본 그룹", null, "#FF5A1F", true);
     }
 
     /**
-     * 기능: 그룹의 이름/메모/색상을 부분 수정
-     * Request: name — 새 이름, note — 새 메모, color — 새 색상 (각각 null이면 미변경)
-     * Response: 없음(void)
+     * 그룹의 이름/메모/색상을 부분 수정.
+     * <p>null 인자는 미변경(부분 수정).
      *
-     * <p>[기존 주석] null 인자는 미변경(부분 수정).
+     * @param name 새 이름
+     * @param note 새 메모
+     * @param color 새 색상 (각각 null이면 미변경)
      */
     public void updateInfo(String name, String note, String color) {
         if (name != null) this.name = name;
@@ -98,9 +105,10 @@ public class FavoriteGroup extends BaseTimeEntity {
     }
 
     /**
-     * 기능: 그룹이 해당 사용자 소유인지 확인(소유권 검증용)
-     * Request: userId — 확인할 사용자 ID
-     * Response: boolean — 소유 여부
+     * 그룹이 해당 사용자 소유인지 확인(소유권 검증용).
+     *
+     * @param userId 확인할 사용자 ID
+     * @return 소유 여부
      */
     public boolean isOwnedBy(Long userId) {
         return user.getId().equals(userId);

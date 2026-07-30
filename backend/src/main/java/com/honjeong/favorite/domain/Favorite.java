@@ -55,9 +55,11 @@ public class Favorite {
     }
 
     /**
-     * 기능: 그룹-장소 매핑 즐겨찾기 인스턴스 생성(정적 팩토리)
-     * Request: group — 담을 그룹, place — 담을 장소
-     * Response: Favorite — 저장 전 새 즐겨찾기 엔티티
+     * 그룹-장소 매핑 즐겨찾기 인스턴스 생성(정적 팩토리).
+     *
+     * @param group 담을 그룹
+     * @param place 담을 장소
+     * @return 저장 전 새 즐겨찾기 엔티티
      */
     public static Favorite of(FavoriteGroup group, Place place) {
         return new Favorite(group, place);

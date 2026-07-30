@@ -38,10 +38,10 @@ import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
 /**
- * 1. 기능: 리뷰(혼밥일기) 작성·수정·삭제와 식당별 리뷰 조회·집계, 내 방문 기록·내 리뷰 조립
- * 2. 사용 Controller: ReviewController, PlaceReviewController, DiningHistoryController
+ * 리뷰(혼밥일기) 도메인 서비스 — 작성(인증 자동연결·태그 검증)·수정·삭제와 식당별 리뷰 조회·집계,
+ * 내 방문 기록·내 리뷰 조립을 담당한다.
  *
- * <p>[기존 주석] 리뷰 도메인 서비스. 작성(인증 자동연결·태그 검증)과 식당 리뷰 조회를 담당한다.
+ * <p>사용 Controller: ReviewController, PlaceReviewController, DiningHistoryController.
  */
 @Service
 public class ReviewService {
@@ -73,9 +73,10 @@ public class ReviewService {
     }
 
     /**
-     * 기능: 식당 리뷰 집계 조회 — 리뷰 수·별점 평균 2종(소수 1자리)·상위 태그 5개
-     * Request: placeId — 식당 ID
-     * Response: PlaceReviewSummaryResponse — 리뷰 수, 맛·혼밥 적합도 평균(리뷰 없으면 null), 상위 태그
+     * 식당 리뷰를 집계한다 — 리뷰 수, 별점 평균 2종(소수 1자리), 상위 태그 5개.
+     *
+     * @param placeId 식당 ID
+     * @return 리뷰 수, 맛·혼밥 적합도 평균(리뷰 없으면 null), 상위 태그
      */
     @Transactional(readOnly = true)
     public PlaceReviewSummaryResponse getPlaceReviewSummary(Long placeId) {
@@ -92,15 +93,17 @@ public class ReviewService {
         return new PlaceReviewSummaryResponse(placeId, count, avgTaste, avgSolo, topTags);
     }
 
-    /** 기능: 소수 첫째 자리로 반올림. */
+    /** 소수 첫째 자리로 반올림한다. */
     private static Double round1(double v) {
         return Math.round(v * 10.0) / 10.0;
     }
 
     /**
-     * 기능: 식당 리뷰 목록 조회 — 사진은 별도 쿼리로 조립, 차단 상대 리뷰는 서버에서 제외
-     * Request: placeId — 식당 ID, currentUserId — 요청 사용자 ID(차단 필터·내 리뷰 표시용)
-     * Response: List<PlaceReviewResponse> — 리뷰 목록(작성 최신순)
+     * 식당 리뷰 목록을 조회한다 — 사진은 별도 쿼리로 조립하고, 차단 상대 리뷰는 서버에서 제외한다.
+     *
+     * @param placeId 식당 ID
+     * @param currentUserId 요청 사용자 ID(차단 필터·내 리뷰 표시용)
+     * @return 리뷰 목록(작성 최신순)
      */
     @Transactional(readOnly = true)
     public List<PlaceReviewResponse> getPlaceReviews(Long placeId, Long currentUserId) {
@@ -118,9 +121,10 @@ public class ReviewService {
     }
 
     /**
-     * 기능: 식당의 모든 리뷰 사진 목록 조회(리뷰 최신순 평탄화)
-     * Request: placeId — 식당 ID
-     * Response: List<PlacePhotoResponse> — 사진 URL + 출처 리뷰 ID 목록
+     * 식당의 모든 리뷰 사진 목록을 조회한다(리뷰 최신순 평탄화).
+     *
+     * @param placeId 식당 ID
+     * @return 사진 URL + 출처 리뷰 ID 목록
      */
     @Transactional(readOnly = true)
     public List<PlacePhotoResponse> getPlacePhotos(Long placeId) {
@@ -130,12 +134,14 @@ public class ReviewService {
     }
 
     /**
-     * 기능: 리뷰 작성 — 체크인 연결(명시/24h 자동)로 인증 여부 결정, 태그 프리셋 검증, 사진 저장
-     * Request: userId — 작성자 ID, req(ReviewCreateRequest) — placeId, checkInId(선택), tasteRating, soloFriendlyRating, content, tags, imageUrls
-     * Response: ReviewResponse — 생성된 리뷰 ID·식당 ID·연결 체크인 ID·인증 여부
+     * 리뷰를 작성한다. 별점 2종은 필수이며(컨트롤러 {@code @Valid}), 태그는 허용 프리셋만 받는다(아니면 400).
      *
-     * <p>[기존 주석] 리뷰를 작성한다. 별점 2종 필수(컨트롤러 @Valid). 태그는 허용 프리셋만(아니면 400).
-     * 인증: checkInId 주어지면 내 소유+place 일치 시 연결(타인 소유 403), 없으면 place의 24h 내 최근 체크인 자동 연결.
+     * <p>인증 연결: checkInId가 주어지면 내 소유이고 place가 일치할 때 연결하고(타인 소유면 403),
+     * 없으면 그 place의 24h 내 최근 체크인을 자동 연결한다.
+     *
+     * @param userId 작성자 ID
+     * @param req placeId, checkInId(선택), tasteRating, soloFriendlyRating, content, tags, imageUrls
+     * @return 생성된 리뷰 ID·식당 ID·연결 체크인 ID·인증 여부
      */
     @Transactional
     public ReviewResponse createReview(Long userId, ReviewCreateRequest req) {
@@ -166,12 +172,15 @@ public class ReviewService {
     }
 
     /**
-     * 기능: 리뷰 수정 — 별점·본문 갱신, 태그·사진 전량 교체(본인만 가능)
-     * Request: userId — 요청 사용자 ID, reviewId — 수정할 리뷰 ID, req(ReviewUpdateRequest) — tasteRating, soloFriendlyRating, content, tags, imageUrls
-     * Response: ReviewResponse — 수정된 리뷰 ID·식당 ID·연결 체크인 ID·인증 여부
+     * 리뷰를 수정한다. 본인만 가능하고(아니면 403), 없으면 404다.
      *
-     * <p>[기존 주석] 리뷰를 수정한다. 본인만(아니면 403), 없으면 404. 별점·본문 갱신 + 태그 전량 교체.
-     * place·checkIn·visitedAt은 불변(인증 무결성 유지).
+     * <p>별점·본문을 갱신하고 태그·사진을 전량 교체한다.
+     * place·checkIn·visitedAt은 불변이다(인증 무결성 유지).
+     *
+     * @param userId 요청 사용자 ID
+     * @param reviewId 수정할 리뷰 ID
+     * @param req tasteRating, soloFriendlyRating, content, tags, imageUrls
+     * @return 수정된 리뷰 ID·식당 ID·연결 체크인 ID·인증 여부
      */
     @Transactional
     public ReviewResponse updateReview(Long userId, Long reviewId, ReviewUpdateRequest req) {
@@ -188,11 +197,12 @@ public class ReviewService {
     }
 
     /**
-     * 기능: 리뷰 삭제 — 태그·사진은 cascade로 함께 삭제(본인만 가능)
-     * Request: userId — 요청 사용자 ID, reviewId — 삭제할 리뷰 ID
-     * Response: 없음(void)
+     * 리뷰를 완전 삭제한다 — 태그·사진은 cascade로 함께 삭제된다.
      *
-     * <p>[기존 주석] 리뷰를 완전 삭제한다(태그 cascade). 본인만(아니면 403), 없으면 404.
+     * <p>본인만 가능하고(아니면 403), 없으면 404다.
+     *
+     * @param userId 요청 사용자 ID
+     * @param reviewId 삭제할 리뷰 ID
      */
     @Transactional
     public void deleteReview(Long userId, Long reviewId) {
@@ -204,7 +214,7 @@ public class ReviewService {
         reviewRepository.delete(review);
     }
 
-    /** 기능: 태그가 허용 프리셋(SoloFriendlyTags.ALLOWED)에 속하는지 검증 — 위반 시 400(INVALID_INPUT). */
+    /** 태그가 허용 프리셋({@link SoloFriendlyTags#ALLOWED})에 속하는지 검증한다 — 위반 시 400(INVALID_INPUT). */
     private void validateTags(List<String> tags) {
         if (tags == null) {
             return;
@@ -217,8 +227,11 @@ public class ReviewService {
     }
 
     /**
-     * 기능: 리뷰에 연결할 체크인 결정 — checkInId 명시 시 소유·식당·솔로 검증(타인 소유 403, 불일치/매칭이면 null),
-     * 미지정 시 24h 내 최근 솔로 체크인 자동 탐색. 인증(혼밥 뱃지)은 <b>혼자 먹은(matchedAt IS NULL) 체크인</b>만 대상이다.
+     * 리뷰에 연결할 체크인을 결정한다.
+     *
+     * <p>checkInId를 명시하면 소유·식당·솔로 여부를 검증하고(타인 소유 403, 불일치나 매칭된 체크인이면 null),
+     * 미지정이면 24h 내 최근 솔로 체크인을 자동 탐색한다. 인증(혼밥 뱃지)은
+     * <b>혼자 먹은(matchedAt IS NULL) 체크인</b>만 대상이다.
      */
     private CheckIn resolveCheckIn(Long userId, Long placeId, Long checkInId, LocalDateTime now) {
         if (checkInId != null) {
@@ -240,11 +253,8 @@ public class ReviewService {
     }
 
     /**
-     * 기능: 내 방문 타임라인 조회 — 체크인 이력에 각 체크인의 리뷰를 조립하고 요약 통계 계산
-     * Request: userId — 요청 사용자 ID
-     * Response: DiningHistoryResponse — 요약 통계(총 체크인·일기·방문 식당·이달 체크인) + 방문 이력 목록(최신순)
-     *
-     * <p>[기존 주석] 내 방문 타임라인. 체크인 이력(최신순) + 각 체크인의 리뷰(있으면)를 조립하고 요약 통계를 함께 반환한다.
+     * 내 방문 타임라인을 조회한다 — 체크인 이력(최신순)에 각 체크인의 리뷰(있으면)를 조립하고
+     * 요약 통계(총 체크인·일기·방문 식당·이달 체크인)를 함께 반환한다.
      *
      * @param userId 회원 id
      * @return 방문 타임라인 + 요약 통계
@@ -281,12 +291,10 @@ public class ReviewService {
     }
 
     /**
-     * 기능: 내가 쓴 리뷰 전체(인증+일반) 조회 — 사진은 별도 쿼리로 조립
-     * Request: userId — 요청 사용자 ID
-     * Response: MyReviewsResponse — 내 리뷰 목록(작성 최신순, 식당명·별점·태그·사진·인증 여부 포함)
+     * 내가 쓴 리뷰 전체(인증+일반)를 작성 최신순으로 반환한다. '내가 쓴 리뷰' 화면용이며 식당명·별점·
+     * 태그·사진·인증 여부를 포함한다.
      *
-     * <p>[기존 주석] 내가 쓴 리뷰 전체(인증+일반)를 작성 최신순으로 반환한다. '내가 쓴 리뷰' 화면용.
-     * 사진은 tags와의 MultipleBagFetch를 피해 별도 쿼리로 조립한다(getPlaceReviews와 동일 패턴).
+     * <p>사진은 tags와의 MultipleBagFetch를 피해 별도 쿼리로 조립한다(getPlaceReviews와 동일 패턴).
      *
      * @param userId 회원 id
      * @return 내 리뷰 목록
@@ -308,7 +316,7 @@ public class ReviewService {
         return new MyReviewsResponse(items);
     }
 
-    /** 기능: 현재 시각(KST, 주입된 Clock 기준). */
+    /** 현재 시각을 KST로 반환한다(주입된 Clock 기준). */
     private LocalDateTime now() {
         return LocalDateTime.ofInstant(clock.instant(), KST);
     }

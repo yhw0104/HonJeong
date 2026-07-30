@@ -35,10 +35,13 @@ public class ReviewController {
     }
 
     /**
-     * 1. API 주소: POST /api/reviews
-     * 2. 사용 화면: 혼밥일기 작성(DiningLogWriteScreen) — 리뷰 작성 제출
-     * 3. Request: ReviewCreateRequest(바디) — placeId, checkInId(선택), tasteRating, soloFriendlyRating, content, tags, imageUrls / 인증 사용자(@CurrentUserId)
-     * 4. Response: ReviewResponse — 생성된 리뷰 ID, 식당 ID, 연결 체크인 ID, 인증 여부 (201 Created)
+     * 리뷰(혼밥일기)를 작성한다(201 Created).
+     *
+     * <p>사용 화면: 혼밥일기 작성(DiningLogWriteScreen)의 제출.
+     *
+     * @param userId 인증 사용자 ID(작성자)
+     * @param request placeId, checkInId(선택), tasteRating, soloFriendlyRating, content, tags, imageUrls
+     * @return 생성된 리뷰 ID, 식당 ID, 연결 체크인 ID, 인증 여부
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -48,10 +51,14 @@ public class ReviewController {
     }
 
     /**
-     * 1. API 주소: PATCH /api/reviews/{id}
-     * 2. 사용 화면: 혼밥일기 작성(DiningLogWriteScreen) — 기존 리뷰 수정 제출
-     * 3. Request: id(경로) — 수정할 리뷰 ID / ReviewUpdateRequest(바디) — tasteRating, soloFriendlyRating, content, tags, imageUrls / 인증 사용자(@CurrentUserId)
-     * 4. Response: ReviewResponse — 수정된 리뷰 ID, 식당 ID, 연결 체크인 ID, 인증 여부
+     * 내 리뷰를 수정한다. 본인만 가능하다.
+     *
+     * <p>사용 화면: 혼밥일기 작성(DiningLogWriteScreen)의 기존 리뷰 수정 제출.
+     *
+     * @param userId 인증 사용자 ID
+     * @param id 수정할 리뷰 ID
+     * @param request tasteRating, soloFriendlyRating, content, tags, imageUrls
+     * @return 수정된 리뷰 ID, 식당 ID, 연결 체크인 ID, 인증 여부
      */
     @PatchMapping("/{id}")
     public ApiResponse<ReviewResponse> update(@CurrentUserId Long userId, @PathVariable Long id,
@@ -60,10 +67,14 @@ public class ReviewController {
     }
 
     /**
-     * 1. API 주소: DELETE /api/reviews/{id}
-     * 2. 사용 화면: 식당 상세(RestaurantDetailScreen)·내 혼밥 기록(DiningHistoryScreen)·내가 쓴 리뷰(MyReviewsScreen) — 내 리뷰 삭제 버튼
-     * 3. Request: id(경로) — 삭제할 리뷰 ID / 인증 사용자(@CurrentUserId)
-     * 4. Response: 없음(Void)
+     * 내 리뷰를 삭제한다. 본인만 가능하다.
+     *
+     * <p>사용 화면: 식당 상세(RestaurantDetailScreen)·내 혼밥 기록(DiningHistoryScreen)·
+     * 내가 쓴 리뷰(MyReviewsScreen)의 삭제 버튼.
+     *
+     * @param userId 인증 사용자 ID
+     * @param id 삭제할 리뷰 ID
+     * @return 본문 데이터 없음 — 성공 여부만 응답 엔벨로프로 전달
      */
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@CurrentUserId Long userId, @PathVariable Long id) {

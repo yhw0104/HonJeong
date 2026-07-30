@@ -13,11 +13,11 @@ import com.honjeong.user.domain.User;
 import jakarta.persistence.*;
 
 /**
- * 식당 리뷰(혼밥일기) 한 건을 나타내는 엔티티 — 공개 식당 리뷰이자 개인 방문기록.
- * (매핑 테이블 reviews)
+ * 식당 리뷰(혼밥일기) 한 건을 나타내는 엔티티 — 공개 식당 리뷰이자 개인 방문기록(ERD F-1, C3 통합).
+ * (매핑 테이블: reviews)
  *
- * <p>[기존 주석] 리뷰 = 혼밥일기(ERD F-1, C3 통합). 공개 식당 리뷰이자 개인 방문기록.
- * check_in 연결 시 "인증". 같은 식당 다회 작성 허용(유니크 없음). 별점 2종은 NOT NULL.
+ * <p>check_in에 연결되면 "인증" 리뷰가 된다. 같은 식당에 여러 번 작성할 수 있고(유니크 없음)
+ * 별점 2종은 NOT NULL이다.
  */
 @Entity
 @Table(name = "reviews")

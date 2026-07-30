@@ -7,8 +7,6 @@ import java.util.List;
  * '내가 쓴 리뷰' 목록 응답 데이터.
  *
  * @param reviews 내 리뷰 목록(작성 최신순)
- *
- * <p>[기존 주석] '내가 쓴 리뷰' 응답 — 인증+일반 리뷰 전체, 작성 최신순.
  */
 public record MyReviewsResponse(List<Item> reviews) {
 

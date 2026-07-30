@@ -46,7 +46,7 @@ public record PlaceReviewResponse(
      */
     public record Author(Long userId, String nickname, AuthorUnavailable unavailable) {}
 
-    /** 기능: Review 엔티티와 사진 URL 목록을 리뷰탭 응답 DTO로 변환(내 리뷰 여부 계산 포함) */
+    /** {@link Review} 엔티티와 사진 URL 목록을 리뷰탭 응답 DTO로 변환한다(내 리뷰 여부 계산 포함). */
     public static PlaceReviewResponse from(Review r, Long currentUserId, List<String> imageUrls) {
         return new PlaceReviewResponse(
                 r.getId(),

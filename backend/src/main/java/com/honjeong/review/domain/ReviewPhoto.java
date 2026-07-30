@@ -5,10 +5,10 @@ import java.time.LocalDateTime;
 import jakarta.persistence.*;
 
 /**
- * 리뷰에 첨부된 사진 한 장을 나타내는 엔티티.
- * (매핑 테이블 review_photos)
+ * 리뷰에 첨부된 사진 한 장을 나타내는 엔티티(ERD F-2).
+ * (매핑 테이블: review_photos)
  *
- * <p>[기존 주석] 리뷰 사진(ERD F-2). 리뷰 1:N. sort_order로 표시 순서를 유지한다.
+ * <p>리뷰와 1:N이며 sort_order로 표시 순서를 유지한다.
  */
 @Entity
 @Table(name = "review_photos")

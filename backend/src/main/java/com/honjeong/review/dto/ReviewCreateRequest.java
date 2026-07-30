@@ -18,8 +18,6 @@ import jakarta.validation.constraints.Size;
  * @param content 리뷰 본문(선택, 최대 1000자)
  * @param tags 혼밥 친화 태그 목록(선택, SoloFriendlyTags 프리셋만 허용)
  * @param imageUrls 첨부 사진 URL 목록(선택, 최대 5장)
- *
- * <p>[기존 주석] 리뷰 작성 요청. 별점 2종 필수(1~5). checkInId·content·tags·imageUrls 선택.
  */
 public record ReviewCreateRequest(
         @NotNull Long placeId,

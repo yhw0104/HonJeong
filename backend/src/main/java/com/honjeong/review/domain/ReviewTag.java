@@ -5,9 +5,9 @@ import jakarta.persistence.*;
 
 /**
  * 리뷰에 부착된 혼밥 친화 태그 한 개를 나타내는 엔티티.
- * (매핑 테이블 review_tags)
+ * (매핑 테이블: review_tags)
  *
- * <p>[기존 주석] 리뷰의 친화 태그. place_id는 reviews에서 역정규화(식당별 빈도 집계를 JOIN 없이).
+ * <p>place_id는 reviews에서 역정규화한 값이다 — 식당별 태그 빈도를 JOIN 없이 집계하기 위함이다.
  */
 @Entity
 @Table(name = "review_tags")

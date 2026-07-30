@@ -10,9 +10,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * 공공데이터에서 적재한 장소(식당) 마스터 데이터 (매핑 테이블 places)
+ * 공공데이터에서 적재한 장소(식당) 마스터 데이터. (매핑 테이블: places)
  *
- * <p>[기존 주석] 장소(식당) 엔티티. V3 이후 공공데이터 마스터만 사용한다({@code external_id} 컬럼은 V3 마이그레이션으로 제거됨).
+ * <p>V3 이후 공공데이터 마스터만 사용한다({@code external_id} 컬럼은 V3 마이그레이션으로 제거됐다).
  *
  * <p>컬럼명은 기본 스네이크케이스 전략으로 매핑된다.
  */

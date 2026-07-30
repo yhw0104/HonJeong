@@ -11,7 +11,7 @@ import com.honjeong.review.domain.Review;
  * @param authenticated 인증(체크인 연결) 리뷰 여부
  */
 public record ReviewResponse(Long reviewId, Long placeId, Long checkInId, boolean authenticated) {
-    /** 기능: Review 엔티티를 작성/수정 결과 응답 DTO로 변환 */
+    /** {@link Review} 엔티티를 작성/수정 결과 응답 DTO로 변환한다. */
     public static ReviewResponse from(Review r) {
         return new ReviewResponse(
                 r.getId(),
