@@ -18,11 +18,10 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 /**
- * 사용자가 식당에 "혼밥 중"을 등록한 혼밥 체크인 기록 — 통계·지도·혼밥러 목록의 원천 데이터
- * (매핑 테이블 check_ins)
+ * 사용자가 식당에 "혼밥 중"을 등록한 혼밥 체크인 기록 — 통계·지도·혼밥러 목록의 원천 데이터.
+ * (매핑 테이블: check_ins)
  *
- * <p>[기존 주석] 혼밥 체크인(핵심 데이터). 사용자가 선택한 식당에 "혼밥 중"을 등록한 기록이며, 통계·지도·혼밥러 목록의 원천이다.
- * 사용자당 ACTIVE+TOGETHER 합쳐 최대 1개 제약은 DB 부분 유니크 인덱스(uq_check_ins_current_user)가 보장한다.
+ * <p>사용자당 ACTIVE+TOGETHER 합쳐 최대 1개 제약은 DB 부분 유니크 인덱스(uq_check_ins_current_user)가 보장한다.
  *
  * <p>{@code check_ins}는 {@code created_at}만 있고 {@code updated_at}이 없어 {@code BaseTimeEntity}를 상속하지 않고
  * 시각을 직접 매핑한다. User·Place는 LAZY {@code @ManyToOne}으로 두어, 혼밥러 목록·지도 집계를 프로젝션/페치조인으로 뽑는다.

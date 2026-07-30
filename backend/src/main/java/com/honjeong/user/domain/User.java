@@ -15,9 +15,9 @@ import jakarta.persistence.Table;
 
 /**
  * 회원(사용자) — 휴대폰·닉네임·소개·활동 지역·식사성향 등 프로필과 가입 상태를 담는 데이터.
- * (엔티티, 매핑 테이블 users)
+ * (매핑 테이블: users)
  *
- * <p>[기존 주석] 회원. 온보딩 시작 시 status=PENDING으로 생성되고(휴대폰/소셜 식별만), /auth/complete에서
+ * <p>온보딩 시작 시 status=PENDING으로 생성되고(휴대폰/소셜 식별만), /auth/complete에서
  * 프로필을 채우며 status=ACTIVE로 전환된다. 컬럼명은 기본 스네이크케이스 전략으로 매핑된다.
  */
 @Entity

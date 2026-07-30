@@ -14,9 +14,9 @@ import jakarta.persistence.Table;
 
 /**
  * 회원의 선호 음식(최대 3개)을 담는 데이터.
- * (엔티티, 매핑 테이블 user_food_preferences)
+ * (매핑 테이블: user_food_preferences)
  *
- * <p>[기존 주석] 선호 음식(사용자당 1행, UNIQUE(user_id)). 최대 3개를 고정 컬럼(food1/food2/food3)으로 보관하고,
+ * <p>사용자당 1행이며 user_id에 UNIQUE 제약이 걸린다. 최대 3개를 고정 컬럼(food1/food2/food3)으로 보관하고,
  * 목록(List&lt;String&gt;) ↔ 3개 컬럼 변환을 엔티티가 책임진다. created_at/updated_at은 BaseTimeEntity.
  */
 @Entity
@@ -49,7 +49,7 @@ public class UserFoodPreference extends BaseTimeEntity {
     protected UserFoodPreference() {
     }
 
-    /** 기능: 소유 회원 id만 채운 빈 행 생성 — {@link #of(Long, List)} 팩토리 내부 전용. */
+    /** 소유 회원 id만 채운 빈 행을 만든다 — {@link #of(Long, List)} 팩토리 내부 전용. */
     private UserFoodPreference(Long userId) {
         this.userId = userId;
     }

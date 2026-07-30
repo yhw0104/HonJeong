@@ -20,9 +20,9 @@ import jakarta.persistence.Table;
 
 /**
  * 같이먹기 신청 — 신청자가 같은 식당 혼밥러의 체크인에 "같이 먹자"고 보낸 요청(수신 opt-in 필수)
- * (매핑 테이블 meal_requests)
+ * (매핑 테이블: meal_requests)
  *
- * <p>[기존 주석] 같이먹기 신청. 신청자(fromUser)가 대상 혼밥러의 체크인(toCheckIn)에 보낸다. 수신자는 {@code toCheckIn.user}로 식별한다.
+ * <p>신청자(fromUser)가 대상 혼밥러의 체크인(toCheckIn)에 보낸다. 수신자는 {@code toCheckIn.user}로 식별한다.
  * {@code created_at}·{@code responded_at}만 있고 {@code updated_at}이 없어 {@code BaseTimeEntity}를 상속하지 않는다(CheckIn 패턴).
  * 단일 신청 중복은 DB 유니크(from_user_id, to_check_in_id)가 강제한다.
  */

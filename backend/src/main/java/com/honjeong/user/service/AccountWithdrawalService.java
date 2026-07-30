@@ -31,8 +31,9 @@ import com.honjeong.user.repository.UserFoodPreferenceRepository;
 import com.honjeong.user.repository.UserRepository;
 
 /**
- * 1. 기능: 회원 탈퇴 — 진행 중인 관계를 정리하고 개인정보성 데이터를 지운 뒤 users 행을 익명화한다
- * 2. 사용 Controller: UserController(DELETE /api/users/me)
+ * 회원 탈퇴 — 진행 중인 관계를 정리하고 개인정보성 데이터를 지운 뒤 users 행을 익명화한다.
+ *
+ * <p>사용 Controller: UserController(DELETE /api/users/me).
  *
  * <p><b>왜 소프트 탈퇴인가.</b> {@code check_ins.user_id}가 NOT NULL이라 행을 지우면 혼밥 통계가 함께
  * 사라지고, 리뷰·대화도 FK로 묶여 있어 하드 삭제는 스키마를 9곳 고쳐야 한다. 대신 개인정보 컬럼만 비워
@@ -97,10 +98,9 @@ public class AccountWithdrawalService {
     }
 
     /**
-     * 기능: 회원 탈퇴 — 진행중 종료 → 개인정보 삭제 → 익명화를 한 트랜잭션에서 수행
-     * Request: userId — 탈퇴하는 사용자 ID
-     * Response: 없음(void)
+     * 회원 탈퇴 — 진행중 종료 → 개인정보 삭제 → 익명화를 한 트랜잭션에서 수행한다.
      *
+     * @param userId 탈퇴하는 사용자 ID
      * @throws BusinessException 회원이 없을 때({@code USER_NOT_FOUND})
      */
     @Transactional

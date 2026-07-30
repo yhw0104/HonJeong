@@ -25,11 +25,11 @@ import com.honjeong.global.security.CurrentUserId;
 import jakarta.validation.Valid;
 
 /**
- * 혼밥 체크인(시작·종료·취소·내 체크인·통계·지도 마커) 컨트롤러.
+ * 혼밥 체크인 REST 컨트롤러 — 시작·종료·취소·혼자먹기 전이·매칭 해제·내 체크인·통계·지도 마커.
  *
  * <p>기본 경로: /api/check-ins
  *
- * <p>[기존 주석] 체크인 REST 컨트롤러(/api/check-ins). 얇게 유지 — {@code @CurrentUserId}·{@code @Valid}·DTO 변환만 하고
+ * <p>얇게 유지한다 — {@code @CurrentUserId}·{@code @Valid}·DTO 변환만 하고
  * 검증·집계·매핑은 {@link CheckInService}에 위임한다.
  *
  * <p><b>인가:</b> 모든 경로가 정식 USER 전용이다. SecurityConfig의 {@code anyRequest().hasRole("USER")} 기본 규칙이
@@ -46,12 +46,13 @@ public class CheckInController {
     }
 
     /**
-     * 1. API 주소: POST /api/check-ins
-     * 2. 사용 화면: 홈 지도(MapHome), 식당 상세(RestaurantDetail) — "혼밥 시작" 체크인 버튼
-     * 3. Request: CheckInRequest(요청바디) — placeId(체크인할 장소 ID, 필수) / 인증 사용자(@CurrentUserId)
-     * 4. Response: CheckInResponse — 체크인 ID, 장소 ID, 상태, 시작·종료·매칭 시각, 파트너 닉네임
+     * 혼밥 체크인을 시작한다. 같은 장소 멱등 재요청도 201로 통일한다.
      *
-     * <p>[기존 주석] 혼밥 체크인 시작. 같은 장소 멱등 재요청도 201로 통일한다.
+     * <p>사용 화면: 홈 지도(MapHome)·식당 상세(RestaurantDetail)의 "혼밥 시작" 버튼.
+     *
+     * @param userId 인증 사용자 ID
+     * @param request placeId(체크인할 장소 ID, 필수)
+     * @return 체크인 ID, 장소 ID, 상태, 시작·종료·매칭 시각, 파트너 닉네임
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -61,12 +62,13 @@ public class CheckInController {
     }
 
     /**
-     * 1. API 주소: PATCH /api/check-ins/{id}/end
-     * 2. 사용 화면: 홈 지도(MapHome), 식당 상세(RestaurantDetail) — 혼밥 종료 확인(usePromptEndCheckIn)
-     * 3. Request: id(경로) — 종료할 체크인 ID / 인증 사용자(@CurrentUserId)
-     * 4. Response: CheckInResponse — 종료(ENDED) 처리된 체크인 정보
+     * 체크인을 종료한다.
      *
-     * <p>[기존 주석] 체크인 종료.
+     * <p>사용 화면: 홈 지도(MapHome)·식당 상세(RestaurantDetail)의 혼밥 종료 확인(usePromptEndCheckIn).
+     *
+     * @param userId 인증 사용자 ID
+     * @param id 종료할 체크인 ID
+     * @return 종료(ENDED) 처리된 체크인 정보
      */
     @PatchMapping("/{id}/end")
     public ApiResponse<CheckInResponse> end(@CurrentUserId Long userId, @PathVariable Long id) {
@@ -74,12 +76,14 @@ public class CheckInController {
     }
 
     /**
-     * 1. API 주소: PATCH /api/check-ins/{id}/cancel
-     * 2. 사용 화면: 홈 지도(MapHome), 식당 상세(RestaurantDetail) — 짧은 혼밥 종료 시 취소 분기(usePromptEndCheckIn)
-     * 3. Request: id(경로) — 취소할 체크인 ID / 인증 사용자(@CurrentUserId)
-     * 4. Response: CheckInResponse — 취소(CANCELLED) 처리된 체크인 정보
+     * 짧은 혼밥을 취소한다(오집계 제외). 소유자의 SEEKING·ACTIVE만 취소할 수 있다.
      *
-     * <p>[기존 주석] 짧은 혼밥 취소(오집계 제외). 소유자의 ACTIVE만.
+     * <p>사용 화면: 홈 지도(MapHome)·식당 상세(RestaurantDetail)의 짧은 혼밥 종료 시 취소 분기
+     * (usePromptEndCheckIn).
+     *
+     * @param userId 인증 사용자 ID
+     * @param id 취소할 체크인 ID
+     * @return 취소(CANCELLED) 처리된 체크인 정보
      */
     @PatchMapping("/{id}/cancel")
     public ApiResponse<CheckInResponse> cancel(@CurrentUserId Long userId, @PathVariable Long id) {
@@ -87,12 +91,13 @@ public class CheckInController {
     }
 
     /**
-     * 1. API 주소: PATCH /api/check-ins/{id}/dine-alone
-     * 2. 사용 화면: 홈/식당상세 — 같이 먹을 사람 못 구해 "혼자 먹기" 선택
-     * 3. Request: id(경로) — 전이할 체크인 ID / 인증 사용자(@CurrentUserId)
-     * 4. Response: CheckInResponse — ACTIVE(혼밥중)로 전이된 체크인
+     * 모집중(SEEKING)을 혼밥중(ACTIVE)으로 전이한다 — 매칭 실패/포기 후 혼자 먹기 시작.
      *
-     * <p>[기존 주석] 모집중(SEEKING)을 혼밥중(ACTIVE)으로 전이한다 — 매칭 실패/포기 후 혼자 먹기 시작.
+     * <p>사용 화면: 홈 지도·식당 상세 — 같이 먹을 사람을 못 구해 "혼자 먹기"를 선택했을 때.
+     *
+     * @param userId 인증 사용자 ID
+     * @param id 전이할 체크인 ID
+     * @return ACTIVE(혼밥중)로 전이된 체크인
      */
     @PatchMapping("/{id}/dine-alone")
     public ApiResponse<CheckInResponse> dineAlone(@CurrentUserId Long userId, @PathVariable Long id) {
@@ -100,12 +105,15 @@ public class CheckInController {
     }
 
     /**
-     * 1. API 주소: PATCH /api/check-ins/{id}/leave-match
-     * 2. 사용 화면: 같이먹기 종료 시트 — 상대 노쇼/취소 시 "혼밥 계속/다시 모집/취소" 선택
-     * 3. Request: id(경로) — 내 TOGETHER 체크인 / body { to: ACTIVE|SEEKING|CANCELLED } / 인증 사용자
-     * 4. Response: CheckInResponse — 전이된 내 체크인(상대는 SEEKING 복귀 + 알림)
+     * 같이먹기 매칭을 깨고 내 체크인을 지정 상태로 전이한다. 상대는 항상 SEEKING으로 복귀시키고 알림을
+     * 발행한다.
      *
-     * <p>[기존 주석] 같이먹기 매칭을 깨고 내 체크인을 지정 상태로 전이한다. 상대는 항상 SEEKING으로 복귀시키고 알림을 발행한다.
+     * <p>사용 화면: 같이먹기 종료 시트 — 상대 노쇼/취소 시 "혼밥 계속/다시 모집/취소" 선택.
+     *
+     * @param userId 인증 사용자 ID
+     * @param id 내 TOGETHER 체크인 ID
+     * @param request to — ACTIVE|SEEKING|CANCELLED 중 전이할 내 상태
+     * @return 전이된 내 체크인
      */
     @PatchMapping("/{id}/leave-match")
     public ApiResponse<CheckInResponse> leaveMatch(@CurrentUserId Long userId, @PathVariable Long id,
@@ -114,12 +122,13 @@ public class CheckInController {
     }
 
     /**
-     * 1. API 주소: GET /api/check-ins/me
-     * 2. 사용 화면: 홈 지도(MapHome), 식당 상세(RestaurantDetail), 같이먹기 피드(TogetherFeed) — 현재 혼밥 상태 표시
-     * 3. Request: 인증 사용자(@CurrentUserId) 외 없음
-     * 4. Response: CheckInResponse — 현재 진행 중 체크인(ACTIVE/TOGETHER), 없으면 data:null
+     * 내 현재 체크인(SEEKING/ACTIVE/TOGETHER)을 조회한다.
      *
-     * <p>[기존 주석] 내 현재 체크인(ACTIVE 또는 TOGETHER, 없으면 data:null).
+     * <p>사용 화면: 홈 지도(MapHome)·식당 상세(RestaurantDetail)·같이먹기 피드(TogetherFeed)의
+     * 현재 혼밥 상태 표시.
+     *
+     * @param userId 인증 사용자 ID
+     * @return 현재 진행 중 체크인, 없으면 {@code data:null}
      */
     @GetMapping("/me")
     public ApiResponse<CheckInResponse> me(@CurrentUserId Long userId) {
@@ -127,12 +136,11 @@ public class CheckInController {
     }
 
     /**
-     * 1. API 주소: GET /api/check-ins/stats
-     * 2. 사용 화면: 웰컴(Welcome), 홈 지도(MapHome) — "오늘 N명 / 현재 N명" 사회적 증거 문구
-     * 3. Request: 없음
-     * 4. Response: CheckInStatsResponse — todayCount(오늘 혼밥한 사람 수), activeCount(현재 혼밥 중 수)
+     * 사회적 증거 통계를 조회한다("오늘 N명 / 현재 N명").
      *
-     * <p>[기존 주석] 사회적 증거 통계("오늘 N명 / 현재 N명").
+     * <p>사용 화면: 웰컴(Welcome)·홈 지도(MapHome)의 사회적 증거 문구.
+     *
+     * @return todayCount(오늘 혼밥한 사람 수)·activeCount(현재 혼밥 중 수)·seekingCount(현재 모집중 수)
      */
     @GetMapping("/stats")
     public ApiResponse<CheckInStatsResponse> stats() {
@@ -140,12 +148,14 @@ public class CheckInController {
     }
 
     /**
-     * 1. API 주소: GET /api/check-ins/map
-     * 2. 사용 화면: 홈 지도(MapHome) — 반경 내 식당별 혼밥러 수 마커 렌더링
-     * 3. Request: lat(쿼리, 필수) — 중심 위도, lng(쿼리, 필수) — 중심 경도, radius(쿼리, 기본 1000) — 반경(m)
-     * 4. Response: List&lt;MapMarkerResponse&gt; — 식당 위치·현재 혼밥러 수 마커 목록(거리순)
+     * 반경 내 식당별 현재 혼밥러 수 마커를 조회한다.
      *
-     * <p>[기존 주석] 반경 내 식당별 현재 혼밥러 수 마커. lat/lng 필수, radius 기본 1000m.
+     * <p>사용 화면: 홈 지도(MapHome)의 마커 렌더링.
+     *
+     * @param lat 중심 위도(필수)
+     * @param lng 중심 경도(필수)
+     * @param radius 반경(m, 기본 1000)
+     * @return 식당 위치·현재 혼밥러 수 마커 목록(거리순)
      */
     @GetMapping("/map")
     public ApiResponse<List<MapMarkerResponse>> map(

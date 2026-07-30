@@ -16,11 +16,12 @@ import com.honjeong.user.dto.UserProfileResponse;
 import com.honjeong.user.repository.UserRepository;
 
 /**
- * 1. 기능: 회원 프로필 조회·부분수정(PATCH)과 닉네임 중복확인 비즈니스 로직
- * 2. 사용 Controller: UserController
+ * 회원 프로필 조회·부분수정(PATCH)과 닉네임 중복확인을 담당하는 서비스.
  *
- * <p>[기존 주석] 회원 프로필 조회·수정·닉네임 중복확인을 담당하는 서비스. 조회는 readOnly 트랜잭션, 수정은 쓰기 트랜잭션
- * 경계를 가진다. UserRepository(findById·existsByNickname)만 의존한다.
+ * <p>사용 Controller: UserController.
+ *
+ * <p>조회는 readOnly 트랜잭션, 수정은 쓰기 트랜잭션 경계를 가진다.
+ * UserRepository(findById·existsByNickname)만 의존한다.
  */
 @Service
 public class UserService {
@@ -45,11 +46,7 @@ public class UserService {
     }
 
     /**
-     * 기능: 내 프로필 전 필드와 선호 음식 목록을 조회한다
-     * Request: userId — 조회할 회원 ID(JWT sub)
-     * Response: UserProfileResponse — 프로필 전 필드 + 선호 음식 목록
-     *
-     * <p>[기존 주석] 내 프로필을 조회한다.
+     * 내 프로필 전 필드와 선호 음식 목록을 조회한다.
      *
      * @param userId 조회할 회원 식별자(JWT sub에서 주입됨)
      * @return 회원의 프로필 전 필드를 담은 {@link UserProfileResponse}
@@ -62,11 +59,9 @@ public class UserService {
     }
 
     /**
-     * 기능: 프로필을 부분 수정한다(null이 아닌 필드만 반영, 닉네임 변경 시 중복 검사)
-     * Request: userId — 수정할 회원 ID(JWT sub), command — UpdateProfileCommand(부분수정 입력값 묶음, null 필드는 미변경)
-     * Response: UserProfileResponse — 수정이 반영된 최신 프로필
+     * 프로필을 부분 수정한다(PATCH).
      *
-     * <p>[기존 주석] 프로필을 부분 수정한다(PATCH). 명령에서 null이 아닌 필드만 반영하고, null 필드는 기존 값을 유지한다.
+     * <p>명령에서 null이 아닌 필드만 반영하고, null 필드는 기존 값을 유지한다.
      *
      * <p>닉네임 처리: 닉네임이 들어오고 <b>현재 닉네임과 다를 때만</b> 중복 검사를 한다(본인 닉네임을 그대로 두면
      * 중복 검사를 건너뛴다). 다른 닉네임이 이미 사용 중이면 거부한다. 실제 필드 반영은 엔티티의
@@ -92,11 +87,7 @@ public class UserService {
     }
 
     /**
-     * 기능: 닉네임 사용 가능 여부를 확인한다(DB 중복 검사)
-     * Request: nickname — 확인할 닉네임
-     * Response: NicknameCheckResponse — 닉네임 echo + 사용 가능 여부(available)
-     *
-     * <p>[기존 주석] 닉네임 사용 가능 여부를 확인한다(온보딩·프로필 수정 중 실시간 중복 체크).
+     * 닉네임 사용 가능 여부를 확인한다(온보딩·프로필 수정 중 실시간 중복 체크).
      *
      * @param nickname 확인할 닉네임
      * @return 확인한 닉네임과 사용 가능 여부({@code available = 미사용})를 담은 {@link NicknameCheckResponse}
@@ -107,9 +98,9 @@ public class UserService {
     }
 
     /**
-     * 기능: userId로 회원을 조회하고 없으면 USER_NOT_FOUND 예외를 던진다
+     * userId로 회원을 조회하고, 없으면 {@code USER_NOT_FOUND} 예외를 던진다.
      *
-     * <p>[기존 주석] userId로 회원을 조회하고, 없으면 예외를 던진다. 조회·수정 메서드가 공유하는 헬퍼다.
+     * <p>조회·수정 메서드가 공유하는 헬퍼다.
      *
      * @param userId 조회할 회원 식별자
      * @return 조회된 {@link User}
