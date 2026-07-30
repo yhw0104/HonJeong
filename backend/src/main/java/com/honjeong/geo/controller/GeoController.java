@@ -29,13 +29,11 @@ public class GeoController {
     }
 
     /**
-     * <p>사용처: (앱 미사용 — 백엔드 내부용) — '내 동네' 기능 제거 결정(2026-07-04)으로 현재 앱은 호출하지 않음.
-     * <p>좌표를 동네(행정구역)로 변환한다.
+     * 좌표를 동네(행정구역)로 변환한다.
      *
-     * <p><b>요청:</b> {@code GET /api/geo/reverse?lat=37.5&lng=127.0}.
-     * {@code lat}/{@code lng}는 필수 — 누락·범위초과 시 400({@code INVALID_INPUT}).
+     * <p>사용 화면: 현재 앱에서는 쓰지 않는다 — '내 동네' 기능 제거 결정(2026-07-04) 이후 호출하는 화면이 없다.
      *
-     * <p><b>응답:</b> {@code ApiResponse<ReverseGeocodeResponse>} — 동네 표시명·중심 좌표.
+     * <p>{@code lat}/{@code lng}는 필수라 누락·범위초과 시 400({@code INVALID_INPUT})이다.
      *
      * @param lat 요청 위도(필수)
      * @param lng 요청 경도(필수)

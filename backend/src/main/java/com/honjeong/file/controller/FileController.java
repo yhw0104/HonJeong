@@ -31,13 +31,13 @@ public class FileController {
     }
 
     /**
-     * <p>사용처: 프로필 설정(ProfileSetup)·프로필 수정(ProfileEdit)·혼밥 기록 작성(DiningLogWrite) — 프로필/기록 사진 업로드 (앱은 shared/upload/imageUpload.ts에서 expo-file-system uploadAsync로 호출 — RN fetch가 FormData 파일파트 미지원).
-     * <p>이미지 파일 업로드.
+     * 이미지 파일을 업로드한다. multipart/form-data로 받고 part 이름은 {@code file}이다.
      *
-     * <p><b>요청:</b> {@code POST /api/files} (multipart/form-data, part 이름 {@code file}).
+     * <p>사용 화면: 프로필 설정(ProfileSetup)·프로필 수정(ProfileEdit)·혼밥 기록 작성(DiningLogWrite)의
+     * 사진 업로드. 앱은 shared/upload/imageUpload.ts에서 expo-file-system uploadAsync로 호출한다
+     * (RN fetch가 FormData 파일파트를 지원하지 않는다).
      *
-     * <p><b>응답:</b> {@code ApiResponse<FileUploadResponse>} — 업로드된 파일의 접근 URL. 빈 파일·이미지가 아니면
-     * 400({@code INVALID_INPUT}).
+     * <p>빈 파일이거나 이미지가 아니면 400({@code INVALID_INPUT})이다.
      *
      * @param file 업로드 파일
      * @return 접근 URL 응답
