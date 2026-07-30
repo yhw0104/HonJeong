@@ -7,7 +7,7 @@ import com.honjeong.notice.domain.Notice;
 /**
  * 공지 목록 API 응답 DTO.
  *
- * <p>[기존 주석] 공지 목록 응답 — 핀 우선·게시 최신순으로 정렬돼 내려간다.
+ * <p>공지 목록 응답 — 핀 우선·게시 최신순으로 정렬돼 내려간다.
  *
  * @param notices 공지 목록(핀 우선·게시 최신순)
  */

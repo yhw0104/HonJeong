@@ -16,7 +16,7 @@ import jakarta.validation.Valid;
  *
  * <p>기본 경로: /api/reports
  *
- * <p>[기존 주석] 신고 REST(FR-108). 접수와 내 내역 조회만 제공한다(처리 상태 변경은 관리자 툴 도입 후).
+ * <p>신고 REST(FR-108). 접수와 내 내역 조회만 제공한다(처리 상태 변경은 관리자 툴 도입 후).
  */
 @RestController
 @RequestMapping("/api/reports")
@@ -29,12 +29,14 @@ public class ReportController {
     }
 
     /**
-     * 1. API 주소: POST /api/reports
-     * 2. 사용 화면: 신고하기(ReportForm) — 유저/리뷰 신고 폼 제출
-     * 3. Request: 인증 사용자(@CurrentUserId) / ReportCreateRequest(요청바디) — targetType(USER/REVIEW), targetId(대상 ID), reasonCode(신고 사유), detail(상세 내용, 최대 500자)
-     * 4. Response: ReportCreateResponse — 접수된 신고 ID, 처리 상태
+     * 신고를 접수한다(201 Created). 대상은 USER 또는 REVIEW다.
      *
-     * <p>[기존 주석] 신고 접수(대상: USER/REVIEW).
+     * <p>사용 화면: 신고하기(ReportForm)의 유저/리뷰 신고 폼 제출.
+     *
+     * @param userId 인증 사용자 ID(신고자)
+     * @param request targetType(USER/REVIEW), targetId(대상 ID), reasonCode(신고 사유),
+     *                detail(상세 내용, 최대 500자)
+     * @return 접수된 신고 ID와 처리 상태
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -44,12 +46,12 @@ public class ReportController {
     }
 
     /**
-     * 1. API 주소: GET /api/reports
-     * 2. 사용 화면: 차단·신고 관리(BlockReport) — 내 신고 내역 목록 표시
-     * 3. Request: 인증 사용자(@CurrentUserId)
-     * 4. Response: List&lt;MyReportResponse&gt; — 내 신고 내역(최신순): 대상 종류·닉네임, 사유, 상태, 접수 시각
+     * 내 신고 내역을 최신순으로 조회한다.
      *
-     * <p>[기존 주석] 내 신고 내역(최신순).
+     * <p>사용 화면: 차단·신고 관리(BlockReport)의 내 신고 내역 목록.
+     *
+     * @param userId 인증 사용자 ID
+     * @return 대상 종류·닉네임, 사유, 상태, 접수 시각
      */
     @GetMapping
     public ApiResponse<List<MyReportResponse>> list(@CurrentUserId Long userId) {

@@ -6,7 +6,7 @@ import com.honjeong.block.domain.Block;
 /**
  * 내 차단 목록의 한 항목을 나타내는 응답 데이터 (GET /api/blocks 응답 원소)
  *
- * <p>[기존 주석] 차단 목록 항목 — 차단당한 유저 요약 + 차단 시각.
+ * <p>차단 목록 항목 — 차단당한 유저 요약 + 차단 시각.
  *
  * @param userId 차단당한 유저 ID
  * @param nickname 차단당한 유저 닉네임

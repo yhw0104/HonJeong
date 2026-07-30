@@ -22,10 +22,10 @@ import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
 /**
- * 1. 기능: 유저/리뷰 신고를 접수하고 내 신고 내역을 조회한다 — 대상 닉네임을 스냅샷으로 저장해 대상 삭제·탈퇴 후에도 내역이 유지되도록 함
- * 2. 사용 Controller: ReportController
+ * 유저/리뷰 신고를 접수하고 내 신고 내역을 조회한다 — 대상 닉네임을 스냅샷으로 저장해 대상 삭제·탈퇴 후에도 내역이 유지되도록 함.
  *
- * <p>[기존 주석] 신고 접수 서비스. 대상(USER/REVIEW)을 확인해 표시용 닉네임을 스냅샷으로 저장한다 —
+ * <p>사용처: ReportController.
+ * <p>신고 접수 서비스. 대상(USER/REVIEW)을 확인해 표시용 닉네임을 스냅샷으로 저장한다 —
  * 대상 삭제·탈퇴 후에도 신고 내역이 유지되도록 FK 없이 보관한다. 상태는 현재 전부 RECEIVED.
  */
 @Service
@@ -47,9 +47,11 @@ public class ReportService {
     }
 
     /**
-     * 기능: 신고를 접수한다 — 대상 유효성·자기신고 검증 후 닉네임 스냅샷과 함께 저장(상태 RECEIVED)
-     * Request: reporterId — 신고자 ID, request — ReportCreateRequest(targetType, targetId, reasonCode, detail)
-     * Response: ReportCreateResponse — 접수된 신고 ID, 처리 상태
+     * 신고를 접수한다 — 대상 유효성·자기신고 검증 후 닉네임 스냅샷과 함께 저장(상태 RECEIVED).
+     *
+     * @param reporterId 신고자 ID
+     * @param request ReportCreateRequest(targetType, targetId, reasonCode, detail)
+     * @return 접수된 신고 ID, 처리 상태
      */
     @Transactional
     public ReportCreateResponse create(Long reporterId, ReportCreateRequest request) {
@@ -64,9 +66,8 @@ public class ReportService {
     }
 
     /**
-     * 기능: 신고 대상을 확인하고 표시용 닉네임을 반환한다
-     *
-     * <p>[기존 주석] 대상을 확인하고 표시용 닉네임을 돌려준다. 자기 자신/내 리뷰는 REPORT_SELF, 없으면 REPORT_TARGET_NOT_FOUND.
+     * 신고 대상을 확인하고 표시용 닉네임을 반환한다.
+     * <p>대상을 확인하고 표시용 닉네임을 돌려준다. 자기 자신/내 리뷰는 REPORT_SELF, 없으면 REPORT_TARGET_NOT_FOUND.
      */
     private String resolveTargetNickname(Long reporterId, ReportTargetType targetType, Long targetId) {
         if (targetType == ReportTargetType.USER) {
@@ -88,9 +89,10 @@ public class ReportService {
     }
 
     /**
-     * 기능: 요청자의 신고 내역을 최신순으로 조회한다
-     * Request: userId — 신고자(요청 사용자) ID
-     * Response: List&lt;MyReportResponse&gt; — 내 신고 내역(최신순)
+     * 요청자의 신고 내역을 최신순으로 조회한다.
+     *
+     * @param userId 신고자(요청 사용자) ID
+     * @return 내 신고 내역(최신순)
      */
     @Transactional(readOnly = true)
     public List<MyReportResponse> getMyReports(Long userId) {

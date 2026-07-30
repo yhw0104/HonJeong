@@ -7,7 +7,7 @@ import jakarta.persistence.*;
 /**
  * 유저 간 차단 관계 한 건을 나타내는 데이터 (매핑 테이블: blocks)
  *
- * <p>[기존 주석] 유저 차단. 한 방향(blocker→blocked)만 저장하며, 상호 은닉은 조회 시 양방향 검사로 구현한다.
+ * <p>유저 차단. 한 방향(blocker→blocked)만 저장하며, 상호 은닉은 조회 시 양방향 검사로 구현한다.
  */
 @Entity
 @Table(name = "blocks")

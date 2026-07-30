@@ -24,8 +24,7 @@ import com.honjeong.notification.service.NotificationService;
 import com.honjeong.review.repository.ReviewRepository;
 
 /**
- * 1. 기능: 뱃지 지급 판정(재계산 방식)·조회. 카운트가 임계 달성+미보유면 저장, 획득 시 인앱 알림.
- * 2. 사용: 도메인 액션(체크인/리뷰/즐겨찾기/메이트/같이먹기)이 checkAndAward 호출, BadgeController가 getMyBadges 호출.
+ * 뱃지 지급 판정(재계산 방식)·조회. 카운트가 임계 달성+미보유면 저장, 획득 시 인앱 알림. 2. 사용: 도메인 액션(체크인/리뷰/즐겨찾기/메이트/같이먹기)이 checkAndAward 호출, BadgeController가 getMyBadges 호출.
  */
 @Service
 public class BadgeService {

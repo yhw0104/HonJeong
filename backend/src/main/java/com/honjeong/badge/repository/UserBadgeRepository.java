@@ -31,9 +31,10 @@ public interface UserBadgeRepository extends JpaRepository<UserBadge, Long> {
             @Param("earnedAt") LocalDateTime earnedAt);
 
     /**
-     * 기능: 사용자가 보유한 뱃지를 전부 삭제(탈퇴 시 개인정보 정리용)
-     * 쿼리: DELETE FROM user_badges WHERE user_id = :userId
-     * Request: userId — 대상 사용자 ID / Response: int — 삭제된 행 수
+     * 사용자가 보유한 뱃지를 전부 삭제(탈퇴 시 개인정보 정리용).
+     *
+     * @param userId 대상 사용자 ID
+     * @return 삭제된 행 수
      */
     // clearAutomatically 금지 — AccountWithdrawalService.deletePersonalData Javadoc 참조
     @Modifying

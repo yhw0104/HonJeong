@@ -8,7 +8,7 @@ import jakarta.persistence.*;
  * 공지사항 한 건을 나타내는 엔티티.
  * (매핑 테이블 notices)
  *
- * <p>[기존 주석] 공지사항 한 건. 운영자가 DB 직접 INSERT로 등록하고 앱은 조회만 한다.
+ * <p>공지사항 한 건. 운영자가 DB 직접 INSERT로 등록하고 앱은 조회만 한다.
  * published_at이 미래면 목록에서 제외된다(예약 게시 겸 초안).
  */
 @Entity

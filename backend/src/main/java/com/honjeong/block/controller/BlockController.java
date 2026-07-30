@@ -15,7 +15,7 @@ import jakarta.validation.Valid;
  *
  * <p>기본 경로: /api/blocks
  *
- * <p>[기존 주석] 유저 차단 REST(FR-108). 전부 정식 USER 전용(SecurityConfig 기본 규칙).
+ * <p>유저 차단 REST(FR-108). 전부 정식 USER 전용(SecurityConfig 기본 규칙).
  */
 @RestController
 @RequestMapping("/api/blocks")
@@ -28,12 +28,14 @@ public class BlockController {
     }
 
     /**
-     * 1. API 주소: POST /api/blocks
-     * 2. 사용 화면: 메이트 프로필(MateProfile) — 케밥 메뉴 '차단' / 신고하기(ReportForm) — USER 신고 접수 후 차단 이어서 제안
-     * 3. Request: BlockCreateRequest(targetUserId — 차단할 유저 ID) / 인증 사용자(@CurrentUserId)
-     * 4. Response: 없음(Void) — 201 Created
+     * 사용자를 차단한다(201 Created). 메이트 관계·대기 신청·TOGETHER 매칭도 함께 자동 정리한다.
      *
-     * <p>[기존 주석] 차단 생성(+메이트/신청/TOGETHER 자동 정리).
+     * <p>사용 화면: 메이트 프로필(MateProfile)의 케밥 메뉴 '차단', 신고하기(ReportForm)에서 USER 신고
+     * 접수 후 이어지는 차단 제안.
+     *
+     * @param userId 인증 사용자 ID
+     * @param request targetUserId — 차단할 유저 ID
+     * @return 본문 데이터 없음 — 성공 여부만 응답 엔벨로프로 전달
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -43,12 +45,12 @@ public class BlockController {
     }
 
     /**
-     * 1. API 주소: GET /api/blocks
-     * 2. 사용 화면: 차단/신고 관리(BlockReport) — '차단 목록' 탭
-     * 3. Request: 인증 사용자(@CurrentUserId)
-     * 4. Response: List&lt;BlockedUserResponse&gt; — 차단당한 유저 요약(ID·닉네임·프로필 이미지)과 차단 시각, 최신순
+     * 내 차단 목록을 최신순으로 조회한다.
      *
-     * <p>[기존 주석] 내 차단 목록(최신순).
+     * <p>사용 화면: 차단/신고 관리(BlockReport)의 '차단 목록' 탭.
+     *
+     * @param userId 인증 사용자 ID
+     * @return 차단한 유저 요약(ID·닉네임·프로필 이미지)과 차단 시각
      */
     @GetMapping
     public ApiResponse<List<BlockedUserResponse>> list(@CurrentUserId Long userId) {
@@ -56,12 +58,13 @@ public class BlockController {
     }
 
     /**
-     * 1. API 주소: DELETE /api/blocks/{targetUserId}
-     * 2. 사용 화면: 차단/신고 관리(BlockReport) — 차단 목록 항목의 '차단 해제' 버튼
-     * 3. Request: targetUserId(경로) — 차단 해제할 유저 ID / 인증 사용자(@CurrentUserId)
-     * 4. Response: 없음(Void)
+     * 차단을 해제한다 — DELETE 규약대로 200 + {@code success:true}를 반환한다.
      *
-     * <p>[기존 주석] 차단 해제 — DELETE 규약(200 + success:true).
+     * <p>사용 화면: 차단/신고 관리(BlockReport)의 차단 목록 항목 '차단 해제' 버튼.
+     *
+     * @param userId 인증 사용자 ID
+     * @param targetUserId 차단 해제할 유저 ID
+     * @return 본문 데이터 없음 — 성공 여부만 응답 엔벨로프로 전달
      */
     @DeleteMapping("/{targetUserId}")
     public ApiResponse<Void> unblock(@CurrentUserId Long userId, @PathVariable Long targetUserId) {

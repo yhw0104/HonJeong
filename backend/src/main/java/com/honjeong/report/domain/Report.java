@@ -8,7 +8,7 @@ import jakarta.persistence.*;
  * 신고 접수 1건을 나타내는 엔티티.
  * (엔티티면: 매핑 테이블 reports)
  *
- * <p>[기존 주석] 신고 접수. 대상은 다형(USER/REVIEW)이라 target_id에 FK가 없고, 표시용 닉네임을 스냅샷으로 보관한다.
+ * <p>신고 접수. 대상은 다형(USER/REVIEW)이라 target_id에 FK가 없고, 표시용 닉네임을 스냅샷으로 보관한다.
  */
 @Entity
 @Table(name = "reports")
