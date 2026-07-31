@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { LIVE_REFETCH_MS } from '@/shared/realtime';
+import { invalidateCheckInLoop } from '@/features/checkin/queries';
 import {
   listMealRequests, createMealRequest, acceptMealRequest, declineMealRequest, withdrawMealRequest,
 } from './api';
@@ -30,11 +31,17 @@ export function useCreateMealRequest() {
   });
 }
 
+// 수락은 신청 상태만 바꾸는 게 아니다 — 내 체크인이 SEEKING→TOGETHER로 전이하고 대화가 개설된다
+// (MealRequestService.accept). 신청 목록만 무효화하면 상태바가 낡은 채로 남으므로 체크인 루프와
+// 대화 목록까지 함께 무효화한다(체크인 루프에 ['meal']이 포함돼 있다).
 export function useAcceptMealRequest() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => acceptMealRequest(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['meal'] }),
+    onSuccess: () => {
+      invalidateCheckInLoop(qc);
+      qc.invalidateQueries({ queryKey: ['chat'] });
+    },
   });
 }
 
