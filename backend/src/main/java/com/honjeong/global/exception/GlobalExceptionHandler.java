@@ -1,10 +1,14 @@
 package com.honjeong.global.exception;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.honjeong.global.common.ApiResponse;
 
@@ -59,6 +63,54 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleMissingParam(MissingServletRequestParameterException ex) {
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.status())
                 .body(ApiResponse.error(ErrorCode.INVALID_INPUT.code(), ex.getParameterName() + " 파라미터가 필요합니다."));
+    }
+
+    /**
+     * 잘못된 요청이 500으로 새어 나가는 것을 막는다 — 클라이언트 잘못을 4xx로 되돌린다.
+     *
+     * <p><b>왜 필요한가.</b> 아래 {@link #handleUnexpected}가 {@code Exception}을 전부 받는 최후 안전망이라,
+     * 스프링이 "요청이 잘못됐다"고 알려주는 예외들까지 그리로 빨려들어가 500으로 나갔다. 그러면 서버는
+     * 멀쩡한데 서버 잘못이라고 응답하게 되고, 배포 후 500 비율로 건강도를 볼 때 URL 오타 같은 것이
+     * 진짜 장애와 섞인다. 스프링은 더 구체적인 핸들러를 우선 적용하므로 이 메서드가 먼저 걸린다.
+     *
+     * <p>다루는 예외:
+     * <ul>
+     *   <li>{@link MethodArgumentTypeMismatchException} — {@code /conversations/abc}처럼 경로 변수 타입 불일치</li>
+     *   <li>{@link HttpMessageNotReadableException} — 본문이 깨진 JSON이거나 아예 없음</li>
+     * </ul>
+     *
+     * @param ex 요청이 잘못됐음을 나타내는 스프링 예외
+     * @return 400 상태 + INVALID_INPUT 코드 엔벨로프
+     */
+    @ExceptionHandler({MethodArgumentTypeMismatchException.class, HttpMessageNotReadableException.class})
+    public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception ex) {
+        // 내부 예외 메시지에는 파라미터 타입·파서 위치 등 구현 세부가 섞여 있어 노출하지 않는다.
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.status())
+                .body(ApiResponse.error(ErrorCode.INVALID_INPUT.code(), ErrorCode.INVALID_INPUT.message()));
+    }
+
+    /**
+     * 경로는 존재하나 해당 HTTP 메서드를 지원하지 않는 경우를 405로 변환한다(예: 조회 전용 경로에 PUT).
+     *
+     * @param ex 지원 메서드 목록을 담은 예외
+     * @return 405 상태 + METHOD_NOT_ALLOWED 코드 엔벨로프
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity.status(ErrorCode.METHOD_NOT_ALLOWED.status())
+                .body(ApiResponse.error(ErrorCode.METHOD_NOT_ALLOWED.code(), ErrorCode.METHOD_NOT_ALLOWED.message()));
+    }
+
+    /**
+     * 매핑된 핸들러도 정적 리소스도 없는 경로를 404로 변환한다(오타 난 URL 등).
+     *
+     * @param ex 요청 경로를 담은 예외
+     * @return 404 상태 + NOT_FOUND 코드 엔벨로프
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException ex) {
+        return ResponseEntity.status(ErrorCode.NOT_FOUND.status())
+                .body(ApiResponse.error(ErrorCode.NOT_FOUND.code(), ErrorCode.NOT_FOUND.message()));
     }
 
     /**

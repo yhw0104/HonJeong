@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -63,11 +64,52 @@ class GlobalExceptionHandlerTest extends ActiveUserSliceSupport {
                 .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
     }
 
+    @Test
+    @DisplayName("PathVariable 타입 불일치는 500이 아니라 400 INVALID_INPUT이다")
+    void typeMismatch_mappedToBadRequest() throws Exception {
+        // given: Long id를 받는 엔드포인트에 숫자가 아닌 값
+        // when/then: 클라이언트 잘못이므로 400이어야 한다(서버 오류 500이 아니다)
+        mockMvc.perform(get("/__test/typed/abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+    }
+
+    @Test
+    @DisplayName("읽을 수 없는 본문(깨진 JSON)은 500이 아니라 400 INVALID_INPUT이다")
+    void unreadableBody_mappedToBadRequest() throws Exception {
+        mockMvc.perform(post("/__test/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+    }
+
+    @Test
+    @DisplayName("지원하지 않는 HTTP 메서드는 500이 아니라 405 METHOD_NOT_ALLOWED다")
+    void wrongMethod_mappedToMethodNotAllowed() throws Exception {
+        // given: /__test/business는 GET만 매핑돼 있다
+        mockMvc.perform(post("/__test/business"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("METHOD_NOT_ALLOWED"));
+    }
+
+    @Test
+    @DisplayName("매핑이 없는 경로는 500이 아니라 404 NOT_FOUND다")
+    void unmappedPath_mappedToNotFound() throws Exception {
+        mockMvc.perform(get("/__test/does-not-exist"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("NOT_FOUND"));
+    }
+
     /** 핸들러 검증을 위해 일부러 예외를 던지는 테스트 전용 컨트롤러. */
     @RestController
     static class TestController {
 
-        /** BusinessException(NOT_FOUND) 발생용 엔드포인트. */
+        /** BusinessException(NOT_FOUND) 발생용 엔드포인트. GET만 매핑해 405 케이스에도 쓴다. */
         @GetMapping("/__test/business")
         void business() {
             throw new BusinessException(ErrorCode.NOT_FOUND, "없어요");
@@ -76,6 +118,11 @@ class GlobalExceptionHandlerTest extends ActiveUserSliceSupport {
         /** @Valid 검증 실패(MethodArgumentNotValidException) 발생용 엔드포인트. */
         @PostMapping("/__test/validate")
         void validate(@RequestBody @Valid Payload payload) {
+        }
+
+        /** PathVariable 타입 불일치(MethodArgumentTypeMismatchException) 발생용 엔드포인트. */
+        @GetMapping("/__test/typed/{id}")
+        void typed(@PathVariable Long id) {
         }
 
         /** name이 비어 있으면 검증 실패를 유발하는 요청 본문. */

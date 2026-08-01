@@ -20,6 +20,8 @@ public enum ErrorCode {
     FORBIDDEN(HttpStatus.FORBIDDEN, "권한이 없습니다."),
     /** 범용 리소스 없음 — 404 */
     NOT_FOUND(HttpStatus.NOT_FOUND, "리소스를 찾을 수 없습니다."),
+    /** 경로는 있으나 그 HTTP 메서드를 지원하지 않음 — 405 */
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다."),
     /** 범용 상태 충돌 — 409 */
     CONFLICT(HttpStatus.CONFLICT, "요청이 충돌했습니다."),
 
