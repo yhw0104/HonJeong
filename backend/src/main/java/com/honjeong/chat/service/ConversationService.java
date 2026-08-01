@@ -198,7 +198,8 @@ public class ConversationService {
                             c.getPlace().getName(),
                             previews.get(c.getId()), // 마지막 메시지 미리보기(메시지 없으면 null)
                             c.getLastMessageAt(), unread,
-                            c.lastReadAtFor(partner.getId())); // 상대가 마지막 읽은 시각(내 메시지 읽음 표시용)
+                            c.lastReadAtFor(partner.getId()), // 상대가 마지막 읽은 시각(내 메시지 읽음 표시용)
+                            c.getCreatedAt()); // 매칭 시각 — 메시지가 없을 때 목록에 표시할 fallback
                 }).toList();
     }
 

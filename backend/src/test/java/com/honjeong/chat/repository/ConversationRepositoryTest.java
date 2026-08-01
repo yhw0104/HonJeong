@@ -176,4 +176,50 @@ class ConversationRepositoryTest extends AbstractPostgresTest {
                         tuple(conv1.getId(), "conv1 마지막 메시지"),
                         tuple(conv2.getId(), "conv2 유일 메시지"));
     }
+
+    @Test
+    @DisplayName("findAllForUser: 메시지가 없는 새 대화는 created_at 기준으로 정렬돼 맨 위에 온다")
+    void 메시지없는_새대화는_매칭시각으로_정렬된다() {
+        // given: 나 + 상대 2명
+        User me = persistUser("01000000001", "나");
+        User partner1 = persistUser("01000000002", "상대1");
+        User partner2 = persistUser("01000000003", "상대2");
+        Place place1 = persistPlace("p1");
+        Place place2 = persistPlace("p2");
+
+        // convNew = 방금 매칭(메시지 0개). 먼저 persist해 id를 더 낮게 만든다
+        // → id DESC 타이브레이커로는 뒤로 밀리므로, COALESCE 정렬이 맞아야만 맨 위에 온다.
+        Conversation convNew = Conversation.open(
+                persistAcceptedMealRequestId(me, partner2, place2), place2, me, partner2);
+        em.persist(convNew);
+
+        // convOld = 예전 매칭, 메시지가 있어 last_message_at = NOW
+        Conversation convOld = Conversation.open(
+                persistAcceptedMealRequestId(me, partner1, place1), place1, me, partner1);
+        convOld.touch(NOW);
+        em.persist(convOld);
+        em.flush();
+
+        // created_at은 @CreatedDate가 자동으로 채우므로 네이티브 UPDATE로 값을 고정한다.
+        em.getEntityManager()
+                .createNativeQuery("UPDATE conversations SET created_at = :ts WHERE id = :id")
+                .setParameter("ts", NOW.plusMinutes(10))
+                .setParameter("id", convNew.getId())
+                .executeUpdate();
+        em.getEntityManager()
+                .createNativeQuery("UPDATE conversations SET created_at = :ts WHERE id = :id")
+                .setParameter("ts", NOW.minusDays(1))
+                .setParameter("id", convOld.getId())
+                .executeUpdate();
+        em.flush();
+        em.clear();
+
+        // when
+        List<Conversation> list = conversationRepository.findAllForUser(me.getId());
+
+        // then: 메시지 없는 새 대화(NOW+10분)가 메시지 있는 옛 대화(NOW)보다 앞선다
+        assertThat(list).hasSize(2);
+        assertThat(list.get(0).getId()).isEqualTo(convNew.getId());
+        assertThat(list.get(1).getId()).isEqualTo(convOld.getId());
+    }
 }
