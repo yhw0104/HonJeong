@@ -5,7 +5,7 @@ import Swipeable, { type SwipeableMethods } from 'react-native-gesture-handler/R
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Screen, Avatar, StateView } from '@/shared/components';
+import { Screen, Avatar, StateView, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackParamList } from '@/navigation/types';
 import { useConversations, useDeleteConversation } from '../queries';
@@ -27,8 +27,9 @@ function DeleteAction({ translation, onPress }: { translation: SharedValue<numbe
 
   return (
     <Animated.View style={[styles.deleteAction, animatedStyle]}>
-      <Pressable style={styles.deleteActionPress} onPress={onPress}>
-        <Text style={styles.deleteActionText}>삭제</Text>
+      {/* 아이콘만 있는 버튼이라 스크린리더용 라벨을 명시한다. */}
+      <Pressable style={styles.deleteActionPress} onPress={onPress} accessibilityRole="button" accessibilityLabel="대화 삭제">
+        <Icon name="trash" size={28} color="#fff" />
       </Pressable>
     </Animated.View>
   );
@@ -203,5 +204,4 @@ const styles = StyleSheet.create({
   // 너비는 DeleteAction의 useAnimatedStyle이 드래그에 맞춰 결정한다(여기서 고정하지 않는다).
   deleteAction: { justifyContent: 'center', alignItems: 'center', backgroundColor: '#d11' },
   deleteActionPress: { flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center' },
-  deleteActionText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });

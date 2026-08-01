@@ -37,7 +37,8 @@ export type IconName =
   | 'star'
   | 'rice'
   | 'friends'
-  | 'chat';
+  | 'chat'
+  | 'trash';
 
 type Props = {
   name: IconName;
@@ -316,6 +317,16 @@ export function Icon({ name, size = 18, color = T2.text }: Props) {
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
           <Path d="M3 5.8a1.8 1.8 0 0 1 1.8-1.8h8.4a1.8 1.8 0 0 1 1.8 1.8v4a1.8 1.8 0 0 1-1.8 1.8h-4.5l-3 2.6v-2.6a1.8 1.8 0 0 1-2.7-1.8z" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
           <Path d="M17 9.2h2.2a1.8 1.8 0 0 1 1.8 1.8v3.4a1.8 1.8 0 0 1-1.8 1.8h-0.3v2.2l-2.6-2.2h-2.5a1.8 1.8 0 0 1-1.8-1.8" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+    case 'trash':
+      // 휴지통 — 대화 목록 스와이프 삭제 액션.
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path d="M4 7h16" stroke={color} strokeWidth={1.7} strokeLinecap="round" />
+          <Path d="M9.5 7V5.2a1.2 1.2 0 0 1 1.2-1.2h2.6a1.2 1.2 0 0 1 1.2 1.2V7" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M10.3 11v6M13.7 11v6" stroke={color} strokeWidth={1.7} strokeLinecap="round" />
         </Svg>
       );
     default:
