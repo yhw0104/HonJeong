@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from 'react-native';
+import { ApiError } from '@/shared/api/client';
 import { LIVE_REFETCH_MS } from '@/shared/realtime';
 import { deleteConversation, fetchConversations, fetchMessages, markConversationRead, sendMessage } from './api';
 
@@ -47,6 +48,14 @@ export function useDeleteConversation() {
   return useMutation({
     mutationFn: (id: number) => deleteConversation(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['chat'] }),
-    onError: () => Alert.alert('앗', '삭제하지 못했어요. 잠시 후 다시 시도해 주세요.'),
+    onError: (e: unknown) => {
+      // 서버 메시지를 우선 보여준다(예: 목록 폴링 사이에 진행 중으로 바뀐 409, 이미 삭제된 404).
+      // 네트워크 실패·그 외 오류는 서버 메시지가 없으므로 기존 안내문으로 대체한다.
+      const message = e instanceof ApiError && e.code !== 'NETWORK_ERROR' ? e.message : '삭제하지 못했어요. 잠시 후 다시 시도해 주세요.';
+      Alert.alert('앗', message);
+      // 409는 목록이 이미 낡았다는 뜻이므로 즉시 다시 동기화한다 — 폴링 주기(LIVE_REFETCH_MS)까지 기다리면
+      // 같은 실패가 반복될 수 있다.
+      qc.invalidateQueries({ queryKey: ['chat'] });
+    },
   });
 }
