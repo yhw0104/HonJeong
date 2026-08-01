@@ -167,4 +167,22 @@ public class Conversation extends BaseTimeEntity {
     public LocalDateTime getLastMessageAt() {
         return lastMessageAt;
     }
+
+    /**
+     * from_user가 이 대화를 자기 목록에서 지운 시각.
+     *
+     * @return 삭제 시각(안 지웠으면 null)
+     */
+    public LocalDateTime getFromDeletedAt() {
+        return fromDeletedAt;
+    }
+
+    /**
+     * to_user가 이 대화를 자기 목록에서 지운 시각.
+     *
+     * @return 삭제 시각(안 지웠으면 null)
+     */
+    public LocalDateTime getToDeletedAt() {
+        return toDeletedAt;
+    }
 }
