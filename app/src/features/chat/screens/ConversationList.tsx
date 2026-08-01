@@ -2,6 +2,7 @@
 import React from 'react';
 import { View, Text, Pressable, FlatList, StyleSheet, Alert } from 'react-native';
 import Swipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen, Avatar, StateView } from '@/shared/components';
@@ -11,14 +12,43 @@ import { useConversations, useDeleteConversation } from '../queries';
 import { messagePreview, formatListTime } from '../chatFormat';
 import type { ConversationSummary } from '../types';
 
+/** 삭제 버튼의 기본(스냅) 너비. 스와이프를 놓으면 이 크기로 돌아온다. */
+const ACTION_WIDTH = 76;
+
+/**
+ * 스와이프 삭제 버튼 — 드래그한 만큼 늘어나고, 손을 떼면 기본 너비로 되돌아온다.
+ * translation은 오른쪽 액션에서 음수(왼쪽으로 끌수록 작아짐)라 부호를 뒤집어 너비로 쓴다.
+ * useAnimatedStyle을 쓰므로 renderRightActions 안에서 인라인으로 못 만들고 별도 컴포넌트여야 한다(훅 규칙).
+ */
+function DeleteAction({ translation, onPress }: { translation: SharedValue<number>; onPress: () => void }) {
+  const animatedStyle = useAnimatedStyle(() => ({
+    width: Math.max(ACTION_WIDTH, -translation.value),
+  }));
+
+  return (
+    <Animated.View style={[styles.deleteAction, animatedStyle]}>
+      <Pressable style={styles.deleteActionPress} onPress={onPress}>
+        <Text style={styles.deleteActionText}>삭제</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export function ConversationListScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { data, isLoading, isError, refetch } = useConversations();
   const now = new Date(); // 목록 시각 표시 기준(폴링마다 갱신)
   const delMut = useDeleteConversation();
+  // 카카오톡처럼 한 번에 한 행만 열려 있게 한다 — 현재 열린 행의 제어 핸들을 담아둔다.
+  const openRowRef = React.useRef<SwipeableMethods | null>(null);
+
+  const closeOpenRow = () => {
+    openRowRef.current?.close();
+    openRowRef.current = null;
+  };
 
   // 실수 삭제 방지 — 기존 MyReviews·Favorites와 같은 확인 팝업 패턴.
-  // 취소·삭제 모두 swipeableMethods.close()로 스와이프 행을 닫는다 — 안 닫으면 빨간 버튼이 열린 채로 남는다.
+  // 취소·삭제 모두 행을 닫는다 — 안 닫으면 빨간 버튼이 열린 채로 남는다.
   const confirmDelete = (item: ConversationSummary, swipeable: SwipeableMethods) => {
     Alert.alert(
       '대화 삭제',
@@ -63,8 +93,20 @@ export function ConversationListScreen() {
   }
 
   const renderItem = ({ item }: { item: ConversationSummary }) => {
+    // 이 행의 제어 핸들. ref 콜백이 채우고, 열림/닫힘 훅이 openRowRef와 비교하는 데 쓴다.
+    let rowMethods: SwipeableMethods | null = null;
+
+    // 열린 행이 있으면 탭은 '닫기'로만 쓴다(카카오톡 동작) — 그 상태에서 채팅방으로 들어가지 않는다.
+    const onRowPress = () => {
+      if (openRowRef.current) {
+        closeOpenRow();
+        return;
+      }
+      nav.navigate('ChatRoom', { conversationId: item.conversationId });
+    };
+
     const row = (
-      <Pressable style={styles.row} onPress={() => nav.navigate('ChatRoom', { conversationId: item.conversationId })}>
+      <Pressable style={styles.row} onPress={onRowPress}>
         <Avatar uri={item.partnerProfileImageUrl} size={52} />
         <View style={styles.body}>
           <View style={styles.line}>
@@ -98,12 +140,27 @@ export function ConversationListScreen() {
 
     return (
       <Swipeable
-        renderRightActions={(_progress, _translation, swipeable) => (
-          <Pressable style={styles.deleteAction} onPress={() => confirmDelete(item, swipeable)}>
-            <Text style={styles.deleteActionText}>삭제</Text>
-          </Pressable>
+        ref={(r) => { rowMethods = r; }}
+        // 새 행이 열리기 직전에 이전 행을 닫아 항상 하나만 열려 있게 한다.
+        onSwipeableWillOpen={() => {
+          if (openRowRef.current && openRowRef.current !== rowMethods) {
+            openRowRef.current.close();
+          }
+          openRowRef.current = rowMethods;
+        }}
+        // 이 행이 닫히면(스와이프 되돌리기·close() 호출 모두) 추적에서 지운다.
+        onSwipeableWillClose={() => {
+          if (openRowRef.current === rowMethods) openRowRef.current = null;
+        }}
+        renderRightActions={(_progress, translation, swipeable) => (
+          <DeleteAction translation={translation} onPress={() => confirmDelete(item, swipeable)} />
         )}
-        overshootRight={false}
+        // overshoot를 막으면 스와이프가 버튼 너비에서 잘려 늘어나는 느낌이 안 난다 → 기본값(허용) 사용.
+        // friction 1.4로 끌리는 감을 약간 무겁게 해 튕김을 줄인다.
+        friction={1.4}
+        // 라이브러리 기본 스프링(mass 2·damping 1000·stiffness 700)은 감쇠비가 13을 넘는 과감쇠라
+        // 끝에서 질질 끌린다. 감쇠비 ~0.78로 낮춰 탄력을 주되 overshootClamping으로 넘어가진 않게 한다.
+        animationOptions={{ mass: 1, damping: 28, stiffness: 320, overshootClamping: true }}
       >
         {row}
       </Swipeable>
@@ -117,6 +174,8 @@ export function ConversationListScreen() {
         data={list}
         keyExtractor={(c) => String(c.conversationId)}
         renderItem={renderItem}
+        // 목록을 스크롤하면 열려 있던 행을 닫는다(카카오톡 동작).
+        onScrollBeginDrag={closeOpenRow}
         ItemSeparatorComponent={() => <View style={styles.divider} />}
       />
     </Screen>
@@ -141,6 +200,8 @@ const styles = StyleSheet.create({
   badge: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: T2.brand, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   // 삭제 빨강은 MyReviews의 actionDelete와 같은 값(#d11)을 쓴다 — 앱 전역 관례.
-  deleteAction: { width: 76, justifyContent: 'center', alignItems: 'center', backgroundColor: '#d11' },
+  // 너비는 DeleteAction의 useAnimatedStyle이 드래그에 맞춰 결정한다(여기서 고정하지 않는다).
+  deleteAction: { justifyContent: 'center', alignItems: 'center', backgroundColor: '#d11' },
+  deleteActionPress: { flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center' },
   deleteActionText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });
