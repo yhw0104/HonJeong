@@ -62,9 +62,8 @@ export function ConversationListScreen() {
         </Text>
       </View>
       <View style={styles.meta}>
-        {!!item.lastMessageAt && (
-          <Text style={styles.time}>{formatListTime(item.lastMessageAt, now)}</Text>
-        )}
+        {/* 메시지가 아직 없으면 매칭 시각을 대신 보여준다 — 정렬 기준(마지막 활동 시각)과 같은 값. */}
+        <Text style={styles.time}>{formatListTime(item.lastMessageAt ?? item.createdAt, now)}</Text>
         {item.unreadCount > 0 && (
           <View style={styles.badge}><Text style={styles.badgeText}>{item.unreadCount}</Text></View>
         )}
