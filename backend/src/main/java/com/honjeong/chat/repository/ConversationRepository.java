@@ -28,16 +28,18 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
      * 사용자가 참여한(from 또는 to) 대화 목록을 마지막 활동순으로 조회.
      * <p>정렬 기준은 "마지막 활동 시각" — 메시지가 있으면 lastMessageAt, 아직 없으면(방금 매칭) createdAt을 쓴다.
      * 목록 오른쪽에 표시되는 시각과 정렬 순서가 항상 일치한다.
+     * <p>내가 지운 대화(내 쪽 deletedAt이 채워짐)는 제외한다 — 상대 목록에는 그대로 남는다.
      *
      * @param userId 조회할 사용자 id
-     * @return 참여 대화 목록(마지막 활동순)
+     * @return 참여 대화 목록(마지막 활동순, 내가 지운 것 제외)
      */
     @Query("""
             SELECT c FROM Conversation c
             JOIN FETCH c.place
             JOIN FETCH c.fromUser
             JOIN FETCH c.toUser
-            WHERE c.fromUser.id = :userId OR c.toUser.id = :userId
+            WHERE (c.fromUser.id = :userId AND c.fromDeletedAt IS NULL)
+               OR (c.toUser.id   = :userId AND c.toDeletedAt   IS NULL)
             ORDER BY COALESCE(c.lastMessageAt, c.createdAt) DESC, c.id DESC
             """)
     List<Conversation> findAllForUser(@Param("userId") Long userId);

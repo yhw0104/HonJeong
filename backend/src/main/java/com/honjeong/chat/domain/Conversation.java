@@ -55,6 +55,14 @@ public class Conversation extends BaseTimeEntity {
     @Column(name = "to_last_read_at")
     private LocalDateTime toLastReadAt;
 
+    /** from_user가 내 목록에서 이 대화를 지운 시각. NULL이면 안 지움. 메시지는 지우지 않는다. */
+    @Column(name = "from_deleted_at")
+    private LocalDateTime fromDeletedAt;
+
+    /** to_user가 내 목록에서 이 대화를 지운 시각. NULL이면 안 지움. 메시지는 지우지 않는다. */
+    @Column(name = "to_deleted_at")
+    private LocalDateTime toDeletedAt;
+
     protected Conversation() {
     }
 
@@ -96,6 +104,36 @@ public class Conversation extends BaseTimeEntity {
 
     public LocalDateTime lastReadAtFor(Long userId) {
         return fromUser.getId().equals(userId) ? fromLastReadAt : toLastReadAt;
+    }
+
+    /**
+     * 이 대화를 요청자의 목록에서만 숨긴다(소프트 삭제). 상대 목록과 메시지는 그대로 남는다.
+     *
+     * <p>이미 지운 경우 최초 삭제 시각을 덮어쓰지 않는다(멱등).
+     *
+     * @param userId 지우는 참여자 id
+     * @param now    삭제 시각
+     */
+    public void deleteBy(Long userId, LocalDateTime now) {
+        if (fromUser.getId().equals(userId)) {
+            if (fromDeletedAt == null) {
+                this.fromDeletedAt = now;
+            }
+        } else if (toUser.getId().equals(userId)) {
+            if (toDeletedAt == null) {
+                this.toDeletedAt = now;
+            }
+        }
+    }
+
+    /**
+     * 요청자가 이 대화를 자기 목록에서 지웠는지 여부.
+     *
+     * @param userId 참여자 id
+     * @return 지웠으면 true
+     */
+    public boolean isDeletedBy(Long userId) {
+        return fromUser.getId().equals(userId) ? fromDeletedAt != null : toDeletedAt != null;
     }
 
     public Long partnerOf(Long userId) {

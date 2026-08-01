@@ -222,4 +222,31 @@ class ConversationRepositoryTest extends AbstractPostgresTest {
         assertThat(list.get(0).getId()).isEqualTo(convNew.getId());
         assertThat(list.get(1).getId()).isEqualTo(convOld.getId());
     }
+
+    @Test
+    @DisplayName("findAllForUser: 내가 지운 대화는 내 목록에서만 빠지고 상대 목록에는 남는다")
+    void 삭제한_대화는_내_목록에서만_빠진다() {
+        // given: 나와 상대의 대화 1개
+        User me = persistUser("01000000001", "나");
+        User partner = persistUser("01000000002", "상대");
+        Place place = persistPlace("p1");
+
+        Conversation conv = Conversation.open(
+                persistAcceptedMealRequestId(me, partner, place), place, me, partner);
+        conv.touch(NOW);
+        em.persist(conv);
+        em.flush();
+
+        // when: 내가 내 목록에서 지운다
+        conv.deleteBy(me.getId(), NOW.plusMinutes(1));
+        em.flush();
+        em.clear();
+
+        // then: 내 목록에서는 빠지고
+        assertThat(conversationRepository.findAllForUser(me.getId())).isEmpty();
+        // 상대 목록에는 그대로 남는다
+        assertThat(conversationRepository.findAllForUser(partner.getId()))
+                .extracting(Conversation::getId)
+                .containsExactly(conv.getId());
+    }
 }
