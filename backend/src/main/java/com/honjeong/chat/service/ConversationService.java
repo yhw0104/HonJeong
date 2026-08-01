@@ -192,13 +192,17 @@ public class ConversationService {
     }
 
     /**
-     * 내가 참여한 대화 목록(최근 메시지순) — 상대 정보·안읽음 수·마지막 메시지 미리보기 포함, 차단 상대는 제외.
+     * 내가 참여한 대화 목록(마지막 활동순) — 상대 정보·안읽음 수·마지막 메시지 미리보기 포함,
+     * 차단 상대·내가 지운 대화는 제외.
+     * <p>정렬 기준은 {@link ConversationRepository#findAllForUser}와 동일한 "마지막 활동 시각"
+     * (메시지가 있으면 lastMessageAt, 없으면 createdAt). 내가 목록에서 지운(소프트 삭제) 대화는
+     * 애초에 조회되지 않는다({@link Conversation#deleteBy}) — 상대 목록에는 그대로 남는다.
      * <p>차단(어느 방향이든) 관계인 상대와의 대화는 목록에서 숨긴다(spec §7) — 혼밥러 목록의 상호 은닉(FR-108)과
      * 같은 패턴({@link BlockRepository#findExclusionIds}, 빈 결과는 -1L 센티널). 대화는 CLOSED로 남아 이력은
      * 보존되지만(차단 정리가 이미 대화를 닫아둔다), 목록·닉네임·프로필 사진 노출만 막는다.
      *
      * @param userId 조회할 사용자 id
-     * @return 대화 목록 요약(차단 상대 제외)
+     * @return 대화 목록 요약(차단 상대·내가 지운 대화 제외)
      */
     @Transactional(readOnly = true)
     public List<ConversationSummaryResponse> listMine(Long userId) {

@@ -1,7 +1,7 @@
 // ConversationList — '대화' 탭. 매칭 성사 후 열리는 대화방 목록.
 import React from 'react';
 import { View, Text, Pressable, FlatList, StyleSheet, Alert } from 'react-native';
-import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Swipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen, Avatar, StateView } from '@/shared/components';
@@ -18,13 +18,19 @@ export function ConversationListScreen() {
   const delMut = useDeleteConversation();
 
   // 실수 삭제 방지 — 기존 MyReviews·Favorites와 같은 확인 팝업 패턴.
-  const confirmDelete = (item: ConversationSummary) => {
+  // 취소·삭제 모두 swipeableMethods.close()로 스와이프 행을 닫는다 — 안 닫으면 빨간 버튼이 열린 채로 남는다.
+  const confirmDelete = (item: ConversationSummary, swipeable: SwipeableMethods) => {
     Alert.alert(
       '대화 삭제',
       `${item.partnerNickname}님과의 대화를 삭제할까요?\n내 목록에서만 사라지고 상대에게는 그대로 남아요.`,
       [
-        { text: '취소', style: 'cancel' },
-        { text: '삭제', style: 'destructive', onPress: () => delMut.mutate(item.conversationId) },
+        { text: '취소', style: 'cancel', onPress: () => swipeable.close() },
+        {
+          text: '삭제', style: 'destructive', onPress: () => {
+            delMut.mutate(item.conversationId);
+            swipeable.close();
+          },
+        },
       ],
     );
   };
@@ -92,8 +98,8 @@ export function ConversationListScreen() {
 
     return (
       <Swipeable
-        renderRightActions={() => (
-          <Pressable style={styles.deleteAction} onPress={() => confirmDelete(item)}>
+        renderRightActions={(_progress, _translation, swipeable) => (
+          <Pressable style={styles.deleteAction} onPress={() => confirmDelete(item, swipeable)}>
             <Text style={styles.deleteActionText}>삭제</Text>
           </Pressable>
         )}

@@ -130,10 +130,15 @@ public class Conversation extends BaseTimeEntity {
      * 요청자가 이 대화를 자기 목록에서 지웠는지 여부.
      *
      * @param userId 참여자 id
-     * @return 지웠으면 true
+     * @return 지웠으면 true, 참여자가 아니면 false
      */
     public boolean isDeletedBy(Long userId) {
-        return fromUser.getId().equals(userId) ? fromDeletedAt != null : toDeletedAt != null;
+        if (fromUser.getId().equals(userId)) {
+            return fromDeletedAt != null;
+        } else if (toUser.getId().equals(userId)) {
+            return toDeletedAt != null;
+        }
+        return false;
     }
 
     public Long partnerOf(Long userId) {

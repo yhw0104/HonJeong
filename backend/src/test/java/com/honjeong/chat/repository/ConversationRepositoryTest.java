@@ -206,9 +206,12 @@ class ConversationRepositoryTest extends AbstractPostgresTest {
                 .setParameter("ts", NOW.plusMinutes(10))
                 .setParameter("id", convNew.getId())
                 .executeUpdate();
+        // convOld의 created_at을 convNew보다 더 뒤(NOW+20분)로 고정한다 — id DESC나 created_at DESC만으로도
+        // convNew가 앞설 수 있는 값을 피해, "COALESCE(lastMessageAt, createdAt)"이 실제로 동작해야만
+        // (last_message_at=NOW인 convOld가 아니라) convNew가 앞선다는 것을 증명한다.
         em.getEntityManager()
                 .createNativeQuery("UPDATE conversations SET created_at = :ts WHERE id = :id")
-                .setParameter("ts", NOW.minusDays(1))
+                .setParameter("ts", NOW.plusMinutes(20))
                 .setParameter("id", convOld.getId())
                 .executeUpdate();
         em.flush();
