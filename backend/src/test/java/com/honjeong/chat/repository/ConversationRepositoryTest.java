@@ -245,8 +245,17 @@ class ConversationRepositoryTest extends AbstractPostgresTest {
         // then: 내 목록에서는 빠지고
         assertThat(conversationRepository.findAllForUser(me.getId())).isEmpty();
         // 상대 목록에는 그대로 남는다
-        assertThat(conversationRepository.findAllForUser(partner.getId()))
+        List<Conversation> partnerList = conversationRepository.findAllForUser(partner.getId());
+        assertThat(partnerList)
                 .extracting(Conversation::getId)
                 .containsExactly(conv.getId());
+
+        // when: 상대(toUser)도 자기 목록에서 지운다 — deleteBy의 toUser 분기(toDeletedAt)를 검증
+        partnerList.get(0).deleteBy(partner.getId(), NOW.plusMinutes(2));
+        em.flush();
+        em.clear();
+
+        // then: 양쪽 다 지웠으니 상대 목록에서도 빠진다 — from/to 삭제가 서로 독립적으로 동작한다
+        assertThat(conversationRepository.findAllForUser(partner.getId())).isEmpty();
     }
 }
