@@ -1,6 +1,7 @@
 package com.honjeong.chat.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -25,6 +26,8 @@ import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.chat.domain.Conversation;
 import com.honjeong.chat.repository.ChatMessageRepository;
 import com.honjeong.chat.repository.ConversationRepository;
+import com.honjeong.global.exception.BusinessException;
+import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.repository.PlaceRepository;
 import com.honjeong.user.domain.User;
@@ -125,5 +128,56 @@ class ConversationServiceTest {
 
         assertThat(service.findIdByMealRequestId(1L)).isEqualTo(999L);
         assertThat(service.findIdByMealRequestId(2L)).isNull();
+    }
+
+    @Test
+    void deleteForMe는_CLOSED면_내쪽만_지운다() {
+        User me = userRef(10L);
+        User partner = userRef(20L);
+        Conversation conv = Conversation.open(1L, mock(Place.class), me, partner);
+        conv.close();
+        when(conversationRepository.findById(100L)).thenReturn(Optional.of(conv));
+
+        service.deleteForMe(10L, 100L);
+
+        assertThat(conv.isDeletedBy(10L)).isTrue();
+        assertThat(conv.isDeletedBy(20L)).isFalse(); // 상대 목록에는 남는다
+    }
+
+    @Test
+    void deleteForMe는_ACTIVE면_CONVERSATION_NOT_CLOSED로_거절한다() {
+        Conversation conv = Conversation.open(1L, mock(Place.class), userRef(10L), userRef(20L));
+        when(conversationRepository.findById(100L)).thenReturn(Optional.of(conv));
+
+        assertThatThrownBy(() -> service.deleteForMe(10L, 100L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONVERSATION_NOT_CLOSED);
+    }
+
+    @Test
+    void deleteForMe는_참여자가_아니면_CONVERSATION_NOT_FOUND다() {
+        Conversation conv = Conversation.open(1L, mock(Place.class), userRef(10L), userRef(20L));
+        conv.close();
+        when(conversationRepository.findById(100L)).thenReturn(Optional.of(conv));
+
+        // 내가 속하지 않은 대화의 존재 여부를 노출하지 않으려고 403이 아니라 404를 쓴다.
+        assertThatThrownBy(() -> service.deleteForMe(99L, 100L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONVERSATION_NOT_FOUND);
+    }
+
+    @Test
+    void deleteForMe는_이미_지웠어도_성공하고_시각을_덮어쓰지_않는다() {
+        User me = userRef(10L);
+        Conversation conv = Conversation.open(1L, mock(Place.class), me, userRef(20L));
+        conv.close();
+        when(conversationRepository.findById(100L)).thenReturn(Optional.of(conv));
+
+        service.deleteForMe(10L, 100L);
+        service.deleteForMe(10L, 100L); // 두 번째 호출도 예외 없이 통과(멱등)
+
+        assertThat(conv.isDeletedBy(10L)).isTrue();
     }
 }

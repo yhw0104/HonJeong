@@ -6,6 +6,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -174,5 +175,35 @@ class ChatControllerTest extends ActiveUserSliceSupport {
         mockMvc.perform(post("/api/conversations/99/read").header("Authorization", userToken()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("CONVERSATION_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/conversations/{id}: 200 + 서비스 위임")
+    void delete_200() throws Exception {
+        doNothing().when(conversationService).deleteForMe(1L, 10L);
+
+        mockMvc.perform(delete("/api/conversations/10").header("Authorization", userToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(conversationService).deleteForMe(1L, 10L);
+    }
+
+    @Test
+    @DisplayName("DELETE /api/conversations/{id}: 진행 중 대화면 409")
+    void delete_409() throws Exception {
+        doThrow(new BusinessException(ErrorCode.CONVERSATION_NOT_CLOSED))
+                .when(conversationService).deleteForMe(1L, 10L);
+
+        mockMvc.perform(delete("/api/conversations/10").header("Authorization", userToken()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("CONVERSATION_NOT_CLOSED"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/conversations/{id}: 토큰 없으면 401")
+    void delete_401() throws Exception {
+        mockMvc.perform(delete("/api/conversations/10"))
+                .andExpect(status().isUnauthorized());
     }
 }

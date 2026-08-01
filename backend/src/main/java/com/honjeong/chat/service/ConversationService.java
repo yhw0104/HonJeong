@@ -168,6 +168,30 @@ public class ConversationService {
     }
 
     /**
+     * 대화방을 내 목록에서만 삭제한다(소프트 삭제) — 상대 목록과 메시지는 그대로 남는다.
+     *
+     * <p>{@code chat_messages}는 지우지 않는다. 신고가 접수됐을 때 조사할 근거가 남아야 하기 때문이다.
+     *
+     * <p>종료(CLOSED)된 대화만 삭제할 수 있다. 진행 중인 대화는 '매칭 깨기'로 먼저 종료해야 한다 —
+     * CLOSED는 이미 읽기전용이라 삭제 후 상대가 메시지를 보내는 상황이 발생하지 않는다.
+     *
+     * <p>이미 삭제한 대화를 다시 삭제해도 성공한다(멱등).
+     *
+     * @param userId         요청 회원 id(참여자여야 함)
+     * @param conversationId 대화방 id
+     * @throws BusinessException 대화가 없거나 참여자가 아닐 때(CONVERSATION_NOT_FOUND),
+     *                           진행 중일 때(CONVERSATION_NOT_CLOSED)
+     */
+    @Transactional
+    public void deleteForMe(Long userId, Long conversationId) {
+        Conversation conv = loadParticipating(conversationId, userId);
+        if (conv.isActive()) {
+            throw new BusinessException(ErrorCode.CONVERSATION_NOT_CLOSED);
+        }
+        conv.deleteBy(userId, now());
+    }
+
+    /**
      * 내가 참여한 대화 목록(최근 메시지순) — 상대 정보·안읽음 수·마지막 메시지 미리보기 포함, 차단 상대는 제외.
      * <p>차단(어느 방향이든) 관계인 상대와의 대화는 목록에서 숨긴다(spec §7) — 혼밥러 목록의 상호 은닉(FR-108)과
      * 같은 패턴({@link BlockRepository#findExclusionIds}, 빈 결과는 -1L 센티널). 대화는 CLOSED로 남아 이력은

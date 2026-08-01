@@ -128,6 +128,8 @@ public enum ErrorCode {
     CONVERSATION_NOT_FOUND(HttpStatus.NOT_FOUND, "대화를 찾을 수 없습니다."),
     /** 종료(CLOSED)된 대화방에 메시지 전송 등 시도 — 409 */
     CONVERSATION_CLOSED(HttpStatus.CONFLICT, "종료된 대화입니다."),
+    /** 진행 중(ACTIVE)인 대화방을 삭제 시도 — 409 */
+    CONVERSATION_NOT_CLOSED(HttpStatus.CONFLICT, "진행 중인 대화는 삭제할 수 없습니다."),
 
     // 예기치 못한 서버 내부 오류(처리되지 않은 예외 → 500)
     /** 처리되지 않은 모든 예외의 최종 안전망 — 500 */
