@@ -2,6 +2,7 @@ package com.honjeong.chat.controller;
 
 import java.util.List;
 
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,9 +20,9 @@ import com.honjeong.global.security.CurrentUserId;
 import jakarta.validation.Valid;
 
 /**
- * 매칭 대화(match chat) HTTP 엔드포인트 — 목록/메시지 조회/전송/읽음 처리.
+ * 매칭 대화(match chat) HTTP 엔드포인트 — 목록/메시지 조회/전송/읽음 처리/삭제.
  *
- * <p>사용처: 프론트 채팅 화면(대화 목록·메시지 스레드·전송·읽음 동기화).
+ * <p>사용처: 프론트 채팅 화면(대화 목록·메시지 스레드·전송·읽음 동기화·스와이프 삭제).
  */
 @RestController
 @RequestMapping("/api/conversations")
@@ -52,6 +53,21 @@ public class ChatController {
     @PostMapping("/{id}/read")
     public ApiResponse<Void> read(@CurrentUserId Long userId, @PathVariable Long id) {
         conversationService.markRead(userId, id);
+        return ApiResponse.success(null);
+    }
+
+    /**
+     * 대화방을 내 목록에서만 삭제한다(소프트 삭제).
+     *
+     * <p>사용 화면: 대화 목록(ConversationList)의 스와이프 삭제. 종료된 대화만 삭제할 수 있다.
+     *
+     * @param userId 인증 사용자 ID
+     * @param id     대화방 id
+     * @return 빈 성공 응답
+     */
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(@CurrentUserId Long userId, @PathVariable Long id) {
+        conversationService.deleteForMe(userId, id);
         return ApiResponse.success(null);
     }
 }

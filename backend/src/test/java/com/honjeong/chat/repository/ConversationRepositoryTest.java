@@ -176,4 +176,89 @@ class ConversationRepositoryTest extends AbstractPostgresTest {
                         tuple(conv1.getId(), "conv1 마지막 메시지"),
                         tuple(conv2.getId(), "conv2 유일 메시지"));
     }
+
+    @Test
+    @DisplayName("findAllForUser: 메시지가 없는 새 대화는 created_at 기준으로 정렬돼 맨 위에 온다")
+    void 메시지없는_새대화는_매칭시각으로_정렬된다() {
+        // given: 나 + 상대 2명
+        User me = persistUser("01000000001", "나");
+        User partner1 = persistUser("01000000002", "상대1");
+        User partner2 = persistUser("01000000003", "상대2");
+        Place place1 = persistPlace("p1");
+        Place place2 = persistPlace("p2");
+
+        // convNew = 방금 매칭(메시지 0개). 먼저 persist해 id를 더 낮게 만든다
+        // → id DESC 타이브레이커로는 뒤로 밀리므로, COALESCE 정렬이 맞아야만 맨 위에 온다.
+        Conversation convNew = Conversation.open(
+                persistAcceptedMealRequestId(me, partner2, place2), place2, me, partner2);
+        em.persist(convNew);
+
+        // convOld = 예전 매칭, 메시지가 있어 last_message_at = NOW
+        Conversation convOld = Conversation.open(
+                persistAcceptedMealRequestId(me, partner1, place1), place1, me, partner1);
+        convOld.touch(NOW);
+        em.persist(convOld);
+        em.flush();
+
+        // created_at은 @CreatedDate가 자동으로 채우므로 네이티브 UPDATE로 값을 고정한다.
+        em.getEntityManager()
+                .createNativeQuery("UPDATE conversations SET created_at = :ts WHERE id = :id")
+                .setParameter("ts", NOW.plusMinutes(10))
+                .setParameter("id", convNew.getId())
+                .executeUpdate();
+        // convOld의 created_at을 convNew보다 더 뒤(NOW+20분)로 고정한다 — id DESC나 created_at DESC만으로도
+        // convNew가 앞설 수 있는 값을 피해, "COALESCE(lastMessageAt, createdAt)"이 실제로 동작해야만
+        // (last_message_at=NOW인 convOld가 아니라) convNew가 앞선다는 것을 증명한다.
+        em.getEntityManager()
+                .createNativeQuery("UPDATE conversations SET created_at = :ts WHERE id = :id")
+                .setParameter("ts", NOW.plusMinutes(20))
+                .setParameter("id", convOld.getId())
+                .executeUpdate();
+        em.flush();
+        em.clear();
+
+        // when
+        List<Conversation> list = conversationRepository.findAllForUser(me.getId());
+
+        // then: 메시지 없는 새 대화(NOW+10분)가 메시지 있는 옛 대화(NOW)보다 앞선다
+        assertThat(list).hasSize(2);
+        assertThat(list.get(0).getId()).isEqualTo(convNew.getId());
+        assertThat(list.get(1).getId()).isEqualTo(convOld.getId());
+    }
+
+    @Test
+    @DisplayName("findAllForUser: 내가 지운 대화는 내 목록에서만 빠지고 상대 목록에는 남는다")
+    void 삭제한_대화는_내_목록에서만_빠진다() {
+        // given: 나와 상대의 대화 1개
+        User me = persistUser("01000000001", "나");
+        User partner = persistUser("01000000002", "상대");
+        Place place = persistPlace("p1");
+
+        Conversation conv = Conversation.open(
+                persistAcceptedMealRequestId(me, partner, place), place, me, partner);
+        conv.touch(NOW);
+        em.persist(conv);
+        em.flush();
+
+        // when: 내가 내 목록에서 지운다
+        conv.deleteBy(me.getId(), NOW.plusMinutes(1));
+        em.flush();
+        em.clear();
+
+        // then: 내 목록에서는 빠지고
+        assertThat(conversationRepository.findAllForUser(me.getId())).isEmpty();
+        // 상대 목록에는 그대로 남는다
+        List<Conversation> partnerList = conversationRepository.findAllForUser(partner.getId());
+        assertThat(partnerList)
+                .extracting(Conversation::getId)
+                .containsExactly(conv.getId());
+
+        // when: 상대(toUser)도 자기 목록에서 지운다 — deleteBy의 toUser 분기(toDeletedAt)를 검증
+        partnerList.get(0).deleteBy(partner.getId(), NOW.plusMinutes(2));
+        em.flush();
+        em.clear();
+
+        // then: 양쪽 다 지웠으니 상대 목록에서도 빠진다 — from/to 삭제가 서로 독립적으로 동작한다
+        assertThat(conversationRepository.findAllForUser(partner.getId())).isEmpty();
+    }
 }

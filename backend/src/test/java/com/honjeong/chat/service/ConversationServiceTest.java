@@ -1,6 +1,7 @@
 package com.honjeong.chat.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -11,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Optional;
 
@@ -25,6 +27,8 @@ import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.chat.domain.Conversation;
 import com.honjeong.chat.repository.ChatMessageRepository;
 import com.honjeong.chat.repository.ConversationRepository;
+import com.honjeong.global.exception.BusinessException;
+import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.repository.PlaceRepository;
 import com.honjeong.user.domain.User;
@@ -125,5 +129,82 @@ class ConversationServiceTest {
 
         assertThat(service.findIdByMealRequestId(1L)).isEqualTo(999L);
         assertThat(service.findIdByMealRequestId(2L)).isNull();
+    }
+
+    @Test
+    void deleteForMe는_CLOSED면_내쪽만_지운다() {
+        User me = userRef(10L);
+        User partner = userRef(20L);
+        Conversation conv = Conversation.open(1L, mock(Place.class), me, partner);
+        conv.close();
+        when(conversationRepository.findById(100L)).thenReturn(Optional.of(conv));
+
+        service.deleteForMe(10L, 100L);
+
+        assertThat(conv.isDeletedBy(10L)).isTrue();
+        assertThat(conv.isDeletedBy(20L)).isFalse(); // 상대 목록에는 남는다
+    }
+
+    @Test
+    void deleteForMe는_ACTIVE면_CONVERSATION_NOT_CLOSED로_거절한다() {
+        Conversation conv = Conversation.open(1L, mock(Place.class), userRef(10L), userRef(20L));
+        when(conversationRepository.findById(100L)).thenReturn(Optional.of(conv));
+
+        assertThatThrownBy(() -> service.deleteForMe(10L, 100L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONVERSATION_NOT_CLOSED);
+    }
+
+    @Test
+    void deleteForMe는_참여자가_아니면_CONVERSATION_NOT_FOUND다() {
+        Conversation conv = Conversation.open(1L, mock(Place.class), userRef(10L), userRef(20L));
+        conv.close();
+        when(conversationRepository.findById(100L)).thenReturn(Optional.of(conv));
+
+        // 내가 속하지 않은 대화의 존재 여부를 노출하지 않으려고 403이 아니라 404를 쓴다.
+        assertThatThrownBy(() -> service.deleteForMe(99L, 100L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONVERSATION_NOT_FOUND);
+    }
+
+    @Test
+    void deleteForMe는_참여자가_아니어도_ACTIVE면_CONVERSATION_NOT_FOUND다() {
+        Conversation conv = Conversation.open(1L, mock(Place.class), userRef(10L), userRef(20L));
+        when(conversationRepository.findById(100L)).thenReturn(Optional.of(conv));
+
+        // 참여자 판별(loadParticipating)이 상태 판별(isActive)보다 먼저 실행돼야 한다 — 순서가 바뀌면
+        // 비참여자가 ACTIVE 대화에 대해 CONVERSATION_NOT_CLOSED(409)를 받아, 대화의 존재와 상태를
+        // 그대로 노출하게 된다. CLOSED+비참여자 케이스만으로는 이 순서를 구분할 수 없어 별도로 검증한다.
+        assertThatThrownBy(() -> service.deleteForMe(99L, 100L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONVERSATION_NOT_FOUND);
+    }
+
+    @Test
+    void deleteForMe는_이미_지웠어도_성공하고_시각을_덮어쓰지_않는다() {
+        User me = userRef(10L);
+        Conversation conv = Conversation.open(1L, mock(Place.class), me, userRef(20L));
+        conv.close();
+        when(conversationRepository.findById(100L)).thenReturn(Optional.of(conv));
+
+        // 두 번째 호출이 실제로 다른 시각을 시도하도록 서로 다른 Clock으로 만든 두 서비스 인스턴스를 쓴다.
+        // 같은 고정 Clock 하나로 두 번 호출하면 애초에 값이 같아 "덮어쓰지 않았다"는 걸 증명하지 못한다.
+        Clock firstCallClock = Clock.fixed(Instant.parse("2026-07-25T03:00:00Z"), ZoneId.of("UTC"));
+        Clock secondCallClock = Clock.fixed(Instant.parse("2026-07-25T03:10:00Z"), ZoneId.of("UTC"));
+        ConversationService firstCallService = new ConversationService(conversationRepository, placeRepository,
+                userRepository, chatMessageRepository, blockRepository, firstCallClock);
+        ConversationService secondCallService = new ConversationService(conversationRepository, placeRepository,
+                userRepository, chatMessageRepository, blockRepository, secondCallClock);
+
+        firstCallService.deleteForMe(10L, 100L);
+        LocalDateTime firstDeletedAt = conv.getFromDeletedAt();
+
+        secondCallService.deleteForMe(10L, 100L); // 10분 뒤(다른 시각)의 두 번째 호출도 예외 없이 통과(멱등)
+
+        assertThat(conv.isDeletedBy(10L)).isTrue();
+        assertThat(conv.getFromDeletedAt()).isEqualTo(firstDeletedAt); // 두 번째 호출의 다른 시각으로 덮어쓰이지 않았다
     }
 }
