@@ -3,6 +3,7 @@ package com.honjeong.global.config;
 import java.time.Clock;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,6 +38,12 @@ import com.honjeong.global.security.SecurityErrorWriter;
  *
  * <p>인가: 인증/헬스는 공개, 온보딩 엔드포인트는 ONBOARDING|USER, 그 외 전부 USER.
  * (⚠️ {@code anyRequest().authenticated()}를 쓰면 온보딩 토큰이 일반 API를 통과하므로 USER로 게이팅.)
+ *
+ * <p><b>휴대폰 인증({@code /api/auth/phone/**})은 예외다</b> — {@code honjeong.sms.mode}가
+ * {@code real}이 아닌 동안(현재 real 구현체 없음, 항상 mock)은 permitAll 대신 전면 차단한다.
+ * mock SMS는 인증번호가 고정값 "000000"이라, 두 번의 무인증 호출(send-code → verify)만으로
+ * 임의 전화번호로 ROLE_USER 계정을 만들 수 있기 때문이다. real SMS 게이트웨이가 붙어
+ * {@code honjeong.sms.mode=real}이 되면 코드 변경 없이 자동으로 다시 열린다.
  */
 @Configuration
 @EnableWebSecurity
@@ -83,37 +90,59 @@ public class SecurityConfig {
      * @param http Security DSL 빌더
      * @param jwtDecoder 들어온 JWT를 검증할 디코더
      * @param activeUserFilter 인증된 요청마다 users.status가 ACTIVE인지 확인하는 필터
+     * @param smsMode {@code honjeong.sms.mode} 값. {@code real}이 아니면(=SMS가 mock) 휴대폰 인증
+     *        엔드포인트를 차단한다 — mock SMS는 인증번호가 항상 "000000"이라, 두 번의 무인증 호출
+     *        (send-code → verify)만으로 임의 전화번호로 ROLE_USER 계정을 만들 수 있기 때문이다.
      * @return 빌드된 SecurityFilterChain
      * @throws Exception DSL 구성 중 발생할 수 있는 예외
      */
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder jwtDecoder, ActiveUserFilter activeUserFilter)
-            throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder jwtDecoder, ActiveUserFilter activeUserFilter,
+            @Value("${honjeong.sms.mode:mock}") String smsMode) throws Exception {
+        // SMS가 real이 아닌 동안(현재 real 구현체가 없어 항상 mock)은 휴대폰 인증 경로를 전면 차단한다.
+        // 이유: FixedVerificationCodeGenerator가 인증번호로 항상 "000000"을 돌려주므로, 공개 서버에
+        // 이 경로를 열어두면 send-code → verify 두 번의 무인증 호출만으로 임의 전화번호를 ROLE_USER
+        // 계정으로 만들 수 있다(무제한 무인증 계정 생성). 이 값은 이 프로젝트의 결정이지 재검토 대상이
+        // 아니다 — SecurityConfig는 프로파일 공통이라 무조건 차단하면 로컬 개발에서 휴대폰 온보딩
+        // 플로우를 테스트할 수 없게 되므로, 실제 능력(sms.mode)을 따라간다. real SMS 게이트웨이가
+        // 붙어 honjeong.sms.mode=real이 되는 순간 이 조건이 거짓이 되어 아래 permitAll로 코드 변경
+        // 없이 자동 복귀한다.
+        boolean smsIsMock = !"real".equals(smsMode);
         http
                 // 토큰 기반 무상태 API라 CSRF 보호가 불필요하므로 끈다.
                 .csrf(AbstractHttpConfigurer::disable)
                 // 서버 세션을 생성/사용하지 않고 매 요청을 JWT로만 인증한다.
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        // 헬스 체크와 로그인 전(前) 인증 흐름(소셜/휴대폰 인증, 토큰 재발급)은 토큰 없이 공개.
-                        .requestMatchers("/api/health",
-                                "/api/auth/oauth/**", "/api/auth/phone/**", "/api/auth/refresh").permitAll()
-                        // 혼밥 통계(사회적 증거)는 비로그인 첫 화면에 노출되므로 토큰 없이 공개(FR-103). 집계 숫자만 반환.
-                        .requestMatchers(HttpMethod.GET, "/api/check-ins/stats").permitAll()
-                        // 업로드된 파일(프로필 사진 등) 정적 서빙은 공개로 둔다(이미지 표시는 인증 불필요).
-                        .requestMatchers(HttpMethod.GET, "/files/**").permitAll()
-                        // 온보딩 단계(약관 동의·가입 완료)는 온보딩 토큰 또는 정식 USER 모두 허용.
-                        .requestMatchers("/api/auth/terms", "/api/auth/complete").hasAnyRole("ONBOARDING", "USER")
-                        // 닉네임 중복확인은 온보딩 단계(ProfileSetup)에서도 호출하므로 ONBOARDING도 허용.
-                        .requestMatchers(HttpMethod.GET, "/api/users/nickname-check").hasAnyRole("ONBOARDING", "USER")
-                        // 파일 업로드(프로필 사진)는 온보딩(ProfileSetup) 단계에서도 호출하므로 ONBOARDING도 허용.
-                        .requestMatchers(HttpMethod.POST, "/api/files").hasAnyRole("ONBOARDING", "USER")
-                        // 역지오코딩(동네 설정)도 온보딩(ProfileSetup) 단계에서 호출하므로 ONBOARDING도 허용.
-                        .requestMatchers(HttpMethod.GET, "/api/geo/reverse").hasAnyRole("ONBOARDING", "USER")
-                        // 그 외 모든 요청은 정식 가입 사용자(USER)만 허용.
-                        // authenticated() 대신 hasRole("USER")로 게이팅하는 이유: authenticated()면 온보딩 토큰도
-                        // "인증됨"으로 통과하므로, 가입 미완료 온보딩 토큰이 일반 API를 호출하는 것을 막기 위함.
-                        .anyRequest().hasRole("USER"))
+                .authorizeHttpRequests(auth -> {
+                    auth
+                            // 헬스 체크와 로그인 전(前) 인증 흐름(소셜 인증, 토큰 재발급)은 토큰 없이 공개.
+                            // 휴대폰(/api/auth/phone/**)은 위 smsIsMock 분기에서 별도로 다룬다.
+                            .requestMatchers("/api/health", "/api/auth/oauth/**", "/api/auth/refresh").permitAll();
+                    if (smsIsMock) {
+                        // mock인 동안은 컨트롤러에 닿기 전에 보안 계층에서 끊는다. 익명 사용자의
+                        // denyAll은 ExceptionTranslationFilter가 AuthenticationEntryPoint로 돌려 401로 응답한다.
+                        auth.requestMatchers("/api/auth/phone/**").denyAll();
+                    } else {
+                        auth.requestMatchers("/api/auth/phone/**").permitAll();
+                    }
+                    auth
+                            // 혼밥 통계(사회적 증거)는 비로그인 첫 화면에 노출되므로 토큰 없이 공개(FR-103). 집계 숫자만 반환.
+                            .requestMatchers(HttpMethod.GET, "/api/check-ins/stats").permitAll()
+                            // 업로드된 파일(프로필 사진 등) 정적 서빙은 공개로 둔다(이미지 표시는 인증 불필요).
+                            .requestMatchers(HttpMethod.GET, "/files/**").permitAll()
+                            // 온보딩 단계(약관 동의·가입 완료)는 온보딩 토큰 또는 정식 USER 모두 허용.
+                            .requestMatchers("/api/auth/terms", "/api/auth/complete").hasAnyRole("ONBOARDING", "USER")
+                            // 닉네임 중복확인은 온보딩 단계(ProfileSetup)에서도 호출하므로 ONBOARDING도 허용.
+                            .requestMatchers(HttpMethod.GET, "/api/users/nickname-check").hasAnyRole("ONBOARDING", "USER")
+                            // 파일 업로드(프로필 사진)는 온보딩(ProfileSetup) 단계에서도 호출하므로 ONBOARDING도 허용.
+                            .requestMatchers(HttpMethod.POST, "/api/files").hasAnyRole("ONBOARDING", "USER")
+                            // 역지오코딩(동네 설정)도 온보딩(ProfileSetup) 단계에서 호출하므로 ONBOARDING도 허용.
+                            .requestMatchers(HttpMethod.GET, "/api/geo/reverse").hasAnyRole("ONBOARDING", "USER")
+                            // 그 외 모든 요청은 정식 가입 사용자(USER)만 허용.
+                            // authenticated() 대신 hasRole("USER")로 게이팅하는 이유: authenticated()면 온보딩 토큰도
+                            // "인증됨"으로 통과하므로, 가입 미완료 온보딩 토큰이 일반 API를 호출하는 것을 막기 위함.
+                            .anyRequest().hasRole("USER");
+                })
                 // 이 앱을 OAuth2 리소스 서버로 동작시켜 Authorization: Bearer 토큰을 위 디코더로 검증하고,
                 // 아래 컨버터로 typ 클레임을 ROLE_* 권한으로 변환한다.
                 .oauth2ResourceServer(o -> o.jwt(j -> j.decoder(jwtDecoder)

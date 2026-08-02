@@ -1,6 +1,7 @@
 package com.honjeong.global.security;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -64,6 +66,22 @@ class SecurityPingTest extends ActiveUserSliceSupport {
         // then: 권한 부족으로 접근 거부 핸들러가 403을 반환한다
         mockMvc.perform(get("/api/__sec/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("SMS가 mock 모드면 휴대폰 인증번호 발송 요청이 컨트롤러에 닿기 전 보안 계층에서 막힌다")
+    void smsMockMode_phoneSendCode_blockedBySecurityBeforeController() throws Exception {
+        // given: SMS mock 모드(honjeong.sms.mode 미지정 시 기본값 "mock" — 테스트 프로파일도 상속)
+        //        이 슬라이스에는 /api/auth/phone/** 컨트롤러 자체가 없다(PingController만 로드).
+        // when: 토큰 없이 휴대폰 인증번호 발송 엔드포인트를 호출하면
+        // then: 매핑된 컨트롤러가 없으니 원래라면 404(Not Found)여야 하는데, SecurityConfig의
+        //       denyAll 규칙이 DispatcherServlet 라우팅보다 먼저 요청을 끊어 401이 온다(익명 사용자의
+        //       AccessDeniedException은 ExceptionTranslationFilter가 AccessDeniedHandler가 아니라
+        //       AuthenticationEntryPoint로 돌린다) — 이 401이 "컨트롤러가 아니라 보안 계층이 막았다"는 증거다.
+        mockMvc.perform(post("/api/auth/phone/send-code")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized());
     }
 
     /** @CurrentUserId 주입과 USER 권한 게이팅을 확인하기 위한 테스트 전용 보호 엔드포인트. */

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -40,9 +41,16 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
  *
  * <p>{@code @WebMvcTest}는 서비스 빈을 만들지 않으므로, 컨트롤러가 의존하는 {@link AuthService}는 {@code @MockitoBean}으로
  * 가짜 빈을 등록해 컨텍스트에 채워 넣고, 각 테스트에서 {@code when(...)}으로 반환값을 정하거나 {@code verify(...)}로 호출을 확인한다.
+ *
+ * <p><b>{@code honjeong.sms.mode=real}로 강제 오버라이드하는 이유</b>: {@link SecurityConfig}는 SMS가
+ * mock인 동안 {@code /api/auth/phone/**}를 보안 계층에서 차단한다(휴대폰 인증번호가 고정값이라 공개
+ * 서버에서 열어두면 무인증 계정 생성이 가능하기 때문 — 자세한 근거는 {@code SecurityPingTest}). 그
+ * 차단 자체는 이 클래스가 아니라 {@code SecurityPingTest}에서 검증하므로, 여기서는 이 컨트롤러 고유의
+ * 관심사(검증·위임·인가 규칙)를 그 차단에 가리지 않고 그대로 확인하기 위해 real로 켜 둔다.
  */
 @WebMvcTest(controllers = AuthController.class)
 @Import({SecurityConfig.class, WebConfig.class})
+@TestPropertySource(properties = "honjeong.sms.mode=real")
 class AuthControllerTest extends ActiveUserSliceSupport {
 
     @Autowired

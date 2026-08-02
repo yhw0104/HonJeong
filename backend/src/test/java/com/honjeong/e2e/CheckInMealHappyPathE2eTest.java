@@ -23,6 +23,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.honjeong.auth.service.AuthResult;
+import com.honjeong.auth.service.AuthService;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.repository.PlaceRepository;
 import com.honjeong.support.AbstractPostgresTest;
@@ -52,6 +54,14 @@ import com.honjeong.support.AbstractPostgresTest;
  * 이미 다른 식당에 ACTIVE 체크인을 가진 상태에서 수락되는 경로를 실 Postgres로 검증한다 —
  * {@code MealRequestService.accept}의 flush-before-insert 순서가 {@code uq_check_ins_current_user}
  * 부분 유니크 인덱스 위반을 실제로 회피하는지를 확인한다(단위 테스트는 Mockito라 실 제약 위반을 잡지 못한다).
+ *
+ * <p><b>{@link #onboard} 안의 휴대폰 인증 두 단계(send-code·verify)만 HTTP가 아니라 {@link AuthService}를
+ * 직접 호출한다</b> — {@link com.honjeong.global.config.SecurityConfig}는 SMS가 mock인 동안(현재 real
+ * 구현체가 없어 언제나 mock) {@code /api/auth/phone/**}를 보안 계층에서 차단한다(고정 인증번호로 인한
+ * 무인증 계정 생성 방지, 근거는 {@code SecurityPingTest}). {@code honjeong.sms.mode=real}로 그 차단을
+ * 풀어 시도하면 이번엔 real {@code SmsSender} 빈이 없어 컨텍스트 자체가 뜨지 않는다 — 그래서 이 E2E의
+ * 진짜 관심사(체크인·같이먹기)가 아닌 휴대폰 인증 단계만 서비스 계층 직접 호출로 우회한다. 그 뒤(terms·
+ * complete)는 그대로 HTTP + 실 보안 필터 체인을 탄다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -59,6 +69,9 @@ class CheckInMealHappyPathE2eTest extends AbstractPostgresTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @Autowired
+    private AuthService authService;
 
     @Autowired
     private PlaceRepository placeRepository;
@@ -262,15 +275,18 @@ class CheckInMealHappyPathE2eTest extends AbstractPostgresTest {
     /**
      * 휴대폰 온보딩을 끝까지 진행하고 정식 access 토큰을 돌려준다.
      * send-code → verify(코드 000000, 신규라 온보딩 토큰) → terms(필수 3종 동의) → complete(프로필) → 정식 토큰.
+     *
+     * <p>send-code·verify 두 단계는 {@code /api/auth/phone/**}가 SecurityConfig에서 보안 계층에
+     * 막혀 있어(클래스 Javadoc 참고) HTTP가 아니라 {@link AuthService}를 직접 호출한다 — 이 E2E가
+     * 검증하려는 건 휴대폰 인증 자체가 아니라 그 뒤의 체크인·같이먹기 흐름이다.
      */
     private String onboard(String phone, String nickname) throws Exception {
-        perform(jsonPost("/api/auth/phone/send-code", Map.of("phone", phone)), null, 200);
+        authService.sendPhoneCode(phone);
 
-        JsonNode verify = perform(jsonPost("/api/auth/phone/verify",
-                Map.of("phone", phone, "code", "000000")), null, 200);
-        assertThat(verify.path("data").path("onboarding").asBoolean())
+        AuthResult verify = authService.verifyPhone(phone, "000000");
+        assertThat(verify.onboarding())
                 .withFailMessage("신규 번호는 온보딩 분기를 타야 한다").isTrue();
-        String onboardingToken = verify.path("data").path("onboardingToken").asText();
+        String onboardingToken = verify.onboardingToken();
         assertThat(onboardingToken).isNotBlank();
 
         perform(jsonPost("/api/auth/terms",
