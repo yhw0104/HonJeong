@@ -110,14 +110,17 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
             <Icon name="apple" size={16} color="#fff" />
             <Text style={[styles.btnText, { color: '#fff' }]}>Apple로 계속하기</Text>
           </Pressable> */}
-          {/* 휴대폰 — 문서상의 인증 흐름 진입점 */}
-          <Pressable
+          {/* 휴대폰 — TestFlight 배포 동안 숨김.
+              mock SMS는 인증번호가 "000000" 고정이라, 공개된 서버에 이 경로를 열어두면
+              전화번호만 알면 타인 계정으로 로그인된다. 실 SMS 게이트웨이를 붙이는
+              슬라이스에서 되살릴 것. PhoneAuth·VerifyCode 화면과 라우트는 그대로 둔다. */}
+          {/* <Pressable
             style={[styles.btn, { backgroundColor: T2.brand }]}
             onPress={() => navigation.navigate('PhoneAuth')}
           >
             <Icon name="phone" size={16} color="#fff" />
             <Text style={[styles.btnText, { color: '#fff' }]}>휴대폰 번호로 계속하기</Text>
-          </Pressable>
+          </Pressable> */}
         </View>
       </View>
     </Screen>
