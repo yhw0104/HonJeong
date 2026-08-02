@@ -35,8 +35,11 @@ services:
       DB_USERNAME: honjeong
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD를 backend/.env에 설정하세요}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET을 backend/.env에 설정하세요}
-      # 업로드 사진의 공개 URL 접두사. 도메인이 바뀌면 여기도 함께 바꾼다.
-      FILES_BASE_URL: ${FILES_BASE_URL:-https://localhost/files}
+      # 업로드 사진의 공개 URL 접두사. FILES_BASE_URL을 직접 안 주면 DOMAIN에서 유도한다
+      # (DOMAIN도 없으면 localhost) — 그래서 서버에서 맞출 값은 DOMAIN 하나뿐이다. DOMAIN만
+      # 바꾸고 FILES_BASE_URL을 깜빡하면 서버는 뜨지만 사진 URL만 조용히 옛 값(또는 localhost)을
+      # 가리키는 사고를 원천 차단한다.
+      FILES_BASE_URL: ${FILES_BASE_URL:-https://${DOMAIN:-localhost}/files}
       # 카카오 실검증 스위치. prod 프로파일(application-prod.yml)이 이미 OAUTH_MODE 기본값을
       # real로 선언하므로, 여기서 다른 기본값을 주면 그 선언을 덮어써 mock으로 조용히 뜬다.
       # 그래서 기본값도 real로 맞춘다 — 호스트가 값을 안 주면 real, 그런데 KAKAO_APP_KEY가
