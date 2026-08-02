@@ -104,4 +104,31 @@ class ExternalIntegrationWiringTest {
         @Value("${honjeong.files.base-url}")
         String baseUrl;
     }
+
+    /**
+     * prod 프로파일의 honjeong.oauth.mode 기본값이 real로 고정돼 있는지 확인한다.
+     *
+     * <p><b>배경</b>: 2026-07-27, compose의 {@code OAUTH_MODE:-mock} 기본값이 이 yml의 real 선언을
+     * 조용히 덮어써 카카오 로그인이 검증 없이(mock) 통과하는 열린 인증 우회가 있었다(임의 문자열로
+     * 계정 생성 가능). 이 설정값은 이 프로젝트에서 가장 결과가 큰 설정이라, 지금은 소스 코드 주석
+     * ({@code docker-compose.yml}의 {@code OAUTH_MODE} 블록)으로만 지켜지고 있다. 이 yml 자체가
+     * real이 아닌 다른 값으로 되돌아가면 여기서 잡는다(compose 쪽 우회는 이 테스트의 범위 밖).
+     */
+    @Test
+    @DisplayName("prod 프로파일에서 honjeong.oauth.mode 기본값이 real로 고정된다(2026-07-27 조용한 mock 우회 회귀 방지)")
+    void prod에서_oauth모드_기본값은_real이다() {
+        prodRunner
+                .withUserConfiguration(OAuthModeProbe.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(OAuthModeProbe.class).mode).isEqualTo("real");
+                });
+    }
+
+    /** honjeong.oauth.mode가 prod 프로파일에서 최종적으로 어떤 값으로 해석되는지만 들여다보는 테스트용 빈. */
+    @Configuration(proxyBeanMethods = false)
+    static class OAuthModeProbe {
+        @Value("${honjeong.oauth.mode}")
+        String mode;
+    }
 }

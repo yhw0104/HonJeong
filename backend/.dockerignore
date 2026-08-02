@@ -1,0 +1,24 @@
+# Docker 빌드 컨텍스트(daemon 전송분)에서 제외한다.
+#
+# Dockerfile은 gradlew·settings.gradle·build.gradle·gradle/·src/만 COPY하므로 오늘은
+# 아래 것들이 이미지에 새지는 않는다. 그래도 뺀다: (1) 컨텍스트 전송 자체가 2GB Lightsail
+# 인스턴스에서 느려진다(특히 uploads/·scripts/*.sql.gz), (2) 나중에 누가 COPY . .로 바꾸면
+# .env의 비밀값이 그대로 이미지에 구워지는데, 그때 가서야 알아채면 늦다 — 지금 막아둔다.
+.env
+.env.*
+
+# 로컬 개발 산출물 — 이미지 빌드에 불필요.
+.git
+.gradle/
+build/
+data/
+uploads/
+
+# 대용량 DB 덤프(수십 MB) — 서버 배포에 필요 없다(런북 별도 절차로 전송).
+scripts/*.sql.gz
+
+# IDE·OS 메타데이터.
+.vscode/
+.idea/
+*.iml
+.DS_Store
