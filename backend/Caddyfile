@@ -1,0 +1,7 @@
+# 혼정 배포용 리버스 프록시.
+# DOMAIN 미지정 시 localhost로 떨어지고, Caddy가 localhost에는 내부 인증서를 자동 발급한다 —
+# 덕분에 도메인 없이도 로컬에서 전체 스택(https)을 그대로 검증할 수 있다.
+# 실제 도메인을 주면 Let's Encrypt 인증서를 자동 발급·갱신한다.
+{$DOMAIN:localhost} {
+	reverse_proxy app:8080
+}

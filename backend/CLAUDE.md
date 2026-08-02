@@ -138,6 +138,8 @@ com.honjeong
 
 ### 로컬 DB (개발용·영구)
 
+> **전제**: `backend/.env`가 있어야 한다(`.env.example`을 복사해 채운다). compose가 `DB_PASSWORD`·`JWT_SECRET`에 기본값을 두지 않으므로, 없으면 `docker compose` 명령이 즉시 실패한다. 로컬 `DB_PASSWORD`는 반드시 `honjeong`이어야 한다 — 기존 볼륨이 그 값으로 초기화돼 있다.
+
 `docker-compose.yml`의 `db` 서비스 = `honjeong-db`(postgres:17, localhost:5432, db/user/pass 모두 `honjeong`).
 
 ```bash
@@ -189,9 +191,10 @@ docker exec -it honjeong-db psql -U honjeong -d honjeong
 ### Docker 배포(통합)
 
 ```bash
-docker compose up -d        # app(prod 프로파일) + db 동시 기동
-docker compose logs -f app  # 앱 로그 추적
-docker compose down         # 중지 (-v 추가 시 DB 볼륨까지 삭제)
+docker compose up -d           # caddy + app(prod 프로파일) + db 동시 기동
+curl -k https://localhost/api/health   # {"status":"UP"} (Caddy 내부 인증서라 -k 필요)
+docker compose logs -f app     # 앱 로그 추적
+docker compose down            # 중지 (-v 추가 시 DB·업로드 볼륨까지 삭제)
 ```
 
 ### 프로파일

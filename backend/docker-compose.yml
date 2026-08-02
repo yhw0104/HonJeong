@@ -1,6 +1,6 @@
 # 운영/통합 환경용. 배포 단계에서 사용한다.
-# 로컬 개발은 H2를 쓰므로 지금은 실행하지 않아도 된다.
-# 사용 예: docker compose up -d
+# 로컬 개발에서 DB만 띄울 때도 이 파일을 쓴다: docker compose up -d db
+# 값은 backend/.env에서 주입한다(.env.example 참고). 비밀값에 기본값을 두지 않는다.
 services:
   db:
     image: postgres:17
@@ -10,10 +10,12 @@ services:
     environment:
       POSTGRES_DB: honjeong
       POSTGRES_USER: honjeong
-      POSTGRES_PASSWORD: honjeong
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD를 backend/.env에 설정하세요}
       TZ: Asia/Seoul
+    # 루프백에만 바인딩한다. 외부에서는 닿지 않고, 로컬 개발(bootRun·TablePlus·psql)은 그대로 동작한다.
+    # 컨테이너 간 통신은 내부망(db:5432)이라 이 설정과 무관하다.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - honjeong-db-data:/var/lib/postgresql/data
 
@@ -26,15 +28,41 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:postgresql://db:5432/honjeong
       DB_USERNAME: honjeong
-      DB_PASSWORD: honjeong
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD를 backend/.env에 설정하세요}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET을 backend/.env에 설정하세요}
+      # 업로드 사진의 공개 URL 접두사. 도메인이 바뀌면 여기도 함께 바꾼다.
+      FILES_BASE_URL: ${FILES_BASE_URL:-https://localhost/files}
       # 카카오 실검증 스위치. prod 프로파일(application-prod.yml)이 이미 OAUTH_MODE 기본값을
       # real로 선언하므로, 여기서 다른 기본값을 주면 그 선언을 덮어써 mock으로 조용히 뜬다.
       # 그래서 기본값도 real로 맞춘다 — 호스트가 값을 안 주면 real, 그런데 KAKAO_APP_KEY가
       # 비어 있으면 부팅 시점에 실패한다(KakaoOAuthVerifier 참고) — 조용한 인증 우회를 막기 위함.
       KAKAO_APP_KEY: ${KAKAO_APP_KEY:-}
       OAUTH_MODE: ${OAUTH_MODE:-real}
+    # 호스트 포트를 열지 않는다 — Caddy가 내부망(app:8080)으로 접근한다.
+    volumes:
+      # 업로드 사진 영속화. 없으면 컨테이너 재생성 시 사진이 전량 소실된다.
+      # Dockerfile의 WORKDIR가 /app이고 honjeong.files.local-dir이 ./uploads라 이 경로가 된다.
+      - honjeong-uploads:/app/uploads
+
+  caddy:
+    image: caddy:2
+    container_name: honjeong-caddy
+    depends_on:
+      - app
+    environment:
+      # 미지정이면 localhost — Caddy가 내부 인증서를 발급해 로컬에서도 https로 검증할 수 있다.
+      DOMAIN: ${DOMAIN:-localhost}
     ports:
-      - "8080:8080"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # 인증서 영속화. 없으면 컨테이너를 다시 만들 때마다 재발급을 요청해 발급 한도에 걸릴 수 있다.
+      - caddy-data:/data
+      - caddy-config:/config
 
 volumes:
   honjeong-db-data:
+  honjeong-uploads:
+  caddy-data:
+  caddy-config:
