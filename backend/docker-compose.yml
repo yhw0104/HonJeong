@@ -5,6 +5,10 @@ services:
   db:
     image: postgres:17
     container_name: honjeong-db
+    # 컨테이너가 죽거나(OOM 등) 호스트가 재부팅해도 자동으로 다시 뜨게 한다. 기본값(no)이면
+    # Lightsail이 재시작될 때 Docker 데몬은 살아나도 이 컨테이너들은 멈춰 있는 채로 남는다 —
+    # 서비스가 "상시 동작"해야 한다는 배포 완료 기준을 기본값(no)으로는 못 지킨다.
+    restart: unless-stopped
     # DB 세션 기본 타임존을 KST로 — psql에서 now()를 써도 스키마 관례(KST naive)와 일치.
     command: postgres -c timezone=Asia/Seoul
     environment:
@@ -22,6 +26,7 @@ services:
   app:
     build: .
     container_name: honjeong-app
+    restart: unless-stopped
     depends_on:
       - db
     environment:
@@ -47,6 +52,7 @@ services:
   caddy:
     image: caddy:2
     container_name: honjeong-caddy
+    restart: unless-stopped
     depends_on:
       - app
     environment:
