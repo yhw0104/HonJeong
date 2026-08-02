@@ -7,6 +7,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.UUID;
 
+import jakarta.annotation.PostConstruct;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,6 +41,12 @@ public class LocalFileStorage implements FileStorage {
             @Value("${honjeong.files.base-url:http://localhost:8080/files}") String baseUrl) {
         this.localDir = localDir;
         this.baseUrl = baseUrl;
+    }
+
+    /** 기동 시 저장 위치와 공개 URL 접두사를 남긴다 — 사진이 안 열릴 때 원인을 즉시 좁힐 수 있다. */
+    @PostConstruct
+    void infoStorageMode() {
+        log.info("[FILES] 로컬 디스크 저장으로 기동합니다 — dir={}, baseUrl={}", localDir, baseUrl);
     }
 
     /**

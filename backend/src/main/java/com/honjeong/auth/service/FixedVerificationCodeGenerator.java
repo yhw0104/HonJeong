@@ -1,5 +1,9 @@
 package com.honjeong.auth.service;
 
+import jakarta.annotation.PostConstruct;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +22,14 @@ import org.springframework.stereotype.Component;
 @Component
 @ConditionalOnProperty(name = "honjeong.sms.mode", havingValue = "mock", matchIfMissing = true)
 public class FixedVerificationCodeGenerator implements VerificationCodeGenerator {
+
+    private static final Logger log = LoggerFactory.getLogger(FixedVerificationCodeGenerator.class);
+
+    /** 기동 시 고정 인증번호 사용 사실을 경고로 남긴다. {@link MockSmsSender}와 같은 이유다. */
+    @PostConstruct
+    void warnFixedCode() {
+        log.warn("[SMS] 인증번호가 고정값 \"000000\"입니다 — 개발·테스트 전용입니다.");
+    }
 
     /**
      * 항상 같은 고정 인증번호를 반환한다.

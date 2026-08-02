@@ -1,5 +1,7 @@
 package com.honjeong.auth.service;
 
+import jakarta.annotation.PostConstruct;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,6 +23,16 @@ import org.springframework.stereotype.Component;
 public class MockSmsSender implements SmsSender {
 
     private static final Logger log = LoggerFactory.getLogger(MockSmsSender.class);
+
+    /**
+     * 기동 시 mock 모드임을 경고로 남긴다 — 설정 주석은 서버를 띄우는 사람이 읽지 않는다.
+     * 인증번호가 고정값이라 전화번호만 알면 타인 계정으로 로그인되므로 공개 오픈 전 반드시 교체해야 한다.
+     */
+    @PostConstruct
+    void warnMockMode() {
+        log.warn("[SMS] mock 모드로 기동합니다 — 실제 문자를 보내지 않고 인증번호는 고정값입니다. "
+                + "공개 오픈 전 real 구현으로 반드시 교체하세요.");
+    }
 
     /**
      * 실제 발송 대신 번호와 인증번호를 로그로 남긴다.

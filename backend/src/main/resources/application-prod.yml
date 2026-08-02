@@ -18,10 +18,13 @@ honjeong:
   oauth:
     mode: ${OAUTH_MODE:real}
   sms:
-    mode: ${SMS_MODE:real}
+    # real 구현체(SMS 게이트웨이 연동)가 아직 없다. 여기에 real을 기본값으로 두면
+    # mock 빈이 등록되지 않아 컨텍스트가 죽는다(부팅 불가) — 실제로 뜨는 값을 적는다.
+    # 실사용자 오픈 시 real 구현 후 기본값을 real로 올릴 것. 그때까지 인증번호는 고정값이다.
+    mode: ${SMS_MODE:mock}
   geo:
-    # real 역지오코더는 후속 구현. 미구현 동안에는 GEO_MODE=mock으로 띄운다.
-    mode: ${GEO_MODE:real}
+    # 위와 동일 — 역지오코딩 real 구현체 미존재. 환경변수 오버라이드 통로는 유지한다.
+    mode: ${GEO_MODE:mock}
 
 server:
   port: 8080

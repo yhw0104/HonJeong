@@ -3,6 +3,10 @@ package com.honjeong.geo.service;
 import java.util.List;
 import java.util.Objects;
 
+import jakarta.annotation.PostConstruct;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -28,6 +32,14 @@ public class MockReverseGeocoder implements ReverseGeocoder {
             "서울특별시 종로구 사직동",
             "부산광역시 해운대구 우동",
             "대구광역시 중구 삼덕동");
+
+    private static final Logger log = LoggerFactory.getLogger(MockReverseGeocoder.class);
+
+    /** 기동 시 mock 모드임을 알린다 — 배포 후 "동네가 이상하다"의 원인을 로그에서 바로 좁히기 위함. */
+    @PostConstruct
+    void infoMockMode() {
+        log.info("[GEO] mock 역지오코딩으로 기동합니다 — 실제 주소가 아니라 좌표 해시로 고른 샘플 동네를 돌려줍니다.");
+    }
 
     /**
      * 좌표를 소수 둘째자리로 반올림해 해시한 값으로 5개 후보 동네 중 하나를 결정론적으로 선택한다.
