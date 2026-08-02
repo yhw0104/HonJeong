@@ -25,7 +25,9 @@ honjeong:
     # 파일 저장 모드: mock(로컬 디렉터리) | real(S3 등). real은 후속 구현.
     mode: mock
     local-dir: ./uploads                  # mock 저장 위치
-    base-url: http://localhost:8080/files # mock 반환 URL 접두사(WebConfig 정적 서빙과 일치)
+    # mock 반환 URL 접두사(WebConfig 정적 서빙과 일치). 배포 시 FILES_BASE_URL로 공개 주소를 주입한다 —
+    # 이 값이 localhost로 남으면 폰에서 사진이 열리지 않는다.
+    base-url: ${FILES_BASE_URL:http://localhost:8080/files}
   geo:
     # 역지오코딩 모드: mock(기본·결정론적 더미) | real(외부 역지오코딩 API). real은 후속 구현.
     mode: mock

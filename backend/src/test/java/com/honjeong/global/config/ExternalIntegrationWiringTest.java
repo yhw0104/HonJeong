@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Configuration;
 
 import com.honjeong.auth.service.FixedVerificationCodeGenerator;
 import com.honjeong.auth.service.MockSmsSender;
@@ -81,5 +83,25 @@ class ExternalIntegrationWiringTest {
             assertThat(context).doesNotHaveBean(SmsSender.class);
             assertThat(context).doesNotHaveBean(VerificationCodeGenerator.class);
         });
+    }
+
+    @Test
+    @DisplayName("FILES_BASE_URL 환경변수가 파일 공개 URL을 덮어쓴다(배포 시 사진이 열리는 근거)")
+    void FILES_BASE_URL이_적용된다() {
+        prodRunner
+                .withPropertyValues("FILES_BASE_URL=https://example.test/files")
+                .withUserConfiguration(BaseUrlProbe.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(BaseUrlProbe.class).baseUrl)
+                            .isEqualTo("https://example.test/files");
+                });
+    }
+
+    /** honjeong.files.base-url이 최종적으로 어떤 값으로 해석되는지만 들여다보는 테스트용 빈. */
+    @Configuration(proxyBeanMethods = false)
+    static class BaseUrlProbe {
+        @Value("${honjeong.files.base-url}")
+        String baseUrl;
     }
 }
