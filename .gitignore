@@ -22,3 +22,6 @@ docs/
 .env
 .env.*
 !.env.example
+
+# DB 덤프 산출물(대용량) — 서버로 직접 전송한다. 저장소에 올리지 않는다.
+backend/scripts/*.sql.gz
