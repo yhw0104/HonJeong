@@ -12,12 +12,16 @@ import jakarta.validation.constraints.Size;
  * 프로필 부분수정 요청 본문. {@code PATCH /api/users/me}에서 받는다.
  *
  * <p>모든 필드가 선택이다 — 보내지 않은(null) 필드는 수정 대상에서 제외되어 기존 값이 유지된다(PATCH 의미론).
- * 닉네임을 보낼 때는 20자 이하여야 한다({@code @Size(max = 20)}).
+ *
+ * <p><b>문자열 길이 상한은 {@code users} 테이블 컬럼 정의(V1__core.sql)에 맞춘다.</b> 검증이 없으면 긴 값이
+ * 그대로 DB까지 내려가 제약 위반이 되고, 그 예외는 {@code GlobalExceptionHandler}의 최후 안전망에 걸려
+ * <b>클라이언트 잘못이 500으로</b> 나간다. 닉네임만 컬럼(VARCHAR(50))보다 좁은 20자인데, 신고 기록이
+ * 닉네임을 {@code reports.target_nickname VARCHAR(20)}에 복사해 두기 때문이다.
  *
  * @param nickname         닉네임(선택, 미전송 시 미변경). 전송 시 20자 이하({@code @Size(max=20)}).
- * @param profileImageUrl  프로필 이미지 URL(선택, 미전송 시 미변경).
- * @param introduction     자기소개 문자열(선택, 미전송 시 미변경).
- * @param region           활동 지역 표시명(선택, 미전송 시 미변경).
+ * @param profileImageUrl  프로필 이미지 URL(선택, 미전송 시 미변경). 500자 이하.
+ * @param introduction     자기소개 문자열(선택, 미전송 시 미변경). 150자 이하.
+ * @param region           활동 지역 표시명(선택, 미전송 시 미변경). 100자 이하.
  * @param regionLat        활동 지역 위도(선택, 미전송 시 미변경).
  * @param regionLng        활동 지역 경도(선택, 미전송 시 미변경).
  * @param diningStyle      식사 성향({@link DiningStyle} enum, 선택, 미전송 시 미변경).
@@ -26,9 +30,9 @@ import jakarta.validation.constraints.Size;
  */
 public record UpdateProfileRequest(
         @Size(max = 20) String nickname,
-        String profileImageUrl,
-        String introduction,
-        String region,
+        @Size(max = 500) String profileImageUrl,
+        @Size(max = 150) String introduction,
+        @Size(max = 100) String region,
         Double regionLat,
         Double regionLng,
         DiningStyle diningStyle,

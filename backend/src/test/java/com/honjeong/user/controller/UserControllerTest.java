@@ -149,6 +149,45 @@ class UserControllerTest extends ActiveUserSliceSupport {
     }
 
     /**
+     * given: users.introduction 컬럼 상한(VARCHAR(150))을 넘는 자기소개 + 유효한 access 토큰.
+     * when: PATCH /me 호출.
+     * then: @Size(max=150) 검증에 걸려 400 + INVALID_INPUT으로 응답한다 — 검증이 없으면 DB 제약 위반이
+     *       최후 예외 핸들러까지 흘러가 클라이언트 잘못이 500으로 나간다.
+     */
+    @Test
+    @DisplayName("PATCH /me: 자기소개가 150자를 초과하면 400")
+    void patchMe_introductionTooLong_400() throws Exception {
+        String token = jwtProvider.createAccessToken(1L);
+        String tooLong = "가".repeat(151);
+
+        mockMvc.perform(patch("/api/users/me")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"introduction\":\"" + tooLong + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+    }
+
+    /**
+     * given: users.region 컬럼 상한(VARCHAR(100))을 넘는 활동 지역 + 유효한 access 토큰.
+     * when: PATCH /me 호출.
+     * then: @Size(max=100) 검증에 걸려 400 + INVALID_INPUT으로 응답한다.
+     */
+    @Test
+    @DisplayName("PATCH /me: 활동 지역이 100자를 초과하면 400")
+    void patchMe_regionTooLong_400() throws Exception {
+        String token = jwtProvider.createAccessToken(1L);
+        String tooLong = "가".repeat(101);
+
+        mockMvc.perform(patch("/api/users/me")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"region\":\"" + tooLong + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+    }
+
+    /**
      * given: favoriteFoods가 4개(최대 3개 초과)인 수정 요청 + 유효한 access 토큰.
      * when: PATCH /me 호출.
      * then: @Size(max=3) @Valid 검증에 걸려 400 + INVALID_INPUT으로 응답한다(서비스까지 가지 않는다).

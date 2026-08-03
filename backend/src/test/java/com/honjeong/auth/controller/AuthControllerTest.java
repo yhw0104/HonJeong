@@ -167,4 +167,27 @@ class AuthControllerTest extends ActiveUserSliceSupport {
                 .andExpect(jsonPath("$.data.accessToken").value("acc"))
                 .andExpect(jsonPath("$.data.refreshToken").value("ref"));
     }
+
+    /**
+     * given: 20자를 초과하는 닉네임(21자)을 담은 가입 확정 요청 + userId 1L의 온보딩 토큰.
+     * when: {@code POST /complete} 호출.
+     * then: @Size(max=20) 검증에 걸려 400 + INVALID_INPUT으로 응답한다.
+     *
+     * <p>PATCH /users/me와 같은 컬럼(users.nickname)을 쓰는데 이쪽만 상한이 없으면, 프로필 수정으로는
+     * 만들 수 없는 긴 닉네임이 가입 경로로 들어온다 — 그 닉네임을 가진 사용자를 신고하면
+     * {@code reports.target_nickname VARCHAR(20)}에 걸려 신고가 500으로 실패한다.
+     */
+    @Test
+    @DisplayName("complete: 닉네임이 20자를 초과하면 400")
+    void complete_nicknameTooLong_400() throws Exception {
+        String token = jwtProvider.createOnboardingToken(1L);
+        String tooLong = "가".repeat(21);
+
+        mockMvc.perform(post("/api/auth/complete")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nickname\":\"" + tooLong + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+    }
 }

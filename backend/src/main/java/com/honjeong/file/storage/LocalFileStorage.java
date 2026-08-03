@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 import jakarta.annotation.PostConstruct;
@@ -34,6 +35,17 @@ public class LocalFileStorage implements FileStorage {
 
     private static final Logger log = LoggerFactory.getLogger(LocalFileStorage.class);
 
+    /**
+     * 저장 파일명에 허용하는 확장자. 여기 없는 값은 {@link #FALLBACK_EXTENSION}으로 바꾼다.
+     *
+     * <p>{@code svg}는 일부러 뺐다 — MIME은 {@code image/*}지만 브라우저가 SVG 안의 스크립트를 실행한다.
+     */
+    private static final Set<String> ALLOWED_EXTENSIONS =
+            Set.of("jpg", "jpeg", "png", "webp", "gif", "heic", "heif");
+
+    /** 허용 목록에 없거나 확장자가 없는 파일에 붙일 확장자. */
+    private static final String FALLBACK_EXTENSION = "jpg";
+
     private final String localDir;
     private final String baseUrl;
 
@@ -57,8 +69,7 @@ public class LocalFileStorage implements FileStorage {
      */
     @Override
     public String store(MultipartFile file) {
-        String ext = extension(file.getOriginalFilename());
-        String filename = UUID.randomUUID() + (ext.isEmpty() ? "" : "." + ext);
+        String filename = UUID.randomUUID() + "." + extension(file.getOriginalFilename());
         Path target = Path.of(localDir).toAbsolutePath().resolve(filename);
         try {
             Files.createDirectories(target.getParent());
@@ -96,10 +107,30 @@ public class LocalFileStorage implements FileStorage {
     }
 
     /**
-     * 원본 파일명에서 확장자를 소문자로 추출(없으면 빈 문자열).
-     * <p>원본 파일명에서 확장자를 소문자로 추출한다. 없으면 빈 문자열. 저장 파일명은 UUID라 경로 조작(traversal) 위험이 없다.
+     * 저장 파일명에 쓸 확장자를 정한다 — 원본 확장자가 {@link #ALLOWED_EXTENSIONS}에 있으면 그대로,
+     * 아니면(확장자가 없는 경우 포함) {@link #FALLBACK_EXTENSION}.
+     *
+     * <p><b>★왜 원본 파일명을 그대로 믿으면 안 되는가.</b> 여기서 나온 값이 그대로 저장 파일명의 확장자가
+     * 되고, 저장된 파일은 {@code GET /files/**}로 <b>누구나</b> 열 수 있게 공개 서빙된다(SecurityConfig).
+     * 스프링 정적 서빙은 파일 <b>확장자</b>로 Content-Type을 정하므로, 원본 파일명을 믿으면
+     * {@code Content-Type: image/png} 헤더를 붙인 채 파일명만 {@code x.html}로 보내는 것만으로 우리
+     * 도메인에 임의의 HTML/JS를 호스팅할 수 있다. {@link com.honjeong.file.service.FileService}의
+     * content-type 검사는 <b>클라이언트가 보낸 헤더</b>를 볼 뿐이라 이 경로를 막지 못한다.
+     *
+     * <p><b>왜 400으로 거부하지 않고 대체하는가.</b> 업로드 파일명은 기기·OS·이미지 피커가 만들어 주는
+     * 값이라 예상 못 한 확장자가 올라올 수 있다. 그때 거부하면 사진 기능이 통째로 실패한다. 확장자를
+     * jpg로 바꿔도 이미지 로더는 실제 바이트를 보고 렌더링하므로 정상 이미지는 그대로 보인다 —
+     * 즉 대체는 안전한 쪽으로만 틀어진다.
+     *
+     * <p>저장 파일명의 앞부분은 UUID라 경로 조작(traversal) 위험은 별개로 없다.
      */
     private static String extension(String original) {
+        String ext = rawExtension(original);
+        return ALLOWED_EXTENSIONS.contains(ext) ? ext : FALLBACK_EXTENSION;
+    }
+
+    /** 원본 파일명에서 마지막 점 뒤를 소문자로 추출한다(점이 없거나 뒤가 비면 빈 문자열). */
+    private static String rawExtension(String original) {
         if (original == null) {
             return "";
         }
