@@ -30,6 +30,13 @@ services:
     depends_on:
       - db
     environment:
+      # ★JVM 기본 타임존을 KST로 고정한다. 없으면 컨테이너가 UTC로 떠서, 앱이 쓰는
+      # LocalDateTime.now()가 DB(Asia/Seoul)·로컬 개발(맥 KST)과 9시간 어긋난다.
+      # 스키마 관례가 "KST naive"라 이 값이 곧 저장되는 시각이 된다 — 어긋나면
+      # 화면 표시가 9시간 과거가 되고, "오늘 혼밥 N명"의 날짜 경계가 밀리며,
+      # 운영자가 psql에서 now()로 넣은 공지 published_at을 앱이 미래로 읽어 노출하지 않는다.
+      # ★로컬(bootRun)·로컬 compose는 호스트가 KST라 이 결함이 드러나지 않는다 — 배포에서만 난다.
+      TZ: Asia/Seoul
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:postgresql://db:5432/honjeong
       DB_USERNAME: honjeong
