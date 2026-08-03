@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, Alert, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Screen, Avatar, Icon } from '@/shared/components';
+import { Screen, Avatar, Icon, PhotoViewer } from '@/shared/components';
 import { T2, C } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { useUserProfile, useSendMateRequest, useDeleteMate } from '@/features/mate/queries';
@@ -20,6 +20,7 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
 
   // 우상단 … 메뉴: Alert 대신 버튼 아래 드롭다운 카드로 표시(백드롭 탭으로 닫기).
   const [menuOpen, setMenuOpen] = useState(false);
+  const [photo, setPhoto] = useState<string | null>(null); // 프로필 사진 확대 뷰어 대상
   const insets = useSafeAreaInsets();
 
   const openReport = () => {
@@ -122,7 +123,15 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* 프로필 헤더 */}
         <View style={styles.profile}>
-          <Avatar uri={p.profileImageUrl} size={84} />
+          {/* 사진이 있을 때만 눌러서 크게 볼 수 있다 — 폴백(앱 아이콘)은 확대할 이유가 없다. */}
+          <Pressable
+            onPress={() => p.profileImageUrl && setPhoto(p.profileImageUrl)}
+            disabled={!p.profileImageUrl}
+            accessibilityRole={p.profileImageUrl ? 'button' : undefined}
+            accessibilityLabel={p.profileImageUrl ? '프로필 사진 크게 보기' : undefined}
+          >
+            <Avatar uri={p.profileImageUrl} size={84} />
+          </Pressable>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{p.nickname ?? '(이름 없음)'}</Text>
             {p.mealsTogether > 0 && (
@@ -249,6 +258,8 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
           </Text>
         </Pressable>
       </View>
+
+      <PhotoViewer uri={photo} onClose={() => setPhoto(null)} />
     </Screen>
   );
 }

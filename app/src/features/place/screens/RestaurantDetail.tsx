@@ -2,7 +2,7 @@
 // 풀블리드 히어로 + 플로팅 헤더 + 탭(홈/리뷰/사진/메이트/주변) + 하단 고정 CTA.
 // 메뉴 탭은 보류(데이터 출처 미정) — TABS에서 임시 숨김. MenuTab 컴포넌트/렌더는 복원 위해 보존.
 // 원본의 하단 MinTabBar는 제거(상세는 탭 위로 push되는 풀스크린이라 뒤로가기로 복귀).
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Alert, Image, Share, Linking, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -74,6 +74,14 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const seekersSt = listState({ isLoading: seekers.isLoading, isError: seekers.isError, count: (seekers.data ?? []).length });
   const reviews = usePlaceReviews(placeId);
   const summary = usePlaceReviewSummary(placeId);
+
+  // 종료 시트가 떠 있는 동안은 화면 뒤로가기 스와이프를 끈다.
+  // ★'밀어서 완료'(SlideToConfirm)는 가로 드래그인데, 이 화면은 스택에 푸시된 화면이라
+  //   iOS 기본 뒤로가기 제스처가 같은 방향의 드래그를 가로챈다 — 완료하려고 밀면 홈으로 나가버린다.
+  //   홈 탭에서는 이 문제가 없다(탭 루트라 뒤로가기 제스처 자체가 없다).
+  useEffect(() => {
+    navigation.setOptions({ gestureEnabled: ending == null });
+  }, [navigation, ending]);
 
   const [favSheet, setFavSheet] = useState(false);
   const [dirOpen, setDirOpen] = useState(false);
@@ -579,9 +587,9 @@ function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete, onR
       {isLoading ? (
         <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator color={T2.brand} /></View>
       ) : isError ? (
-        <Text style={{ padding: 24, color: T2.textMute }}>리뷰를 불러오지 못했어요.</Text>
+        <Text style={styles.reviewNotice}>리뷰를 불러오지 못했어요.</Text>
       ) : reviews.length === 0 ? (
-        <Text style={{ padding: 24, color: T2.textMute }}>아직 리뷰가 없어요. 첫 리뷰를 남겨보세요.</Text>
+        <Text style={styles.reviewNotice}>아직 리뷰가 없어요.{'\n'}첫 리뷰를 남겨보세요.</Text>
       ) : (
         reviews.map((r, i, arr) => (
           <View key={r.reviewId} style={[styles.reviewCard, i < arr.length - 1 && styles.reviewDivider]}>
@@ -1058,6 +1066,9 @@ const styles = StyleSheet.create({
   writeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: T2.brand },
   writeText: { fontSize: 13, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
 
+  // 리뷰 탭의 안내 문구(없음·실패 공용). 기존에는 padding만 있어 왼쪽에 붙어 보였다 —
+  // 목록이 비어 화면이 넓게 남는 자리라 가운데 정렬이 맞다.
+  reviewNotice: { paddingVertical: 40, paddingHorizontal: 24, color: T2.textMute, textAlign: 'center', lineHeight: 22 },
   reviewCard: { paddingBottom: 22, marginBottom: 22 },
   reviewDivider: { borderBottomWidth: 1, borderBottomColor: T2.border },
   reviewReport: { fontSize: 12, color: T2.textMute, letterSpacing: -0.2 },

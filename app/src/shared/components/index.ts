@@ -16,3 +16,4 @@ export { SlideToConfirm } from './SlideToConfirm';
 export { StateView } from './StateView';
 export type { StateKind } from './StateView';
 export { ErrorBoundary } from './ErrorBoundary';
+export { PhotoViewer } from './PhotoViewer';

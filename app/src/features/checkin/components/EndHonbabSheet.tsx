@@ -5,9 +5,10 @@
 //   + '제가 못 가게 됐어요' → 사전 취소 서브뷰(확인 1회 → leaveMatch CANCELLED, 신고 없음).
 // checkIn=null이면 렌더 안 함. 닫히면 서브뷰 상태 초기화(다음 열림 대비).
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SlideToConfirm } from '@/shared/components';
+import { useSheetDismissGesture } from '@/shared/components/useSheetDismissGesture';
 import { T2 } from '@/shared/theme';
 import type { CheckIn, LeaveMatchTo } from '../api';
 import { useEndCheckIn, useCancelCheckIn, useLeaveMatch } from '../queries';
@@ -25,6 +26,8 @@ export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
   const [noShow, setNoShow] = useState(false); // 같이먹기 '상대가 안 나왔어요' 서브뷰
   const [cantGo, setCantGo] = useState(false); // 같이먹기 '제가 못 가게 됐어요'(사전 취소) 서브뷰
   useEffect(() => { if (!checkIn) { setNoShow(false); setCantGo(false); } }, [checkIn]); // 닫히면 초기화(컴포넌트는 언마운트 안 됨)
+  // 아래로 끌어 닫기. 핸들러는 아래 헤더 영역에만 붙인다 — '밀어서 완료'(가로 드래그)를 삼키지 않게.
+  const dismiss = useSheetDismissGesture(checkIn != null, onClose);
   if (!checkIn) return null;
 
   const together = checkIn.status === 'TOGETHER';
@@ -45,11 +48,16 @@ export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
   return (
     <>
       <Pressable style={styles.scrim} onPress={onClose} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 6 }]}>
+      <Animated.View
+        style={[styles.sheet, { paddingBottom: insets.bottom + 6, transform: [{ translateY: dismiss.translateY }] }]}
+      >
         <Pressable style={styles.close} onPress={onClose} hitSlop={8} accessibilityRole="button">
           <Text style={styles.closeX}>×</Text>
         </Pressable>
-        <View style={styles.handle} />
+        {/* 끌어 내리는 영역 — 손잡이와 그 주변 여백. 아래 본문(밀어서 완료)은 건드리지 않는다. */}
+        <View {...dismiss.panHandlers} style={styles.grabArea}>
+          <View style={styles.handle} />
+        </View>
 
         {together && noShow ? (
           // ── 노쇼 서브뷰: 매칭 깨고 내 상태 선택(상대는 서버가 SEEKING 복귀+알림) ──
@@ -105,7 +113,7 @@ export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
             )}
           </>
         )}
-      </View>
+      </Animated.View>
     </>
   );
 }
@@ -120,7 +128,9 @@ const styles = StyleSheet.create({
   },
   close: { position: 'absolute', top: 10, right: 12, width: 34, height: 34, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   closeX: { fontSize: 24, color: T2.textMute, lineHeight: 26 },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E5E5', alignSelf: 'center', marginBottom: 12 },
+  // 손잡이 자체는 4px이라 잡기 어렵다 — 위아래 여백을 포함한 넓은 영역에 제스처를 건다.
+  grabArea: { paddingTop: 2, paddingBottom: 10, marginBottom: 2 },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E5E5', alignSelf: 'center' },
   title: { fontSize: 20, fontWeight: '800', color: T2.text, letterSpacing: -0.5 },
   sub: { fontSize: 13, color: T2.textMute, marginTop: 6, letterSpacing: -0.3 },
   slide: { marginTop: 14 },

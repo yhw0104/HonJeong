@@ -2,9 +2,10 @@
 // EndHonbabSheet와 동일한 톤(스크림 + 아래에서 올라오는 시트 + 우상단 X).
 // 각 지도앱을 브랜드색 타일(네이버 그린 / 카카오 옐로) + 핀으로 구분해 보여준다.
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, Image, type ImageSourcePropType } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image, Animated, type ImageSourcePropType } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/shared/components';
+import { useSheetDismissGesture } from '@/shared/components/useSheetDismissGesture';
 import { T2 } from '@/shared/theme';
 
 export type MapProvider = 'naver' | 'kakao';
@@ -19,6 +20,7 @@ export function DirectionsSheet({ visible, placeName, onClose, onPick }: {
   onPick: (provider: MapProvider) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const dismiss = useSheetDismissGesture(visible, onClose); // 아래로 끌어 닫기
   if (!visible) return null;
 
   const rows: { key: MapProvider; label: string; logo?: ImageSourcePropType; bg?: string; pin?: string }[] = [
@@ -30,13 +32,18 @@ export function DirectionsSheet({ visible, placeName, onClose, onPick }: {
   return (
     <>
       <Pressable style={styles.scrim} onPress={onClose} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 14 }]}>
+      <Animated.View
+        style={[styles.sheet, { paddingBottom: insets.bottom + 14, transform: [{ translateY: dismiss.translateY }] }]}
+      >
         <Pressable style={styles.close} onPress={onClose} hitSlop={8} accessibilityRole="button">
           <Text style={styles.closeX}>×</Text>
         </Pressable>
-        <View style={styles.handle} />
-        <Text style={styles.title}>길찾기</Text>
-        <Text style={styles.sub} numberOfLines={1}>'{placeName}'을(를) 어떤 지도로 열까요?</Text>
+        {/* 끌어 내리는 영역 — 손잡이와 제목까지. 아래 지도앱 목록은 탭이 우선이라 제외한다. */}
+        <View {...dismiss.panHandlers} style={styles.grabArea}>
+          <View style={styles.handle} />
+          <Text style={styles.title}>길찾기</Text>
+          <Text style={styles.sub} numberOfLines={1}>'{placeName}'을(를) 어떤 지도로 열까요?</Text>
+        </View>
 
         <View style={styles.list}>
           {rows.map((r) => (
@@ -53,7 +60,7 @@ export function DirectionsSheet({ visible, placeName, onClose, onPick }: {
             </Pressable>
           ))}
         </View>
-      </View>
+      </Animated.View>
     </>
   );
 }
@@ -68,6 +75,8 @@ const styles = StyleSheet.create({
   },
   close: { position: 'absolute', top: 10, right: 12, width: 34, height: 34, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   closeX: { fontSize: 24, color: T2.textMute, lineHeight: 26 },
+  // 손잡이(4px)만으로는 잡기 어려워, 제목까지 포함한 넓은 영역에 제스처를 건다.
+  grabArea: { paddingTop: 2, paddingBottom: 2 },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E5E5', alignSelf: 'center', marginBottom: 12 },
   title: { fontSize: 20, fontWeight: '800', color: T2.text, letterSpacing: -0.5 },
   sub: { fontSize: 13, color: T2.textMute, marginTop: 6, letterSpacing: -0.3 },

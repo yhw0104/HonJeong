@@ -1,7 +1,7 @@
 // MapHome — 지도/홈. 실제 카카오맵 위에 실데이터(마커·주변 리스트·혼밥 시작/종료·전체 카운트)를 올린다.
 // 하단 탭바는 MainTabs 네비게이터가 렌더하므로 여기서는 그리지 않는다.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Animated, PanResponder, Dimensions, ActivityIndicator, Image } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Linking, Animated, PanResponder, Dimensions, ActivityIndicator, Image, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HonjeongMap, Icon, HonbabStatusBar, StateView } from '@/shared/components';
 import type { HonjeongMapHandle } from '@/shared/components';
@@ -22,7 +22,9 @@ import type { MainTabScreenProps } from '@/navigation/types';
 const HONJEONG_ICON = require('../../../../assets/honjeong-icon.png'); // 같이 먹기 버튼 아이콘(혼정 로고)
 
 // 하단 시트 스냅 높이(접힘/펼침). 펼치면 화면의 82%까지 올라와 전체 리스트가 보인다.
-const SHEET_COLLAPSED = 300;
+// 시트 접힘 높이는 헤더를 실측해 정한다(onHeadLayout). 이 값은 실측 전 첫 프레임용 임시값일 뿐이다.
+const SHEET_COLLAPSED_FALLBACK = 150;
+const SHEET_VPADDING = 12 + 8; // styles.sheet의 paddingTop + paddingBottom — 실측 헤더에 더해야 안 잘린다
 const SHEET_EXPANDED = Math.round(Dimensions.get('window').height * 0.82);
 const SOURCE_RANK = { default: 0, region: 1, gps: 2 } as const;
 
@@ -128,15 +130,26 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   };
 
   // 드래그로 펼치는 하단 시트: 핸들/헤더를 위로 끌면 펼침, 아래로 끌면 접힘.
-  const sheetH = useRef(new Animated.Value(SHEET_COLLAPSED)).current;
+  // ★접힘 높이는 상수가 아니라 **헤더 실측값**이다 — 다 내리면 "지금 N명 혼밥 중"과 '같이 먹기'만
+  //   남고 식당 목록은 가려져, 그만큼 지도를 넓게 볼 수 있다. 헤더는 '그 중 N명은 …' 줄이 조건부라
+  //   높이가 달라지므로 고정값을 쓰면 잘리거나 빈 공간이 생긴다.
+  const sheetH = useRef(new Animated.Value(SHEET_COLLAPSED_FALLBACK)).current;
+  const collapsedRef = useRef(SHEET_COLLAPSED_FALLBACK);
   const expandedRef = useRef(false);
   const snapSheet = (expand: boolean) => {
     expandedRef.current = expand;
     Animated.spring(sheetH, {
-      toValue: expand ? SHEET_EXPANDED : SHEET_COLLAPSED,
+      toValue: expand ? SHEET_EXPANDED : collapsedRef.current,
       useNativeDriver: false,
       bounciness: 2,
     }).start();
+  };
+  // 헤더(핸들+제목줄) 실측 → 접힘 높이 갱신. 접혀 있는 상태면 즉시 반영한다.
+  const onHeadLayout = (e: LayoutChangeEvent) => {
+    const next = Math.round(e.nativeEvent.layout.height) + SHEET_VPADDING;
+    if (Math.abs(next - collapsedRef.current) < 1) return;
+    collapsedRef.current = next;
+    if (!expandedRef.current) sheetH.setValue(next);
   };
   const sheetPan = useRef(
     PanResponder.create({
@@ -144,8 +157,8 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 4,
       onPanResponderMove: (_, g) => {
-        const base = expandedRef.current ? SHEET_EXPANDED : SHEET_COLLAPSED;
-        sheetH.setValue(Math.min(SHEET_EXPANDED, Math.max(SHEET_COLLAPSED, base - g.dy)));
+        const base = expandedRef.current ? SHEET_EXPANDED : collapsedRef.current;
+        sheetH.setValue(Math.min(SHEET_EXPANDED, Math.max(collapsedRef.current, base - g.dy)));
       },
       onPanResponderRelease: (_, g) => {
         if (g.dy < -50) snapSheet(true);
@@ -154,6 +167,11 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
       },
     }),
   ).current;
+
+  // 지도 위 떠 있는 버튼들은 시트 높이를 따라 움직인다 — 안 그러면 시트만 내려가고 버튼은 공중에 뜬다.
+  // AnimatedNode는 렌더마다 새로 만들면 안 되므로 한 번만 생성한다.
+  const zoomBottom = useRef(Animated.add(sheetH, 62)).current;
+  const floatBottom = useRef(Animated.add(sheetH, 12)).current;
 
   return (
     <View style={styles.root}>
@@ -211,18 +229,18 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
       </View>
 
       {/* 줌 +/− */}
-      <View style={styles.zoom}>
+      <Animated.View style={[styles.zoom, { bottom: zoomBottom }]}>
         <Pressable style={[styles.zoomBtn, styles.zoomDivider]} onPress={() => mapRef.current?.zoomIn()}>
           <Text style={styles.zoomText}>+</Text>
         </Pressable>
         <Pressable style={styles.zoomBtn} onPress={() => mapRef.current?.zoomOut()}>
           <Text style={styles.zoomText}>−</Text>
         </Pressable>
-      </View>
+      </Animated.View>
 
       {/* 이동 감지 시 지도 하단 가운데 '이 위치에서 재검색' */}
       {offerResearch && (
-        <View style={styles.researchWrap} pointerEvents="box-none">
+        <Animated.View style={[styles.researchWrap, { bottom: floatBottom }]} pointerEvents="box-none">
           <Pressable style={styles.researchBtn} onPress={researchHere} disabled={nearby.isFetching}>
             {nearby.isFetching ? (
               <ActivityIndicator size="small" color={T2.brand} />
@@ -230,20 +248,20 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
               <Text style={styles.researchText}>↻ 이 위치에서 재검색</Text>
             )}
           </Pressable>
-        </View>
+        </Animated.View>
       )}
 
       {/* 우하단 '내 주변' — 내 위치로 새로고침(재검색). GPS 없으면 권한 재요청. */}
-      <View style={styles.nearMeWrap} pointerEvents="box-none">
+      <Animated.View style={[styles.nearMeWrap, { bottom: floatBottom }]} pointerEvents="box-none">
         <Pressable style={styles.nearMeBtn} onPress={nearMe} disabled={nearby.isFetching}>
           <Icon name="navigate" size={13} color={T2.brand} />
           <Text style={styles.nearMeText}>내 주변</Text>
         </Pressable>
-      </View>
+      </Animated.View>
 
       {/* 하단 시트 (핸들·헤더를 위로 드래그하면 펼쳐져 전체 리스트가 보임) */}
       <Animated.View style={[styles.sheet, { height: sheetH }]}>
-        <View {...sheetPan.panHandlers}>
+        <View {...sheetPan.panHandlers} onLayout={onHeadLayout}>
           <View style={styles.handle} />
           <View style={[styles.sheetHead, styles.sheetHeadRow]}>
           <View style={{ flex: 1 }}>
@@ -283,6 +301,10 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           </View>
         </View>
 
+        {/* 헤더 아래 본문. ★접었을 때 남는 높이가 0이 되므로 여기서 잘라내야 한다 —
+            안 그러면 정렬 칩·목록이 시트 바깥(탭바 위)으로 삐져나온다.
+            시트 본체에 overflow:hidden을 주면 iOS에서 상단 그림자까지 함께 잘려 사라진다. */}
+        <View style={styles.sheetBody}>
         {/* 정렬 필터 — 거리순 / 리뷰 많은순 / 별점순 */}
         <View style={styles.sortRow}>
           {SORT_OPTIONS.map((s) => {
@@ -364,6 +386,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
             ))
           )}
         </ScrollView>
+        </View>
       </Animated.View>
 
       {/* 식당 선택 시트 — 혼밥 시작 전 어디서 먹는지 선택 */}
@@ -522,7 +545,8 @@ const styles = StyleSheet.create({
   zoom: {
     position: 'absolute',
     right: 16,
-    bottom: SHEET_COLLAPSED + 62, // '내 주변' 알약 위로 올림
+    // bottom은 시트 높이를 따라가야 해서 렌더에서 애니메이션 값(zoomBottom)으로 준다.
+    // '내 주변' 알약(+12)보다 50 위에 오도록 +62.
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#fff',
@@ -532,7 +556,8 @@ const styles = StyleSheet.create({
   zoomDivider: { borderBottomWidth: 1, borderBottomColor: T2.border },
   zoomText: { fontSize: 18, color: T2.text },
 
-  nearMeWrap: { position: 'absolute', right: 16, bottom: SHEET_COLLAPSED + 12, alignItems: 'flex-end' },
+  // bottom은 렌더에서 floatBottom(시트 높이 + 12)으로 준다.
+  nearMeWrap: { position: 'absolute', right: 16, alignItems: 'flex-end' },
   nearMeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -545,7 +570,8 @@ const styles = StyleSheet.create({
   },
   nearMeText: { fontSize: 13, fontWeight: '700', color: T2.brand, letterSpacing: -0.3 },
 
-  researchWrap: { position: 'absolute', left: 0, right: 0, bottom: SHEET_COLLAPSED + 12, alignItems: 'center' },
+  // bottom은 렌더에서 floatBottom(시트 높이 + 12)으로 준다.
+  researchWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   researchBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -576,6 +602,8 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E5E5', alignSelf: 'center', marginBottom: 16 },
+  // 헤더 아래 본문 — 접혔을 때 높이가 0이 되며 내용을 잘라낸다(시트 밖으로 삐져나오지 않게).
+  sheetBody: { flex: 1, overflow: 'hidden' },
   sheetList: { flex: 1 },
   sortRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingBottom: 12 },
   sortChip: { paddingVertical: 7, paddingHorizontal: 13, borderRadius: 999, backgroundColor: T2.bg, borderWidth: 1, borderColor: T2.border },

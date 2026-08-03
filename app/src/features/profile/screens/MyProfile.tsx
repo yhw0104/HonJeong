@@ -1,8 +1,8 @@
 // MyProfile — 내 프로필 (원본: screens/MyProfile.jsx)
 // 더보기 프로필 카드에서 진입. 편집→ProfileEdit, 획득한 뱃지 전체보기→ChallengeBadges.
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions } from 'react-native';
-import { Screen, Avatar, Icon, StateView } from '@/shared/components';
+import { Screen, Avatar, Icon, StateView, PhotoViewer } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useMyProfile, useActivitySummary } from '@/features/users/queries';
 import { useBadges } from '@/features/record/queries';
@@ -33,6 +33,7 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
   const subLine = [ageGenderLabel(profile?.ageGroup, profile?.gender), diningStyleLabel(profile?.diningStyle)]
     .filter(Boolean)
     .join(' · ');
+  const [photo, setPhoto] = useState<string | null>(null); // 프로필 사진 확대 뷰어 대상
   const styleLabel =
     profile?.diningStyle === 'QUIET'
       ? { title: '조용히 각자', sub: '편하게, 말 없이 먹어도 좋아요' }
@@ -58,7 +59,15 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
         <ScrollView contentContainerStyle={styles.scroll}>
         {/* 프로필 헤더 */}
         <View style={styles.profile}>
-          <Avatar uri={profile?.profileImageUrl} bg={T2.bg} size={84} />
+          {/* 사진이 있을 때만 눌러서 크게 볼 수 있다 — 폴백(앱 아이콘)은 확대할 이유가 없다. */}
+          <Pressable
+            onPress={() => profile?.profileImageUrl && setPhoto(profile.profileImageUrl)}
+            disabled={!profile?.profileImageUrl}
+            accessibilityRole={profile?.profileImageUrl ? 'button' : undefined}
+            accessibilityLabel={profile?.profileImageUrl ? '프로필 사진 크게 보기' : undefined}
+          >
+            <Avatar uri={profile?.profileImageUrl} bg={T2.bg} size={84} />
+          </Pressable>
           <Text style={styles.name}>{profile?.nickname ?? '혼밥러'}</Text>
           {subLine ? <Text style={styles.sub}>{subLine}</Text> : null}
           {!!profile?.introduction && <Text style={styles.bio}>"{profile.introduction}"</Text>}
@@ -122,6 +131,8 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
         </View>
         </ScrollView>
       )}
+
+      <PhotoViewer uri={photo} onClose={() => setPhoto(null)} />
     </Screen>
   );
 }
