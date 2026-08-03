@@ -65,5 +65,11 @@ module.exports = {
         },
       ],
     ],
+    // EAS 프로젝트 식별자. `eas init`이 발급했지만 **이 파일이 동적 설정(app.config.js)이라
+    // CLI가 자동으로 써넣지 못해**("Cannot automatically write to dynamic config") 손으로 넣었다.
+    // 지우면 eas build/submit이 어느 프로젝트인지 몰라 실패한다.
+    extra: {
+      eas: { projectId: 'eca89e34-6fe0-4dda-8748-8661c9f5f79e' },
+    },
   },
 };
