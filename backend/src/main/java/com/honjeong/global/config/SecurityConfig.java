@@ -102,11 +102,16 @@ public class SecurityConfig {
         // SMS가 real이 아닌 동안(현재 real 구현체가 없어 항상 mock)은 휴대폰 인증 경로를 전면 차단한다.
         // 이유: FixedVerificationCodeGenerator가 인증번호로 항상 "000000"을 돌려주므로, 공개 서버에
         // 이 경로를 열어두면 send-code → verify 두 번의 무인증 호출만으로 임의 전화번호를 ROLE_USER
-        // 계정으로 만들 수 있다(무제한 무인증 계정 생성). 이 값은 이 프로젝트의 결정이지 재검토 대상이
-        // 아니다 — SecurityConfig는 프로파일 공통이라 무조건 차단하면 로컬 개발에서 휴대폰 온보딩
-        // 플로우를 테스트할 수 없게 되므로, 실제 능력(sms.mode)을 따라간다. real SMS 게이트웨이가
-        // 붙어 honjeong.sms.mode=real이 되는 순간 이 조건이 거짓이 되어 아래 permitAll로 코드 변경
-        // 없이 자동 복귀한다.
+        // 계정으로 만들 수 있다(무제한 무인증 계정 생성).
+        //
+        // 하드코딩된 denyAll이 아니라 sms.mode를 보는 이유는 "보안 규칙이 실제 능력을 따라가게" 하기
+        // 위해서다 — real SMS 게이트웨이가 붙어 honjeong.sms.mode=real이 되는 순간 이 조건이 거짓이
+        // 되어 아래 permitAll로 코드 변경 없이 자동 복귀한다.
+        // ★단, 지금은 로컬에서도 막힌다: application.yml 공통 섹션이 sms.mode를 mock으로 고정하고
+        //   있고(오버라이드 통로 없음), real로 바꾸면 mock 빈이 사라져 컨텍스트가 죽는다. 즉 "로컬
+        //   개발용으로 열어둔다"는 선택지는 애초에 없다 — 휴대폰 온보딩을 테스트하려면 mock SMS가
+        //   필요한데 그게 곧 차단 대상이기 때문이다. 앱의 휴대폰 진입점도 이미 숨겨져 있어 소비처가
+        //   없다(Welcome.tsx 참고).
         boolean smsIsMock = !"real".equals(smsMode);
         http
                 // 토큰 기반 무상태 API라 CSRF 보호가 불필요하므로 끈다.

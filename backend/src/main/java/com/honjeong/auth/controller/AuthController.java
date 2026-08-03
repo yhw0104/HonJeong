@@ -82,7 +82,10 @@ public class AuthController {
      *
      * <p>개발(mock) 모드에서는 항상 {@code 000000}이 발급된다.
      *
-     * <p><b>인증:</b> 불필요(permitAll, {@code /api/auth/phone/**}).
+     * <p><b>인증:</b> 토큰은 불필요하지만, {@code honjeong.sms.mode}가 {@code real}이 아닌 동안
+     * SecurityConfig가 {@code /api/auth/phone/**}를 차단하므로 이 경로는 401로 끊긴다. 현재 real SMS
+     * 구현체가 없어 사실상 항상 차단 상태다 — mock 인증번호가 고정값이라 공개 서버에서 무인증 계정
+     * 생성에 쓰일 수 있기 때문이다. real 게이트웨이가 붙으면 permitAll로 자동 복귀한다.
      *
      * @param request 인증번호를 받을 휴대폰 번호
      * @return 본문 데이터 없음 — 성공 여부만 응답 엔벨로프로 전달
@@ -101,7 +104,10 @@ public class AuthController {
      * <p>만료·시도횟수·일치 여부를 따져 검증하고, 기존 ACTIVE 회원이면 로그인 토큰을, 신규/미완 회원이면
      * PENDING 사용자를 만들고 온보딩 토큰을 돌려준다.
      *
-     * <p><b>인증:</b> 불필요(permitAll, {@code /api/auth/phone/**}).
+     * <p><b>인증:</b> 토큰은 불필요하지만, {@code honjeong.sms.mode}가 {@code real}이 아닌 동안
+     * SecurityConfig가 {@code /api/auth/phone/**}를 차단하므로 이 경로는 401로 끊긴다. 현재 real SMS
+     * 구현체가 없어 사실상 항상 차단 상태다 — mock 인증번호가 고정값이라 공개 서버에서 무인증 계정
+     * 생성에 쓰일 수 있기 때문이다. real 게이트웨이가 붙으면 permitAll로 자동 복귀한다.
      *
      * @param request 휴대폰 번호와 입력한 인증번호
      * @return 신규/미완이면 onboarding=true + onboardingToken, 기존 ACTIVE 회원이면 access/refresh/expiresIn
