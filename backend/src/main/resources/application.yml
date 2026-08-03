@@ -32,8 +32,12 @@ honjeong:
     # 역지오코딩 모드: mock(기본·결정론적 더미) | real(외부 역지오코딩 API). real은 후속 구현.
     mode: mock
   jwt:
-    # HS256용 시크릿(>= 256bit). 운영은 환경변수 JWT_SECRET으로 주입(NFR-02).
-    secret: ${JWT_SECRET:honjeong-local-dev-secret-please-change-in-production-0123456789}
+    # HS256 서명 시크릿(>= 256bit). 환경변수 JWT_SECRET으로 주입한다(NFR-02).
+    # ★기본값을 두지 않는다 — 여기에 값을 적으면 그 값이 저장소에 커밋되어, 저장소를 볼 수 있는
+    #   누구나 임의 사용자를 사칭하는 토큰을 위조할 수 있다. 값이 없으면 바인딩 단계에서 즉시
+    #   부팅에 실패한다(조용히 뜨는 것보다 낫다).
+    # 개발용 값은 local·test 프로파일이 각자 들고 있다(아래 local 문서 / application-test.yml).
+    secret: ${JWT_SECRET}
     access-token-ttl-seconds: 3600        # 1시간
     refresh-token-ttl-seconds: 1209600    # 14일
     onboarding-token-ttl-seconds: 900     # 15분
@@ -62,6 +66,13 @@ spring:
         format_sql: true
   flyway:
     enabled: true
+
+honjeong:
+  jwt:
+    # 로컬 개발 전용 시크릿. 공통 섹션이 기본값을 두지 않으므로 여기서 채운다 —
+    # `./gradlew bootRun`은 .env를 읽지 않아(Gradle에 dotenv 로딩이 없다) 환경변수가 비어 있다.
+    # 이 값은 개발 편의용이고 운영에는 절대 쓰이지 않는다(prod 프로파일은 JWT_SECRET을 요구한다).
+    secret: honjeong-local-dev-secret-not-for-production-0123456789
 
 server:
   port: 8080

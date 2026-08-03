@@ -1,6 +1,12 @@
 # 테스트 프로파일 (@ActiveProfiles("test")).
 # datasource는 Testcontainers @ServiceConnection이 주입한다(URL/계정 미지정).
-# honjeong.* mock 설정과 jwt 시크릿은 메인 application.yml의 공통 섹션에서 상속된다.
+# honjeong.* mock 설정은 메인 application.yml의 공통 섹션에서 상속된다.
+# 단 jwt 시크릿은 상속되지 않는다 — 공통 섹션이 실사용 가능한 기본값을 커밋하지 않으려고
+# ${JWT_SECRET}만 두기 때문이다. 그래서 테스트용 값을 아래에서 직접 준다.
+honjeong:
+  jwt:
+    secret: honjeong-test-secret-not-for-production-0123456789
+
 spring:
   jpa:
     hibernate:

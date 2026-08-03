@@ -24,6 +24,37 @@ class JwtProviderTest {
     }
 
     @Test
+    @DisplayName("해석되지 않은 플레이스홀더가 시크릿으로 들어오면 생성에 실패한다")
+    void 미해석_플레이스홀더는_거부된다() {
+        // given: JWT_SECRET 환경변수가 없어 스프링이 플레이스홀더를 리터럴로 넘긴 상황
+        // (@ConfigurationProperties 바인딩은 해석 못 한 플레이스홀더에 예외를 던지지 않고 문자열 그대로 준다)
+
+        // when·then: "${JWT_SECRET}"이 서명 키가 되는 것을 생성자가 막는다
+        assertThatThrownBy(() -> new JwtProvider("${JWT_SECRET}", 3600, 900, Clock.systemUTC()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("JWT_SECRET");
+    }
+
+    @Test
+    @DisplayName("HS256 최소 길이(32바이트) 미만 시크릿은 거부된다")
+    void 짧은_시크릿은_거부된다() {
+        // given: 31바이트짜리 시크릿(HS256은 256bit=32바이트 이상이어야 한다)
+        String tooShort = "0123456789012345678901234567890";
+
+        // when·then: 생성자가 막는다
+        assertThatThrownBy(() -> new JwtProvider(tooShort, 3600, 900, Clock.systemUTC()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("32");
+    }
+
+    @Test
+    @DisplayName("빈 시크릿은 거부된다")
+    void 빈_시크릿은_거부된다() {
+        assertThatThrownBy(() -> new JwtProvider("   ", 3600, 900, Clock.systemUTC()))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     @DisplayName("액세스 토큰은 sub=userId, typ=access 클레임을 담는다")
     void createAccessToken_containsUserIdAndType() {
         // given: 정상 provider

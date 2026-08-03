@@ -16,6 +16,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.util.Assert;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 
@@ -52,7 +53,19 @@ public class JwtProvider {
      * @param clock 발급/만료 시각의 기준 Clock(테스트에서 교체 가능)
      */
     public JwtProvider(String secret, long accessTtlSeconds, long onboardingTtlSeconds, Clock clock) {
-        SecretKey key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        // 서명 키가 될 수 없는 값이면 여기서 부팅을 세운다. 조용히 뜨면 발급되는 모든 토큰이 무의미해진다.
+        // ★특히 "${JWT_SECRET}" 검사가 핵심이다: 스프링 부트의 @ConfigurationProperties 바인딩은
+        //   해석하지 못한 플레이스홀더에 예외를 던지지 않고 리터럴 문자열을 그대로 넘긴다. 그래서
+        //   환경변수를 빠뜨린 채 prod로 띄우면 서명 키가 문자 그대로 "${JWT_SECRET}"이 되어 —
+        //   누구나 아는 값이라 임의 사용자를 사칭하는 토큰을 위조할 수 있다. 실제로 그렇게 기동되는
+        //   것을 확인하고 이 가드를 넣었다.
+        Assert.hasText(secret, "honjeong.jwt.secret이 비어 있습니다.");
+        Assert.isTrue(!secret.startsWith("${"),
+                "honjeong.jwt.secret이 해석되지 않았습니다 — JWT_SECRET 환경변수를 주입하세요.");
+        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+        Assert.isTrue(keyBytes.length >= 32,
+                "honjeong.jwt.secret은 HS256용으로 최소 32바이트여야 합니다(현재 " + keyBytes.length + "바이트).");
+        SecretKey key = new SecretKeySpec(keyBytes, "HmacSHA256");
         this.encoder = new NimbusJwtEncoder(new ImmutableSecret<>(key));
         this.decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
         this.accessTtlSeconds = accessTtlSeconds;
