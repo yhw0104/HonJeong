@@ -37,6 +37,13 @@ const SHEET_EXPANDED = Math.round(Dimensions.get('window').height * 0.82);
 const SHEET_MID = Math.round(Dimensions.get('window').height * 0.35);
 // 헤더가 유난히 큰 경우(모집 안내 줄 표시 등)에도 목록이 최소 이만큼은 보이게 하는 하한.
 const SHEET_MID_MIN_LIST = 120;
+// 지도 위 떠 있는 버튼(줌·내 주변·이 위치에서 재검색)이 사라지는 구간.
+// 시트가 목록을 펼치러 올라오면 이 버튼들이 화면 위쪽으로 밀려 지도와 상관없는 자리에 뜬다 —
+// 시트 높이에 따라 서서히 투명해지게 해서 목록을 다 펼쳤을 땐 아예 안 보이게 한다.
+// 기준을 mid(=35%)가 아니라 화면 비율로 잡은 이유: mid는 헤더 높이에 따라 달라질 수 있어,
+// mid에 붙여두면 헤더가 큰 화면에서 기본 상태부터 버튼이 흐려진다.
+const FLOAT_FADE_FROM = Math.round(Dimensions.get('window').height * 0.5);
+const FLOAT_FADE_TO = Math.round(Dimensions.get('window').height * 0.68);
 type SheetSnap = 'collapsed' | 'mid' | 'expanded';
 const SOURCE_RANK = { default: 0, region: 1, gps: 2 } as const;
 
@@ -146,10 +153,14 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const collapsedRef = useRef(SHEET_COLLAPSED_FALLBACK);
   const midRef = useRef(SHEET_MID);
   const snapRef = useRef<SheetSnap>('mid'); // 앱을 켜면 식당 목록이 조금 보이는 상태에서 시작
+  // 떠 있는 버튼이 완전히 투명해졌을 때 터치까지 막기 위한 상태 — opacity 0만으로는 안 보이는
+  // 버튼이 그 자리의 터치를 계속 가로챈다. 스냅이 끝날 때만 바뀌므로 드래그 중 리렌더는 없다.
+  const [floatsOff, setFloatsOff] = useState(false);
   const heightFor = (s: SheetSnap) =>
     s === 'expanded' ? SHEET_EXPANDED : s === 'mid' ? midRef.current : collapsedRef.current;
   const snapSheet = (s: SheetSnap) => {
     snapRef.current = s;
+    setFloatsOff(s === 'expanded');
     Animated.spring(sheetH, { toValue: heightFor(s), useNativeDriver: false, bounciness: 2 }).start();
   };
 
@@ -192,6 +203,14 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   // AnimatedNode는 렌더마다 새로 만들면 안 되므로 한 번만 생성한다.
   const zoomBottom = useRef(Animated.add(sheetH, 62)).current;
   const floatBottom = useRef(Animated.add(sheetH, 12)).current;
+  // 시트를 목록까지 펼치면 서서히 사라진다(드래그를 따라 연속적으로 흐려져 툭 끊기지 않는다).
+  const floatOpacity = useRef(
+    sheetH.interpolate({
+      inputRange: [FLOAT_FADE_FROM, FLOAT_FADE_TO],
+      outputRange: [1, 0],
+      extrapolate: 'clamp',
+    }),
+  ).current;
 
   return (
     <View style={styles.root}>
@@ -249,7 +268,10 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
       </View>
 
       {/* 줌 +/− */}
-      <Animated.View style={[styles.zoom, { bottom: zoomBottom }]}>
+      <Animated.View
+        style={[styles.zoom, { bottom: zoomBottom, opacity: floatOpacity }]}
+        pointerEvents={floatsOff ? 'none' : 'auto'}
+      >
         <Pressable style={[styles.zoomBtn, styles.zoomDivider]} onPress={() => mapRef.current?.zoomIn()}>
           <Text style={styles.zoomText}>+</Text>
         </Pressable>
@@ -260,7 +282,10 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
 
       {/* 이동 감지 시 지도 하단 가운데 '이 위치에서 재검색' */}
       {offerResearch && (
-        <Animated.View style={[styles.researchWrap, { bottom: floatBottom }]} pointerEvents="box-none">
+        <Animated.View
+          style={[styles.researchWrap, { bottom: floatBottom, opacity: floatOpacity }]}
+          pointerEvents={floatsOff ? 'none' : 'box-none'}
+        >
           <Pressable style={styles.researchBtn} onPress={researchHere} disabled={nearby.isFetching}>
             {nearby.isFetching ? (
               <ActivityIndicator size="small" color={T2.brand} />
@@ -272,7 +297,10 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
       )}
 
       {/* 우하단 '내 주변' — 내 위치로 새로고침(재검색). GPS 없으면 권한 재요청. */}
-      <Animated.View style={[styles.nearMeWrap, { bottom: floatBottom }]} pointerEvents="box-none">
+      <Animated.View
+        style={[styles.nearMeWrap, { bottom: floatBottom, opacity: floatOpacity }]}
+        pointerEvents={floatsOff ? 'none' : 'box-none'}
+      >
         <Pressable style={styles.nearMeBtn} onPress={nearMe} disabled={nearby.isFetching}>
           <Icon name="navigate" size={13} color={T2.brand} />
           <Text style={styles.nearMeText}>내 주변</Text>
