@@ -5,6 +5,7 @@ import {
   View, Text, TextInput, Pressable, ScrollView, ActivityIndicator,
   KeyboardAvoidingView, Platform, Alert, StyleSheet,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, Icon, Avatar } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { useSeekers } from '@/features/checkin/queries';
@@ -20,6 +21,7 @@ export function MealRequestScreen({ navigation, route }: RootStackScreenProps<'M
   const { placeId, placeName } = route.params;
   const seekers = useSeekers(placeId);
   const create = useCreateMealRequest();
+  const insets = useSafeAreaInsets();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [greeting, setGreeting] = useState(QUICK[1]);
 
@@ -40,7 +42,9 @@ export function MealRequestScreen({ navigation, route }: RootStackScreenProps<'M
   };
 
   return (
-    <Screen bg={T2.bg}>
+    // bottom edge는 Screen이 아니라 아래 CTA바가 직접 처리한다 — SafeAreaView가 아래 여백을 잡으면
+    // 흰 버튼바 밑에 크림색(T2.bg) 띠가 남아 두 톤으로 갈린다(ChatRoom과 같은 처리).
+    <Screen bg={T2.bg} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.topBar}>
           <Pressable onPress={() => navigation.goBack()} hitSlop={10} accessibilityRole="button">
@@ -122,7 +126,7 @@ export function MealRequestScreen({ navigation, route }: RootStackScreenProps<'M
           </View>
         </ScrollView>
 
-        <View style={styles.ctaBar}>
+        <View style={[styles.ctaBar, { paddingBottom: 16 + insets.bottom }]}>
           <Pressable
             style={[styles.sendBtn, { opacity: selectedId == null || create.isPending ? 0.5 : 1 }]}
             onPress={send}
@@ -158,7 +162,8 @@ const styles = StyleSheet.create({
   greetingInput: { marginTop: 12, paddingVertical: 14, paddingHorizontal: 16, minHeight: 64, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1.5, borderColor: T2.text, fontSize: 15, color: T2.text, lineHeight: 22, letterSpacing: -0.3, textAlignVertical: 'top' },
   quickWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 },
   quickChip: { paddingHorizontal: 13, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
-  ctaBar: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 28, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: T2.border },
+  // paddingBottom은 렌더에서 준다(16 + 하단 안전영역) — 흰색이 화면 맨 아래까지 이어지게.
+  ctaBar: { paddingHorizontal: 16, paddingTop: 12, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: T2.border },
   sendBtn: { paddingVertical: 16, borderRadius: 12, backgroundColor: T2.brand, alignItems: 'center' },
   sendText: { fontSize: 15, fontWeight: '800', color: '#fff', letterSpacing: -0.3 },
 });

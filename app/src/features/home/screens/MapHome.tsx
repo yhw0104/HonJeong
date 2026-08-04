@@ -199,6 +199,22 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     }),
   ).current;
 
+  // 하단 탭의 '홈'을 누르면 시트를 기본 단계로 되돌리고 목록도 맨 위로 올린다.
+  // tabPress는 **이미 홈에 있을 때도** 발생하므로, 시트를 접거나 목록을 한참 내려둔 상태에서
+  // 홈 버튼이 "처음 화면으로"의 의미로 동작한다. 목록을 같이 올리지 않으면 시트만 기본 높이로
+  // 돌아오고 내용은 중간에 걸쳐 있어 오히려 고장처럼 보인다.
+  // 의존성은 navigation만 둔다 — snapSheet가 건드리는 값은 전부 ref이거나 안정적인 setter라
+  // 첫 렌더의 클로저를 그대로 써도 항상 최신 높이로 스냅한다.
+  const listRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    const unsub = navigation.addListener('tabPress', () => {
+      snapSheet('mid');
+      listRef.current?.scrollTo({ y: 0, animated: true });
+    });
+    return unsub;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation]);
+
   // 지도 위 떠 있는 버튼들은 시트 높이를 따라 움직인다 — 안 그러면 시트만 내려가고 버튼은 공중에 뜬다.
   // AnimatedNode는 렌더마다 새로 만들면 안 되므로 한 번만 생성한다.
   const zoomBottom = useRef(Animated.add(sheetH, 62)).current;
@@ -365,7 +381,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
           })}
         </View>
 
-        <ScrollView style={styles.sheetList} showsVerticalScrollIndicator={false}>
+        <ScrollView ref={listRef} style={styles.sheetList} showsVerticalScrollIndicator={false}>
           {nearbySt !== 'ready' ? (
             <StateView
               kind={nearbySt === 'error' ? 'error' : nearbySt === 'empty' ? 'empty' : 'loading'}

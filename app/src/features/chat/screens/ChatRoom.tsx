@@ -75,6 +75,11 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
 
   // 전송 = 첨부 사진(있으면) → 글자(있으면) 순서. 사진 업로드가 실패하면 글자도 보내지 않고
   // 첨부를 그대로 남긴다 — 사진만 사라지고 글자만 올라가는 어긋난 상태를 만들지 않기 위함.
+  //
+  // ★두 단계 모두 mutateAsync로 결과를 기다린다. mutate(fire-and-forget)를 쓰면 전송 실패가
+  //   아무 표시 없이 사라진다 — "가끔 사진이 안 보내진다"의 원인이 이것이었다(업로드는 성공했는데
+  //   그 다음 메시지 생성이 실패하면, 화면에는 아무 일도 안 일어난 것처럼 보였다).
+  //   실패 시 입력한 글자도 되돌려 놓는다. 다시 치게 만들지 않기 위함.
   const onSend = async () => {
     if (!canSend) return;
     const t = text.trim();
@@ -84,8 +89,9 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
         const [url] = await uploadImages([pending]);
         if (url) await sendMut.mutateAsync({ type: 'IMAGE', imageUrl: url });
         setPending(null);
-      } catch {
-        Alert.alert('전송 실패', '사진을 보내지 못했어요. 잠시 후 다시 시도해주세요.');
+      } catch (e) {
+        // uploadImages는 사람이 읽을 수 있는 메시지를 담아 던진다(용량 초과 등) — 그대로 보여준다.
+        Alert.alert('전송 실패', e instanceof Error && e.message ? e.message : '사진을 보내지 못했어요. 잠시 후 다시 시도해주세요.');
         return;
       } finally {
         setUploading(false);
@@ -93,7 +99,12 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
     }
     if (t) {
       setText('');
-      sendMut.mutate({ type: 'TEXT', text: t });
+      try {
+        await sendMut.mutateAsync({ type: 'TEXT', text: t });
+      } catch {
+        setText(t); // 친 글자를 되돌려 준다
+        Alert.alert('전송 실패', '메시지를 보내지 못했어요. 잠시 후 다시 시도해주세요.');
+      }
     }
   };
 

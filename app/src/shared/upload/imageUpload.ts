@@ -80,7 +80,15 @@ async function uploadOne(uri: string, token: string | undefined, retried = false
   }
 
   if (res.status < 200 || res.status >= 300) {
-    throw new Error('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
+    // 서버가 사람이 읽을 수 있는 이유를 주면(용량 초과 등) 그대로 보여준다 — "실패했어요"만 띄우면
+    // 사용자는 다시 시도해야 할지 다른 사진을 골라야 할지 알 수 없다.
+    let serverMessage: string | undefined;
+    try {
+      serverMessage = JSON.parse(res.body)?.error?.message;
+    } catch {
+      /* 본문이 JSON이 아님(프록시 에러 페이지 등) — 기본 메시지로 떨어진다 */
+    }
+    throw new Error(serverMessage || '사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
   }
   let envelope: { success: boolean; data?: { url?: string } };
   try {

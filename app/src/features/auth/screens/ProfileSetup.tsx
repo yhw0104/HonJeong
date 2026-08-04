@@ -39,7 +39,9 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
   const { signIn } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [nickname, setNickname] = useState('');
-  const [intro, setIntro] = useState('조용히 먹는 것도, 도란도란 얘기하는 것도 좋아요.');
+  // 빈 값으로 시작한다 — 예시 문장을 초기값으로 넣으면 placeholder처럼 보이지만 실제로는 '값'이라,
+  // 직접 쓰려면 먼저 지워야 하고 그냥 두면 남의 문장이 내 소개로 저장된다(목업에서 넘어온 흔적).
+  const [intro, setIntro] = useState('');
   const [gender, setGender] = useState<'female' | 'male'>('female');
   const [foods, setFoods] = useState<string[]>([]);
   const [style, setStyle] = useState('talk');
