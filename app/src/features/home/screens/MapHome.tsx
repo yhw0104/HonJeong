@@ -32,8 +32,9 @@ const SHEET_VPADDING = 12 + 8; // styles.sheet의 paddingTop + paddingBottom —
 const SHEET_EXPANDED = Math.round(Dimensions.get('window').height * 0.82);
 // mid는 화면 비율로 고정한다. 처음엔 "식당 3개"를 실측해 맞췄지만, 사진이 붙은 행은 230px가 넘어
 // 3개면 시트가 화면의 3분의 2를 먹어 지도가 안 보였다 — 목록 양이 아니라 **지도가 얼마나 보이는지**를
-// 기준으로 잡는 게 맞다. 45%면 헤더와 정렬 칩 아래로 목록이 두어 줄 보여 "더 있다"는 신호는 남는다.
-const SHEET_MID = Math.round(Dimensions.get('window').height * 0.45);
+// 기준으로 잡는 게 맞다. 35%면 헤더와 정렬 칩 아래로 목록이 한 줄 남짓 보여 "더 있다"는 신호는
+// 남으면서 지도가 3분의 2를 차지한다(사용자 확인, 2026-08-04).
+const SHEET_MID = Math.round(Dimensions.get('window').height * 0.35);
 // 헤더가 유난히 큰 경우(모집 안내 줄 표시 등)에도 목록이 최소 이만큼은 보이게 하는 하한.
 const SHEET_MID_MIN_LIST = 120;
 type SheetSnap = 'collapsed' | 'mid' | 'expanded';
