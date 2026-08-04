@@ -8,6 +8,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.honjeong.global.common.ApiResponse;
@@ -111,6 +112,23 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException ex) {
         return ResponseEntity.status(ErrorCode.NOT_FOUND.status())
                 .body(ApiResponse.error(ErrorCode.NOT_FOUND.code(), ErrorCode.NOT_FOUND.message()));
+    }
+
+    /**
+     * 업로드 파일이 {@code spring.servlet.multipart.max-file-size}(5MB)를 넘긴 경우를 413으로 변환한다.
+     *
+     * <p><b>왜 필요한가.</b> 이 예외도 {@link #handleUnexpected}로 빨려들어가 500으로 나갔다. 사진이
+     * 큰 것은 서버 잘못이 아니라 클라이언트 사정인데 500이 되면 두 가지가 망가진다 — 앱은 "서버
+     * 오류"라는 애매한 메시지만 띄워 사용자가 무엇을 고쳐야 할지 모르고, 운영자는 500 비율로
+     * 건강도를 볼 때 큰 사진 한 장을 진짜 장애와 구분하지 못한다.
+     *
+     * @param ex 상한을 담은 멀티파트 예외
+     * @return 413 상태 + FILE_TOO_LARGE 코드 엔벨로프(사용자에게 그대로 보여줄 수 있는 메시지)
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
+        return ResponseEntity.status(ErrorCode.FILE_TOO_LARGE.status())
+                .body(ApiResponse.error(ErrorCode.FILE_TOO_LARGE.code(), ErrorCode.FILE_TOO_LARGE.message()));
     }
 
     /**

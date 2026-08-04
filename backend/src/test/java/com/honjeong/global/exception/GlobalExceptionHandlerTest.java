@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.honjeong.support.ActiveUserSliceSupport;
 
@@ -105,9 +106,27 @@ class GlobalExceptionHandlerTest extends ActiveUserSliceSupport {
                 .andExpect(jsonPath("$.error.code").value("NOT_FOUND"));
     }
 
+    @Test
+    @DisplayName("업로드 용량 초과는 500이 아니라 413 FILE_TOO_LARGE다")
+    void oversizedUpload_mappedToPayloadTooLarge() throws Exception {
+        // given: 멀티파트 상한을 넘겨 스프링이 MaxUploadSizeExceededException을 던지는 상황
+        // when/then: 사진이 큰 것은 클라이언트 사정이므로 4xx여야 한다. 500으로 나가면 앱은
+        //            "서버 오류"라는 애매한 메시지만 띄우고, 운영자는 500 비율로 장애를 오판한다.
+        mockMvc.perform(get("/__test/too-large"))
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("FILE_TOO_LARGE"));
+    }
+
     /** 핸들러 검증을 위해 일부러 예외를 던지는 테스트 전용 컨트롤러. */
     @RestController
     static class TestController {
+
+        /** 업로드 용량 초과(MaxUploadSizeExceededException) 발생용 엔드포인트. */
+        @GetMapping("/__test/too-large")
+        void tooLarge() {
+            throw new MaxUploadSizeExceededException(5 * 1024 * 1024);
+        }
 
         /** BusinessException(NOT_FOUND) 발생용 엔드포인트. GET만 매핑해 405 케이스에도 쓴다. */
         @GetMapping("/__test/business")

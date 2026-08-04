@@ -24,6 +24,8 @@ public enum ErrorCode {
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다."),
     /** 범용 상태 충돌 — 409 */
     CONFLICT(HttpStatus.CONFLICT, "요청이 충돌했습니다."),
+    /** 업로드 파일이 설정 상한(spring.servlet.multipart.max-file-size)을 넘음 — 413 */
+    FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "사진 용량이 너무 커요. 5MB 이하로 올려주세요."),
 
     // 인증·계정 — 토큰 재발급, 휴대폰 인증, 약관 동의, 닉네임/사용자 조회 등 가입·로그인 흐름의 에러
     /** 리프레시 토큰이 없거나 만료·폐기됨(재로그인 필요) — 401 */
