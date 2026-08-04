@@ -47,7 +47,7 @@ export function useLocation(options?: { watch?: boolean }): {
     load();
   }, []);
 
-  // watch: 권한이 있으면 이동(5m)마다 gps를 갱신. 언마운트·watch 해제 시 구독을 정리한다.
+  // watch: 권한이 있으면 이동할 때마다 gps를 갱신. 언마운트·watch 해제 시 구독을 정리한다.
   useEffect(() => {
     if (!watch || permission !== 'granted') return;
     let sub: Location.LocationSubscription | null = null;
@@ -55,18 +55,24 @@ export function useLocation(options?: { watch?: boolean }): {
     (async () => {
       try {
         const s = await Location.watchPositionAsync(
-          // ★두 값이 함께 "파란 점이 나를 따라오는" 체감을 만든다. 이전 값(Balanced·25m)은
-          //   정확도가 ~100m라 25m를 걸어도 그 차이를 못 잡아, 실기기에서 마커가 거의 안 움직였다.
-          //   High는 오차 ~10m라 짧은 이동도 잡힌다. BestForNavigation은 추가 센서까지 써서
-          //   배터리 소모가 큰 내비게이션용이라, 걸어다니며 주변을 보는 이 앱엔 High가 적정선이다.
+          // ★"파란 점이 나를 따라오는" 체감은 이 두 값이 정한다. iOS에서 accuracy는
+          //   CLLocationManager.desiredAccuracy로, distanceInterval은 distanceFilter로 그대로 내려간다.
+          //   · Highest = kCLLocationAccuracyBest. 앞서 High(오차 ~10m)로도 마커가 거의 안 움직였다 —
+          //     걷는 속도의 이동은 10m 정확도로는 잡히지 않는다. BestForNavigation은 여기서 한 단계 더
+          //     나아가 추가 센서까지 켜는 내비게이션 전용이라 배터리 소모가 커서 쓰지 않는다.
+          //   · distanceInterval 0 = 필터 없음(모든 이동 보고). 5m로 두면 "5m를 움직였다고 판정"되기
+          //     전까지 콜백이 아예 오지 않아, 실내·저속에서는 몇 분씩 갱신이 끊긴다. expo도 기본값이 0이다.
           //   timeInterval은 안드로이드 전용이라 iOS에 효과가 없어 넣지 않는다(SDK 56 문서).
-          { accuracy: Location.Accuracy.High, distanceInterval: 5 },
+          { accuracy: Location.Accuracy.Highest, distanceInterval: 0 },
           (pos) => setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          // 구독이 시작된 뒤 끊기는 경우(권한 회수 등)는 catch로 안 잡힌다 — 조용히 멈추지 않게 여기서 받는다.
+          (err) => console.warn('[useLocation] watch 중단', err),
         );
         if (cancelled) s.remove();
         else sub = s;
-      } catch {
+      } catch (e) {
         // 워처 시작 실패(시뮬레이터 등) — 1회 취득 값으로 동작.
+        console.warn('[useLocation] watch 시작 실패', e);
       }
     })();
     return () => {

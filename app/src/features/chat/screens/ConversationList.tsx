@@ -156,9 +156,18 @@ export function ConversationListScreen() {
         renderRightActions={(_progress, translation, swipeable) => (
           <DeleteAction translation={translation} onPress={() => confirmDelete(item, swipeable)} />
         )}
-        // overshoot를 막으면 스와이프가 버튼 너비에서 잘려 늘어나는 느낌이 안 난다 → 기본값(허용) 사용.
-        // friction 1.4로 끌리는 감을 약간 무겁게 해 튕김을 줄인다.
-        friction={1.4}
+        // ★"조금만 스와이프해도 삭제 버튼이 나오게" — 열림 판정은 세 값이 함께 정한다.
+        //   friction은 손가락 이동을 나눈다(1 = 1:1로 정확히 따라옴, 1.4 = 1.4배 둔함).
+        //   rightThreshold는 그렇게 나눈 이동이 이만큼을 넘으면 열림으로 스냅한다(기본 = 버튼 너비의 절반 = 38).
+        //   dragOffsetFromRightEdge는 제스처가 시작되기까지 필요한 가로 이동(기본 10).
+        //   이전 값(friction 1.4 · 기본 임계값)은 열려면 손가락을 10 + 38×1.4 ≈ 63px 끌어야 했다.
+        //   지금은 8 + 18 = 26px면 열린다. 8 밑으로는 세로 스크롤 중 사선 이동에 걸려 오작동이 난다.
+        friction={1}
+        rightThreshold={18}
+        dragOffsetFromRightEdge={8}
+        // overshoot(버튼 너비를 넘겨 끄는 것)는 허용하되 8배 저항을 준다 — 막으면 늘어나는 느낌이
+        // 사라지고, 저항이 없으면(기본 1) 끝없이 딸려와 헐렁하다. 라이브러리가 권하는 네이티브 감각.
+        overshootFriction={8}
         // 라이브러리 기본 스프링(mass 2·damping 1000·stiffness 700)은 감쇠비가 13을 넘는 과감쇠라
         // 끝에서 질질 끌린다. 감쇠비 ~0.78로 낮춰 탄력을 주되 overshootClamping으로 넘어가진 않게 한다.
         animationOptions={{ mass: 1, damping: 28, stiffness: 320, overshootClamping: true }}

@@ -93,12 +93,18 @@ function buildHtml(appKey: string, center: LatLng, level: number): string {
             post('center:' + c.getLat() + ',' + c.getLng());
           });
           // 내 위치(파란 점) 렌더 함수. lat/lng가 null이면 점을 제거한다.
+          // ★이미 점이 있으면 지우고 다시 만들지 않고 setPosition으로 옮긴다 — GPS는 걷는 동안 초 단위로
+          //   들어오는데, 매번 재생성하면 점이 깜빡이고 DOM도 계속 새로 만들어진다.
           window.__myLoc = null;
           window.__renderMyLocation = function(lat, lng){
-            if (window.__myLoc) { window.__myLoc.setMap(null); window.__myLoc = null; }
-            if (lat == null || lng == null) return;
+            if (lat == null || lng == null) {
+              if (window.__myLoc) { window.__myLoc.setMap(null); window.__myLoc = null; }
+              return;
+            }
+            var pos = new kakao.maps.LatLng(lat, lng);
+            if (window.__myLoc) { window.__myLoc.setPosition(pos); return; }
             window.__myLoc = new kakao.maps.CustomOverlay({
-              position: new kakao.maps.LatLng(lat, lng),
+              position: pos,
               content: '<div style="width:18px;height:18px;border-radius:50%;background:#2D7DF6;border:3px solid #fff;box-shadow:0 0 0 4px rgba(45,125,246,0.25);"></div>',
               zIndex: 10
             });

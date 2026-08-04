@@ -21,11 +21,22 @@ import type { MainTabScreenProps } from '@/navigation/types';
 
 const HONJEONG_ICON = require('../../../../assets/honjeong-icon.png'); // 같이 먹기 버튼 아이콘(혼정 로고)
 
-// 하단 시트 스냅 높이(접힘/펼침). 펼치면 화면의 82%까지 올라와 전체 리스트가 보인다.
-// 시트 접힘 높이는 헤더를 실측해 정한다(onHeadLayout). 이 값은 실측 전 첫 프레임용 임시값일 뿐이다.
+// 하단 시트는 3단계로 움직인다.
+//   collapsed  헤더만("지금 N명 혼밥 중" + 같이 먹기) — 지도를 가장 넓게 본다
+//   mid        기본값. 헤더 + 식당 목록 조금 — 앱을 켜면 이 상태다
+//   expanded   화면의 82% — 전체 목록
+// collapsed는 상수가 아니라 **헤더 실측값**이다 — '그 중 N명은 …' 줄이 조건부라 높이가 달라져,
+// 고정값을 쓰면 잘리거나 빈 공간이 생긴다. SHEET_COLLAPSED_FALLBACK은 실측 전 첫 프레임용이다.
 const SHEET_COLLAPSED_FALLBACK = 150;
 const SHEET_VPADDING = 12 + 8; // styles.sheet의 paddingTop + paddingBottom — 실측 헤더에 더해야 안 잘린다
 const SHEET_EXPANDED = Math.round(Dimensions.get('window').height * 0.82);
+// mid는 화면 비율로 고정한다. 처음엔 "식당 3개"를 실측해 맞췄지만, 사진이 붙은 행은 230px가 넘어
+// 3개면 시트가 화면의 3분의 2를 먹어 지도가 안 보였다 — 목록 양이 아니라 **지도가 얼마나 보이는지**를
+// 기준으로 잡는 게 맞다. 45%면 헤더와 정렬 칩 아래로 목록이 두어 줄 보여 "더 있다"는 신호는 남는다.
+const SHEET_MID = Math.round(Dimensions.get('window').height * 0.45);
+// 헤더가 유난히 큰 경우(모집 안내 줄 표시 등)에도 목록이 최소 이만큼은 보이게 하는 하한.
+const SHEET_MID_MIN_LIST = 120;
+type SheetSnap = 'collapsed' | 'mid' | 'expanded';
 const SOURCE_RANK = { default: 0, region: 1, gps: 2 } as const;
 
 // 하단 주변 목록 정렬 옵션. rating은 맛 별점 기준(리뷰 수 → 거리로 tie-break).
@@ -129,27 +140,32 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
     }
   };
 
-  // 드래그로 펼치는 하단 시트: 핸들/헤더를 위로 끌면 펼침, 아래로 끌면 접힘.
-  // ★접힘 높이는 상수가 아니라 **헤더 실측값**이다 — 다 내리면 "지금 N명 혼밥 중"과 '같이 먹기'만
-  //   남고 식당 목록은 가려져, 그만큼 지도를 넓게 볼 수 있다. 헤더는 '그 중 N명은 …' 줄이 조건부라
-  //   높이가 달라지므로 고정값을 쓰면 잘리거나 빈 공간이 생긴다.
-  const sheetH = useRef(new Animated.Value(SHEET_COLLAPSED_FALLBACK)).current;
+  // 드래그로 여닫는 하단 시트(collapsed ↔ mid ↔ expanded). 핸들/헤더를 위아래로 끌면 한 단계씩 옮긴다.
+  const sheetH = useRef(new Animated.Value(SHEET_MID)).current;
   const collapsedRef = useRef(SHEET_COLLAPSED_FALLBACK);
-  const expandedRef = useRef(false);
-  const snapSheet = (expand: boolean) => {
-    expandedRef.current = expand;
-    Animated.spring(sheetH, {
-      toValue: expand ? SHEET_EXPANDED : collapsedRef.current,
-      useNativeDriver: false,
-      bounciness: 2,
-    }).start();
+  const midRef = useRef(SHEET_MID);
+  const snapRef = useRef<SheetSnap>('mid'); // 앱을 켜면 식당 목록이 조금 보이는 상태에서 시작
+  const heightFor = (s: SheetSnap) =>
+    s === 'expanded' ? SHEET_EXPANDED : s === 'mid' ? midRef.current : collapsedRef.current;
+  const snapSheet = (s: SheetSnap) => {
+    snapRef.current = s;
+    Animated.spring(sheetH, { toValue: heightFor(s), useNativeDriver: false, bounciness: 2 }).start();
   };
+
   // 헤더(핸들+제목줄) 실측 → 접힘 높이 갱신. 접혀 있는 상태면 즉시 반영한다.
+  // mid는 화면 비율로 고정하되, 헤더가 커져 목록이 거의 안 보이게 되는 경우만 아래로 밀어준다.
   const onHeadLayout = (e: LayoutChangeEvent) => {
     const next = Math.round(e.nativeEvent.layout.height) + SHEET_VPADDING;
     if (Math.abs(next - collapsedRef.current) < 1) return;
     collapsedRef.current = next;
-    if (!expandedRef.current) sheetH.setValue(next);
+    if (snapRef.current === 'collapsed') sheetH.setValue(next);
+    const mid = Math.min(Math.max(SHEET_MID, next + SHEET_MID_MIN_LIST), SHEET_EXPANDED);
+    if (Math.abs(mid - midRef.current) < 1) return;
+    midRef.current = mid;
+    // 헤더 높이는 첫 프레임에 잡히거나 혼밥 상태가 바뀔 때 달라진다. 튀지 않게 스프링으로 옮긴다.
+    if (snapRef.current === 'mid') {
+      Animated.spring(sheetH, { toValue: mid, useNativeDriver: false, bounciness: 0 }).start();
+    }
   };
   const sheetPan = useRef(
     PanResponder.create({
@@ -157,13 +173,16 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 4,
       onPanResponderMove: (_, g) => {
-        const base = expandedRef.current ? SHEET_EXPANDED : collapsedRef.current;
+        const base = heightFor(snapRef.current);
         sheetH.setValue(Math.min(SHEET_EXPANDED, Math.max(collapsedRef.current, base - g.dy)));
       },
       onPanResponderRelease: (_, g) => {
-        if (g.dy < -50) snapSheet(true);
-        else if (g.dy > 50) snapSheet(false);
-        else snapSheet(expandedRef.current);
+        const cur = snapRef.current;
+        // 크게/빠르게 끌면 가운데를 건너뛰고 끝까지 간다 — 한 번에 지도를 다 열고 싶을 때 두 번 끌지 않게.
+        const far = Math.abs(g.dy) > 160 || Math.abs(g.vy) > 1.2;
+        if (g.dy < -50) snapSheet(cur === 'collapsed' && !far ? 'mid' : 'expanded');
+        else if (g.dy > 50) snapSheet(cur === 'expanded' && !far ? 'mid' : 'collapsed');
+        else snapSheet(cur);
       },
     }),
   ).current;

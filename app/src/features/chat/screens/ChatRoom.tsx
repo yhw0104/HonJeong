@@ -10,13 +10,15 @@ import {
   Image,
   StyleSheet,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Alert,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import { Screen, StateView, Avatar } from '@/shared/components';
+import { Screen, StateView, Avatar, PhotoViewer } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { useMessages, useSendMessage, useMarkRead, useConversations } from '../queries';
@@ -40,9 +42,27 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
   const blockMut = useBlockUser();
   const [text, setText] = useState('');
   const [uploading, setUploading] = useState(false);
+  // 전송 대기 중인 첨부 사진(로컬 uri). ＋로 고르면 바로 보내지 않고 여기 담아 두고,
+  // 입력창 위 썸네일로 보여준 뒤 전송 버튼을 눌러야 올라간다 — 잘못 고른 사진을 되돌릴 수 있게.
+  // 업로드도 이 시점까지 미룬다(취소하면 서버에 고아 파일이 남지 않는다).
+  const [pending, setPending] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<string | null>(null); // 크게 보는 중인 대화 사진
   // 우상단 … 메뉴(신고/차단) — MateProfile.tsx와 동일하게 버튼 아래 드롭다운 카드로 표시.
   const [menuOpen, setMenuOpen] = useState(false);
   const insets = useSafeAreaInsets();
+
+  // 하단 바(입력/종료 안내)를 홈 인디케이터 영역까지 같은 색으로 덮기 위한 여백.
+  // Screen에서 bottom edge를 뺐으므로 그 몫을 여기서 준다 — 안 그러면 바 아래에 크림색 띠가 남는다.
+  // 키보드가 올라오면 iOS 키보드가 이미 그 영역을 덮으므로 0으로 되돌린다(안 그러면 빈 틈이 생긴다).
+  const [kbUp, setKbUp] = useState(false);
+  useEffect(() => {
+    const show = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hide = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const s1 = Keyboard.addListener(show, () => setKbUp(true));
+    const s2 = Keyboard.addListener(hide, () => setKbUp(false));
+    return () => { s1.remove(); s2.remove(); };
+  }, []);
+  const barBottom = kbUp ? 0 : insets.bottom;
 
   // 진입/새 메시지 수신 시 읽음 처리. markRead.mutate 참조는 매 렌더 안정적이지 않을 수 있어
   // 의존성엔 넣지 않고 id·메시지 개수 변화에만 반응(무한루프 방지).
@@ -51,26 +71,37 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, messages?.length]);
 
-  const onSendText = () => {
+  const canSend = (!!text.trim() || !!pending) && !sendMut.isPending && !uploading;
+
+  // 전송 = 첨부 사진(있으면) → 글자(있으면) 순서. 사진 업로드가 실패하면 글자도 보내지 않고
+  // 첨부를 그대로 남긴다 — 사진만 사라지고 글자만 올라가는 어긋난 상태를 만들지 않기 위함.
+  const onSend = async () => {
+    if (!canSend) return;
     const t = text.trim();
-    if (!t || sendMut.isPending) return;
-    setText('');
-    sendMut.mutate({ type: 'TEXT', text: t });
+    if (pending) {
+      setUploading(true);
+      try {
+        const [url] = await uploadImages([pending]);
+        if (url) await sendMut.mutateAsync({ type: 'IMAGE', imageUrl: url });
+        setPending(null);
+      } catch {
+        Alert.alert('전송 실패', '사진을 보내지 못했어요. 잠시 후 다시 시도해주세요.');
+        return;
+      } finally {
+        setUploading(false);
+      }
+    }
+    if (t) {
+      setText('');
+      sendMut.mutate({ type: 'TEXT', text: t });
+    }
   };
 
+  // ＋ — 사진을 고르기만 하고 보내지는 않는다(전송은 onSend에서). 이미 대기 중이면 새로 고르지 않는다.
   const onAttach = async () => {
-    if (sendMut.isPending || uploading) return;
+    if (sendMut.isPending || uploading || pending) return;
     const picked = await pickImages(1);
-    if (!picked.length) return;
-    setUploading(true);
-    try {
-      const urls = await uploadImages(picked.map((p) => p.uri));
-      if (urls[0]) sendMut.mutate({ type: 'IMAGE', imageUrl: urls[0] });
-    } catch {
-      Alert.alert('업로드 실패', '사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
-    } finally {
-      setUploading(false);
-    }
+    if (picked[0]) setPending(picked[0].uri);
   };
 
   // partnerUserId는 대화 상대 id — 메시지 발신자가 상대가 아니면 내가 보낸 것(현재 앱엔
@@ -127,7 +158,14 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
     const bubble = (
       <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleOther]}>
         {item.type === 'IMAGE' && item.imageUrl ? (
-          <Image source={{ uri: item.imageUrl }} style={styles.image} />
+          // 탭하면 전체화면 뷰어(확대 가능) — 대화 속 사진은 말풍선 크기로는 알아보기 어렵다.
+          <Pressable
+            onPress={() => setViewer(item.imageUrl!)}
+            accessibilityRole="imagebutton"
+            accessibilityLabel="사진 크게 보기"
+          >
+            <Image source={{ uri: item.imageUrl }} style={styles.image} />
+          </Pressable>
         ) : (
           <Text style={[styles.msgText, mine && styles.msgTextMine]}>{item.text}</Text>
         )}
@@ -161,7 +199,9 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
   };
 
   return (
-    <Screen bg={T2.bg}>
+    // bottom edge는 Screen이 아니라 하단 바가 직접 처리한다 — SafeAreaView가 아래 여백을 잡으면
+    // 흰 입력바/종료 안내 아래에 크림색(T2.bg) 띠가 남아 두 톤으로 갈린다.
+    <Screen bg={T2.bg} edges={['top', 'left', 'right']}>
       {/* 커스텀 헤더 — 뒤로 / 이름·식당명(중앙, 식당명 길면 …) / … 메뉴 */}
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.headerBack}>
@@ -221,43 +261,72 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
         )}
 
         {closed ? (
-          <View style={styles.closedBar}>
+          <View style={[styles.closedBar, { paddingBottom: 14 + barBottom }]}>
             <Text style={styles.closedText}>종료된 대화예요 · 새 메시지는 보낼 수 없어요</Text>
           </View>
         ) : (
-          <View style={styles.inputBar}>
-            <Pressable
-              onPress={onAttach}
-              style={[styles.attach, uploading && styles.attachDisabled]}
-              disabled={sendMut.isPending || uploading}
-              hitSlop={6}
-              accessibilityRole="button"
-            >
-              <Text style={styles.attachText}>＋</Text>
-            </Pressable>
-            <TextInput
-              style={styles.input}
-              value={text}
-              onChangeText={setText}
-              placeholder="메시지 입력"
-              placeholderTextColor={T2.textMute}
-              multiline
-            />
-            <Pressable
-              onPress={onSendText}
-              style={[styles.send, (!text.trim() || sendMut.isPending) && styles.sendDisabled]}
-              disabled={!text.trim() || sendMut.isPending}
-              accessibilityRole="button"
-              accessibilityLabel="전송"
-            >
-              <Svg width={18} height={18} viewBox="0 0 24 24">
-                {/* 오른쪽을 향하는 종이비행기 — 시각적 균형 위해 오른쪽으로 살짝 이동 */}
-                <Path d="M5.5 5L21.5 12L5.5 19L5.5 13.5L15.5 12L5.5 10.5L5.5 5Z" fill="#fff" />
-              </Svg>
-            </Pressable>
+          <View style={[styles.composer, { paddingBottom: barBottom }]}>
+            {/* 전송 대기 사진 — 입력창 바로 위에 붙는다(카카오톡과 같은 자리). ×로 취소. */}
+            {pending && (
+              <View style={styles.pendingBar}>
+                <View style={styles.pendingItem}>
+                  <Image source={{ uri: pending }} style={styles.pendingThumb} />
+                  {uploading ? (
+                    <View style={styles.pendingBusy}>
+                      <ActivityIndicator size="small" color="#fff" />
+                    </View>
+                  ) : (
+                    <Pressable
+                      style={styles.pendingRemove}
+                      onPress={() => setPending(null)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="첨부 취소"
+                    >
+                      <Text style={styles.pendingRemoveX}>×</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <Text style={styles.pendingHint}>전송을 누르면 보내져요</Text>
+              </View>
+            )}
+            <View style={styles.inputBar}>
+              <Pressable
+                onPress={onAttach}
+                style={[styles.attach, (uploading || !!pending) && styles.attachDisabled]}
+                disabled={sendMut.isPending || uploading || !!pending}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel="사진 첨부"
+              >
+                <Text style={styles.attachText}>＋</Text>
+              </Pressable>
+              <TextInput
+                style={styles.input}
+                value={text}
+                onChangeText={setText}
+                placeholder="메시지 입력"
+                placeholderTextColor={T2.textMute}
+                multiline
+              />
+              <Pressable
+                onPress={onSend}
+                style={[styles.send, !canSend && styles.sendDisabled]}
+                disabled={!canSend}
+                accessibilityRole="button"
+                accessibilityLabel="전송"
+              >
+                <Svg width={18} height={18} viewBox="0 0 24 24">
+                  {/* 오른쪽을 향하는 종이비행기 — 시각적 균형 위해 오른쪽으로 살짝 이동 */}
+                  <Path d="M5.5 5L21.5 12L5.5 19L5.5 13.5L15.5 12L5.5 10.5L5.5 5Z" fill="#fff" />
+                </Svg>
+              </Pressable>
+            </View>
           </View>
         )}
       </KeyboardAvoidingView>
+
+      <PhotoViewer uri={viewer} onClose={() => setViewer(null)} />
     </Screen>
   );
 }
@@ -314,15 +383,46 @@ const styles = StyleSheet.create({
   timeText: { fontSize: 10, color: T2.textMute, marginBottom: 2 },
   timeOther: { marginLeft: 6 },
   // 입력바 / 종료
-  inputBar: {
+  // composer가 첨부 미리보기 + 입력바를 함께 감싸고 하단 안전영역까지 흰색으로 덮는다.
+  // 테두리·배경을 여기로 올렸으므로 inputBar에는 두지 않는다(미리보기가 붙어도 선이 하나만 보이게).
+  composer: { borderTopWidth: 1, borderTopColor: T2.border, backgroundColor: T2.surface },
+  inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 10 },
+  pendingBar: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-    padding: 10,
-    borderTopWidth: 1,
-    borderTopColor: T2.border,
-    backgroundColor: T2.surface,
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 10,
+    paddingTop: 10,
   },
+  // ×가 썸네일 모서리에 걸치도록 위/오른쪽에 여백을 두고, ×는 그 여백 안에 넣는다.
+  // 음수 좌표로 부모 밖에 두면 안드로이드에서 잘려 눌리지 않는다.
+  pendingItem: { paddingTop: 6, paddingRight: 6 },
+  pendingThumb: { width: 56, height: 56, borderRadius: 10, backgroundColor: T2.bg },
+  pendingRemove: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(20,20,20,0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingRemoveX: { color: '#fff', fontSize: 15, lineHeight: 17, fontWeight: '700' },
+  // 업로드 중에는 ×를 감추고 진행 표시로 바꾼다 — 올라가는 중에 취소를 누를 수 없게.
+  pendingBusy: {
+    position: 'absolute',
+    top: 6, // pendingItem의 위 여백만큼 내려 썸네일과 정확히 겹치게
+    left: 0,
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingHint: { fontSize: 12, color: T2.textMute, letterSpacing: -0.2 },
   attach: {
     width: 36,
     height: 36,
@@ -352,8 +452,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendDisabled: { backgroundColor: T2.borderStrong },
+  // paddingBottom은 렌더에서 준다(14 + 하단 안전영역) — 흰색이 화면 맨 아래까지 이어지게.
   closedBar: {
-    padding: 14,
+    paddingTop: 14,
+    paddingHorizontal: 14,
     borderTopWidth: 1,
     borderTopColor: T2.border,
     alignItems: 'center',

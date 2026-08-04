@@ -1,52 +1,172 @@
-// PhotoViewer — 사진 한 장을 전체화면으로 크게 보는 뷰어.
-// 프로필 사진을 탭했을 때 원본을 확인하는 용도(내 프로필·메이트 프로필 공용).
+// PhotoViewer — 사진 한 장을 전체화면으로 크게 보는 뷰어(프로필 사진·대화 속 사진 공용).
 //
-// 닫기는 **화면 아무 곳이나 탭**으로 한다. 시트들처럼 아래로 쓸어 닫기도 검토했지만,
-// 여기선 화면 전체가 닫기 버튼이라 굳이 제스처를 얹을 이유가 없다 — 오히려 사진 위에
-// 제스처를 걸면 나중에 확대/이동을 붙일 때 서로 충돌한다.
+// 조작:
+//   · 핀치        확대/축소(최대 5배). 원배율보다 작게 밀면 손을 뗄 때 원배율로 되돌아온다.
+//   · 더블탭      원배율 ↔ 2.5배 토글(한 손으로 빠르게 확대할 때).
+//   · 드래그      확대 상태에서만 이동. 가장자리를 넘어가지 않게 잘린다.
+//   · 탭          닫기 — 단, **원배율일 때만**. 확대한 채로 사진을 짚으면 닫히던 문제를 막는다.
+//   · ×           배율과 무관하게 항상 닫힌다(확대 상태에서 빠져나가는 유일한 출구라 꼭 필요하다).
+//
+// 제스처는 Modal 안에 있으므로 GestureHandlerRootView로 한 번 더 감싼다 —
+// App.tsx의 루트는 Modal 내부까지 미치지 않아, 없으면 안드로이드에서 제스처가 죽는다.
 //
 // uri가 null이면 렌더하지 않는다(= 닫힌 상태). 호출부는 상태 하나만 들고 있으면 된다.
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Modal, View, Text, Image, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+// Reanimated 4에서 runOnJS는 deprecated — 대체는 worklets의 scheduleOnRN이다.
+import { scheduleOnRN } from 'react-native-worklets';
+
+const MAX_SCALE = 5;
+const DOUBLE_TAP_SCALE = 2.5;
+// 핀치를 원배율 밑으로 밀 때 이만큼까지는 따라가게 두고(고무줄 느낌), 손을 떼면 1로 되돌린다.
+const MIN_PINCH_SCALE = 0.7;
+
+function clamp(v: number, min: number, max: number) {
+  'worklet';
+  return Math.min(max, Math.max(min, v));
+}
 
 export function PhotoViewer({ uri, onClose }: { uri: string | null; onClose: () => void }) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
+  const savedTx = useSharedValue(0);
+  const savedTy = useSharedValue(0);
+
+  // 닫을 때 배율·위치를 초기화한다 — 안 하면 다음에 열 때 확대된 채로 뜬다(뷰어를 재사용하므로).
+  const close = useCallback(() => {
+    scale.value = 1;
+    savedScale.value = 1;
+    tx.value = 0;
+    ty.value = 0;
+    savedTx.value = 0;
+    savedTy.value = 0;
+    onClose();
+  }, [onClose, scale, savedScale, tx, ty, savedTx, savedTy]);
+
+  const pinch = Gesture.Pinch()
+    .onUpdate((e) => {
+      scale.value = clamp(savedScale.value * e.scale, MIN_PINCH_SCALE, MAX_SCALE);
+    })
+    .onEnd(() => {
+      if (scale.value <= 1) {
+        scale.value = withTiming(1);
+        tx.value = withTiming(0);
+        ty.value = withTiming(0);
+        savedScale.value = 1;
+        savedTx.value = 0;
+        savedTy.value = 0;
+        return;
+      }
+      savedScale.value = scale.value;
+      // 배율이 줄면 허용 이동 범위도 줄어든다 — 범위를 넘긴 위치는 안으로 당겨 넣는다.
+      const maxX = (width * (scale.value - 1)) / 2;
+      const maxY = (height * (scale.value - 1)) / 2;
+      const nx = clamp(tx.value, -maxX, maxX);
+      const ny = clamp(ty.value, -maxY, maxY);
+      tx.value = withTiming(nx);
+      ty.value = withTiming(ny);
+      savedTx.value = nx;
+      savedTy.value = ny;
+    });
+
+  const pan = Gesture.Pan()
+    .averageTouches(true)
+    .onUpdate((e) => {
+      if (scale.value <= 1) return; // 원배율에서는 움직이지 않는다(탭으로 닫는 동작과 섞이지 않게)
+      const maxX = (width * (scale.value - 1)) / 2;
+      const maxY = (height * (scale.value - 1)) / 2;
+      tx.value = clamp(savedTx.value + e.translationX, -maxX, maxX);
+      ty.value = clamp(savedTy.value + e.translationY, -maxY, maxY);
+    })
+    .onEnd(() => {
+      savedTx.value = tx.value;
+      savedTy.value = ty.value;
+    });
+
+  const doubleTap = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      if (scale.value > 1) {
+        scale.value = withTiming(1);
+        tx.value = withTiming(0);
+        ty.value = withTiming(0);
+        savedScale.value = 1;
+        savedTx.value = 0;
+        savedTy.value = 0;
+      } else {
+        scale.value = withTiming(DOUBLE_TAP_SCALE);
+        savedScale.value = DOUBLE_TAP_SCALE;
+      }
+    });
+
+  // 확대 중에는 탭으로 닫지 않는다 — 사진을 짚어 이리저리 보는 동작이 곧바로 닫기가 되면 안 된다.
+  // 1.01은 withTiming이 정확히 1.0에서 끝나지 않는 경우를 흡수하기 위한 여유다.
+  const singleTap = Gesture.Tap()
+    .numberOfTaps(1)
+    .onEnd(() => {
+      if (scale.value <= 1.01) scheduleOnRN(close);
+    });
+
+  const gesture = Gesture.Simultaneous(pinch, pan, Gesture.Exclusive(doubleTap, singleTap));
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: tx.value }, { translateY: ty.value }, { scale: scale.value }],
+  }));
 
   return (
     <Modal
       visible={uri != null}
       transparent
       animationType="fade"
-      onRequestClose={onClose} // 안드로이드 뒤로가기
+      onRequestClose={close} // 안드로이드 뒤로가기
       statusBarTranslucent
     >
-      {/* 배경 전체가 닫기 영역. 사진 자체를 눌러도 닫힌다(뷰어에서 사진을 누를 다른 이유가 없다). */}
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="사진 닫기">
-        {uri ? (
-          // contain — 세로로 긴 사진도 잘리지 않게. 정사각 프로필이 대부분이라 보통 가로폭에 맞는다.
-          <Image source={{ uri }} style={{ width, height }} resizeMode="contain" />
-        ) : null}
-      </Pressable>
-      {/* 탭으로 닫힌다는 걸 모를 수 있으니 X도 함께 둔다. */}
-      <Pressable
-        style={[styles.close, { top: insets.top + 8 }]}
-        onPress={onClose}
-        hitSlop={12}
-        accessibilityRole="button"
-        accessibilityLabel="닫기"
-      >
-        <View style={styles.closeBg}>
-          <Text style={styles.closeX}>×</Text>
+      <GestureHandlerRootView style={styles.root}>
+        <View style={styles.backdrop}>
+          <GestureDetector gesture={gesture}>
+            <Animated.View style={[{ width, height }, animStyle]}>
+              {uri ? (
+                // contain — 세로로 긴 사진도 잘리지 않게. 확대는 이 컨테이너째로 한다.
+                <Image source={{ uri }} style={{ width, height }} resizeMode="contain" />
+              ) : null}
+            </Animated.View>
+          </GestureDetector>
         </View>
-      </Pressable>
+        {/* 확대 상태에서는 탭으로 안 닫히므로 ×가 유일한 출구다 — 제스처 영역 밖에 둔다. */}
+        <Pressable
+          style={[styles.close, { top: insets.top + 8 }]}
+          onPress={close}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="닫기"
+        >
+          <View style={styles.closeBg}>
+            <Text style={styles.closeX}>×</Text>
+          </View>
+        </Pressable>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center' },
+  root: { flex: 1 },
+  // overflow:hidden — 확대한 사진이 배경 밖으로 삐져나와 그려지지 않게.
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
   close: { position: 'absolute', right: 14 },
   closeBg: {
     width: 36,
