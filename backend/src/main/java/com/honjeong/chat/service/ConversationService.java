@@ -23,6 +23,9 @@ import com.honjeong.global.common.DisplayNames;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.repository.PlaceRepository;
+import com.honjeong.push.domain.PushType;
+import com.honjeong.push.service.PushDispatcher;
+import com.honjeong.push.service.PushMessages;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
@@ -42,18 +45,21 @@ public class ConversationService {
     private final UserRepository userRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final BlockRepository blockRepository;
+    private final PushDispatcher pushDispatcher;
     private final Clock clock;
 
     public ConversationService(ConversationRepository conversationRepository,
                                 PlaceRepository placeRepository,
                                 UserRepository userRepository,
                                 ChatMessageRepository chatMessageRepository,
-                                BlockRepository blockRepository, Clock clock) {
+                                BlockRepository blockRepository,
+                                PushDispatcher pushDispatcher, Clock clock) {
         this.conversationRepository = conversationRepository;
         this.placeRepository = placeRepository;
         this.userRepository = userRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.blockRepository = blockRepository;
+        this.pushDispatcher = pushDispatcher;
         this.clock = clock;
     }
 
@@ -112,6 +118,9 @@ public class ConversationService {
      * <p>비참여자는 {@link ErrorCode#CONVERSATION_NOT_FOUND}로 위장(존재 여부를 노출하지 않음).
      * CLOSED 대화는 {@link ErrorCode#CONVERSATION_CLOSED}. 타입별 필수값이 비어있으면 {@link ErrorCode#INVALID_INPUT}.
      *
+     * <p>저장이 끝나면 상대에게 {@link com.honjeong.push.domain.PushType#CHAT_MESSAGE} 푸시를 예약한다
+     * (커밋 후 발송). 서로 차단한 사이거나 <b>수신자가</b> 이 대화를 음소거했으면 보내지 않는다.
+     *
      * @param userId         발신자(참여자) id
      * @param conversationId 대화방 id
      * @param req            메시지 타입·내용
@@ -139,6 +148,15 @@ public class ConversationService {
         chatMessageRepository.save(msg);
         conv.touch(now);
         conv.markRead(userId, now); // 보낸 사람은 읽은 것으로
+
+        // 상대에게 푸시. 채팅은 알림함에 쌓지 않으므로(메시지마다 쌓으면 도배된다)
+        // NotificationService.publish()를 거치지 않고 발송기를 직접 부른다.
+        Long partnerId = conv.partnerOf(userId);
+        if (!blockRepository.existsBlockBetween(userId, partnerId) && !conv.isMutedBy(partnerId)) {
+            boolean isImage = req.type() != MessageType.TEXT;
+            String preview = PushMessages.chatPreview(isImage ? null : req.text().trim(), isImage);
+            pushDispatcher.dispatch(partnerId, PushType.CHAT_MESSAGE, userId, conv.getId(), preview);
+        }
         return ChatMessageResponse.from(msg);
     }
 

@@ -3,6 +3,7 @@ package com.honjeong.chat.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -38,6 +39,8 @@ import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.repository.PlaceRepository;
+import com.honjeong.push.domain.PushType;
+import com.honjeong.push.service.PushDispatcher;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
@@ -53,6 +56,7 @@ class ConversationMessagingTest {
     @Mock PlaceRepository placeRepository;
     @Mock UserRepository userRepository;
     @Mock BlockRepository blockRepository;
+    @Mock PushDispatcher pushDispatcher;
     // 2026-07-25T03:00:00Z(UTC) == KST(UTC+9) 2026-07-25T12:00:00 — now()가 KST로 변환하는지도 함께 확인.
     Clock clock = Clock.fixed(Instant.parse("2026-07-25T03:00:00Z"), ZoneId.of("UTC"));
     LocalDateTime expectedNow = LocalDateTime.of(2026, 7, 25, 12, 0, 0);
@@ -61,7 +65,7 @@ class ConversationMessagingTest {
     @BeforeEach
     void setUp() {
         service = new ConversationService(conversationRepository, placeRepository, userRepository,
-                chatMessageRepository, blockRepository, clock);
+                chatMessageRepository, blockRepository, pushDispatcher, clock);
     }
 
     private User userRef(long id) {
@@ -184,6 +188,53 @@ class ConversationMessagingTest {
         assertThat(res.type()).isEqualTo("IMAGE");
         assertThat(res.imageUrl()).isEqualTo("https://img/x.png");
         assertThat(res.text()).isNull();
+    }
+
+    @Test
+    void sendMessage는_상대에게_CHAT_MESSAGE_푸시를_예약한다() {
+        Conversation conv = withId(activeConversation(10L, 20L), 5L);
+        when(conversationRepository.findById(5L)).thenReturn(Optional.of(conv));
+        when(blockRepository.existsBlockBetween(10L, 20L)).thenReturn(false);
+
+        service.sendMessage(10L, 5L, new SendMessageRequest(MessageType.TEXT, "어디세요?", null));
+
+        verify(pushDispatcher).dispatch(20L, PushType.CHAT_MESSAGE, 10L, 5L, "어디세요?");
+    }
+
+    @Test
+    void sendMessage는_수신자가_음소거한_대화엔_푸시를_보내지_않는다() {
+        // 음소거는 '받는 쪽' 설정이다 — 보낸 사람(10)이 아니라 상대(20)가 껐을 때 막혀야 한다.
+        Conversation conv = withId(activeConversation(10L, 20L), 5L);
+        conv.setMuted(20L, true);
+        when(conversationRepository.findById(5L)).thenReturn(Optional.of(conv));
+        when(blockRepository.existsBlockBetween(10L, 20L)).thenReturn(false);
+
+        service.sendMessage(10L, 5L, new SendMessageRequest(MessageType.TEXT, "어디세요?", null));
+
+        verify(pushDispatcher, never()).dispatch(anyLong(), any(), any(), any(), any());
+    }
+
+    @Test
+    void sendMessage는_차단한_사이면_푸시를_보내지_않는다() {
+        Conversation conv = withId(activeConversation(10L, 20L), 5L);
+        when(conversationRepository.findById(5L)).thenReturn(Optional.of(conv));
+        when(blockRepository.existsBlockBetween(10L, 20L)).thenReturn(true);
+
+        service.sendMessage(10L, 5L, new SendMessageRequest(MessageType.TEXT, "어디세요?", null));
+
+        verify(pushDispatcher, never()).dispatch(anyLong(), any(), any(), any(), any());
+    }
+
+    @Test
+    void sendMessage의_사진_메시지는_미리보기가_대체문구다() {
+        Conversation conv = withId(activeConversation(10L, 20L), 5L);
+        when(conversationRepository.findById(5L)).thenReturn(Optional.of(conv));
+        when(blockRepository.existsBlockBetween(10L, 20L)).thenReturn(false);
+
+        service.sendMessage(10L, 5L,
+                new SendMessageRequest(MessageType.IMAGE, null, "https://example.com/a.jpg"));
+
+        verify(pushDispatcher).dispatch(20L, PushType.CHAT_MESSAGE, 10L, 5L, "사진을 보냈어요");
     }
 
     @Test

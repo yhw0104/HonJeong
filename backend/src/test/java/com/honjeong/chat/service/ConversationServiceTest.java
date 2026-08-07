@@ -31,6 +31,7 @@ import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.repository.PlaceRepository;
+import com.honjeong.push.service.PushDispatcher;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
@@ -46,13 +47,14 @@ class ConversationServiceTest {
     @Mock PlaceRepository placeRepository;
     @Mock UserRepository userRepository;
     @Mock BlockRepository blockRepository;
+    @Mock PushDispatcher pushDispatcher;
     Clock clock = Clock.fixed(Instant.parse("2026-07-25T03:00:00Z"), ZoneId.of("UTC"));
     ConversationService service;
 
     @BeforeEach
     void setUp() {
         service = new ConversationService(conversationRepository, placeRepository, userRepository,
-                chatMessageRepository, blockRepository, clock);
+                chatMessageRepository, blockRepository, pushDispatcher, clock);
     }
 
     /**
@@ -195,9 +197,9 @@ class ConversationServiceTest {
         Clock firstCallClock = Clock.fixed(Instant.parse("2026-07-25T03:00:00Z"), ZoneId.of("UTC"));
         Clock secondCallClock = Clock.fixed(Instant.parse("2026-07-25T03:10:00Z"), ZoneId.of("UTC"));
         ConversationService firstCallService = new ConversationService(conversationRepository, placeRepository,
-                userRepository, chatMessageRepository, blockRepository, firstCallClock);
+                userRepository, chatMessageRepository, blockRepository, pushDispatcher, firstCallClock);
         ConversationService secondCallService = new ConversationService(conversationRepository, placeRepository,
-                userRepository, chatMessageRepository, blockRepository, secondCallClock);
+                userRepository, chatMessageRepository, blockRepository, pushDispatcher, secondCallClock);
 
         firstCallService.deleteForMe(10L, 100L);
         LocalDateTime firstDeletedAt = conv.getFromDeletedAt();
