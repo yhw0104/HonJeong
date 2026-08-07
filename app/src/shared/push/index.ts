@@ -18,6 +18,8 @@ import {
   requestPermission,
 } from '@react-native-firebase/messaging';
 
+import { getAccessToken } from '@/shared/auth/session';
+
 import { deleteDeviceToken, registerDeviceToken, type PushPlatform } from './api';
 
 const platform = (): PushPlatform => (Platform.OS === 'android' ? 'ANDROID' : 'IOS');
@@ -113,6 +115,11 @@ export async function revokePushToken(): Promise<void> {
 /** FCM이 토큰을 교체할 때 재등록한다. 반환값은 구독 해제 함수. */
 export function onPushTokenRefresh(): () => void {
   return onTokenRefresh(getMessaging(), async (token) => {
+    // 로그아웃 상태면 등록하지 않는다. 이 리스너는 PushBridge가 guest에서도 마운트하므로
+    // 로그인 없이도 불릴 수 있는데, 그때 등록을 시도하면 401 → refresh 실패 →
+    // onSessionExpired → revokePushToken 순으로 방금 받은 토큰을 도로 폐기하는 헛일이 돈다.
+    // 로그인 시점에 AuthContext가 registerPushToken()으로 다시 등록하므로 잃는 것은 없다.
+    if (!getAccessToken()) return;
     try {
       await registerDeviceToken(token, platform());
     } catch {
