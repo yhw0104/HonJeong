@@ -30,6 +30,12 @@ honjeong:
   geo:
     # 위와 동일 — 역지오코딩 real 구현체 미존재. 환경변수 오버라이드 통로는 유지한다.
     mode: ${GEO_MODE:mock}
+  # 푸시는 real 구현체(FcmPushSender)가 있으므로 운영 기본값이 real이다.
+  # 자격증명이 없으면 기동에 실패한다 — 조용히 mock으로 떨어지면 "배포는 됐는데 푸시만 안 가는"
+  # 상태가 되고 그건 실기기에서야 드러난다.
+  push:
+    mode: ${PUSH_MODE:real}
+    credentials-base64: ${FIREBASE_CREDENTIALS_BASE64:}
 
 server:
   port: 8080

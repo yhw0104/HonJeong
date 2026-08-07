@@ -19,9 +19,12 @@ import com.honjeong.file.storage.FileStorage;
 import com.honjeong.file.storage.LocalFileStorage;
 import com.honjeong.geo.service.MockReverseGeocoder;
 import com.honjeong.geo.service.ReverseGeocoder;
+import com.honjeong.push.service.FcmPushSender;
+import com.honjeong.push.service.NoopPushSender;
+import com.honjeong.push.service.PushSender;
 
 /**
- * prod 프로파일 설정으로 외부연동(SMS·역지오코딩·파일저장) 빈이 실제로 조립되는지 확인하는 회귀 테스트.
+ * prod 프로파일 설정으로 외부연동(SMS·역지오코딩·파일저장·푸시) 빈이 실제로 조립되는지 확인하는 회귀 테스트.
  *
  * <p><b>배경</b>: mock 구현체들은 {@code @ConditionalOnProperty(havingValue="mock", matchIfMissing=true)}로
  * 등록되는데, application-prod.yml이 이들을 {@code real}로 선언한 시기가 있었다. real 구현체가 존재하지
@@ -46,7 +49,8 @@ class ExternalIntegrationWiringTest {
                     MockSmsSender.class,
                     FixedVerificationCodeGenerator.class,
                     MockReverseGeocoder.class,
-                    LocalFileStorage.class);
+                    LocalFileStorage.class,
+                    NoopPushSender.class);
 
     @Test
     @DisplayName("prod 프로파일에서 SMS 빈이 조립된다(부팅 불가 회귀 방지)")
@@ -130,5 +134,30 @@ class ExternalIntegrationWiringTest {
     static class OAuthModeProbe {
         @Value("${honjeong.oauth.mode}")
         String mode;
+    }
+
+    @Test
+    @DisplayName("prod에서 푸시 발송기가 조립된다")
+    void prod에서_푸시빈이_조립된다() {
+        prodRunner.withPropertyValues("honjeong.push.mode=mock").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).hasSingleBean(PushSender.class);
+        });
+    }
+
+    @Test
+    @DisplayName("push.mode=real인데 자격증명이 없으면 기동에 실패한다 — 조용히 mock으로 떨어지지 않는다")
+    void real인데_자격증명이_없으면_기동실패() {
+        prodRunner
+                .withUserConfiguration(FcmPushSender.class)
+                .withPropertyValues("honjeong.push.mode=real", "honjeong.push.credentials-base64=")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    @DisplayName("push.mode=real이면 mock 발송기가 등록되지 않는다")
+    void real이면_mock빈이_없다() {
+        prodRunner.withPropertyValues("honjeong.push.mode=real")
+                .run(context -> assertThat(context).doesNotHaveBean(NoopPushSender.class));
     }
 }

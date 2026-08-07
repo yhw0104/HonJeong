@@ -25,6 +25,8 @@ dependencies {
 	implementation 'org.springframework.security:spring-security-oauth2-jose'
 	implementation 'org.springframework.security:spring-security-oauth2-resource-server'
 	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	// FCM 푸시 발송. Spring Boot BOM이 관리하지 않는 아티팩트라 버전을 명시한다.
+	implementation 'com.google.firebase:firebase-admin:9.4.3'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 	runtimeOnly 'org.postgresql:postgresql'
