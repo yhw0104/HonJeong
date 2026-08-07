@@ -75,7 +75,7 @@ public class PushSendTask {
 
             List<String> dead = pushSender.send(audience.tokenValues(), message);
 
-            deliveryRecorder.recordResult(audience.liveIdsExcluding(dead), dead);
+            deliveryRecorder.recordResult(audience.liveIdsExcluding(dead), dead, recipientId);
         } catch (RuntimeException e) {
             // 토큰 원문·메시지 본문은 남기지 않는다(대화 내용이 서버 로그에 쌓이면 그 자체가 사고다).
             log.warn("[push] 발송 처리 실패 recipient={} type={}", recipientId, type, e);

@@ -119,6 +119,36 @@ class DeviceTokenRepositoryTest extends AbstractPostgresTest {
         assertThat(deviceTokenRepository.findAllByUser_Id(b.getId())).hasSize(1);
     }
 
+    @Test
+    @DisplayName("deleteByTokenAndUserId는 주인이 맞을 때만 지운다 — 발송 도중 기기 주인이 바뀌는 경합")
+    void 죽은_토큰은_주인이_맞을_때만_지운다() {
+        // 발송은 조회 → HTTP → 기록 세 구간이라, 그 사이 upsert가 같은 토큰을 새 주인에게 넘길 수 있다.
+        // 토큰 문자열만 보고 지우면 방금 등록한 새 주인의 행이 낡은 발송 결과 때문에 사라진다.
+        User oldOwner = userRepository.save(newUser("01011110009"));
+        User newOwner = userRepository.save(newUser("01011110010"));
+        deviceTokenRepository.saveAndFlush(DeviceToken.of(oldOwner, "tok-handover", Platform.IOS, NOW));
+        entityManager.clear();
+        deviceTokenRepository.upsert(newOwner.getId(), "tok-handover", Platform.IOS.name(), NOW.plusMinutes(1));
+        entityManager.clear();
+
+        int deleted = deviceTokenRepository.deleteByTokenAndUserId("tok-handover", oldOwner.getId());
+
+        assertThat(deleted).isZero();
+        assertThat(deviceTokenRepository.findAllByUser_Id(newOwner.getId())).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("deleteByTokenAndUserId는 주인이 그대로면 지운다 — 정상 경로가 죽지 않았는지")
+    void 주인이_그대로면_지운다() {
+        User owner = userRepository.save(newUser("01011110011"));
+        deviceTokenRepository.saveAndFlush(DeviceToken.of(owner, "tok-dead", Platform.IOS, NOW));
+
+        int deleted = deviceTokenRepository.deleteByTokenAndUserId("tok-dead", owner.getId());
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(deviceTokenRepository.findByToken("tok-dead")).isEmpty();
+    }
+
     /**
      * 테스트용 PENDING 회원. 다른 리포지토리 슬라이스 테스트와 같은 방식이다(User.pending).
      *

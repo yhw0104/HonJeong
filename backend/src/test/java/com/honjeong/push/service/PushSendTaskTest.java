@@ -3,7 +3,6 @@ package com.honjeong.push.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
@@ -60,7 +59,7 @@ class PushSendTaskTest {
         task.send(7L, PushType.MATE_REQUEST_RECEIVED, 9L, null, null);
 
         verify(pushSender, never()).send(anyList(), any());
-        verify(deliveryRecorder, never()).recordResult(anyList(), anyList());
+        verify(deliveryRecorder, never()).recordResult(anyList(), anyList(), any());
     }
 
     @Test
@@ -124,7 +123,7 @@ class PushSendTaskTest {
 
         task.send(7L, PushType.MATE_REQUEST_ACCEPTED, 9L, null, null);
 
-        verify(deliveryRecorder).recordResult(List.of(1L), List.of("tok-pad"));
+        verify(deliveryRecorder).recordResult(List.of(1L), List.of("tok-pad"), 7L);
     }
 
     @Test
@@ -135,7 +134,7 @@ class PushSendTaskTest {
 
         task.send(7L, PushType.MATE_REQUEST_ACCEPTED, 9L, null, null);
 
-        verify(deliveryRecorder).recordResult(List.of(1L, 2L), List.of());
+        verify(deliveryRecorder).recordResult(List.of(1L, 2L), List.of(), 7L);
     }
 
     @Test
@@ -146,7 +145,7 @@ class PushSendTaskTest {
 
         task.send(7L, PushType.MATE_REQUEST_ACCEPTED, 9L, null, null); // 예외가 나면 테스트 실패
 
-        verify(deliveryRecorder, never()).recordResult(anyList(), anyList());
+        verify(deliveryRecorder, never()).recordResult(anyList(), anyList(), any());
     }
 
     @Test
@@ -156,7 +155,9 @@ class PushSendTaskTest {
 
         task.send(7L, PushType.BADGE_EARNED, null, null, null); // 예외가 나면 테스트 실패
 
-        verify(pushSender, never()).send(anyList(), isNull());
+        // any()로 본다. isNull()로 쓰면 운영 코드가 null 메시지를 보낼 일이 애초에 없어
+        // 무엇을 하든 통과하는 — 아무것도 단언하지 않는 — 검증이 된다.
+        verify(pushSender, never()).send(anyList(), any());
     }
 
     private PushMessage captureMessage() {

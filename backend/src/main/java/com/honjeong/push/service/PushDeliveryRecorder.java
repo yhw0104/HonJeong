@@ -42,18 +42,27 @@ public class PushDeliveryRecorder {
     /**
      * 발송 결과를 반영한다.
      *
-     * @param liveTokenIds 발송에 성공한 토큰의 id — {@code last_used_at}을 지금으로 갱신한다
+     * <p>★ {@code liveTokenIds}는 "<b>성공</b>한 토큰"이 아니라 "<b>영구 무효가 아닌</b> 토큰"이다.
+     * {@link PushSender#send}는 죽은 토큰 목록만 돌려주므로 일시 실패
+     * ({@code UNAVAILABLE}·{@code INTERNAL}·{@code QUOTA_EXCEEDED}·{@code INVALID_ARGUMENT})와
+     * 성공을 구분할 수 없다. 그래서 {@code last_used_at}은 실제로 <b>마지막 발송 시도 시각</b>이다.
+     * 지금은 이 컬럼을 읽는 곳이 없지만, 나중에 "N일 이상 미사용 토큰 정리" 같은 것을 붙일 때
+     * 이 차이를 모르면 죽은 토큰이 영원히 살아 있는 것으로 보인다.
+     *
+     * @param liveTokenIds 영구 무효가 아닌 토큰의 id — {@code last_used_at}을 지금으로 갱신한다
      * @param deadTokens   영구 무효로 판정된 토큰 문자열 — 삭제한다. 안 지우면 계정마다 쓰레기가
      *                     쌓여 실패 호출만 늘어난다
+     * @param ownerId      발송 시점의 토큰 주인 — 삭제를 이 사용자의 행으로 한정한다
+     *                     ({@code DeviceTokenRepository.deleteByTokenAndUserId} Javadoc 참조)
      */
     @Transactional
-    public void recordResult(List<Long> liveTokenIds, List<String> deadTokens) {
+    public void recordResult(List<Long> liveTokenIds, List<String> deadTokens, Long ownerId) {
         if (!liveTokenIds.isEmpty()) {
             LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
             for (DeviceToken token : deviceTokenRepository.findAllById(liveTokenIds)) {
                 token.markUsed(now);
             }
         }
-        deadTokens.forEach(deviceTokenRepository::deleteByToken);
+        deadTokens.forEach(token -> deviceTokenRepository.deleteByTokenAndUserId(token, ownerId));
     }
 }

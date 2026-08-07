@@ -85,4 +85,22 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
     @Modifying
     @Query("DELETE FROM DeviceToken d WHERE d.token = :token")
     int deleteByToken(@Param("token") String token);
+
+    /**
+     * 죽은 토큰 하나를 <b>그 주인의 것일 때만</b> 지운다(발송 결과 기록).
+     *
+     * <p><b>왜 주인까지 보는가.</b> 발송은 조회 → HTTP → 기록 세 구간으로 나뉘어 있고, 그 사이에
+     * 다른 요청이 {@link #upsert}로 같은 토큰의 주인을 바꿔 놓을 수 있다(기기가 남에게 넘어가
+     * 새 사용자가 로그인한 경우 — token이 UNIQUE라 같은 행의 user_id가 갱신된다). 토큰 문자열만
+     * 보고 지우면 <b>방금 등록한 새 주인의 행</b>이 낡은 발송 결과 때문에 사라진다. 창이 좁고
+     * 앱이 다음 시작 때 재등록하므로 치명적이진 않지만, 주인을 조건에 넣으면 아예 없앨 수 있다.
+     *
+     * @param token  삭제할 FCM 등록 토큰
+     * @param userId 발송 시점에 이 토큰의 주인이던 사용자
+     * @return 삭제된 행 수(주인이 바뀌었거나 이미 없었으면 0)
+     */
+    // clearAutomatically 금지 — 위와 같은 이유.
+    @Modifying
+    @Query("DELETE FROM DeviceToken d WHERE d.token = :token AND d.user.id = :userId")
+    int deleteByTokenAndUserId(@Param("token") String token, @Param("userId") Long userId);
 }

@@ -47,8 +47,11 @@ public record PushAudience(List<TokenRef> tokens, String actorNickname) {
     /**
      * 죽은 토큰을 뺀 나머지의 id — 기록 구간에서 {@code markUsed} 대상이다.
      *
-     * @param deadTokens 발송기가 무효로 판정한 토큰 문자열들
-     * @return 살아 있는 토큰의 id 목록
+     * <p>★ "살아 있다"는 <b>영구 무효가 아니다</b>라는 뜻이지 발송에 성공했다는 뜻이 아니다.
+     * 일시 실패한 토큰도 여기 포함된다({@code PushDeliveryRecorder.recordResult} Javadoc 참조).
+     *
+     * @param deadTokens 발송기가 <b>영구</b> 무효로 판정한 토큰 문자열들
+     * @return 영구 무효가 아닌 토큰의 id 목록
      */
     public List<Long> liveIdsExcluding(List<String> deadTokens) {
         return tokens.stream()
