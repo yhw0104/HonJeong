@@ -63,6 +63,14 @@ public class Conversation extends BaseTimeEntity {
     @Column(name = "to_deleted_at")
     private LocalDateTime toDeletedAt;
 
+    /** from_user가 이 대화의 푸시를 껐는가. false면 새 메시지 푸시를 받는다. */
+    @Column(name = "from_muted", nullable = false)
+    private boolean fromMuted;
+
+    /** to_user가 이 대화의 푸시를 껐는가. false면 새 메시지 푸시를 받는다. */
+    @Column(name = "to_muted", nullable = false)
+    private boolean toMuted;
+
     protected Conversation() {
     }
 
@@ -137,6 +145,39 @@ public class Conversation extends BaseTimeEntity {
             return fromDeletedAt != null;
         } else if (toUser.getId().equals(userId)) {
             return toDeletedAt != null;
+        }
+        return false;
+    }
+
+    /**
+     * 이 대화의 푸시 알림을 켜거나 끈다(참여자별).
+     *
+     * <p>참여자가 아니면 아무것도 하지 않는다 — 호출 전에 서비스가 참여 여부를 검증하지만
+     * 엔티티도 스스로 방어한다.
+     *
+     * @param userId 설정하는 참여자
+     * @param muted  true면 이 대화의 푸시를 받지 않는다
+     */
+    public void setMuted(Long userId, boolean muted) {
+        if (fromUser.getId().equals(userId)) {
+            this.fromMuted = muted;
+        } else if (toUser.getId().equals(userId)) {
+            this.toMuted = muted;
+        }
+    }
+
+    /**
+     * 이 참여자가 대화 알림을 껐는가.
+     *
+     * @param userId 확인할 참여자
+     * @return 껐으면 true. <b>참여자가 아니면 false</b>(isDeletedBy와 같은 규칙)
+     */
+    public boolean isMutedBy(Long userId) {
+        if (fromUser.getId().equals(userId)) {
+            return fromMuted;
+        }
+        if (toUser.getId().equals(userId)) {
+            return toMuted;
         }
         return false;
     }

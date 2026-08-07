@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.honjeong.chat.dto.ChatMessageResponse;
 import com.honjeong.chat.dto.ConversationSummaryResponse;
+import com.honjeong.chat.dto.MuteRequest;
 import com.honjeong.chat.dto.SendMessageRequest;
 import com.honjeong.chat.service.ConversationService;
 import com.honjeong.global.common.ApiResponse;
@@ -68,6 +70,23 @@ public class ChatController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@CurrentUserId Long userId, @PathVariable Long id) {
         conversationService.deleteForMe(userId, id);
+        return ApiResponse.success(null);
+    }
+
+    /**
+     * 이 대화의 푸시 알림을 켜거나 끈다.
+     *
+     * <p>사용 화면: 대화 목록(ConversationList) 스와이프의 알림 버튼.
+     *
+     * @param userId  인증 사용자 ID
+     * @param id      대화방 ID
+     * @param request 음소거 여부
+     * @return 빈 성공 응답
+     */
+    @PatchMapping("/{id}/mute")
+    public ApiResponse<Void> setMuted(@CurrentUserId Long userId, @PathVariable Long id,
+                                      @Valid @RequestBody MuteRequest request) {
+        conversationService.setMuted(userId, id, request.muted());
         return ApiResponse.success(null);
     }
 }

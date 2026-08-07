@@ -168,6 +168,22 @@ public class ConversationService {
     }
 
     /**
+     * 이 대화의 푸시 알림을 켜거나 끈다.
+     *
+     * <p>비참여자는 {@link ErrorCode#CONVERSATION_NOT_FOUND}로 위장한다(403이 아니다 —
+     * 내가 속하지 않은 대화의 존재를 노출하지 않는다). 삭제와 달리 상태 제한이 없어
+     * CLOSED 대화도 끄고 켤 수 있다.
+     *
+     * @param userId         요청 참여자 id
+     * @param conversationId 대화방 id
+     * @param muted          true면 푸시를 받지 않는다
+     */
+    @Transactional
+    public void setMuted(Long userId, Long conversationId, boolean muted) {
+        loadParticipating(conversationId, userId).setMuted(userId, muted);
+    }
+
+    /**
      * 대화방을 내 목록에서만 삭제한다(소프트 삭제) — 상대 목록과 메시지는 그대로 남는다.
      *
      * <p>{@code chat_messages}는 지우지 않는다. 신고가 접수됐을 때 조사할 근거가 남아야 하기 때문이다.
@@ -227,7 +243,8 @@ public class ConversationService {
                             previews.get(c.getId()), // 마지막 메시지 미리보기(메시지 없으면 null)
                             c.getLastMessageAt(), unread,
                             c.lastReadAtFor(partner.getId()), // 상대가 마지막 읽은 시각(내 메시지 읽음 표시용)
-                            c.getCreatedAt()); // 매칭 시각 — 메시지가 없을 때 목록에 표시할 fallback
+                            c.getCreatedAt(), // 매칭 시각 — 메시지가 없을 때 목록에 표시할 fallback
+                            c.isMutedBy(userId)); // 내가 이 대화의 푸시를 껐는지(상대 설정이 아니다)
                 }).toList();
     }
 

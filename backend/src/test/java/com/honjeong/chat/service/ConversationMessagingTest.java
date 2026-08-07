@@ -235,6 +235,65 @@ class ConversationMessagingTest {
     }
 
     @Test
+    void setMuted는_내_음소거만_바꾼다() {
+        Conversation conv = activeConversation(10L, 20L);
+        when(conversationRepository.findById(5L)).thenReturn(Optional.of(conv));
+
+        service.setMuted(10L, 5L, true);
+
+        assertThat(conv.isMutedBy(10L)).isTrue();
+        assertThat(conv.isMutedBy(20L)).isFalse();
+    }
+
+    @Test
+    void setMuted는_CLOSED_대화도_토글할_수_있다() {
+        // 삭제(deleteForMe)와 달리 상태 제한이 없다 — 끝난 대화의 알림도 끌 수 있어야 한다.
+        Conversation closed = activeConversation(10L, 20L);
+        closed.close();
+        when(conversationRepository.findById(5L)).thenReturn(Optional.of(closed));
+
+        service.setMuted(10L, 5L, true);
+
+        assertThat(closed.isMutedBy(10L)).isTrue();
+    }
+
+    @Test
+    void setMuted_비참여자면_대화없음으로_위장한다() {
+        Conversation conv = activeConversation(10L, 20L);
+        when(conversationRepository.findById(5L)).thenReturn(Optional.of(conv));
+
+        assertThatThrownBy(() -> service.setMuted(999L, 5L, true))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONVERSATION_NOT_FOUND);
+
+        assertThat(conv.isMutedBy(10L)).isFalse();
+        assertThat(conv.isMutedBy(20L)).isFalse();
+    }
+
+    @Test
+    void listMine의_muted는_상대가_아니라_조회자의_설정을_반영한다() {
+        // given: 상대(20)만 음소거한 대화 — 내(10) 목록에는 muted=false로 보여야 한다
+        User me = userRef(10L);
+        User partner = userRef(20L);
+        Place place = mock(Place.class);
+        lenient().when(place.getName()).thenReturn("혼밥식당");
+        Conversation conv = withId(Conversation.open(1L, place, me, partner), 7L);
+        conv.setMuted(20L, true);
+        when(blockRepository.findExclusionIds(10L)).thenReturn(List.of(-1L));
+        when(conversationRepository.findAllForUser(10L)).thenReturn(List.of(conv));
+        lenient().when(chatMessageRepository.findLastMessagesByConversationIds(List.of(7L))).thenReturn(List.of());
+        lenient().when(chatMessageRepository.countUnread(any(), any(), any())).thenReturn(0L);
+
+        // when
+        assertThat(service.listMine(10L).get(0).muted()).isFalse();
+
+        // and: 내가 끄면 내 목록에만 반영된다
+        conv.setMuted(10L, true);
+        assertThat(service.listMine(10L).get(0).muted()).isTrue();
+    }
+
+    @Test
     void listMine은_상대정보와_안읽음수_미리보기를_담은_요약을_반환한다() {
         User me = userRef(10L);
         User partner = userRef(20L);
