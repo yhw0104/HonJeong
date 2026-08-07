@@ -43,6 +43,26 @@ export function shouldAttemptRefresh(status: number, sessionAuthed: boolean, ret
   return status === 401 && sessionAuthed && !retried;
 }
 
+/**
+ * refresh 실패를 '세션 만료'로 볼 것인가 — 서버가 401로 거부했을 때만 참이다. (순수)
+ *
+ * ★ 여기서 걸러내지 않으면 서버가 잠깐 죽은 것이 강제 로그아웃이 된다. 실제로 겪는 경로는
+ * 배포다: `docker compose up -d --build app`으로 컨테이너가 재시작되는 동안, access가 만료된
+ * 요청이 401을 받고 이어지는 /auth/refresh가 업스트림 없는 Caddy에 닿아 502를 받는다.
+ * 그 502를 만료로 취급하면 세션이 날아가는데, refresh 토큰은 멀쩡히 살아 있었다.
+ * 푸시가 붙은 뒤로는 대가가 더 커졌다 — onSessionExpired가 기기 FCM 토큰까지 폐기한다.
+ *
+ * 401만 만료로 보는 근거: 서버는 리프레시 토큰이 무효일 때 INVALID_REFRESH_TOKEN(401)을 준다
+ * (backend ErrorCode.java). 네트워크 실패(status 0)·5xx는 "모른다"이지 "무효다"가 아니므로
+ * 세션을 유지하고, 다음 요청이 다시 시도한다.
+ *
+ * @param error refreshSession()이 던진 값
+ * @returns 서버가 리프레시 토큰을 거부한 것이면 true
+ */
+export function isAuthRejection(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401;
+}
+
 let refreshInFlight: Promise<void> | null = null;
 let onSessionExpired: (() => void) | null = null;
 
@@ -112,12 +132,12 @@ async function request<T>(
       envelope?.error?.code ?? `HTTP_${res.status}`,
       envelope?.error?.message ?? `요청 실패 (HTTP ${res.status})`,
     );
-    // 세션 요청이 401이면 refresh 후 원요청을 1회 재시도. refresh 실패면 세션 만료 처리.
+    // 세션 요청이 401이면 refresh 후 원요청을 1회 재시도. refresh가 '거부'당했으면 세션 만료 처리.
     if (shouldAttemptRefresh(res.status, isSessionAuthed(options), retried)) {
       try {
         await refreshSession();
-      } catch {
-        onSessionExpired?.();
+      } catch (refreshError) {
+        if (isAuthRejection(refreshError)) onSessionExpired?.();
         throw err;
       }
       return request<T>(method, path, body, options, true);

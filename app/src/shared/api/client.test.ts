@@ -49,6 +49,29 @@ describe('401 자동 refresh', () => {
     expect(expired).toHaveBeenCalledTimes(1);
   });
 
+  it('refresh가 5xx면 세션을 유지한다 — 배포 중 재시작을 강제 로그아웃으로 오해하면 안 된다', async () => {
+    // docker compose up -d --build app으로 컨테이너가 재시작되는 동안 Caddy가 502를 준다.
+    // 그때 refresh 토큰은 멀쩡히 살아 있다. 만료로 취급하면 세션이 날아가고,
+    // 푸시가 붙은 뒤로는 기기 FCM 토큰까지 폐기된다(onSessionExpired).
+    const expired = jest.fn();
+    setOnSessionExpired(expired);
+    (global as any).fetch = jest.fn()
+      .mockResolvedValueOnce(resp(401, fail('UNAUTHORIZED')))   // GET 원요청
+      .mockResolvedValueOnce(resp(502, fail('HTTP_502')));      // /auth/refresh — 서버가 잠깐 없음
+    await expect(apiGet('/thing')).rejects.toMatchObject({ code: 'UNAUTHORIZED', status: 401 });
+    expect(expired).not.toHaveBeenCalled();
+  });
+
+  it('refresh가 네트워크 실패면 세션을 유지한다 — "모른다"는 "무효다"가 아니다', async () => {
+    const expired = jest.fn();
+    setOnSessionExpired(expired);
+    (global as any).fetch = jest.fn()
+      .mockResolvedValueOnce(resp(401, fail('UNAUTHORIZED')))   // GET 원요청
+      .mockRejectedValueOnce(new Error('connection reset'));    // /auth/refresh — 연결 자체 실패
+    await expect(apiGet('/thing')).rejects.toMatchObject({ code: 'UNAUTHORIZED', status: 401 });
+    expect(expired).not.toHaveBeenCalled();
+  });
+
   it('동시 다발 401 → /auth/refresh는 1회만(single-flight)', async () => {
     let refreshed = false;
     let refreshCalls = 0;
