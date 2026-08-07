@@ -14,6 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { apiPost, setOnSessionExpired } from '@/shared/api/client';
 import { clearTokens, getRefreshToken, loadTokens, setTokens, type Tokens } from '@/shared/auth/session';
+import { registerPushToken, unregisterPushToken } from '@/shared/push';
 
 type AuthStatus = 'loading' | 'authed' | 'guest';
 
@@ -45,6 +46,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // refresh는 공개 엔드포인트라 토큰 없이 호출(token: null). 성공하면 새 토큰 쌍으로 교체.
         const tokens = await apiPost<Tokens>('/auth/refresh', { refreshToken: refresh }, { token: null });
         await setTokens(tokens);
+        // 앱을 켤 때마다 푸시 토큰을 재등록한다 — FCM이 토큰을 바꿔도 서버가 따라간다.
+        // 결과를 기다리지 않는다(세션 복원을 늦추지 않게). 권한이 없으면 내부에서 아무것도 하지 않는다.
+        void registerPushToken();
         if (alive) setStatus('authed');
       } catch {
         await clearTokens(); // 만료/무효화된 refresh → 세션 폐기하고 온보딩으로
@@ -68,10 +72,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = useCallback(async (tokens: Tokens) => {
     await setTokens(tokens);
+    void registerPushToken(); // 결과를 기다리지 않는다 — 로그인 전환을 늦추지 않게
     setStatus('authed');
   }, []);
 
   const signOut = useCallback(async () => {
+    // 푸시 토큰 삭제는 /auth/logout '앞'에서 한다 — 이 시점에는 access 토큰이 아직 유효하다.
+    // (세션 만료 경로인 onSessionExpired에는 넣지 않는다. 거기선 토큰이 이미 무효라 반드시 실패하고,
+    //  그 경우는 서버의 등록 UPSERT가 다음 로그인 때 주인을 갱신해 덮는다.)
+    await unregisterPushToken();
     // 서버에 refresh 무효화를 알린다(실패해도 로컬은 반드시 정리). access 토큰은 클라이언트가 자동 첨부.
     const refresh = getRefreshToken();
     if (refresh) {

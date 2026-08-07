@@ -137,6 +137,8 @@ export const apiPost = <T>(path: string, body?: unknown, options?: RequestOption
 /** PATCH 요청(JSON 본문). */
 export const apiPatch = <T>(path: string, body?: unknown, options?: RequestOptions) =>
   request<T>('PATCH', path, body, options);
-/** DELETE 요청(본문 없음). 응답은 200+엔벨로프(서버가 204 대신 {success:true} 반환). */
-export const apiDelete = <T>(path: string, options?: RequestOptions) =>
-  request<T>('DELETE', path, undefined, options);
+/** DELETE 요청(대부분 본문 없음). 응답은 200+엔벨로프(서버가 204 대신 {success:true} 반환).
+ *  body를 받는 이유: 기기 토큰 해제(DELETE /device-tokens)는 토큰을 경로가 아니라 본문에 담는다
+ *  — 경로에 넣으면 접근 로그에 그대로 남는다. 나머지 호출처는 인자가 path 하나뿐이라 영향이 없다. */
+export const apiDelete = <T>(path: string, body?: unknown, options?: RequestOptions) =>
+  request<T>('DELETE', path, body, options);
