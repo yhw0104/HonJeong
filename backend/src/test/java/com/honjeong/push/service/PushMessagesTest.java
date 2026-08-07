@@ -106,4 +106,17 @@ class PushMessagesTest {
                 .isEqualTo("김하늘: " + preview)
                 .hasSizeLessThan(120);
     }
+
+    @Test
+    @DisplayName("chatPreview를 거치지 않고 of()에 직접 긴 값을 줘도 잘린다 — 새 호출 지점이 상한을 다시 열지 못하게")
+    void of가_직접_받은_긴_값도_자른다() {
+        // 절단이 chatPreview에만 있으면 "호출자가 먼저 chatPreview를 거친다"는 관례에 기대게 되는데,
+        // 관례는 다음 호출 지점이 생기는 순간 깨진다. 상한 초과는 그 사용자의 푸시를 통째로 끊으므로
+        // (INVALID_ARGUMENT → 토큰 삭제로 오판했던 것이 I-3) 규약이 아니라 코드로 막는다.
+        String raw = "한".repeat(1000);
+
+        String body = PushMessages.of(PushType.CHAT_MESSAGE, "김하늘", raw).body();
+
+        assertThat(body).isEqualTo("김하늘: " + "한".repeat(PushMessages.MAX_PREVIEW_LENGTH - 1) + "…");
+    }
 }
