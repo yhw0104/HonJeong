@@ -6,7 +6,9 @@ import { NavigationContainer } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/shared/auth/AuthContext';
 import { RootNavigator } from '@/navigation/RootNavigator';
+import { navigationRef } from '@/navigation/navigationRef';
 import { setupRealtimeFocus } from '@/shared/realtime';
+import { usePushMessaging } from '@/shared/push/usePushMessaging';
 import { ErrorBoundary } from '@/shared/components';
 import { initKakao } from '@/features/auth/kakaoLogin';
 
@@ -17,6 +19,13 @@ const queryClient = new QueryClient({
 
 // 앱 시작 시 1회만 실행되어야 하므로 컴포넌트 바깥(모듈 최상위)에서 호출한다.
 initKakao();
+
+// 푸시 리스너는 useQueryClient를 쓰므로 QueryClientProvider 안쪽에서 불려야 한다.
+// App 본체에서 부르면 provider 바깥이라 캐시에 닿지 못하므로 이 작은 컴포넌트를 끼운다.
+function PushBridge() {
+  usePushMessaging();
+  return null;
+}
 
 export default function App() {
   // 앱이 포그라운드로 돌아오면 활성 쿼리를 즉시 갱신(폴링과 함께 실시간성 확보).
@@ -30,7 +39,9 @@ export default function App() {
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
-              <NavigationContainer>
+              {/* ref는 컴포넌트 밖(푸시 리스너)에서 화면을 이동하기 위한 것이다. */}
+              <NavigationContainer ref={navigationRef}>
+                <PushBridge />
                 <StatusBar style="dark" />
                 <RootNavigator />
               </NavigationContainer>
