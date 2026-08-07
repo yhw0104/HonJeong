@@ -21,10 +21,12 @@ import jakarta.persistence.Table;
  * 푸시 발송 대상 기기 토큰(행-per-기기).
  *
  * <p>토큰은 사용자가 아니라 <b>기기</b>에 붙는 값이다. 한 휴대폰을 두 사람이 번갈아 쓰면
- * 같은 토큰의 주인이 바뀌므로, 등록은 {@link #reassignTo}로 주인을 갱신한다.
- * 안 그러면 이전 사용자의 알림이 다음 사용자 폰에 계속 뜬다.
+ * 같은 토큰의 주인이 바뀌므로, 등록은 주인·플랫폼을 함께 갱신하는 UPSERT다
+ * ({@code DeviceTokenRepository.upsert} — 앱 시작 시 등록이 거의 동시에 두 번 뜨는 경합이 있어
+ * "조회 후 갱신"이 아니라 DB의 ON CONFLICT로 처리한다). 안 그러면 이전 사용자의 알림이
+ * 다음 사용자 폰에 계속 뜬다.
  *
- * <p>사용처: DeviceTokenService(등록·삭제), PushDispatcher(발송 대상 조회).
+ * <p>사용처: DeviceTokenService(등록·삭제), PushAudienceReader(발송 대상 조회).
  */
 @Entity
 @Table(name = "device_tokens")
@@ -70,17 +72,6 @@ public class DeviceToken extends BaseTimeEntity {
      */
     public static DeviceToken of(User user, String token, Platform platform, LocalDateTime now) {
         return new DeviceToken(user, token, platform, now);
-    }
-
-    /**
-     * 이미 있는 토큰의 주인을 바꾼다(같은 기기에 다른 계정이 로그인한 경우).
-     *
-     * @param user 토큰의 새 주인
-     * @param now  갱신 시각
-     */
-    public void reassignTo(User user, LocalDateTime now) {
-        this.user = user;
-        this.lastUsedAt = now;
     }
 
     /**

@@ -7,10 +7,8 @@ import java.time.ZoneId;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.honjeong.push.domain.DeviceToken;
 import com.honjeong.push.domain.Platform;
 import com.honjeong.push.repository.DeviceTokenRepository;
-import com.honjeong.user.repository.UserRepository;
 
 /**
  * 기기 토큰 등록·해제.
@@ -27,18 +25,18 @@ public class DeviceTokenService {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final DeviceTokenRepository deviceTokenRepository;
-    private final UserRepository userRepository;
     private final Clock clock;
 
-    public DeviceTokenService(DeviceTokenRepository deviceTokenRepository, UserRepository userRepository,
-            Clock clock) {
+    public DeviceTokenService(DeviceTokenRepository deviceTokenRepository, Clock clock) {
         this.deviceTokenRepository = deviceTokenRepository;
-        this.userRepository = userRepository;
         this.clock = clock;
     }
 
     /**
-     * 토큰 등록(또는 주인 갱신).
+     * 토큰 등록(또는 주인·플랫폼 갱신).
+     *
+     * <p>DB의 원자적 UPSERT 한 방으로 처리한다 — 앱 시작 시 등록과 토큰 갱신이 거의 동시에 뜨는
+     * 경합이 실재한다. 사유는 {@link DeviceTokenRepository#upsert} Javadoc 참조.
      *
      * @param userId   토큰의 새 주인
      * @param token    FCM 등록 토큰
@@ -46,12 +44,7 @@ public class DeviceTokenService {
      */
     @Transactional
     public void register(Long userId, String token, Platform platform) {
-        LocalDateTime now = now();
-        deviceTokenRepository.findByToken(token)
-                .ifPresentOrElse(
-                        existing -> existing.reassignTo(userRepository.getReferenceById(userId), now),
-                        () -> deviceTokenRepository.save(DeviceToken.of(
-                                userRepository.getReferenceById(userId), token, platform, now)));
+        deviceTokenRepository.upsert(userId, token, platform.name(), now());
     }
 
     /**

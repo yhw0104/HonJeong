@@ -20,12 +20,14 @@ import com.honjeong.support.AbstractPostgresTest;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
+import jakarta.persistence.EntityManager;
+
 /**
  * DeviceTokenRepository 슬라이스 테스트.
  *
  * <p>검증 목적: (1) token UNIQUE 제약이 실제로 걸려 서비스가 UPSERT를 해야 한다는 전제가 성립하는지,
- * (2) 주인 갱신({@code reassignTo})이 DB까지 반영되는지, (3) 사용자별 벌크 삭제가 남의 토큰을
- * 건드리지 않는지를 본다.
+ * (2) 네이티브 UPSERT({@code ON CONFLICT})가 주인·플랫폼·사용 시각을 DB까지 갱신하고 같은 토큰을
+ * 연달아 등록해도 터지지 않는지, (3) 사용자별 벌크 삭제가 남의 토큰을 건드리지 않는지를 본다.
  *
  * <p>구성: @DataJpaTest 슬라이스 + @AutoConfigureTestDatabase(replace=NONE)으로 내장 DB 대체를 끄고
  * 실제 Postgres(AbstractPostgresTest의 Testcontainers)에 붙는다. created_at/updated_at 감사 주입을
@@ -41,6 +43,8 @@ class DeviceTokenRepositoryTest extends AbstractPostgresTest {
     private DeviceTokenRepository deviceTokenRepository;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private EntityManager entityManager;
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 7, 12, 0);
 
@@ -57,18 +61,46 @@ class DeviceTokenRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
-    @DisplayName("reassignTo는 토큰의 주인을 바꾸고 사용 시각을 갱신한다")
-    void 주인을_바꾼다() {
+    @DisplayName("upsert는 처음 보는 토큰을 새로 넣는다")
+    void 신규_토큰을_넣는다() {
         User a = userRepository.save(newUser("01011110003"));
-        User b = userRepository.save(newUser("01011110004"));
-        DeviceToken t = deviceTokenRepository.saveAndFlush(DeviceToken.of(a, "tok-move", Platform.IOS, NOW));
 
-        t.reassignTo(b, NOW.plusDays(1));
-        deviceTokenRepository.flush();
+        int affected = deviceTokenRepository.upsert(a.getId(), "tok-new", Platform.IOS.name(), NOW);
+
+        assertThat(affected).isEqualTo(1);
+        DeviceToken found = deviceTokenRepository.findByToken("tok-new").orElseThrow();
+        assertThat(found.getUser().getId()).isEqualTo(a.getId());
+        assertThat(found.getPlatform()).isEqualTo(Platform.IOS);
+        assertThat(found.getLastUsedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("upsert는 이미 있는 토큰의 주인·플랫폼·사용 시각을 갱신한다 — 행이 늘지 않는다")
+    void 기존_토큰을_갱신한다() {
+        User a = userRepository.save(newUser("01011110004"));
+        User b = userRepository.save(newUser("01011110007"));
+        deviceTokenRepository.saveAndFlush(DeviceToken.of(a, "tok-move", Platform.IOS, NOW));
+        entityManager.clear(); // 네이티브 UPDATE는 1차 캐시를 갱신하지 않는다 — 비워야 DB 값을 읽는다
+
+        deviceTokenRepository.upsert(b.getId(), "tok-move", Platform.ANDROID.name(), NOW.plusDays(1));
+        entityManager.clear();
 
         DeviceToken found = deviceTokenRepository.findByToken("tok-move").orElseThrow();
         assertThat(found.getUser().getId()).isEqualTo(b.getId());
+        assertThat(found.getPlatform()).isEqualTo(Platform.ANDROID);
         assertThat(found.getLastUsedAt()).isEqualTo(NOW.plusDays(1));
+        assertThat(deviceTokenRepository.findAllByUser_Id(a.getId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("같은 토큰을 연달아 등록해도 예외가 나지 않는다 — 앱 시작 시 등록·토큰갱신 경합")
+    void 연달아_등록해도_터지지_않는다() {
+        User a = userRepository.save(newUser("01011110008"));
+
+        deviceTokenRepository.upsert(a.getId(), "tok-race", Platform.IOS.name(), NOW);
+        deviceTokenRepository.upsert(a.getId(), "tok-race", Platform.IOS.name(), NOW.plusMinutes(1));
+
+        assertThat(deviceTokenRepository.findAllByUser_Id(a.getId())).hasSize(1);
     }
 
     @Test
