@@ -43,7 +43,14 @@ module.exports = {
       bundleIdentifier: 'com.honjeong.app',
       // Firebase가 APNs로 푸시를 중계하려면 이 파일이 네이티브 프로젝트에 들어가야 한다.
       // 저장소에는 없다(.gitignore) — Firebase 콘솔에서 내려받아 이 경로에 둔다.
-      googleServicesFile: './GoogleService-Info.plist',
+      //
+      // ★ EAS 빌드에서는 로컬 파일을 쓸 수 없다. EAS Build는 **git이 추적하는 파일만** 업로드하는데
+      // 이 파일은 .gitignore에 있어서 빌드 머신에 아예 존재하지 않는다("GoogleService-Info.plist"
+      // is missing로 빌드가 죽는다 — 2026-08-07에 실제로 겪었다). 로컬 빌드는 파일이 디스크에
+      // 있으니 그냥 되기 때문에 **EAS에서만 드러나는 종류**다.
+      // 그래서 EAS에는 file 타입 환경변수로 올려 두고(`eas env:set --type file`), 빌드 머신이
+      // 풀어 준 경로를 여기서 읽는다. 로컬(변수 없음)에서는 기존 경로로 폴백한다.
+      googleServicesFile: process.env.GOOGLE_SERVICES_INFO_PLIST ?? './GoogleService-Info.plist',
       entitlements: {
         // 원격 푸시 수신 권한. Expo SDK 51+에서는 직접 명시해야 한다.
         // ★ 값이 빌드 종류에 따라 갈려야 한다 — 애플은 푸시 서버를 개발용(sandbox)과
