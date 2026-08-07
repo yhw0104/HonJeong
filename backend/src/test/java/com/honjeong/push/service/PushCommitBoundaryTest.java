@@ -2,14 +2,18 @@ package com.honjeong.push.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -49,6 +53,12 @@ import com.honjeong.user.repository.UserRepository;
  * <p><b>기기 토큰을 반드시 심는다.</b> {@link PushSendTask}는 토큰이 0건이면 조기 반환하므로,
  * 토큰 없이 쓰면 "발송 안 됨"이 언제나 참인 가짜 테스트가 된다. {@link #setUp}에서 심은 뒤
  * 사전 단언으로 존재를 확인한다.
+ *
+ * <p><b>발송 결과 기록도 여기서 본다.</b> 발송은 조회·발송·기록 세 구간으로 나뉘어 있고
+ * ({@link PushSendTask} Javadoc), 1·3만 트랜잭션이다. 그 트랜잭션은 <b>별도 빈이어야만</b>
+ * 프록시를 타는데, 목으로는 그 사실을 확인할 수 없다 — 자기호출로 되돌려 놔도 목 테스트는 그대로
+ * 초록불이고 UPDATE·DELETE만 조용히 사라진다. 그래서 실 DB에서 "산 토큰의 last_used_at이
+ * 갱신됐는가 / 죽은 토큰이 지워졌는가"를 커밋 기준으로 확인한다.
  */
 @SpringBootTest
 @DisplayName("푸시는 커밋된 뒤에만 나간다")
@@ -72,13 +82,15 @@ class PushCommitBoundaryTest extends AbstractPostgresTest {
     private UserRepository userRepository;
 
     private Long recipientId;
+    private String token;
 
     @BeforeEach
     void setUp() {
         User recipient = userRepository.save(User.pending(freshPhone(), null));
         recipientId = recipient.getId();
+        token = freshToken();
         deviceTokenRepository.saveAndFlush(DeviceToken.of(
-                recipient, freshToken(), Platform.IOS, LocalDateTime.now()));
+                recipient, token, Platform.IOS, LocalDateTime.now().minusDays(7)));
 
         // 사전 단언: 토큰이 없으면 PushSendTask가 조기 반환해 롤백 테스트가 가짜로 통과한다.
         assertThat(deviceTokenRepository.findAllByUser_Id(recipientId)).hasSize(1);
@@ -90,6 +102,30 @@ class PushCommitBoundaryTest extends AbstractPostgresTest {
         probe.publishThenCommit(recipientId);
 
         verify(pushSender, timeout(AWAIT_MILLIS)).send(anyList(), any());
+    }
+
+    @Test
+    @DisplayName("발송에 성공하면 산 토큰의 last_used_at이 실제로 갱신·커밋된다 — 기록 구간이 프록시를 탄다")
+    void 산_토큰은_사용시각이_갱신된다() {
+        LocalDateTime before = deviceTokenRepository.findByToken(token).orElseThrow().getLastUsedAt();
+        given(pushSender.send(anyList(), any())).willReturn(List.of()); // 죽은 토큰 없음
+
+        probe.publishThenCommit(recipientId);
+
+        await().atMost(Duration.ofMillis(AWAIT_MILLIS)).untilAsserted(() ->
+                assertThat(deviceTokenRepository.findByToken(token).orElseThrow().getLastUsedAt())
+                        .isAfter(before));
+    }
+
+    @Test
+    @DisplayName("죽은 토큰은 실제로 삭제·커밋된다 — 쓰레기 토큰이 계정마다 쌓이면 실패 호출만 늘어난다")
+    void 죽은_토큰은_삭제된다() {
+        given(pushSender.send(anyList(), any())).willReturn(List.of(token));
+
+        probe.publishThenCommit(recipientId);
+
+        await().atMost(Duration.ofMillis(AWAIT_MILLIS)).untilAsserted(() ->
+                assertThat(deviceTokenRepository.findByToken(token)).isEmpty());
     }
 
     @Test

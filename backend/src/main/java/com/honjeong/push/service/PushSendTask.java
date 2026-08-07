@@ -1,21 +1,13 @@
 package com.honjeong.push.service;
 
-import java.time.Clock;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
-import com.honjeong.global.common.DisplayNames;
-import com.honjeong.push.domain.DeviceToken;
 import com.honjeong.push.domain.PushType;
-import com.honjeong.push.repository.DeviceTokenRepository;
-import com.honjeong.user.repository.UserRepository;
 
 /**
  * 실제 푸시 발송 — 도메인 트랜잭션이 커밋된 <b>뒤에</b> 별도 스레드에서 돈다.
@@ -26,29 +18,37 @@ import com.honjeong.user.repository.UserRepository;
  * 호출하면 스프링 프록시를 타지 않아 그냥 동기 실행된다. 별도 빈이어야 실제로 비동기가 된다
  * (06-13에 PhoneAttemptRecorder를 별도 빈으로 뺀 것과 같은 이유).
  *
- * <p>토큰·닉네임 조회를 여기서 하는 이유: 도메인 트랜잭션 밖이어야 그만큼 그 트랜잭션이 짧아진다.
+ * <p><b>★ 이 메서드에 {@code @Transactional}을 붙이지 않는다.</b> 붙이면 FCM HTTP 호출이
+ * 트랜잭션 안에서 일어나 <b>응답을 기다리는 동안 DB 커넥션을 붙잡고 아무 일도 안 한다</b> —
+ * 스펙 §2가 이 설계(커밋 후 비동기)를 만든 이유가 정확히 그것이므로, 여기에 트랜잭션을 다시
+ * 씌우면 도메인 트랜잭션에서 빼낸 문제를 새 트랜잭션 안에 그대로 옮겨 놓는 셈이 된다.
+ * 커넥션 풀 10 / 푸시 스레드 최대 4이므로 최악의 경우 커넥션 4개가 firebase-admin 타임아웃
+ * 동안 묶인다.
  *
- * <p>{@code readOnly = true}가 <b>아닌</b> 이유: 이 메서드는 읽기만 하지 않는다 —
- * {@link DeviceToken#markUsed}의 더티체킹 UPDATE와 죽은 토큰의 DELETE를 여기서 커밋해야 한다.
- * {@code readOnly}로 두면 그 두 쓰기가 조용히 사라지거나 예외가 된다.
+ * <p>그래서 세 구간으로 나눈다. 트랜잭션은 1·3에만 있고, 2는 트랜잭션 밖이다.
+ * <ol>
+ *   <li><b>조회</b> — {@link PushAudienceReader} (읽기 전용 트랜잭션)</li>
+ *   <li><b>발송</b> — {@link PushSender} (트랜잭션 <b>밖</b>, 외부 HTTP)</li>
+ *   <li><b>기록</b> — {@link PushDeliveryRecorder} (쓰기 트랜잭션)</li>
+ * </ol>
+ *
+ * <p>1·3이 <b>별도 빈</b>인 이유는 자기호출이 프록시를 타지 않아 {@code @Transactional}이
+ * 무효가 되기 때문이다(위 {@code @Async}와 같은 함정). 각 클래스 Javadoc 참조.
  */
 @Component
 public class PushSendTask {
 
     private static final Logger log = LoggerFactory.getLogger(PushSendTask.class);
-    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
-    private final DeviceTokenRepository deviceTokenRepository;
-    private final UserRepository userRepository;
+    private final PushAudienceReader audienceReader;
     private final PushSender pushSender;
-    private final Clock clock;
+    private final PushDeliveryRecorder deliveryRecorder;
 
-    public PushSendTask(DeviceTokenRepository deviceTokenRepository, UserRepository userRepository,
-            PushSender pushSender, Clock clock) {
-        this.deviceTokenRepository = deviceTokenRepository;
-        this.userRepository = userRepository;
+    public PushSendTask(PushAudienceReader audienceReader, PushSender pushSender,
+            PushDeliveryRecorder deliveryRecorder) {
+        this.audienceReader = audienceReader;
         this.pushSender = pushSender;
-        this.clock = clock;
+        this.deliveryRecorder = deliveryRecorder;
     }
 
     /**
@@ -63,27 +63,19 @@ public class PushSendTask {
      * @param preview        채팅 미리보기(그 외 null)
      */
     @Async("pushExecutor")
-    @Transactional
     public void send(Long recipientId, PushType type, Long actorId, Long conversationId, String preview) {
         try {
-            List<DeviceToken> tokens = deviceTokenRepository.findAllByUser_Id(recipientId);
-            if (tokens.isEmpty()) {
+            PushAudience audience = audienceReader.read(recipientId, actorId);
+            if (audience.isEmpty()) {
                 return; // 푸시 권한을 안 준 사용자 — 보낼 곳이 없다
             }
-            String nickname = actorId == null ? null
-                    : userRepository.findById(actorId)
-                            .map(u -> DisplayNames.nicknameOrUnknown(u.getNickname()))
-                            .orElse(null);
 
-            PushMessage base = PushMessages.of(type, nickname, preview);
+            PushMessage base = PushMessages.of(type, audience.actorNickname(), preview);
             PushMessage message = new PushMessage(base.title(), base.body(), base.type(), conversationId);
 
-            List<String> dead = pushSender.send(tokens.stream().map(DeviceToken::getToken).toList(), message);
+            List<String> dead = pushSender.send(audience.tokenValues(), message);
 
-            LocalDateTime now = LocalDateTime.now(clock.withZone(KST));
-            tokens.stream().filter(t -> !dead.contains(t.getToken())).forEach(t -> t.markUsed(now));
-            // 죽은 토큰을 안 지우면 계정마다 쓰레기가 쌓여 실패 호출만 늘어난다.
-            dead.forEach(deviceTokenRepository::deleteByToken);
+            deliveryRecorder.recordResult(audience.liveIdsExcluding(dead), dead);
         } catch (RuntimeException e) {
             // 토큰 원문·메시지 본문은 남기지 않는다(대화 내용이 서버 로그에 쌓이면 그 자체가 사고다).
             log.warn("[push] 발송 처리 실패 recipient={} type={}", recipientId, type, e);
