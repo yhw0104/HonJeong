@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,6 +26,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.honjeong.push.domain.DeviceToken;
 import com.honjeong.push.domain.Platform;
@@ -102,6 +104,28 @@ class PushCommitBoundaryTest extends AbstractPostgresTest {
         probe.publishThenCommit(recipientId);
 
         verify(pushSender, timeout(AWAIT_MILLIS)).send(anyList(), any());
+    }
+
+    @Test
+    @DisplayName("FCM 호출 시점에는 트랜잭션이 열려 있지 않다 — 발송 구간이 커넥션을 붙잡으면 안 된다")
+    void 발송은_트랜잭션_밖에서_일어난다() {
+        // 이 테스트가 없으면 I-1(발송이 트랜잭션 안에서 HTTP)이 어노테이션 한 줄로 그대로 재발하는데
+        // 전 스위트가 초록불이다. PushSendTaskTest는 순수 Mockito라 트랜잭션이 아예 존재하지 않고,
+        // 아래 DB 단언들은 트랜잭션이 더 길어져도 쓰기가 어쨌든 일어나므로 그대로 통과한다.
+        // 즉 이 리팩터링이 만들어 낸 유일한 성질을 확인하는 곳은 여기뿐이다.
+        AtomicReference<Boolean> txActiveAtSend = new AtomicReference<>();
+        given(pushSender.send(anyList(), any())).willAnswer(invocation -> {
+            txActiveAtSend.set(TransactionSynchronizationManager.isActualTransactionActive());
+            return List.of();
+        });
+
+        probe.publishThenCommit(recipientId);
+
+        // null(발송 자체가 안 옴)도 실패로 친다 — 안 그러면 조기 반환만으로 통과하는 가짜 테스트가 된다.
+        await().atMost(Duration.ofMillis(AWAIT_MILLIS)).untilAsserted(() ->
+                assertThat(txActiveAtSend.get())
+                        .as("FCM 호출 시점의 트랜잭션 활성 여부(null=발송이 오지 않음)")
+                        .isNotNull().isFalse());
     }
 
     @Test
