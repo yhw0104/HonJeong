@@ -64,6 +64,11 @@ public class DeviceToken extends BaseTimeEntity {
     /**
      * 신규 등록.
      *
+     * <p>★ <b>운영 코드에는 이 경로로 들어오는 INSERT가 없다.</b> 등록은 전부
+     * {@code DeviceTokenRepository.upsert}(네이티브 ON CONFLICT)가 처리한다 — 동시 등록 경합 때문이다.
+     * 지금 이 팩토리는 테스트 픽스처 전용이다. 새 등록 경로를 만들 일이 생기면 여기가 아니라
+     * upsert를 쓴다(그래야 경합이 다시 열리지 않는다).
+     *
      * @param user     토큰의 주인
      * @param token    FCM 등록 토큰
      * @param platform 기기 플랫폼
@@ -75,9 +80,11 @@ public class DeviceToken extends BaseTimeEntity {
     }
 
     /**
-     * 발송 성공 시각 갱신.
+     * 마지막 발송 <b>시도</b> 시각 갱신.
      *
-     * @param now 발송에 성공한 시각
+     * <p>성공만 찍히는 값이 아니다 — 사유는 {@code PushDeliveryRecorder.recordResult} Javadoc 참조.
+     *
+     * @param now 발송을 시도한 시각
      */
     public void markUsed(LocalDateTime now) {
         this.lastUsedAt = now;

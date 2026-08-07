@@ -25,8 +25,19 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  * <b>요청을 느리게 만드는 것보다 버리고 로그를 남기는 편이 정직하다</b> — 버리면 WARN 한 줄로
  * 드러나지만, 대신 실행하면 "가끔 API가 느리다"라는 훨씬 진단하기 어려운 증상으로만 보인다.
  *
- * <p>{@code AbortPolicy}(기본값)를 쓰지 않는 이유: 거부를 예외로 알리면 그 예외가
- * {@code afterCommit} 훅 밖으로 나가 <b>이미 커밋된 요청</b>을 실패로 만든다. 버리되 던지지 않는다.
+ * <p>{@code AbortPolicy}(기본값)를 쓰지 않는 이유: <b>안전이 호출자에게 달리기 때문</b>이다.
+ * 거부는 {@code TaskRejectedException}으로 올라오는데, 오늘은 {@code PushDispatcher}의 두 경로가
+ * 모두 그것을 잡으므로({@code dispatch}의 바깥 try와 {@code afterCommit} 안쪽 try — 후자의 주석이
+ * 이 예외를 명시적으로 언급한다) 실제로 요청을 깨지는 않는다. 하지만 그건 <b>지금 호출자가 옳게
+ * 작성돼 있어서</b> 성립하는 것이고, 새 호출 지점 하나가 그 규약을 어기면 이미 커밋된 요청이
+ * 실패로 바뀐다. 여기서 아예 던지지 않으면 그 의존이 사라진다. 덤으로 아래 WARN이 큐·활성·풀 수를
+ * 함께 남겨, 스택트레이스만 나오는 기본 동작보다 원인을 바로 읽을 수 있다.
+ *
+ * <p><b>풀 크기 동작에 유의.</b> {@code ThreadPoolExecutor}는 큐가 <b>가득 찬 뒤에야</b> core를
+ * 넘겨 스레드를 늘린다. 따라서 아래 설정에서는 큐가 500건 밀릴 때까지 스레드 2개로만 돌고,
+ * {@code maxPoolSize=4}는 그 뒤에야 의미를 갖는다 — 즉 위 WARN도 500건이 쌓인 뒤에 처음 뜬다.
+ * 지금은 트래픽 실측이 없어 숫자를 추측으로 바꾸지 않는다. 실제로 밀리는 것을 관측하면
+ * 큐를 줄이는 쪽(포화가 더 일찍 드러난다)으로 조정한다.
  */
 @Configuration
 @EnableAsync
