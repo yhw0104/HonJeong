@@ -14,7 +14,11 @@ import com.honjeong.push.domain.PushType;
  */
 public final class PushMessages {
 
+    /** 채팅 미리보기 최대 길이(자). 말줄임표를 포함한 길이다. */
+    public static final int MAX_PREVIEW_LENGTH = 100;
+
     private static final String TITLE = "혼정";
+    private static final String ELLIPSIS = "…";
 
     private PushMessages() {
     }
@@ -45,11 +49,40 @@ public final class PushMessages {
     /**
      * 채팅 미리보기 문구. 이미지 메시지는 본문이 없으므로 대체 문구를 쓴다.
      *
+     * <p><b>반드시 자른다.</b> {@code SendMessageRequest.text}의 상한은 1000자인데, 한글 1000자는
+     * UTF-8로 약 3000바이트고 이모지가 섞이면 FCM 페이로드 상한(4096바이트)을 넘긴다. 넘기면 FCM이
+     * {@code INVALID_ARGUMENT}를 돌려주는데, 그건 <b>토큰이 아니라 우리 페이로드가 잘못됐다는 뜻</b>이라
+     * 무효 토큰으로 오판하면 메시지 한 건이 그 사용자의 푸시를 통째로 끊는다
+     * ({@code FcmPushSender.isPermanentlyInvalid} 주석 참조).
+     *
+     * <p>{@value #MAX_PREVIEW_LENGTH}자로 자르는 근거: 배너는 어차피 두 줄만 그린다. 자르면 잠금화면에
+     * 노출되는 대화 내용의 범위도 함께 줄어든다.
+     *
      * @param text    텍스트 메시지 본문(이미지면 null)
      * @param isImage 이미지 메시지인가
-     * @return 배너에 넣을 미리보기
+     * @return 배너에 넣을 미리보기(길면 말줄임표로 끝난다)
      */
     public static String chatPreview(String text, boolean isImage) {
-        return isImage ? "사진을 보냈어요" : text;
+        if (isImage) {
+            return "사진을 보냈어요";
+        }
+        if (text == null || text.length() <= MAX_PREVIEW_LENGTH) {
+            return text;
+        }
+        return text.substring(0, cutIndex(text)) + ELLIPSIS;
+    }
+
+    /**
+     * 말줄임표 한 글자를 뺀 자리에서 자르되, 서로게이트 쌍(이모지)을 반토막 내지 않는다.
+     *
+     * <p>이모지는 char 두 개다. 경계에서 앞쪽 char만 남기면 짝 잃은 서로게이트가 되고, UTF-8로
+     * 직렬화될 때 깨진 바이트가 되어 FCM이 다시 {@code INVALID_ARGUMENT}를 돌려줄 수 있다.
+     *
+     * @param text 자를 원본(길이가 상한을 넘는 것이 보장된 값)
+     * @return substring의 끝 인덱스(이 인덱스 바로 앞 char까지 남긴다)
+     */
+    private static int cutIndex(String text) {
+        int end = MAX_PREVIEW_LENGTH - ELLIPSIS.length();
+        return Character.isHighSurrogate(text.charAt(end - 1)) ? end - 1 : end;
     }
 }

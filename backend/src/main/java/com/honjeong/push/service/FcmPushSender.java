@@ -105,12 +105,19 @@ public class FcmPushSender implements PushSender {
             try {
                 messaging.send(build(token, message));
             } catch (FirebaseMessagingException e) {
-                if (isPermanentlyInvalid(e)) {
+                MessagingErrorCode code = e.getMessagingErrorCode();
+                if (isPermanentlyInvalid(code)) {
                     dead.add(token);
+                } else if (code == MessagingErrorCode.INVALID_ARGUMENT) {
+                    // ★ 토큰을 지우지 않는다. 이건 "토큰이 죽었다"가 아니라 "우리가 만든 페이로드가
+                    // 잘못됐다"는 뜻이다(대개 4096바이트 초과). 여기서 삭제하면 메시지 한 건이
+                    // 그 사용자의 푸시를 통째로, 조용히 끊는다 — 앱을 다시 켜기 전까지 복구되지 않는다.
+                    // 무효 토큰은 어차피 UNREGISTERED로 온다.
+                    log.error("[push] 발송 거부(페이로드 문제) type={} — 토큰은 유지한다", message.type(), e);
                 } else {
                     // 일시적 실패는 재시도하지 않는다 — 푸시는 배달 보장이 없는 채널이고
                     // 폴링이 안전망으로 남아 있다(docs/08-실시간-전략.md §8).
-                    log.warn("[push] 발송 실패(일시적) type={} code={}", message.type(), e.getMessagingErrorCode());
+                    log.warn("[push] 발송 실패(일시적) type={} code={}", message.type(), code);
                 }
             } catch (RuntimeException e) {
                 log.warn("[push] 발송 실패(예상 밖) type={}", message.type(), e);
@@ -119,9 +126,20 @@ public class FcmPushSender implements PushSender {
         return dead;
     }
 
-    private static boolean isPermanentlyInvalid(FirebaseMessagingException e) {
-        MessagingErrorCode code = e.getMessagingErrorCode();
-        return code == MessagingErrorCode.UNREGISTERED || code == MessagingErrorCode.INVALID_ARGUMENT;
+    /**
+     * 이 토큰으로는 앞으로도 절대 배달되지 않는가(= 지워야 하는가).
+     *
+     * <p>여기에 넣어도 되는 것은 <b>토큰 자체가 원인</b>인 코드뿐이다. {@code UNREGISTERED}는 앱 삭제·
+     * 토큰 만료, {@code SENDER_ID_MISMATCH}는 다른 Firebase 프로젝트의 토큰이라 우리 자격증명으로는
+     * 영원히 보낼 수 없다. 나머지({@code INTERNAL}·{@code UNAVAILABLE}·{@code QUOTA_EXCEEDED}·
+     * {@code THIRD_PARTY_AUTH_ERROR})는 일시적이거나 서버 설정 문제이고,
+     * {@code INVALID_ARGUMENT}는 <b>페이로드</b> 문제라 토큰과 무관하다.
+     *
+     * @param code FCM이 돌려준 오류 코드(알 수 없는 실패면 null)
+     * @return 토큰을 삭제해야 하면 true
+     */
+    private static boolean isPermanentlyInvalid(MessagingErrorCode code) {
+        return code == MessagingErrorCode.UNREGISTERED || code == MessagingErrorCode.SENDER_ID_MISMATCH;
     }
 
     private static Message build(String token, PushMessage m) {
