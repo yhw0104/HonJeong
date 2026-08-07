@@ -28,6 +28,7 @@ import com.honjeong.mate.repository.MateRequestRepository;
 import com.honjeong.meal.repository.MealRequestRepository;
 import com.honjeong.notification.repository.NotificationRepository;
 import com.honjeong.notification.repository.NotificationSettingsRepository;
+import com.honjeong.push.repository.DeviceTokenRepository;
 import com.honjeong.auth.repository.PhoneVerificationRepository;
 import com.honjeong.auth.repository.RefreshTokenRepository;
 import com.honjeong.auth.repository.SocialAccountRepository;
@@ -50,6 +51,9 @@ class AccountWithdrawalServiceTest {
     private final NotificationSettingsRepository notificationSettingsRepository =
             mock(NotificationSettingsRepository.class);
     private final UserBadgeRepository userBadgeRepository = mock(UserBadgeRepository.class);
+    // 목이라 "실제로 지워졌는지"는 여기서 검증할 수 없다 — device_tokens 삭제 계약은
+    // AccountWithdrawalIntegrationTest(실 Postgres)가 테이블 행 수로 지킨다.
+    private final DeviceTokenRepository deviceTokenRepository = mock(DeviceTokenRepository.class);
     private final FavoriteGroupRepository favoriteGroupRepository = mock(FavoriteGroupRepository.class);
     private final UserFoodPreferenceRepository foodPreferenceRepository = mock(UserFoodPreferenceRepository.class);
     private final RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
@@ -62,7 +66,8 @@ class AccountWithdrawalServiceTest {
     private final AccountWithdrawalService service = new AccountWithdrawalService(
             userRepository, checkInRepository, mealRequestRepository, mateRequestRepository, mateRepository,
             blockRepository, notificationRepository, notificationSettingsRepository, userBadgeRepository,
-            favoriteGroupRepository, foodPreferenceRepository, refreshTokenRepository, socialAccountRepository,
+            deviceTokenRepository, favoriteGroupRepository, foodPreferenceRepository, refreshTokenRepository,
+            socialAccountRepository,
             phoneVerificationRepository, conversationService, fileStorage, clock);
 
     @Test

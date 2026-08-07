@@ -26,6 +26,7 @@ import com.honjeong.mate.repository.MateRequestRepository;
 import com.honjeong.meal.repository.MealRequestRepository;
 import com.honjeong.notification.repository.NotificationRepository;
 import com.honjeong.notification.repository.NotificationSettingsRepository;
+import com.honjeong.push.repository.DeviceTokenRepository;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserFoodPreferenceRepository;
 import com.honjeong.user.repository.UserRepository;
@@ -59,6 +60,7 @@ public class AccountWithdrawalService {
     private final NotificationRepository notificationRepository;
     private final NotificationSettingsRepository notificationSettingsRepository;
     private final UserBadgeRepository userBadgeRepository;
+    private final DeviceTokenRepository deviceTokenRepository;
     private final FavoriteGroupRepository favoriteGroupRepository;
     private final UserFoodPreferenceRepository foodPreferenceRepository;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -73,7 +75,8 @@ public class AccountWithdrawalService {
             MateRepository mateRepository, BlockRepository blockRepository,
             NotificationRepository notificationRepository,
             NotificationSettingsRepository notificationSettingsRepository,
-            UserBadgeRepository userBadgeRepository, FavoriteGroupRepository favoriteGroupRepository,
+            UserBadgeRepository userBadgeRepository, DeviceTokenRepository deviceTokenRepository,
+            FavoriteGroupRepository favoriteGroupRepository,
             UserFoodPreferenceRepository foodPreferenceRepository,
             RefreshTokenRepository refreshTokenRepository, SocialAccountRepository socialAccountRepository,
             PhoneVerificationRepository phoneVerificationRepository,
@@ -87,6 +90,7 @@ public class AccountWithdrawalService {
         this.notificationRepository = notificationRepository;
         this.notificationSettingsRepository = notificationSettingsRepository;
         this.userBadgeRepository = userBadgeRepository;
+        this.deviceTokenRepository = deviceTokenRepository;
         this.favoriteGroupRepository = favoriteGroupRepository;
         this.foodPreferenceRepository = foodPreferenceRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -149,7 +153,10 @@ public class AccountWithdrawalService {
      * <p>{@code phone_verifications}는 {@code users} FK가 없어(번호만으로 기록) 이 정리 대상에서
      * 빠지기 쉽다 — 원문 휴대폰 번호가 남는 테이블이라 phone 값 기준으로 별도 삭제한다.
      *
-     * <p><b>주의 — 이 11개 삭제 메서드에 {@code @Modifying(clearAutomatically = true)}를 절대
+     * <p>{@code device_tokens}도 같은 이유로 여기서 지운다 — 남겨 두면 탈퇴한 계정의 푸시가 그 기기로
+     * 계속 간다. <b>개인 식별 데이터를 담는 테이블을 새로 만들면 반드시 이 목록에 추가한다.</b>
+     *
+     * <p><b>주의 — 이 12개 삭제 메서드에 {@code @Modifying(clearAutomatically = true)}를 절대
      * 걸지 말 것.</b> {@code em.clear()}는 삭제 대상 테이블에 국한되지 않고 영속성 컨텍스트 전체를
      * 비운다. {@link #withdraw(Long)}는 이 호출 이전에 관리 중인 {@code User}를 들고 있고(위쪽의
      * {@code user} 참조), {@link #endOngoing}이 만든 체크인 {@code cancel}/{@code end}·대화
@@ -171,6 +178,7 @@ public class AccountWithdrawalService {
         notificationRepository.deleteAllByUserId(userId);    // 내가 받은 것만. 내가 일으킨 알림(actor)은 상대 알림함에 남는다
         notificationSettingsRepository.deleteAllByUserId(userId);
         userBadgeRepository.deleteAllByUserId(userId);
+        deviceTokenRepository.deleteAllByUser_Id(userId); // 푸시가 탈퇴 계정 기기로 계속 가지 않게
         if (phone != null) {
             // users FK가 없어 하드 삭제 스윕에 걸리지 않던 테이블 — 소셜 온리 계정은 phone이 애초에 null.
             phoneVerificationRepository.deleteAllByPhone(phone);

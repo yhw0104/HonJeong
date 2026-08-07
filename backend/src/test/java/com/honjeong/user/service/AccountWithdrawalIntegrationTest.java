@@ -62,6 +62,9 @@ import com.honjeong.notification.repository.NotificationRepository;
 import com.honjeong.notification.repository.NotificationSettingsRepository;
 import com.honjeong.place.domain.Place;
 import com.honjeong.place.repository.PlaceRepository;
+import com.honjeong.push.domain.DeviceToken;
+import com.honjeong.push.domain.Platform;
+import com.honjeong.push.repository.DeviceTokenRepository;
 import com.honjeong.support.AbstractPostgresTest;
 import com.honjeong.user.domain.DiningStyle;
 import com.honjeong.user.domain.Gender;
@@ -130,6 +133,7 @@ class AccountWithdrawalIntegrationTest extends AbstractPostgresTest {
     @Autowired private NotificationSettingsRepository notificationSettingsRepository;
     @Autowired private UserBadgeRepository userBadgeRepository;
     @Autowired private PhoneVerificationRepository phoneVerificationRepository;
+    @Autowired private DeviceTokenRepository deviceTokenRepository;
 
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private EntityManager entityManager;
@@ -314,6 +318,34 @@ class AccountWithdrawalIntegrationTest extends AbstractPostgresTest {
         // then: favorite_groups 삭제가 favorites를 DB FK ON DELETE CASCADE로 함께 지웠는지(별도 애플리케이션
         // 코드 없이 DB가 지웠어야 한다 — favoriteRepository에 deleteByGroup 호출이 없다).
         assertThat(countRows("SELECT COUNT(*) FROM favorites WHERE group_id = ?", groupId)).isZero();
+    }
+
+    // ============================================================
+    // 기기 토큰(device_tokens) — 탈퇴 시 전부 삭제. @Transactional + flush/clear
+    // ============================================================
+
+    @Test
+    @Transactional
+    @DisplayName("탈퇴하면 그 사용자의 기기 토큰이 전부 삭제된다")
+    void withdraw_deletesDeviceTokens() {
+        LocalDateTime now = LocalDateTime.now();
+        User user = createActiveUser("01093000001", "탈퇴기기토큰");
+        Long userId = user.getId();
+
+        deviceTokenRepository.save(DeviceToken.of(user, "tok-withdraw-1", Platform.IOS, now));
+        deviceTokenRepository.saveAndFlush(DeviceToken.of(user, "tok-withdraw-2", Platform.IOS, now));
+
+        // given: 사후 0행 단언이 "애초에 없어서 통과"가 되지 않도록, 토큰이 실제로 DB에 들어갔는지 먼저 확인한다.
+        assertThat(countRows("SELECT COUNT(*) FROM device_tokens WHERE user_id = ?", userId)).isEqualTo(2);
+
+        // when
+        withdrawalService.withdraw(userId);
+        entityManager.flush();
+        entityManager.clear();
+
+        // then: 탈퇴 계정의 기기로 푸시가 계속 가면 안 된다 — 벌크 DELETE가 실제 SQL로 나갔는지 테이블로 확인한다.
+        assertThat(deviceTokenRepository.findAllByUser_Id(userId)).isEmpty();
+        assertThat(countRows("SELECT COUNT(*) FROM device_tokens WHERE user_id = ?", userId)).isZero();
     }
 
     // ============================================================
