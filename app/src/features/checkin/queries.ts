@@ -36,6 +36,10 @@ export function useSeekers(placeId: number) {
 
 // 체크인 시작/종료/취소 후 지도·주변·내체크인·혼밥러목록·통계를 모두 무효화한다(전 화면 자동 갱신).
 // 같이먹기 수락도 체크인을 전이시키므로 meal 쪽에서 재사용한다.
+//
+// ★ 아래 키 목록은 shared/push/invalidate.ts의 MEAL_REQUEST_ACCEPTED·MEAL_MATCH_CANCELLED
+// 분기에도 같은 범위로 복제돼 있다(푸시 수신 경로는 훅 밖이라 이 함수를 부를 수 없다).
+// 키를 더하거나 바꾸면 그쪽도 같이 고친다 — 안 그러면 푸시로 들어온 같은 사건만 화면이 안 바뀐다.
 export function invalidateCheckInLoop(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['checkin', 'me'] });
   qc.invalidateQueries({ queryKey: ['map'] });

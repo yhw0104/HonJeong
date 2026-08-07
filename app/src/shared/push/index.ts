@@ -10,6 +10,7 @@
 import { Platform } from 'react-native';
 import {
   AuthorizationStatus,
+  deleteToken,
   getMessaging,
   getToken,
   hasPermission,
@@ -73,6 +74,8 @@ export async function registerPushToken(): Promise<void> {
 /**
  * 이 기기 토큰을 서버에서 지운다(로그아웃).
  * 실패해도 예외를 던지지 않는다 — 로그아웃이 막히면 안 된다.
+ *
+ * 이것만으로는 부족하다 — 실패하면 서버 행이 남는다. 반드시 revokePushToken()과 짝으로 부른다.
  */
 export async function unregisterPushToken(): Promise<void> {
   try {
@@ -80,8 +83,30 @@ export async function unregisterPushToken(): Promise<void> {
     if (!token) return;
     await deleteDeviceToken(token);
   } catch {
-    // 세션이 이미 만료된 경우가 대부분이라 정상이다.
-    // 서버의 등록 UPSERT(주인 갱신)가 최종 방어선이 된다.
+    // 세션이 이미 만료됐거나 네트워크가 끊긴 경우다. 서버 행은 남지만
+    // 호출자가 이어서 부르는 revokePushToken()이 기기 쪽에서 배달을 끊는다.
+  }
+}
+
+/**
+ * 이 기기의 FCM 토큰 자체를 폐기한다 — 서버가 그 토큰으로 보내도 FCM이 배달하지 않는다.
+ *
+ * 서버 삭제(unregisterPushToken)로는 못 막는 구멍을 메운다:
+ *  - 세션 만료: access 토큰이 이미 무효라 DELETE /device-tokens를 부를 수 없다.
+ *  - 정상 로그아웃이라도 DELETE가 네트워크 실패로 못 지나갈 수 있다.
+ * 둘 다 서버에 행이 남아, 로그아웃된 폰의 잠금화면에 이전 사용자의 알림이 계속 뜬다.
+ * "다음 로그인 때 등록 UPSERT가 주인을 갱신한다"는 방어선은 아무도 다시 로그인하지
+ * 않으면 영원히 작동하지 않는다. 그래서 서버가 아니라 기기 쪽에서 끊는다.
+ *
+ * 다음 로그인은 영향받지 않는다 — getToken()이 새 토큰을 새로 발급하고
+ * registerPushToken()이 그것을 등록한다(AuthContext의 세션 복원·signIn 직후).
+ * 실패해도 예외를 던지지 않는다 — 로그아웃이 막히면 안 된다.
+ */
+export async function revokePushToken(): Promise<void> {
+  try {
+    await deleteToken(getMessaging());
+  } catch {
+    // 조용히 넘어간다. 다음 로그인 때 서버 UPSERT가 주인을 갱신한다.
   }
 }
 

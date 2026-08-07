@@ -1,4 +1,9 @@
 // 알림 문구·이동 매핑 — 서버는 type+actorNickname만 주고 문구는 여기서 조립한다(순수 함수, TDD 대상).
+//
+// ★ 알려진 중복: 같은 사건의 문구가 두 곳에 산다. 여기(알림함)와
+// backend/src/main/java/com/honjeong/push/service/PushMessages.java(푸시 배너)다.
+// 배너는 앱이 아니라 OS가 그리므로 서버가 완성된 문장을 내려보내야 한다 — 제거할 수 없는 중복이다.
+// 그래서 문구를 고칠 때는 두 파일을 같은 커밋에서 고친다. 한쪽만 고치면 알림함과 배너가 다른 말을 한다.
 import type { IconName } from '@/shared/components';
 import type { NotificationType } from './api';
 
