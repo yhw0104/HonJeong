@@ -74,7 +74,14 @@ public class PushDispatcher {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    pushSendTask.send(recipientId, type, actorId, conversationId, preview);
+                    try {
+                        pushSendTask.send(recipientId, type, actorId, conversationId, preview);
+                    } catch (RuntimeException e) {
+                        // 이 훅은 dispatch가 이미 반환한 뒤에 돈다 — 여기서 새는 예외는 아래 catch가
+                        // 아니라 커밋 경로로 나가 "저장은 됐는데 응답은 실패"가 된다.
+                        // 스레드 풀에 넘기는 것 자체가 실패할 수 있다(종료 중 TaskRejectedException 등).
+                        log.warn("[push] 커밋 후 발송 예약 실패 recipient={} type={}", recipientId, type, e);
+                    }
                 }
             });
         } catch (RuntimeException e) {

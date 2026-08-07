@@ -13,6 +13,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionSynchronizationUtils;
 
 import com.honjeong.notification.domain.NotificationType;
 import com.honjeong.push.domain.PushType;
@@ -47,6 +49,26 @@ class PushDispatcherTest {
                 .given(pushSendTask).send(anyLong(), any(), isNull(), isNull(), isNull());
 
         dispatcher.dispatch(7L, PushType.BADGE_EARNED, null, null, null); // 예외가 나면 테스트 실패
+    }
+
+    @Test
+    @DisplayName("커밋 훅에서 발송이 터져도 커밋 경로로 예외가 새지 않는다 — 저장은 됐는데 응답만 실패하면 안 된다")
+    void 커밋훅_실패도_삼킨다() {
+        willThrow(new RuntimeException("boom"))
+                .given(pushSendTask).send(anyLong(), any(), isNull(), isNull(), isNull());
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            dispatcher.dispatch(7L, PushType.BADGE_EARNED, null, null, null);
+            // 커밋 훅을 직접 돌린다. 이 호출이 던지면 트랜잭션 매니저의 commit() 밖으로 나가
+            // 이미 커밋된 요청이 실패로 응답된다.
+            TransactionSynchronizationUtils.invokeAfterCommit(
+                    TransactionSynchronizationManager.getSynchronizations());
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        verify(pushSendTask).send(7L, PushType.BADGE_EARNED, null, null, null);
     }
 
     @Test
