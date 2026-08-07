@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.honjeong.notification.domain.NotificationType;
 import com.honjeong.push.domain.PushType;
 
 /**
@@ -30,6 +31,28 @@ public class PushDispatcher {
 
     public PushDispatcher(PushSendTask pushSendTask) {
         this.pushSendTask = pushSendTask;
+    }
+
+    /**
+     * 알림함 종류로 커밋 후 발송을 예약한다({@link com.honjeong.notification.service.NotificationService} 전용).
+     *
+     * <p><b>사상을 이 메서드 안에서 하는 이유.</b> {@link PushType#from}은 {@code valueOf}라
+     * {@link NotificationType}에만 값을 추가하고 {@link PushType}에 빠뜨리면
+     * {@code IllegalArgumentException}을 던진다. 호출 인자 자리에서 평가하면 그 예외가
+     * 아래 try 바깥에서 나 "절대 예외를 던지지 않는다"는 이 클래스의 보장을 통과하지 못하고,
+     * 결국 {@code MealRequestService.create}의 {@code catch(DataIntegrityViolationException)}에도
+     * 안 걸려 <b>같이먹기 신청 자체가 롤백된다.</b> 그래서 사상을 격리 안으로 들여왔다.
+     *
+     * @param recipientId 받는 사람
+     * @param type        알림함 종류(같은 이름의 PushType으로 사상된다)
+     * @param actorId     상대 id(BADGE_EARNED는 null)
+     */
+    public void dispatch(Long recipientId, NotificationType type, Long actorId) {
+        try {
+            dispatch(recipientId, PushType.from(type), actorId, null, null);
+        } catch (RuntimeException e) {
+            log.warn("[push] 발송 예약 실패(사상 불가) recipient={} type={}", recipientId, type, e);
+        }
     }
 
     /**

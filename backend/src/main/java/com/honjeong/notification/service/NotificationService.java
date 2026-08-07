@@ -14,7 +14,6 @@ import com.honjeong.notification.domain.NotificationType;
 import com.honjeong.notification.dto.NotificationResponse;
 import com.honjeong.notification.dto.UnreadCountResponse;
 import com.honjeong.notification.repository.NotificationRepository;
-import com.honjeong.push.domain.PushType;
 import com.honjeong.push.service.PushDispatcher;
 import com.honjeong.user.repository.UserRepository;
 
@@ -74,7 +73,9 @@ public class NotificationService {
                 type, now()));
         // 기기 발송은 커밋 후 비동기로 나간다 — 외부 HTTP가 이 트랜잭션을 붙잡거나
         // 발송 실패가 신청·수락을 롤백시키면 안 된다(PushDispatcher Javadoc 참조).
-        pushDispatcher.dispatch(recipientId, PushType.from(type), actorId, null, null);
+        // NotificationType을 그대로 넘긴다 — PushType 사상까지 디스패처의 예외 격리 안에서 하기 위해서다
+        // (여기서 PushType.from(type)을 부르면 사상 실패가 격리 밖에서 터져 신청이 롤백된다).
+        pushDispatcher.dispatch(recipientId, type, actorId);
     }
 
     /**
