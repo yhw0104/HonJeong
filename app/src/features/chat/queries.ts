@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from 'react-native';
 import { ApiError } from '@/shared/api/client';
 import { LIVE_REFETCH_MS } from '@/shared/realtime';
-import { deleteConversation, fetchConversations, fetchMessages, markConversationRead, sendMessage } from './api';
+import { deleteConversation, fetchConversations, fetchMessages, markConversationRead, sendMessage, setConversationMuted } from './api';
 
 const CHAT_REFETCH_MS = 5_000;
 
@@ -57,6 +57,21 @@ export function useDeleteConversation() {
       // 되돌아갈 수 없으므로(close()는 단방향) 폴링 사이에 실제로 발생하지는 않지만, 만일을 대비해
       // 즉시 다시 동기화해 목록을 서버 상태와 맞춘다.
       qc.invalidateQueries({ queryKey: ['chat'] });
+    },
+  });
+}
+
+// 대화별 알림 끄기/켜기. 표시되는 상태(muted)는 목록 응답이 들고 오므로 별도 조회 없이 목록만 다시 받는다.
+export function useSetConversationMuted() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, muted }: { id: number; muted: boolean }) => setConversationMuted(id, muted),
+    // 성공·실패 모두 무효화한다(useDeleteConversation과 같은 방침) — 낙관적으로 껐다고 표시한 채
+    // 실패가 남으면 "껐다고 보이는데 알림은 오는" 상태가 된다. 그건 고장으로 읽힌다.
+    onSettled: () => qc.invalidateQueries({ queryKey: conversationKeys.list }),
+    onError: (e: unknown) => {
+      const message = e instanceof ApiError && e.code !== 'NETWORK_ERROR' ? e.message : '알림 설정을 바꾸지 못했어요. 잠시 후 다시 시도해 주세요.';
+      Alert.alert('앗', message);
     },
   });
 }

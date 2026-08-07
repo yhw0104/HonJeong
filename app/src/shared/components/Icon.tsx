@@ -22,6 +22,7 @@ export type IconName =
   | 'mate'
   | 'shield'
   | 'bell'
+  | 'bellOff'
   | 'note'
   | 'help'
   | 'share'
@@ -183,6 +184,15 @@ export function Icon({ name, size = 18, color = T2.text }: Props) {
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
           <Path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6zM10 20a2 2 0 0 0 4 0" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+    case 'bellOff':
+      // 종 + 사선 — 대화 알림 끄기(스와이프 액션)와 '알림 꺼짐' 표시.
+      // bell의 path를 그대로 두고 사선만 얹는다 — 두 아이콘이 같은 종으로 보여야 켜기/끄기가 한 쌍으로 읽힌다.
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6zM10 20a2 2 0 0 0 4 0" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M4 3.5L20 20.5" stroke={color} strokeWidth={1.7} strokeLinecap="round" />
         </Svg>
       );
     case 'note':

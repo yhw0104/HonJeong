@@ -13,39 +13,57 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen, Avatar, StateView, Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackParamList } from '@/navigation/types';
-import { useConversations, useDeleteConversation } from '../queries';
+import { useConversations, useDeleteConversation, useSetConversationMuted } from '../queries';
 import { messagePreview, formatListTime } from '../chatFormat';
 import type { ConversationSummary } from '../types';
 
-/** 삭제 버튼의 기본(스냅) 너비. 스와이프를 놓으면 이 크기로 돌아온다. */
+/** 액션 버튼 한 개의 기본(스냅) 너비. */
 const ACTION_WIDTH = 76;
+/** 스와이프를 놓았을 때 드러나는 전체 너비 — 알림 끄기 + 삭제 두 개다. */
+const ACTIONS_WIDTH = ACTION_WIDTH * 2;
 
 /**
- * 스와이프 삭제 버튼 — 드래그한 만큼 늘어나고, 손을 떼면 기본 너비로 되돌아온다.
+ * 스와이프 액션(알림 끄기 · 삭제) — 드래그한 만큼 늘어나고, 손을 떼면 기본 너비로 되돌아온다.
  * translation은 오른쪽 액션에서 음수(왼쪽으로 끌수록 작아짐)라 부호를 뒤집어 너비로 쓴다.
+ * ★버튼이 둘이 되었으므로 기준 너비도 두 버튼 전체(ACTIONS_WIDTH)다 — ACTION_WIDTH를 그대로 두면
+ * 스냅 폭이 버튼 하나 크기가 돼 두 번째 버튼이 화면 밖으로 잘린다. 두 버튼은 각각 flex:1이라
+ * 늘어난 폭을 똑같이 나눠 가지므로, 드래그하면 둘 다 함께 커진다(08-04에 맞춘 늘어나는 감 유지).
  * useAnimatedStyle을 쓰므로 renderRightActions 안에서 인라인으로 못 만들고 별도 컴포넌트여야 한다(훅 규칙).
  */
-function DeleteAction({
+function RowActions({
   translation,
-  onPress,
-  disabled,
+  muted,
+  deletable,
+  onToggleMute,
+  onDelete,
 }: {
   translation: SharedValue<number>;
-  onPress: () => void;
-  disabled?: boolean;
+  muted: boolean;
+  deletable: boolean;
+  onToggleMute: () => void;
+  onDelete: () => void;
 }) {
   const animatedStyle = useAnimatedStyle(() => ({
-    width: Math.max(ACTION_WIDTH, -translation.value),
+    width: Math.max(ACTIONS_WIDTH, -translation.value),
   }));
 
   return (
-    <Animated.View style={[styles.deleteAction, disabled && styles.deleteActionOff, animatedStyle]}>
-      {/* 아이콘만 있는 버튼이라 스크린리더용 라벨을 명시한다. */}
+    <Animated.View style={[styles.actionsRow, animatedStyle]}>
+      {/* 아이콘만 있는 버튼이라 스크린리더용 라벨을 명시한다.
+          버튼은 '하려는 동작'을 표시한다 — 알림이 켜져 있으면 끄기(bellOff), 꺼져 있으면 켜기(bell). */}
       <Pressable
-        style={styles.deleteActionPress}
-        onPress={onPress}
+        style={({ pressed }) => [styles.muteAction, pressed && styles.actionPressed]}
+        onPress={onToggleMute}
         accessibilityRole="button"
-        accessibilityLabel={disabled ? '삭제할 수 없는 대화' : '대화 삭제'}
+        accessibilityLabel={muted ? '이 대화 알림 켜기' : '이 대화 알림 끄기'}
+      >
+        <Icon name={muted ? 'bell' : 'bellOff'} size={28} color="#fff" />
+      </Pressable>
+      <Pressable
+        style={({ pressed }) => [styles.deleteAction, !deletable && styles.deleteActionOff, pressed && styles.actionPressed]}
+        onPress={onDelete}
+        accessibilityRole="button"
+        accessibilityLabel={deletable ? '대화 삭제' : '삭제할 수 없는 대화'}
       >
         <Icon name="trash" size={28} color="#fff" />
       </Pressable>
@@ -58,6 +76,7 @@ export function ConversationListScreen() {
   const { data, isLoading, isError, refetch } = useConversations();
   const now = new Date(); // 목록 시각 표시 기준(폴링마다 갱신)
   const delMut = useDeleteConversation();
+  const muteMut = useSetConversationMuted();
   // 카카오톡처럼 한 번에 한 행만 열려 있게 한다 — 현재 열린 행의 제어 핸들을 담아둔다.
   const openRowRef = React.useRef<SwipeableMethods | null>(null);
 
@@ -158,6 +177,13 @@ export function ConversationListScreen() {
         <View style={styles.body}>
           <View style={styles.line}>
             <Text style={styles.name} numberOfLines={1}>{item.partnerNickname}</Text>
+            {/* 알림을 끈 대화 표시 — 상태가 보이지 않으면 사용자는 자기가 껐는지 알 수 없다.
+                (스와이프 버튼과 같은 아이콘을 써서 "그때 누른 그것"으로 이어 읽히게 한다.) */}
+            {item.muted && (
+              <View accessible accessibilityLabel="알림 꺼짐">
+                <Icon name="bellOff" size={14} color={T2.textMute} />
+              </View>
+            )}
             <View style={styles.placeChip}>
               <Text style={styles.placeChipText} numberOfLines={1}>{item.placeName}</Text>
             </View>
@@ -198,10 +224,17 @@ export function ConversationListScreen() {
           if (openRowRef.current === rowMethods) openRowRef.current = null;
         }}
         renderRightActions={(_progress, translation, swipeable) => (
-          <DeleteAction
+          <RowActions
             translation={translation}
-            disabled={!deletable}
-            onPress={() => (deletable ? confirmDelete(item, swipeable) : explainCannotDelete(swipeable))}
+            muted={item.muted}
+            deletable={deletable}
+            // 알림 끄기는 진행 중이든 종료됐든 항상 눌린다 — 삭제와 달리 서버에 상태 제약이 없다.
+            // 누른 뒤에는 행을 닫는다(확인 팝업이 없으니 결과는 목록의 음소거 아이콘으로 확인한다).
+            onToggleMute={() => {
+              muteMut.mutate({ id: item.conversationId, muted: !item.muted });
+              swipeable.close();
+            }}
+            onDelete={() => (deletable ? confirmDelete(item, swipeable) : explainCannotDelete(swipeable))}
           />
         )}
         // ★"조금만 스와이프해도 삭제 버튼이 나오게" — 열림 판정은 세 값이 함께 정한다.
@@ -260,10 +293,15 @@ const styles = StyleSheet.create({
   time: { fontSize: 11, color: T2.textMute },
   badge: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: T2.brand, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  // 액션 두 개를 담는 줄. 전체 너비는 RowActions의 useAnimatedStyle이 드래그에 맞춰 결정한다
+  // (여기서 고정하지 않는다). 두 버튼은 flex:1로 그 너비를 반씩 나눠 갖는다.
+  actionsRow: { flexDirection: 'row' },
+  // 알림 끄기는 파괴적 동작이 아니라 중립 회색(T2.textSub) — 삭제 빨강과 섞이면 잘못 누른다.
+  muteAction: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: T2.textSub },
   // 삭제 빨강은 MyReviews의 actionDelete와 같은 값(#d11)을 쓴다 — 앱 전역 관례.
-  // 너비는 DeleteAction의 useAnimatedStyle이 드래그에 맞춰 결정한다(여기서 고정하지 않는다).
-  deleteAction: { justifyContent: 'center', alignItems: 'center', backgroundColor: '#d11' },
+  deleteAction: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#d11' },
   // 삭제할 수 없는 행(진행 중 대화)은 회색 — 빨강은 "누르면 지워진다"는 약속이라 그대로 두면 안 된다.
   deleteActionOff: { backgroundColor: T2.borderStrong },
-  deleteActionPress: { flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center' },
+  // 눌림 피드백. 아이콘만 있는 버튼이라 색 변화가 없으면 눌린 건지 알 수 없다.
+  actionPressed: { opacity: 0.75 },
 });
