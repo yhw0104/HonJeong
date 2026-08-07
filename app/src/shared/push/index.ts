@@ -73,13 +73,26 @@ export async function registerPushToken(): Promise<void> {
   }
 }
 
+/** 서버 삭제 마감시한(ms). 로그아웃 경로에서 부르므로 무한정 기다릴 수 없다. */
+const UNREGISTER_DEADLINE_MS = 3000;
+
 /**
  * 이 기기 토큰을 서버에서 지운다(로그아웃).
- * 실패해도 예외를 던지지 않는다 — 로그아웃이 막히면 안 된다.
+ * 실패해도, 느려도 예외를 던지지 않는다 — 로그아웃이 막히면 안 된다.
+ *
+ * 마감시한을 두는 이유: 이 호출은 signOut의 첫 단계라 여기서 멈추면 사용자는 이전 계정 화면에
+ * 그대로 남는다. fetch에는 타임아웃이 없어서, 응답이 오지 않는 네트워크(캡티브 포털 등)에서는
+ * 영원히 기다린다. 시한이 지나면 그냥 넘어간다 — 요청 자체는 취소하지 않으므로 나중에 도착하면
+ * 서버 행은 지워지고, 못 도착해도 아래 revokePushToken()이 기기 쪽에서 배달을 끊는다.
  *
  * 이것만으로는 부족하다 — 실패하면 서버 행이 남는다. 반드시 revokePushToken()과 짝으로 부른다.
  */
 export async function unregisterPushToken(): Promise<void> {
+  await withDeadline(deleteTokenOnServer(), UNREGISTER_DEADLINE_MS);
+}
+
+/** 서버에서 이 기기 토큰을 지운다. 어떤 경우에도 reject하지 않는다. */
+async function deleteTokenOnServer(): Promise<void> {
   try {
     const token = await getPushToken();
     if (!token) return;
@@ -88,6 +101,23 @@ export async function unregisterPushToken(): Promise<void> {
     // 세션이 이미 만료됐거나 네트워크가 끊긴 경우다. 서버 행은 남지만
     // 호출자가 이어서 부르는 revokePushToken()이 기기 쪽에서 배달을 끊는다.
   }
+}
+
+/**
+ * work가 끝나거나 시한이 지나면 resolve한다. 절대 reject하지 않는다.
+ *
+ * @param work 기다릴 작업(취소되지는 않는다 — 시한이 지나도 계속 돈다)
+ * @param ms   마감시한(밀리초)
+ */
+function withDeadline(work: Promise<void>, ms: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    const done = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    work.then(done, done);
+  });
 }
 
 /**
@@ -108,7 +138,13 @@ export async function revokePushToken(): Promise<void> {
   try {
     await deleteToken(getMessaging());
   } catch {
-    // 조용히 넘어간다. 다음 로그인 때 서버 UPSERT가 주인을 갱신한다.
+    // ★ 여기로 오면 잔여 위험이 남는다. FCM SDK는 로컬 키체인에서 토큰을 '먼저' 지우고
+    // 서버 해제를 best-effort로 보내므로(FIRMessagingTokenManager.deleteTokenWithAuthorizedEntity),
+    // 실패하면 그 토큰은 FCM에 살아 있고 우리 device_tokens에도 남아 있는데 기기에서는 사라진다
+    // — 즉 다시는 그 토큰을 지목해 정리할 수 없다. 다음 로그인은 새 토큰을 발급받으므로
+    // 등록 UPSERT가 옛 행을 덮어쓰지도 않는다(위 docblock이 말한 그 방어선이 여기선 안 돈다).
+    // 남은 정리 수단은 서버뿐이라 티켓으로 뺐다: 폐기 실패한 토큰을 저장해 뒀다가 다음 로그인 때
+    // DELETE /device-tokens로 재시도한다. 지금 이 catch가 할 수 있는 일은 없다 — 로그아웃을 막지 않는다.
   }
 }
 

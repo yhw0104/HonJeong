@@ -85,9 +85,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 푸시 정리는 두 단계다. 서버 삭제는 /auth/logout '앞'에서 한다 — 이 시점에는 access가 아직 유효하다.
     // 이어서 기기 토큰까지 폐기한다: 서버 DELETE가 네트워크 실패로 못 지나가면 행이 남아
     // 로그아웃한 폰에 이전 사용자의 알림이 계속 뜨기 때문이다(세션 만료 경로와 같은 구멍).
-    // 순서가 중요하다 — 서버 삭제가 토큰 값을 필요로 하므로 폐기는 그 뒤에 온다.
-    await unregisterPushToken();
-    await revokePushToken();
+    // 순서가 중요하다 — 서버 삭제가 토큰 값을 필요로 하므로 폐기는 그 뒤에 '시작'되어야 한다.
+    await unregisterPushToken(); // 내부에 마감시한이 있어 오래 붙잡지 않는다
+    // ★ await하지 않는다. deleteToken()은 FCM 서버 왕복이고 리소스 타임아웃이 60초다
+    // (FIRMessagingTokenDeleteOperation). 기다리면 사용자가 로그아웃을 누른 뒤 최대 1분 동안
+    // 아무 반응 없이 이전 계정 화면에 남는다 — More.tsx는 로딩 표시 없이 signOut()을 부른다.
+    // 이 함수는 access 토큰을 쓰지 않으므로 아래 clearTokens()와 순서를 다툴 것이 없다.
+    void revokePushToken();
     // 서버에 refresh 무효화를 알린다(실패해도 로컬은 반드시 정리). access 토큰은 클라이언트가 자동 첨부.
     const refresh = getRefreshToken();
     if (refresh) {
