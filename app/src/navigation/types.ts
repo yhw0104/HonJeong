@@ -8,6 +8,7 @@ export type RootStackParamList = {
   PhoneAuth: undefined;
   VerifyCode: { phone: string };
   ProfileSetup: { onboardingToken: string };
+  PushPermission: undefined;
   TermsView: { termKey: string };
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   NewGroup: { groupId?: number; initial?: { name: string; note: string; color: string } } | undefined;

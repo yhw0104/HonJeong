@@ -9,6 +9,7 @@ import { PhoneAuthScreen } from '@/features/auth/screens/PhoneAuth';
 import { VerifyCodeScreen } from '@/features/auth/screens/VerifyCode';
 import { ProfileSetupScreen } from '@/features/auth/screens/ProfileSetup';
 import { TermsViewScreen } from '@/features/auth/screens/TermsView';
+import { PushPermissionScreen } from '@/features/auth/screens/PushPermission';
 import { NewGroupScreen } from '@/features/favorites/screens/NewGroup';
 import { RestaurantDetailScreen } from '@/features/place/screens/RestaurantDetail';
 import { PlaceSearchScreen } from '@/features/place/screens/PlaceSearch';
@@ -53,6 +54,14 @@ export function RootNavigator() {
         // 로그인됨 — 메인 탭 + 세부 화면들
         <>
           <Stack.Screen name="MainTabs" component={MainTabs} />
+          {/* 푸시 권한 안내 — MainTabs 첫 진입 시 1회 자동으로 열린다.
+              스와이프 뒤로가기를 막는 이유: 화면을 닫을 때 '안내를 봤다'를 기록하는데,
+              제스처로 빠져나가면 그 기록을 건너뛰어 앱을 켤 때마다 다시 뜬다. */}
+          <Stack.Screen
+            name="PushPermission"
+            component={PushPermissionScreen}
+            options={{ gestureEnabled: false }}
+          />
           <Stack.Screen name="NewGroup" component={NewGroupScreen} options={{ presentation: 'modal' }} />
           <Stack.Screen name="RestaurantDetail" component={RestaurantDetailScreen} />
           <Stack.Screen name="PlaceSearch" component={PlaceSearchScreen} />

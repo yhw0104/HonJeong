@@ -3,10 +3,12 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { T2 } from '@/shared/theme';
-import type { MainTabParamList } from './types';
+import type { MainTabParamList, RootStackParamList } from './types';
 import { MapHomeScreen } from '@/features/home/screens/MapHome';
 import { TogetherFeedScreen } from '@/features/together/screens/TogetherFeed';
 import { ConversationListScreen } from '@/features/chat/screens/ConversationList';
@@ -14,6 +16,8 @@ import { FavoritesScreen } from '@/features/favorites/screens/Favorites';
 import { MoreScreen } from '@/features/profile/screens/More';
 import { useConversations } from '@/features/chat/queries';
 import { totalUnread } from '@/features/chat/chatFormat';
+import { hasPushPermission } from '@/shared/push';
+import { hasSeenPushPrompt, shouldPromptPush } from '@/shared/push/prompt';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -120,6 +124,26 @@ function MinTabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 export function MainTabs() {
+  // MainTabs는 탭 내비게이터라 useNavigation의 기본 타입으로는 루트 스택 화면으로 못 간다.
+  // 루트 스택 타입을 명시해 'PushPermission' 이동을 타입 안전하게 만든다(ConversationList와 같은 방식).
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
+  // 가입/로그인 후 처음 홈에 도착했을 때 한 번만 권한 안내를 띄운다.
+  // 온보딩(ProfileSetup)은 signIn()으로 스택 전체가 교체되며 끝나므로
+  // 그 안에서는 안내 화면으로 이동할 수 없다 — 그래서 여기서 띄운다.
+  React.useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const [seen, granted] = await Promise.all([hasSeenPushPrompt(), hasPushPermission()]);
+      if (alive && shouldPromptPush({ seen, granted })) {
+        navigation.navigate('PushPermission');
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [navigation]);
+
   return (
     <Tab.Navigator
       screenOptions={{ headerShown: false }}
