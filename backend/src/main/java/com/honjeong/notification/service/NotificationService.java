@@ -14,6 +14,8 @@ import com.honjeong.notification.domain.NotificationType;
 import com.honjeong.notification.dto.NotificationResponse;
 import com.honjeong.notification.dto.UnreadCountResponse;
 import com.honjeong.notification.repository.NotificationRepository;
+import com.honjeong.push.domain.PushType;
+import com.honjeong.push.service.PushDispatcher;
 import com.honjeong.user.repository.UserRepository;
 
 /**
@@ -22,7 +24,13 @@ import com.honjeong.user.repository.UserRepository;
  * <p>사용처: NotificationController (발행은 MealRequestService·MateRequestService가 호출).
  * <p>인앱 알림함(NOTI-003). 발행은 도메인 서비스(같이먹기/메이트)가 각자의 트랜잭션 안에서
  * {@link #publish}를 호출하는 방식 — 신청/수락과 알림이 원자적으로 함께 저장된다.
- * 미래 푸시(NOTI-001/002)는 publish에 기기 발송을 얹는 것으로 확장한다.
+ *
+ * <p>기기 푸시(NOTI-001/002)도 {@link #publish}가 함께 예약한다 — 알림함과 배너가 같은
+ * 스위치(알림 설정) 하나로 켜지고 꺼진다. 다만 발송 자체는 이 트랜잭션 안에서 일어나지 않는다
+ * ({@link PushDispatcher} — 커밋 후 비동기).
+ *
+ * <p><b>채팅 새 메시지는 이 통로를 지나가지 않는다.</b> 채팅은 알림함에 쌓지 않기로 했으므로
+ * ConversationService가 {@link PushDispatcher}를 직접 호출한다.
  */
 @Service
 public class NotificationService {
@@ -35,13 +43,15 @@ public class NotificationService {
     private final UserRepository userRepository;
     private final Clock clock;
     private final NotificationSettingsService notificationSettingsService;
+    private final PushDispatcher pushDispatcher;
 
     public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository,
-            Clock clock, NotificationSettingsService notificationSettingsService) {
+            Clock clock, NotificationSettingsService notificationSettingsService, PushDispatcher pushDispatcher) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.clock = clock;
         this.notificationSettingsService = notificationSettingsService;
+        this.pushDispatcher = pushDispatcher;
     }
 
     /**
@@ -62,6 +72,9 @@ public class NotificationService {
                 userRepository.getReferenceById(recipientId),
                 actorId == null ? null : userRepository.getReferenceById(actorId),
                 type, now()));
+        // 기기 발송은 커밋 후 비동기로 나간다 — 외부 HTTP가 이 트랜잭션을 붙잡거나
+        // 발송 실패가 신청·수락을 롤백시키면 안 된다(PushDispatcher Javadoc 참조).
+        pushDispatcher.dispatch(recipientId, PushType.from(type), actorId, null, null);
     }
 
     /**

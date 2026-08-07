@@ -20,6 +20,7 @@ import com.honjeong.notification.domain.Notification;
 import com.honjeong.notification.domain.NotificationType;
 import com.honjeong.notification.dto.NotificationResponse;
 import com.honjeong.notification.repository.NotificationRepository;
+import com.honjeong.push.service.PushDispatcher;
 import com.honjeong.user.domain.User;
 import com.honjeong.user.repository.UserRepository;
 
@@ -29,9 +30,12 @@ class NotificationServiceTest {
     private final NotificationRepository notificationRepository = mock(NotificationRepository.class);
     private final UserRepository userRepository = mock(UserRepository.class);
     private final NotificationSettingsService notificationSettingsService = mock(NotificationSettingsService.class);
+    // 푸시 예약은 목으로 잡는다 — 이 파일은 알림함 저장 계약만 본다. 커밋 경계는 목으로 검증할 수
+    // 없으므로 PushCommitBoundaryTest(실 Postgres)가 맡는다.
+    private final PushDispatcher pushDispatcher = mock(PushDispatcher.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-04T03:00:00Z"), ZoneOffset.UTC);
-    private final NotificationService service =
-            new NotificationService(notificationRepository, userRepository, clock, notificationSettingsService);
+    private final NotificationService service = new NotificationService(
+            notificationRepository, userRepository, clock, notificationSettingsService, pushDispatcher);
 
     private User user(Long id, String nickname) {
         User u = mock(User.class);
