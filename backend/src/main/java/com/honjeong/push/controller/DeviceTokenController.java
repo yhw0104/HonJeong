@@ -43,7 +43,7 @@ public class DeviceTokenController {
     @PostMapping
     public ApiResponse<Void> register(@CurrentUserId Long userId,
             @Valid @RequestBody DeviceTokenRequest request) {
-        deviceTokenService.register(userId, request.token(), request.platform());
+        deviceTokenService.register(userId, request.token(), request.platform(), request.installationId());
         return ApiResponse.success(null);
     }
 

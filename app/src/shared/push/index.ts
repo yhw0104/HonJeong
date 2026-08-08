@@ -24,6 +24,7 @@ import {
 import { getAccessToken } from '@/shared/auth/session';
 
 import { deleteDeviceToken, registerDeviceToken, type PushPlatform } from './api';
+import { getInstallationId } from './installation';
 import type { PushData } from './target';
 
 const platform = (): PushPlatform => (Platform.OS === 'android' ? 'ANDROID' : 'IOS');
@@ -71,7 +72,7 @@ export async function registerPushToken(): Promise<void> {
     if (!(await hasPushPermission())) return;
     const token = await getPushToken();
     if (!token) return;
-    await registerDeviceToken(token, platform());
+    await registerDeviceToken(token, platform(), await getInstallationId());
   } catch {
     // 조용히 넘어간다. 다음 앱 시작 때 다시 시도된다.
   }
@@ -142,13 +143,15 @@ export async function revokePushToken(): Promise<void> {
   try {
     await deleteToken(getMessaging());
   } catch {
-    // ★ 여기로 오면 잔여 위험이 남는다. FCM SDK는 로컬 키체인에서 토큰을 '먼저' 지우고
-    // 서버 해제를 best-effort로 보내므로(FIRMessagingTokenManager.deleteTokenWithAuthorizedEntity),
-    // 실패하면 그 토큰은 FCM에 살아 있고 우리 device_tokens에도 남아 있는데 기기에서는 사라진다
-    // — 즉 다시는 그 토큰을 지목해 정리할 수 없다. 다음 로그인은 새 토큰을 발급받으므로
-    // 등록 UPSERT가 옛 행을 덮어쓰지도 않는다(위 docblock이 말한 그 방어선이 여기선 안 돈다).
-    // 남은 정리 수단은 서버뿐이라 티켓으로 뺐다: 폐기 실패한 토큰을 저장해 뒀다가 다음 로그인 때
-    // DELETE /device-tokens로 재시도한다. 지금 이 catch가 할 수 있는 일은 없다 — 로그아웃을 막지 않는다.
+    // 여기로 오면 그 토큰은 FCM에 살아 있고 서버 device_tokens에도 남아 있는데 기기에서는 사라진다
+    // — FCM SDK가 로컬 키체인에서 '먼저' 지우고 서버 해제를 best-effort로 보내기 때문이다
+    // (FIRMessagingTokenManager.deleteTokenWithAuthorizedEntity). 즉 다시는 그 토큰 '값'을
+    // 지목해 정리할 수 없다.
+    //
+    // 그래도 정리된다 — 설치 ID(installation.ts)가 토큰과 무관하게 이 기기를 가리키므로,
+    // 다음에 누가 이 기기에서 로그인하든 그 등록이 "같은 기기의 다른 토큰"으로 이 행을 지운다.
+    // 아무도 다시 로그인하지 않으면 서버의 60일 staleness 청소가 맡는다.
+    // 그래서 이 catch가 할 일은 없다 — 로그아웃을 막지 않는 것으로 충분하다.
   }
 }
 
@@ -196,7 +199,7 @@ export function onPushTokenRefresh(): () => void {
     // 로그인 시점에 AuthContext가 registerPushToken()으로 다시 등록하므로 잃는 것은 없다.
     if (!getAccessToken()) return;
     try {
-      await registerDeviceToken(token, platform());
+      await registerDeviceToken(token, platform(), await getInstallationId());
     } catch {
       // 조용히 넘어간다.
     }

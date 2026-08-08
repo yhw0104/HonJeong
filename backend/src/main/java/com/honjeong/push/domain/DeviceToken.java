@@ -53,6 +53,10 @@ public class DeviceToken extends BaseTimeEntity {
     @Column(name = "last_registered_at", nullable = false)
     private LocalDateTime lastRegisteredAt;
 
+    /** 앱 설치 하나를 가리키는 불투명 식별자. NULL=설치 ID를 보내지 않는 구버전 앱. */
+    @Column(name = "installation_id", length = 64)
+    private String installationId;
+
     /** JPA가 리플렉션으로 엔티티를 생성할 때 쓰는 기본 생성자. */
     protected DeviceToken() {
     }
@@ -121,5 +125,9 @@ public class DeviceToken extends BaseTimeEntity {
 
     public LocalDateTime getLastRegisteredAt() {
         return lastRegisteredAt;
+    }
+
+    public String getInstallationId() {
+        return installationId;
     }
 }

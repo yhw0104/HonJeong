@@ -44,22 +44,26 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
      * <p>{@code last_registered_at}도 함께 갱신한다 — 이 UPSERT가 그 칸을 갱신하는 <b>유일한</b>
      * 경로다. 앱이 시작할 때마다 재등록하므로 살아 있는 기기는 계속 신선하게 유지된다.
      *
-     * @param userId   토큰의 새 주인
-     * @param token    FCM 등록 토큰
-     * @param platform 기기 플랫폼 이름(IOS·ANDROID — CHECK 제약 대상이라 enum 이름 그대로)
-     * @param now      등록·갱신 시각
+     * <p>{@code installationId}도 갱신한다 — 구버전 앱이 남긴 NULL 행을 새 앱의 등록이 메운다.
+     *
+     * @param userId         토큰의 새 주인
+     * @param token          FCM 등록 토큰
+     * @param platform       기기 플랫폼 이름(IOS·ANDROID — CHECK 제약 대상이라 enum 이름 그대로)
+     * @param now            등록·갱신 시각
+     * @param installationId 앱 설치 식별자(구버전 앱은 null)
      * @return 영향받은 행 수(항상 1)
      */
     @Modifying
     @Query(value = "INSERT INTO device_tokens "
-            + "(user_id, token, platform, last_used_at, last_registered_at, created_at, updated_at) "
-            + "VALUES (:userId, :token, :platform, :now, :now, :now, :now) "
+            + "(user_id, token, platform, last_used_at, last_registered_at, installation_id, created_at, updated_at) "
+            + "VALUES (:userId, :token, :platform, :now, :now, :installationId, :now, :now) "
             + "ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, platform = EXCLUDED.platform, "
             + "last_used_at = EXCLUDED.last_used_at, last_registered_at = EXCLUDED.last_registered_at, "
-            + "updated_at = EXCLUDED.updated_at",
+            + "installation_id = EXCLUDED.installation_id, updated_at = EXCLUDED.updated_at",
             nativeQuery = true)
     int upsert(@Param("userId") Long userId, @Param("token") String token,
-            @Param("platform") String platform, @Param("now") LocalDateTime now);
+            @Param("platform") String platform, @Param("now") LocalDateTime now,
+            @Param("installationId") String installationId);
 
     /**
      * 한 사용자의 모든 기기 토큰(발송 대상).
@@ -143,4 +147,26 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
     @Modifying
     @Query("DELETE FROM DeviceToken d WHERE d.lastRegisteredAt < :threshold")
     int deleteAllByLastRegisteredAtBefore(@Param("threshold") LocalDateTime threshold);
+
+    /**
+     * 같은 기기의 <b>다른</b> 토큰을 지운다(등록 시 정리).
+     *
+     * <p>토큰은 갱신될 때마다 값이 바뀌므로 한 기기에 여러 행이 쌓일 수 있다. 정상 경로에서는
+     * 로그아웃이 정리하지만, FCM 폐기가 실패하면 기기에 값이 없어 다시는 지목할 수 없는 행이 남는다
+     * — 그 폰을 넘겨받은 사람의 잠금화면에 이전 사용자의 알림이 계속 뜬다. 설치 ID는 토큰이 바뀌어도
+     * 그대로라 "같은 기기의 옛 토큰"을 지목할 수 있고, <b>주인이 누구든</b> 정리된다(그게 요점이다 —
+     * {@code unregister}는 주인을 확인하므로 기기를 넘겨받은 새 사용자는 옛 행을 못 지운다).
+     *
+     * <p>{@code installationId}가 NULL인 행은 어떤 값과도 같지 않으므로 매칭되지 않는다 —
+     * 설치 ID를 보내지 않는 구버전 앱의 행은 안전하다.
+     *
+     * @param installationId 앱 설치 식별자
+     * @param token          지금 등록하는 토큰(이것만 남긴다)
+     * @return 삭제된 행 수
+     */
+    // clearAutomatically 금지 — 위와 같은 이유.
+    @Modifying
+    @Query("DELETE FROM DeviceToken d WHERE d.installationId = :installationId AND d.token <> :token")
+    int deleteByInstallationIdAndTokenNot(@Param("installationId") String installationId,
+            @Param("token") String token);
 }
