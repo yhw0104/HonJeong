@@ -5,7 +5,7 @@ jest.mock('@/shared/auth/session', () => ({
   setTokens: jest.fn(async () => {}),
 }));
 
-import { apiGet, apiPost, setOnSessionExpired, shouldAttemptRefresh, ApiError } from './client';
+import { apiGet, apiPost, refreshSession, setOnSessionExpired, shouldAttemptRefresh, ApiError } from './client';
 import * as session from '@/shared/auth/session';
 
 type Env = { success: boolean; data?: unknown; error?: { code: string; message: string } };
@@ -86,6 +86,52 @@ describe('401 자동 refresh', () => {
     const results = await Promise.all([apiGet('/a'), apiGet('/b'), apiGet('/c')]);
     expect(refreshCalls).toBe(1);
     expect(results).toEqual([{ n: 1 }, { n: 1 }, { n: 1 }]);
+  });
+
+  it('★ 동시 다발 401 → refresh가 거부당해도 onSessionExpired는 1회만', async () => {
+    // single-flight라 refresh는 한 번만 도는데, 그 하나의 실패를 대기자 N명이 나눠 받는다.
+    // 각자 통지하면 로그아웃 1회에 FCM 토큰 폐기(deleteToken, 서버 왕복)가 N번 돈다.
+    // 앱을 포그라운드로 되돌릴 때 쿼리가 한꺼번에 뜨므로 실제로 자주 겹친다.
+    const expired = jest.fn();
+    setOnSessionExpired(expired);
+    (global as any).fetch = jest.fn((url: string) =>
+      Promise.resolve(
+        String(url).includes('/auth/refresh')
+          ? resp(401, fail('INVALID_REFRESH_TOKEN'))
+          : resp(401, fail('UNAUTHORIZED')),
+      ),
+    );
+
+    await Promise.all([
+      expect(apiGet('/a')).rejects.toBeInstanceOf(ApiError),
+      expect(apiGet('/b')).rejects.toBeInstanceOf(ApiError),
+      expect(apiGet('/c')).rejects.toBeInstanceOf(ApiError),
+    ]);
+
+    expect(expired).toHaveBeenCalledTimes(1);
+  });
+
+  it('★ refreshSession을 직접 부르는 경로(업로드)도 같은 판정을 받는다 — 5xx는 만료가 아니다', async () => {
+    // 업로드는 request()를 타지 않고 refreshSession()을 직접 부른다. 판정이 refreshSession 안에
+    // 있어야 이 경로도 자동으로 같은 규칙을 따른다. 예전엔 업로드가 스스로 판단해서, 배포 중
+    // 502 하나에 강제 로그아웃 + FCM 토큰 폐기가 됐다.
+    const expired = jest.fn();
+    setOnSessionExpired(expired);
+    (global as any).fetch = jest.fn().mockResolvedValueOnce(resp(502, fail('HTTP_502')));
+
+    await expect(refreshSession()).rejects.toBeInstanceOf(ApiError);
+
+    expect(expired).not.toHaveBeenCalled();
+  });
+
+  it('★ refreshSession을 직접 부르는 경로도 401이면 만료 통지를 받는다', async () => {
+    const expired = jest.fn();
+    setOnSessionExpired(expired);
+    (global as any).fetch = jest.fn().mockResolvedValueOnce(resp(401, fail('INVALID_REFRESH_TOKEN')));
+
+    await expect(refreshSession()).rejects.toBeInstanceOf(ApiError);
+
+    expect(expired).toHaveBeenCalledTimes(1);
   });
 
   it('재시도도 401 → refresh 1회만, throw(무한루프 없음)', async () => {

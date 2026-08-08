@@ -66,7 +66,7 @@ class DeviceTokenRepositoryTest extends AbstractPostgresTest {
     void 신규_토큰을_넣는다() {
         User a = userRepository.save(newUser("01011110003"));
 
-        int affected = deviceTokenRepository.upsert(a.getId(), "tok-new", Platform.IOS.name(), NOW);
+        int affected = deviceTokenRepository.upsert(a.getId(), "tok-new", Platform.IOS.name(), NOW, null);
 
         assertThat(affected).isEqualTo(1);
         DeviceToken found = deviceTokenRepository.findByToken("tok-new").orElseThrow();
@@ -83,7 +83,7 @@ class DeviceTokenRepositoryTest extends AbstractPostgresTest {
         deviceTokenRepository.saveAndFlush(DeviceToken.of(a, "tok-move", Platform.IOS, NOW));
         entityManager.clear(); // 네이티브 UPDATE는 1차 캐시를 갱신하지 않는다 — 비워야 DB 값을 읽는다
 
-        deviceTokenRepository.upsert(b.getId(), "tok-move", Platform.ANDROID.name(), NOW.plusDays(1));
+        deviceTokenRepository.upsert(b.getId(), "tok-move", Platform.ANDROID.name(), NOW.plusDays(1), null);
         entityManager.clear();
 
         DeviceToken found = deviceTokenRepository.findByToken("tok-move").orElseThrow();
@@ -98,8 +98,8 @@ class DeviceTokenRepositoryTest extends AbstractPostgresTest {
     void 연달아_등록해도_터지지_않는다() {
         User a = userRepository.save(newUser("01011110008"));
 
-        deviceTokenRepository.upsert(a.getId(), "tok-race", Platform.IOS.name(), NOW);
-        deviceTokenRepository.upsert(a.getId(), "tok-race", Platform.IOS.name(), NOW.plusMinutes(1));
+        deviceTokenRepository.upsert(a.getId(), "tok-race", Platform.IOS.name(), NOW, null);
+        deviceTokenRepository.upsert(a.getId(), "tok-race", Platform.IOS.name(), NOW.plusMinutes(1), null);
 
         assertThat(deviceTokenRepository.findAllByUser_Id(a.getId())).hasSize(1);
     }
@@ -129,7 +129,7 @@ class DeviceTokenRepositoryTest extends AbstractPostgresTest {
         User newOwner = userRepository.save(newUser("01011110010"));
         deviceTokenRepository.saveAndFlush(DeviceToken.of(oldOwner, "tok-handover", Platform.IOS, NOW));
         entityManager.clear();
-        deviceTokenRepository.upsert(newOwner.getId(), "tok-handover", Platform.IOS.name(), NOW.plusMinutes(1));
+        deviceTokenRepository.upsert(newOwner.getId(), "tok-handover", Platform.IOS.name(), NOW.plusMinutes(1), null);
         entityManager.clear();
 
         int deleted = deviceTokenRepository.deleteByTokenAndUserId("tok-handover", oldOwner.getId());
@@ -155,7 +155,7 @@ class DeviceTokenRepositoryTest extends AbstractPostgresTest {
     void upsert는_신규에_등록시각을_채운다() {
         User u = userRepository.save(newUser("01011110012"));
 
-        deviceTokenRepository.upsert(u.getId(), "tok-reg-new", Platform.IOS.name(), NOW);
+        deviceTokenRepository.upsert(u.getId(), "tok-reg-new", Platform.IOS.name(), NOW, null);
         entityManager.clear();
 
         DeviceToken saved = deviceTokenRepository.findByToken("tok-reg-new").orElseThrow();
@@ -166,10 +166,10 @@ class DeviceTokenRepositoryTest extends AbstractPostgresTest {
     @DisplayName("upsert는 기존 토큰의 last_registered_at을 갱신한다 — 앱을 켤 때마다 신선도가 되살아난다")
     void upsert는_기존_토큰의_등록시각을_갱신한다() {
         User u = userRepository.save(newUser("01011110013"));
-        deviceTokenRepository.upsert(u.getId(), "tok-reg-again", Platform.IOS.name(), NOW);
+        deviceTokenRepository.upsert(u.getId(), "tok-reg-again", Platform.IOS.name(), NOW, null);
         entityManager.clear();
 
-        deviceTokenRepository.upsert(u.getId(), "tok-reg-again", Platform.IOS.name(), NOW.plusDays(30));
+        deviceTokenRepository.upsert(u.getId(), "tok-reg-again", Platform.IOS.name(), NOW.plusDays(30), null);
         entityManager.clear();
 
         DeviceToken saved = deviceTokenRepository.findByToken("tok-reg-again").orElseThrow();
@@ -223,6 +223,44 @@ class DeviceTokenRepositoryTest extends AbstractPostgresTest {
         assertThat(deleted).isEqualTo(1);
         assertThat(deviceTokenRepository.findByToken("tok-sweep")).isEmpty();
         assertThat(deviceTokenRepository.findByToken("tok-keep")).isPresent();
+    }
+
+    @Test
+    @DisplayName("같은 기기의 옛 토큰만 지운다 — 다른 기기·설치ID 없는 행은 건드리지 않는다")
+    void 같은_기기의_옛_토큰만_지운다() {
+        // 로그아웃 때 FCM 폐기가 실패하면 주인 없는 토큰이 남는데, 기기에는 그 값이 없어
+        // 다시는 지목할 수 없다. 설치 ID가 있으면 "같은 기기의 다른 토큰"으로 지목할 수 있다.
+        User a = userRepository.save(newUser("01011110017"));
+        User b = userRepository.save(newUser("01011110018"));
+        deviceTokenRepository.upsert(a.getId(), "tok-orphan", Platform.IOS.name(), NOW, "install-1");
+        deviceTokenRepository.upsert(b.getId(), "tok-current", Platform.IOS.name(), NOW, "install-1");
+        deviceTokenRepository.upsert(a.getId(), "tok-other-device", Platform.IOS.name(), NOW, "install-2");
+        deviceTokenRepository.upsert(a.getId(), "tok-legacy", Platform.IOS.name(), NOW, null);
+        entityManager.clear();
+
+        int deleted = deviceTokenRepository.deleteByInstallationIdAndTokenNot("install-1", "tok-current");
+        entityManager.clear();
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(deviceTokenRepository.findByToken("tok-orphan")).isEmpty();
+        // 지금 이 기기의 토큰 · 다른 기기 · 설치 ID를 안 보내는 구버전 앱의 행은 모두 살아 있어야 한다.
+        assertThat(deviceTokenRepository.findByToken("tok-current")).isPresent();
+        assertThat(deviceTokenRepository.findByToken("tok-other-device")).isPresent();
+        assertThat(deviceTokenRepository.findByToken("tok-legacy")).isPresent();
+    }
+
+    @Test
+    @DisplayName("upsert는 설치 ID도 갱신한다 — 구버전 앱이 남긴 NULL 행이 새 앱 등록으로 메워진다")
+    void upsert는_설치ID를_갱신한다() {
+        User u = userRepository.save(newUser("01011110019"));
+        deviceTokenRepository.upsert(u.getId(), "tok-fill", Platform.IOS.name(), NOW, null);
+        entityManager.clear();
+
+        deviceTokenRepository.upsert(u.getId(), "tok-fill", Platform.IOS.name(), NOW, "install-9");
+        entityManager.clear();
+
+        assertThat(deviceTokenRepository.findByToken("tok-fill").orElseThrow().getInstallationId())
+                .isEqualTo("install-9");
     }
 
     /**

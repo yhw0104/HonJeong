@@ -63,11 +63,15 @@ describe('uploadImages 401 자동 refresh', () => {
     expect(notifySessionExpired).not.toHaveBeenCalled();
   });
 
-  it('refresh 실패 → notifySessionExpired 호출 + throw', async () => {
+  it('★ refresh 실패 → throw하되 만료 통지는 스스로 하지 않는다', async () => {
+    // 예전엔 여기서 어떤 실패든 notifySessionExpired()를 불렀다. 그래서 배포로 컨테이너가
+    // 재시작되는 동안 사진을 올리면 refresh가 502를 받고 → 강제 로그아웃 + FCM 토큰 폐기가 됐다.
+    // (request() 경로는 08-07 d65902b로 고쳤는데 업로드 경로만 빠져 있었다.)
+    // 이제 "401만 만료"라는 판정은 refreshSession 한 곳에 있고, 여기는 실패를 흘려보내기만 한다.
     uploadAsync.mockResolvedValueOnce(res(401, fail()));
     refreshSession.mockRejectedValueOnce(new Error('refresh fail'));
     await expect(uploadImages(['file://a'])).rejects.toThrow();
-    expect(notifySessionExpired).toHaveBeenCalledTimes(1);
+    expect(notifySessionExpired).not.toHaveBeenCalled();
   });
 
   it('온보딩 토큰(명시 인자) 401 → refresh 안 함', async () => {

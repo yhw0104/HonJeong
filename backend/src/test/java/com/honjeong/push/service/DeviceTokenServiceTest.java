@@ -2,7 +2,9 @@ package com.honjeong.push.service;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -53,9 +56,9 @@ class DeviceTokenServiceTest {
     @Test
     @DisplayName("등록은 조회 없이 UPSERT 한 방이다 — 주인·플랫폼·시각을 그대로 넘긴다")
     void 등록은_upsert_한_방() {
-        service.register(7L, "tok-new", Platform.IOS);
+        service.register(7L, "tok-new", Platform.IOS, null);
 
-        verify(deviceTokenRepository).upsert(7L, "tok-new", "IOS", LocalDateTime.now(FIXED.withZone(KST)));
+        verify(deviceTokenRepository).upsert(7L, "tok-new", "IOS", LocalDateTime.now(FIXED.withZone(KST)), null);
         // 조회 후 분기하면 앱 시작 시 등록·토큰갱신 경합에서 한쪽이 UNIQUE 위반으로 500이 난다.
         verify(deviceTokenRepository, never()).findByToken(any());
         verify(deviceTokenRepository, never()).save(any());
@@ -64,9 +67,30 @@ class DeviceTokenServiceTest {
     @Test
     @DisplayName("플랫폼도 UPSERT 인자로 넘긴다 — 재등록 때 갱신되지 않으면 안드로이드가 붙을 때 어긋난다")
     void 플랫폼도_넘긴다() {
-        service.register(9L, "tok-android", Platform.ANDROID);
+        service.register(9L, "tok-android", Platform.ANDROID, null);
 
-        verify(deviceTokenRepository).upsert(eq(9L), eq("tok-android"), eq("ANDROID"), any());
+        verify(deviceTokenRepository).upsert(eq(9L), eq("tok-android"), eq("ANDROID"), any(), isNull());
+    }
+
+    @Test
+    @DisplayName("★ 설치 ID가 오면 같은 기기의 옛 토큰을 먼저 지운다 — 폐기 실패로 남은 고아 토큰이 여기서 정리된다")
+    void 설치ID가_오면_같은_기기의_옛_토큰을_지운다() {
+        service.register(7L, "tok-new", Platform.IOS, "install-1");
+
+        InOrder order = inOrder(deviceTokenRepository);
+        // 순서가 중요하다 — 지우고 넣어야 방금 넣은 행을 자기가 지우는 일이 없다.
+        order.verify(deviceTokenRepository).deleteByInstallationIdAndTokenNot("install-1", "tok-new");
+        order.verify(deviceTokenRepository).upsert(eq(7L), eq("tok-new"), eq("IOS"), any(), eq("install-1"));
+    }
+
+    @Test
+    @DisplayName("★ 설치 ID가 없으면(구버전 앱) 아무것도 지우지 않는다 — 서버가 앱보다 먼저 배포된다")
+    void 설치ID가_없으면_지우지_않는다() {
+        // 지금 TestFlight에 나가 있는 빌드는 설치 ID를 보내지 않는다. 그 등록이 남의 행을
+        // 지우면 안 되고, 기존 동작 그대로여야 한다.
+        service.register(7L, "tok-legacy", Platform.IOS, null);
+
+        verify(deviceTokenRepository, never()).deleteByInstallationIdAndTokenNot(any(), any());
     }
 
     @Test

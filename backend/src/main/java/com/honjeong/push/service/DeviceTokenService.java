@@ -45,13 +45,24 @@ public class DeviceTokenService {
      * <p>DB의 원자적 UPSERT 한 방으로 처리한다 — 앱 시작 시 등록과 토큰 갱신이 거의 동시에 뜨는
      * 경합이 실재한다. 사유는 {@link DeviceTokenRepository#upsert} Javadoc 참조.
      *
-     * @param userId   토큰의 새 주인
-     * @param token    FCM 등록 토큰
-     * @param platform 기기 플랫폼
+     * <p><b>설치 ID가 오면 같은 기기의 옛 토큰을 먼저 지운다.</b> 로그아웃 때 FCM 폐기가 실패해
+     * 주인 없이 남은 토큰은 기기에 값이 없어 다시는 지목할 수 없는데, 설치 ID로는 지목된다.
+     * 순서가 중요하다 — 지우고 넣어야 방금 넣은 행을 자기가 지우는 일이 없다.
+     *
+     * <p>설치 ID가 <b>없으면 아무것도 지우지 않는다</b>. 서버가 앱보다 먼저 배포되므로 한동안
+     * 설치 ID를 보내지 않는 구버전 앱이 계속 등록한다 — 그 등록은 기존 동작 그대로여야 한다.
+     *
+     * @param userId         토큰의 새 주인
+     * @param token          FCM 등록 토큰
+     * @param platform       기기 플랫폼
+     * @param installationId 앱 설치 식별자(구버전 앱은 null)
      */
     @Transactional
-    public void register(Long userId, String token, Platform platform) {
-        deviceTokenRepository.upsert(userId, token, platform.name(), now());
+    public void register(Long userId, String token, Platform platform, String installationId) {
+        if (installationId != null) {
+            deviceTokenRepository.deleteByInstallationIdAndTokenNot(installationId, token);
+        }
+        deviceTokenRepository.upsert(userId, token, platform.name(), now(), installationId);
     }
 
     /**
