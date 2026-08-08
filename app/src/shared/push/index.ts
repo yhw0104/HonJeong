@@ -11,9 +11,12 @@ import { Platform } from 'react-native';
 import {
   AuthorizationStatus,
   deleteToken,
+  getInitialNotification,
   getMessaging,
   getToken,
   hasPermission,
+  onMessage,
+  onNotificationOpenedApp,
   onTokenRefresh,
   requestPermission,
 } from '@react-native-firebase/messaging';
@@ -21,6 +24,7 @@ import {
 import { getAccessToken } from '@/shared/auth/session';
 
 import { deleteDeviceToken, registerDeviceToken, type PushPlatform } from './api';
+import type { PushData } from './target';
 
 const platform = (): PushPlatform => (Platform.OS === 'android' ? 'ANDROID' : 'IOS');
 
@@ -146,6 +150,41 @@ export async function revokePushToken(): Promise<void> {
     // 남은 정리 수단은 서버뿐이라 티켓으로 뺐다: 폐기 실패한 토큰을 저장해 뒀다가 다음 로그인 때
     // DELETE /device-tokens로 재시도한다. 지금 이 catch가 할 수 있는 일은 없다 — 로그아웃을 막지 않는다.
   }
+}
+
+/**
+ * 앱을 보고 있을 때 푸시가 도착하면 호출된다. 반환값은 구독 해제 함수.
+ *
+ * iOS는 배너를 띄우지 않는다(`app/firebase.json`에서 의도적으로 비활성) — 화면 갱신 신호로만 쓴다.
+ *
+ * @param handler 푸시 data(서버가 실어 보낸 문자열 맵)
+ * @returns 구독 해제 함수
+ */
+export function onPushReceived(handler: (data: PushData) => void): () => void {
+  return onMessage(getMessaging(), async (message) => handler((message.data ?? {}) as PushData));
+}
+
+/**
+ * 백그라운드에서 배너를 눌러 앱으로 들어왔을 때 호출된다. 반환값은 구독 해제 함수.
+ *
+ * @param handler 푸시 data
+ * @returns 구독 해제 함수
+ */
+export function onPushOpened(handler: (data: PushData) => void): () => void {
+  return onNotificationOpenedApp(getMessaging(), (message) => handler((message.data ?? {}) as PushData));
+}
+
+/**
+ * 앱이 완전히 꺼진 상태에서 배너를 눌러 켜진 경우의 푸시 data.
+ *
+ * 리스너가 아니라 1회성 조회다 — 그 순간엔 아직 리스너가 붙기 전이라 onNotificationOpenedApp이
+ * 놓친다. 배너로 켜진 게 아니면 null.
+ *
+ * @returns 푸시 data 또는 null
+ */
+export async function getInitialPush(): Promise<PushData | null> {
+  const message = await getInitialNotification(getMessaging());
+  return message ? ((message.data ?? {}) as PushData) : null;
 }
 
 /** FCM이 토큰을 교체할 때 재등록한다. 반환값은 구독 해제 함수. */
