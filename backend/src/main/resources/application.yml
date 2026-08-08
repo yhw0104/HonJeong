@@ -35,6 +35,10 @@ honjeong:
   push:
     mode: ${PUSH_MODE:mock}
     credentials-base64: ${FIREBASE_CREDENTIALS_BASE64:}
+    # 이 기간 재등록이 없으면 주인 없는 토큰으로 보고 지운다. 짧게 잡으면 휴면 사용자의
+    # 푸시가 끊겨 앱을 열 이유가 없어진다(그래서 Firebase도 넉넉히 잡으라고 권고한다).
+    staleness-days: 60
+    sweep-interval-ms: 86400000           # 청소 스케줄러 주기(24시간)
   jwt:
     # HS256 서명 시크릿(>= 256bit). 환경변수 JWT_SECRET으로 주입한다(NFR-02).
     # ★기본값을 두지 않는다 — 여기에 값을 적으면 그 값이 저장소에 커밋되어, 저장소를 볼 수 있는

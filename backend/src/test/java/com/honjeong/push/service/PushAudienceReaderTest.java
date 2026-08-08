@@ -7,13 +7,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -38,13 +42,24 @@ class PushAudienceReaderTest {
     private DeviceTokenRepository deviceTokenRepository;
     @Mock
     private UserRepository userRepository;
-    @InjectMocks
     private PushAudienceReader reader;
+
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final Clock FIXED = Clock.fixed(Instant.parse("2026-08-08T03:00:00Z"), KST);
+    private static final int STALENESS_DAYS = 60;
+    /** 조회에 넘어가야 할 임계값 — 이 값이 틀리면 아래 스터빙이 빗나가 테스트가 깨진다. */
+    private static final LocalDateTime THRESHOLD =
+            LocalDateTime.ofInstant(FIXED.instant(), KST).minusDays(STALENESS_DAYS);
+
+    @BeforeEach
+    void setUp() {
+        reader = new PushAudienceReader(deviceTokenRepository, userRepository, FIXED, STALENESS_DAYS);
+    }
 
     @Test
     @DisplayName("토큰이 0건이면 EMPTY를 주고 사용자 조회조차 하지 않는다")
     void 토큰이_없으면_빈_값() {
-        given(deviceTokenRepository.findAllByUser_Id(7L)).willReturn(List.of());
+        given(deviceTokenRepository.findAllByUser_IdAndLastRegisteredAtAfter(7L, THRESHOLD)).willReturn(List.of());
 
         assertThat(reader.read(7L, 9L).isEmpty()).isTrue();
         verify(userRepository, never()).findById(any());
@@ -55,7 +70,8 @@ class PushAudienceReaderTest {
     void 토큰의_id와_값을_싣는다() {
         DeviceToken token = deviceToken(3L, "tok-a");
         User actor = user("김하늘");
-        given(deviceTokenRepository.findAllByUser_Id(7L)).willReturn(List.of(token));
+        given(deviceTokenRepository.findAllByUser_IdAndLastRegisteredAtAfter(7L, THRESHOLD))
+                .willReturn(List.of(token));
         given(userRepository.findById(9L)).willReturn(Optional.of(actor));
 
         PushAudience audience = reader.read(7L, 9L);
@@ -69,7 +85,8 @@ class PushAudienceReaderTest {
     void 탈퇴자는_알_수_없음() {
         DeviceToken token = deviceToken(3L, "tok-a");
         User withdrawn = user(null);
-        given(deviceTokenRepository.findAllByUser_Id(7L)).willReturn(List.of(token));
+        given(deviceTokenRepository.findAllByUser_IdAndLastRegisteredAtAfter(7L, THRESHOLD))
+                .willReturn(List.of(token));
         given(userRepository.findById(9L)).willReturn(Optional.of(withdrawn));
 
         assertThat(reader.read(7L, 9L).actorNickname()).isEqualTo(DisplayNames.UNKNOWN);
@@ -79,7 +96,8 @@ class PushAudienceReaderTest {
     @DisplayName("상대가 없으면(뱃지) 닉네임을 조회하지 않는다")
     void 뱃지는_상대_조회를_건너뛴다() {
         DeviceToken token = deviceToken(3L, "tok-a");
-        given(deviceTokenRepository.findAllByUser_Id(7L)).willReturn(List.of(token));
+        given(deviceTokenRepository.findAllByUser_IdAndLastRegisteredAtAfter(7L, THRESHOLD))
+                .willReturn(List.of(token));
 
         assertThat(reader.read(7L, null).actorNickname()).isNull();
         verify(userRepository, never()).findById(any());
@@ -89,10 +107,22 @@ class PushAudienceReaderTest {
     @DisplayName("상대를 못 찾아도 터지지 않는다 — 닉네임 없이 보낸다('누군가'로 표시된다)")
     void 상대를_못_찾으면_닉네임_없음() {
         DeviceToken token = deviceToken(3L, "tok-a");
-        given(deviceTokenRepository.findAllByUser_Id(7L)).willReturn(List.of(token));
+        given(deviceTokenRepository.findAllByUser_IdAndLastRegisteredAtAfter(7L, THRESHOLD))
+                .willReturn(List.of(token));
         given(userRepository.findById(9L)).willReturn(Optional.empty());
 
         assertThat(reader.read(7L, 9L).actorNickname()).isNull();
+    }
+
+    @Test
+    @DisplayName("임계값을 '지금 - stalenessDays'로 계산해 조회에 넘긴다 — 오래 재등록 안 된 기기엔 안 보낸다")
+    void 임계값을_clock_기준으로_계산한다() {
+        given(deviceTokenRepository.findAllByUser_IdAndLastRegisteredAtAfter(7L, THRESHOLD))
+                .willReturn(List.of());
+
+        reader.read(7L, 9L);
+
+        verify(deviceTokenRepository).findAllByUser_IdAndLastRegisteredAtAfter(7L, THRESHOLD);
     }
 
     /**

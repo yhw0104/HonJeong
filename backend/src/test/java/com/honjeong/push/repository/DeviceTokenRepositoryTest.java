@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -147,6 +148,81 @@ class DeviceTokenRepositoryTest extends AbstractPostgresTest {
 
         assertThat(deleted).isEqualTo(1);
         assertThat(deviceTokenRepository.findByToken("tok-dead")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("upsert는 신규 등록에 last_registered_at을 채운다")
+    void upsert는_신규에_등록시각을_채운다() {
+        User u = userRepository.save(newUser("01011110012"));
+
+        deviceTokenRepository.upsert(u.getId(), "tok-reg-new", Platform.IOS.name(), NOW);
+        entityManager.clear();
+
+        DeviceToken saved = deviceTokenRepository.findByToken("tok-reg-new").orElseThrow();
+        assertThat(saved.getLastRegisteredAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("upsert는 기존 토큰의 last_registered_at을 갱신한다 — 앱을 켤 때마다 신선도가 되살아난다")
+    void upsert는_기존_토큰의_등록시각을_갱신한다() {
+        User u = userRepository.save(newUser("01011110013"));
+        deviceTokenRepository.upsert(u.getId(), "tok-reg-again", Platform.IOS.name(), NOW);
+        entityManager.clear();
+
+        deviceTokenRepository.upsert(u.getId(), "tok-reg-again", Platform.IOS.name(), NOW.plusDays(30));
+        entityManager.clear();
+
+        DeviceToken saved = deviceTokenRepository.findByToken("tok-reg-again").orElseThrow();
+        assertThat(saved.getLastRegisteredAt()).isEqualTo(NOW.plusDays(30));
+    }
+
+    @Test
+    @DisplayName("★ 발송 기록(markUsed)은 last_registered_at을 건드리지 않는다 — 이게 깨지면 청소가 목표물만 못 지운다")
+    void 발송은_등록시각을_갱신하지_않는다() {
+        // 지우려는 고아 토큰은 '지금도 계속 발송되고 있는' 토큰이다. 발송이 등록 시각까지
+        // 갱신하면 그 토큰이 영원히 신선해 보여서, 청소가 정확히 목표물만 못 지운다.
+        User u = userRepository.save(newUser("01011110014"));
+        deviceTokenRepository.saveAndFlush(DeviceToken.of(u, "tok-send", Platform.IOS, NOW));
+        entityManager.clear();
+
+        DeviceToken loaded = deviceTokenRepository.findByToken("tok-send").orElseThrow();
+        loaded.markUsed(NOW.plusDays(90));
+        entityManager.flush();
+        entityManager.clear();
+
+        DeviceToken after = deviceTokenRepository.findByToken("tok-send").orElseThrow();
+        assertThat(after.getLastUsedAt()).isEqualTo(NOW.plusDays(90));
+        assertThat(after.getLastRegisteredAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("window 밖 토큰은 발송 대상 조회에서 빠진다 — Firebase 권고(보내기 전 신선도 확인)")
+    void window_밖_토큰은_조회되지_않는다() {
+        User u = userRepository.save(newUser("01011110015"));
+        deviceTokenRepository.saveAndFlush(DeviceToken.of(u, "tok-fresh", Platform.IOS, NOW));
+        deviceTokenRepository.saveAndFlush(DeviceToken.of(u, "tok-stale", Platform.IOS, NOW.minusDays(90)));
+        entityManager.clear();
+
+        List<DeviceToken> found = deviceTokenRepository
+                .findAllByUser_IdAndLastRegisteredAtAfter(u.getId(), NOW.minusDays(60));
+
+        assertThat(found).extracting(DeviceToken::getToken).containsExactly("tok-fresh");
+    }
+
+    @Test
+    @DisplayName("청소는 window 밖 행만 지운다 — 신선한 토큰은 남긴다")
+    void 청소는_window_밖만_지운다() {
+        User u = userRepository.save(newUser("01011110016"));
+        deviceTokenRepository.saveAndFlush(DeviceToken.of(u, "tok-keep", Platform.IOS, NOW));
+        deviceTokenRepository.saveAndFlush(DeviceToken.of(u, "tok-sweep", Platform.IOS, NOW.minusDays(90)));
+        entityManager.clear();
+
+        int deleted = deviceTokenRepository.deleteAllByLastRegisteredAtBefore(NOW.minusDays(60));
+        entityManager.clear();
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(deviceTokenRepository.findByToken("tok-sweep")).isEmpty();
+        assertThat(deviceTokenRepository.findByToken("tok-keep")).isPresent();
     }
 
     /**

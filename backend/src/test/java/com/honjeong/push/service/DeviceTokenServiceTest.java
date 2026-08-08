@@ -43,10 +43,11 @@ class DeviceTokenServiceTest {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final Clock FIXED = Clock.fixed(Instant.parse("2026-08-07T03:00:00Z"), KST);
+    private static final int STALENESS_DAYS = 60;
 
     @BeforeEach
     void setUp() {
-        service = new DeviceTokenService(deviceTokenRepository, FIXED);
+        service = new DeviceTokenService(deviceTokenRepository, FIXED, STALENESS_DAYS);
     }
 
     @Test
@@ -104,5 +105,14 @@ class DeviceTokenServiceTest {
         service.unregister(7L, "tok-gone");
 
         verify(deviceTokenRepository, never()).deleteByToken(any());
+    }
+
+    @Test
+    @DisplayName("청소 임계값은 '지금 - stalenessDays'다 — 시스템 시계가 아니라 주입된 Clock을 쓴다")
+    void 청소_임계값은_주입된_clock_기준() {
+        service.sweepStale();
+
+        verify(deviceTokenRepository).deleteAllByLastRegisteredAtBefore(
+                LocalDateTime.now(FIXED.withZone(KST)).minusDays(STALENESS_DAYS));
     }
 }
