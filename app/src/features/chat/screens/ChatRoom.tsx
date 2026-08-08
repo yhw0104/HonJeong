@@ -268,6 +268,10 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
             renderItem={renderItem}
             style={styles.flex}
             contentContainerStyle={styles.list}
+            // 대화만 'interactive'다(나머지 화면은 'on-drag'). 메신저에서 기대하는 동작이라
+            // — 키보드 자판 위를 아래로 쓸면 손가락을 따라 내려가고, 도로 올리면 취소된다.
+            // 폼 화면은 목록을 끌었을 때 즉시 내려가는 'on-drag'가 더 예측 가능하다.
+            keyboardDismissMode="interactive"
           />
         )}
 

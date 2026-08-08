@@ -24,6 +24,15 @@ export function ReceivedRequestsScreen({ navigation }: RootStackScreenProps<'Rec
   const respond = (mut: typeof accept, id: number) =>
     mut.mutate(id, { onError: (e) => Alert.alert('처리 실패', mealErrorMessage(e)) });
 
+  // 수락만 홈으로 보낸다. 수락하는 순간 상태가 TOGETHER로 바뀌는데, 그걸 보고 종료·상대 정보를
+  // 다루는 곳이 홈이다. 이 목록에 남아 있으면 방금 성사된 약속이 어디로 갔는지 알 수 없다.
+  // 거절·철회는 이 목록에서 계속 처리하므로 그대로 둔다.
+  const acceptAndGoHome = (id: number) =>
+    accept.mutate(id, {
+      onSuccess: () => navigation.navigate('MainTabs', { screen: 'MapHome' }),
+      onError: (e) => Alert.alert('처리 실패', mealErrorMessage(e)),
+    });
+
   return (
     <Screen bg={T2.bg} edges={['top']}>
       <MoreHeader title="같이 먹기 신청" onBack={() => navigation.goBack()} />
@@ -42,7 +51,7 @@ export function ReceivedRequestsScreen({ navigation }: RootStackScreenProps<'Rec
           sentList={sentList}
           sentLoading={sent.isLoading}
           sentError={sent.isError}
-          onAccept={(id) => respond(accept, id)}
+          onAccept={acceptAndGoHome}
           onDecline={(id) => respond(decline, id)}
           acceptPending={accept.isPending}
           declinePending={decline.isPending}

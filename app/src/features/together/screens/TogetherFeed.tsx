@@ -66,6 +66,15 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
   const respond = (mut: typeof accept, id: number) =>
     mut.mutate(id, { onError: (e) => Alert.alert('처리 실패', mealErrorMessage(e)) });
 
+  // 수락만 홈 탭으로 보낸다 — 성사된 뒤 상태(종료·상대 정보)를 다루는 곳이 홈이라
+  // 이 목록에 남아 있으면 방금 잡힌 약속이 어디로 갔는지 알 수 없다.
+  // 거절·철회는 여기서 계속 처리하므로 그대로 둔다(ReceivedRequests와 같은 규칙).
+  const acceptAndGoHome = (id: number) =>
+    accept.mutate(id, {
+      onSuccess: () => navigation.navigate('MapHome'),
+      onError: (e) => Alert.alert('처리 실패', mealErrorMessage(e)),
+    });
+
   return (
     <Screen bg={T2.bg} edges={['top']}>
       <View style={styles.header}>
@@ -112,7 +121,7 @@ export function TogetherFeedScreen({ navigation }: MainTabScreenProps<'TogetherF
           sentList={sentList}
           sentLoading={sent.isLoading}
           sentError={sent.isError}
-          onAccept={(id) => respond(accept, id)}
+          onAccept={acceptAndGoHome}
           onDecline={(id) => respond(decline, id)}
           acceptPending={accept.isPending}
           declinePending={decline.isPending}

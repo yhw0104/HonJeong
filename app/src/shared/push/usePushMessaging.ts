@@ -17,8 +17,8 @@ import { pushTarget, type PushData } from './target';
 
 /**
  * 세 경로를 모두 처리한다:
- *  - onPushReceived   앱을 보고 있을 때 (iOS는 배너를 안 띄운다 — firebase.json에서 의도적으로 비활성)
- *  - onPushOpened     백그라운드에서 배너를 눌렀을 때
+ *  - onPushReceived   앱을 보고 있을 때 (배너는 OS가 띄운다 — firebase.json 참조. 여기서는 화면만 갱신)
+ *  - onPushOpened     배너를 눌렀을 때(백그라운드·포그라운드 모두)
  *  - getInitialPush   앱이 꺼진 상태에서 배너를 눌러 켜졌을 때
  */
 export function usePushMessaging(): void {
@@ -41,10 +41,13 @@ export function usePushMessaging(): void {
   );
 
   React.useEffect(() => {
-    // 포그라운드: 배너를 띄우지 않고 화면만 갱신한다(실시간 전략 §5의 "새로고침 신호").
+    // 포그라운드 수신: 화면을 갱신한다(실시간 전략 §5의 "새로고침 신호").
+    // 배너 자체는 OS가 띄운다 — firebase.json의 foreground presentation options.
+    // ★여기서 화면을 옮기지 않는다. 사용자가 배너를 누르지도 않았는데 보던 화면이 튀면 안 된다.
+    // 배너를 누르면 아래 onPushOpened가 받는다.
     const offMessage = onPushReceived(invalidate);
 
-    // 백그라운드에서 배너 탭.
+    // 배너 탭 — 백그라운드에서든, 앱을 보고 있을 때 뜬 배너에서든 이리로 온다.
     const offOpened = onPushOpened(open);
 
     // 앱이 꺼진 상태에서 배너 탭으로 켜진 경우 — 한 번만 확인한다.
