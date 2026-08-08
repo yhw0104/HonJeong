@@ -50,6 +50,9 @@ public class DeviceToken extends BaseTimeEntity {
     @Column(name = "last_used_at")
     private LocalDateTime lastUsedAt;
 
+    @Column(name = "last_registered_at", nullable = false)
+    private LocalDateTime lastRegisteredAt;
+
     /** JPA가 리플렉션으로 엔티티를 생성할 때 쓰는 기본 생성자. */
     protected DeviceToken() {
     }
@@ -59,6 +62,7 @@ public class DeviceToken extends BaseTimeEntity {
         this.token = token;
         this.platform = platform;
         this.lastUsedAt = now;
+        this.lastRegisteredAt = now;
     }
 
     /**
@@ -72,7 +76,7 @@ public class DeviceToken extends BaseTimeEntity {
      * @param user     토큰의 주인
      * @param token    FCM 등록 토큰
      * @param platform 기기 플랫폼
-     * @param now      등록 시각(마지막 사용 시각의 초기값)
+     * @param now      등록 시각(마지막 사용 시각·마지막 등록 시각의 초기값)
      * @return 아직 저장되지 않은 새 DeviceToken
      */
     public static DeviceToken of(User user, String token, Platform platform, LocalDateTime now) {
@@ -83,6 +87,11 @@ public class DeviceToken extends BaseTimeEntity {
      * 마지막 발송 <b>시도</b> 시각 갱신.
      *
      * <p>성공만 찍히는 값이 아니다 — 사유는 {@code PushDeliveryRecorder.recordResult} Javadoc 참조.
+     *
+     * <p>★ <b>{@code lastRegisteredAt}은 절대 건드리지 않는다.</b> 그 칸은 "앱이 등록한 시각"이고
+     * staleness 청소의 유일한 판단 기준이다. 여기서 함께 갱신하면 지우려는 고아 토큰이
+     * (계속 발송되고 있으므로) 영원히 신선해 보여 청소가 무력해진다. 이 성질은
+     * {@code DeviceTokenRepositoryTest.발송은_등록시각을_갱신하지_않는다}가 고정하고 있다.
      *
      * @param now 발송을 시도한 시각
      */
@@ -108,5 +117,9 @@ public class DeviceToken extends BaseTimeEntity {
 
     public LocalDateTime getLastUsedAt() {
         return lastUsedAt;
+    }
+
+    public LocalDateTime getLastRegisteredAt() {
+        return lastRegisteredAt;
     }
 }

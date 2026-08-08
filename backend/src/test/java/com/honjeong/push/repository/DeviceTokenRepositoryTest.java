@@ -149,6 +149,51 @@ class DeviceTokenRepositoryTest extends AbstractPostgresTest {
         assertThat(deviceTokenRepository.findByToken("tok-dead")).isEmpty();
     }
 
+    @Test
+    @DisplayName("upsert는 신규 등록에 last_registered_at을 채운다")
+    void upsert는_신규에_등록시각을_채운다() {
+        User u = userRepository.save(newUser("01011110012"));
+
+        deviceTokenRepository.upsert(u.getId(), "tok-reg-new", Platform.IOS.name(), NOW);
+        entityManager.clear();
+
+        DeviceToken saved = deviceTokenRepository.findByToken("tok-reg-new").orElseThrow();
+        assertThat(saved.getLastRegisteredAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("upsert는 기존 토큰의 last_registered_at을 갱신한다 — 앱을 켤 때마다 신선도가 되살아난다")
+    void upsert는_기존_토큰의_등록시각을_갱신한다() {
+        User u = userRepository.save(newUser("01011110013"));
+        deviceTokenRepository.upsert(u.getId(), "tok-reg-again", Platform.IOS.name(), NOW);
+        entityManager.clear();
+
+        deviceTokenRepository.upsert(u.getId(), "tok-reg-again", Platform.IOS.name(), NOW.plusDays(30));
+        entityManager.clear();
+
+        DeviceToken saved = deviceTokenRepository.findByToken("tok-reg-again").orElseThrow();
+        assertThat(saved.getLastRegisteredAt()).isEqualTo(NOW.plusDays(30));
+    }
+
+    @Test
+    @DisplayName("★ 발송 기록(markUsed)은 last_registered_at을 건드리지 않는다 — 이게 깨지면 청소가 목표물만 못 지운다")
+    void 발송은_등록시각을_갱신하지_않는다() {
+        // 지우려는 고아 토큰은 '지금도 계속 발송되고 있는' 토큰이다. 발송이 등록 시각까지
+        // 갱신하면 그 토큰이 영원히 신선해 보여서, 청소가 정확히 목표물만 못 지운다.
+        User u = userRepository.save(newUser("01011110014"));
+        deviceTokenRepository.saveAndFlush(DeviceToken.of(u, "tok-send", Platform.IOS, NOW));
+        entityManager.clear();
+
+        DeviceToken loaded = deviceTokenRepository.findByToken("tok-send").orElseThrow();
+        loaded.markUsed(NOW.plusDays(90));
+        entityManager.flush();
+        entityManager.clear();
+
+        DeviceToken after = deviceTokenRepository.findByToken("tok-send").orElseThrow();
+        assertThat(after.getLastUsedAt()).isEqualTo(NOW.plusDays(90));
+        assertThat(after.getLastRegisteredAt()).isEqualTo(NOW);
+    }
+
     /**
      * 테스트용 PENDING 회원. 다른 리포지토리 슬라이스 테스트와 같은 방식이다(User.pending).
      *

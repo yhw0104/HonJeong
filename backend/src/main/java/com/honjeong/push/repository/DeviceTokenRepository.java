@@ -41,6 +41,9 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
      * <p>{@code platform}도 갱신한다 — 토큰은 기기에 붙는 값이라 같은 토큰이 다른 플랫폼으로 올 일은
      * 없지만, 안 쓰면 안드로이드가 붙었을 때 최초 등록 값이 영원히 남는다.
      *
+     * <p>{@code last_registered_at}도 함께 갱신한다 — 이 UPSERT가 그 칸을 갱신하는 <b>유일한</b>
+     * 경로다. 앱이 시작할 때마다 재등록하므로 살아 있는 기기는 계속 신선하게 유지된다.
+     *
      * @param userId   토큰의 새 주인
      * @param token    FCM 등록 토큰
      * @param platform 기기 플랫폼 이름(IOS·ANDROID — CHECK 제약 대상이라 enum 이름 그대로)
@@ -48,10 +51,12 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
      * @return 영향받은 행 수(항상 1)
      */
     @Modifying
-    @Query(value = "INSERT INTO device_tokens (user_id, token, platform, last_used_at, created_at, updated_at) "
-            + "VALUES (:userId, :token, :platform, :now, :now, :now) "
+    @Query(value = "INSERT INTO device_tokens "
+            + "(user_id, token, platform, last_used_at, last_registered_at, created_at, updated_at) "
+            + "VALUES (:userId, :token, :platform, :now, :now, :now, :now) "
             + "ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, platform = EXCLUDED.platform, "
-            + "last_used_at = EXCLUDED.last_used_at, updated_at = EXCLUDED.updated_at",
+            + "last_used_at = EXCLUDED.last_used_at, last_registered_at = EXCLUDED.last_registered_at, "
+            + "updated_at = EXCLUDED.updated_at",
             nativeQuery = true)
     int upsert(@Param("userId") Long userId, @Param("token") String token,
             @Param("platform") String platform, @Param("now") LocalDateTime now);
