@@ -24,6 +24,7 @@ import {
 import { getAccessToken } from '@/shared/auth/session';
 
 import { deleteDeviceToken, registerDeviceToken, type PushPlatform } from './api';
+import type { PushNotice } from './banner';
 import { getInstallationId } from './installation';
 import type { PushData } from './target';
 
@@ -158,13 +159,21 @@ export async function revokePushToken(): Promise<void> {
 /**
  * 앱을 보고 있을 때 푸시가 도착하면 호출된다. 반환값은 구독 해제 함수.
  *
- * iOS는 배너를 띄우지 않는다(`app/firebase.json`에서 의도적으로 비활성) — 화면 갱신 신호로만 쓴다.
+ * OS는 이때 배너를 띄우지 않는다(`app/firebase.json`에서 포그라운드 표시를 껐다) —
+ * 화면 갱신과 **인앱 배너**(PushBanner)가 여기서 갈린다. 그래서 data만이 아니라
+ * 배너에 그릴 title/body도 함께 넘긴다.
  *
- * @param handler 푸시 data(서버가 실어 보낸 문자열 맵)
+ * @param handler 푸시 data + 알림 문구
  * @returns 구독 해제 함수
  */
-export function onPushReceived(handler: (data: PushData) => void): () => void {
-  return onMessage(getMessaging(), async (message) => handler((message.data ?? {}) as PushData));
+export function onPushReceived(handler: (notice: PushNotice) => void): () => void {
+  return onMessage(getMessaging(), async (message) =>
+    handler({
+      data: (message.data ?? {}) as PushData,
+      title: message.notification?.title ?? null,
+      body: message.notification?.body ?? null,
+    }),
+  );
 }
 
 /**

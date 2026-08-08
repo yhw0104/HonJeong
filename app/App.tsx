@@ -9,6 +9,7 @@ import { RootNavigator } from '@/navigation/RootNavigator';
 import { navigationRef } from '@/navigation/navigationRef';
 import { setupRealtimeFocus } from '@/shared/realtime';
 import { usePushMessaging } from '@/shared/push/usePushMessaging';
+import { PushBanner } from '@/shared/push/PushBanner';
 import { ErrorBoundary } from '@/shared/components';
 import { initKakao } from '@/features/auth/kakaoLogin';
 
@@ -22,9 +23,12 @@ initKakao();
 
 // 푸시 리스너는 useQueryClient를 쓰므로 QueryClientProvider 안쪽에서 불려야 한다.
 // App 본체에서 부르면 provider 바깥이라 캐시에 닿지 못하므로 이 작은 컴포넌트를 끼운다.
+//
+// 인앱 배너도 여기서 그린다 — 배너 탭이 OS 배너 탭과 같은 이동 경로를 타야 해서
+// 리스너가 내보낸 핸들러를 그대로 넘긴다(규칙이 두 벌이 되면 반드시 갈린다).
 function PushBridge() {
-  usePushMessaging();
-  return null;
+  const openFromPush = usePushMessaging();
+  return <PushBanner onOpen={openFromPush} />;
 }
 
 export default function App() {
@@ -41,9 +45,10 @@ export default function App() {
             <AuthProvider>
               {/* ref는 컴포넌트 밖(푸시 리스너)에서 화면을 이동하기 위한 것이다. */}
               <NavigationContainer ref={navigationRef}>
-                <PushBridge />
                 <StatusBar style="dark" />
                 <RootNavigator />
+                {/* ★RootNavigator '뒤'에 둔다 — 배너가 화면 위에 그려져야 한다(형제 순서가 곧 층 순서). */}
+                <PushBridge />
               </NavigationContainer>
             </AuthProvider>
           </QueryClientProvider>
