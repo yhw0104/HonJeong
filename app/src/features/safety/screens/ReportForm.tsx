@@ -50,7 +50,7 @@ export function ReportFormScreen({ navigation, route }: RootStackScreenProps<'Re
     <Screen bg={T2.bg} edges={['top']}>
       <MoreHeader title="신고하기" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Text style={styles.target}>
           {targetType === 'REVIEW' ? `${targetNickname}님의 리뷰` : `${targetNickname}님`}
         </Text>

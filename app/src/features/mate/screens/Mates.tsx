@@ -48,7 +48,7 @@ export function MatesScreen({ navigation }: RootStackScreenProps<'Mates'>) {
     <Screen bg={T2.bg} edges={['top']}>
       <MoreHeader title="메이트" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardDismissMode="on-drag">
         {/* 검색 */}
         <View style={styles.search}>
           <Icon name="search" size={18} color={T2.textMute} />

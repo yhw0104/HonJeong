@@ -13,6 +13,7 @@ import type { Coord } from '@/shared/location/pickLocation';
 import { listState } from '@/shared/state/listState';
 import { useMyCheckIn, useStats, useStartCheckIn, useDineAlone, useCancelCheckIn } from '@/features/checkin/queries';
 import { EndHonbabSheet } from '@/features/checkin/components/EndHonbabSheet';
+import { useSheetDismissGesture } from '@/shared/components/useSheetDismissGesture';
 import type { CheckIn } from '@/features/checkin/api';
 import { checkInMode } from '@/features/checkin/statusView';
 import { formatDistance } from '@/shared/format';
@@ -59,6 +60,11 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
   const insets = useSafeAreaInsets();
   const [picking, setPicking] = useState(false);
   const [clusterIds, setClusterIds] = useState<number[] | null>(null); // 묶음 마커(같은 좌표 여러 식당) 탭 시 그 목록
+
+  // 두 시트 모두 손잡이를 그려 "당길 수 있다"고 신호하면서 실제로는 스크림 탭으로만 닫혔다.
+  // 핸들러는 헤더 영역에만 붙인다 — 아래 목록(ScrollView)의 세로 스크롤을 삼키지 않게.
+  const pickDismiss = useSheetDismissGesture(picking, () => setPicking(false));
+  const clusterDismiss = useSheetDismissGesture(clusterIds != null, () => setClusterIds(null));
   const [sortKey, setSortKey] = useState<SortKey>('distance'); // 하단 목록 정렬(거리순/리뷰순/별점순)
   const mapRef = useRef<HonjeongMapHandle>(null);
 
@@ -457,11 +463,19 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
       {picking && (
         <>
           <Pressable style={styles.scrim} onPress={() => setPicking(false)} />
-          <View style={[styles.pickSheet, { paddingBottom: insets.bottom + 24 }]}>
-            <View style={styles.handle} />
-            <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
-              <Text style={styles.pickTitle}>어디서 드실 예정이세요?</Text>
-              <Text style={styles.pickSub}>선택한 식당에 ‘모집 중’으로 표시돼요</Text>
+          <Animated.View
+            style={[
+              styles.pickSheet,
+              { paddingBottom: insets.bottom + 24, transform: [{ translateY: pickDismiss.translateY }] },
+            ]}
+          >
+            {/* 끌어 내리는 영역 — 손잡이와 제목까지. 아래 목록은 세로 스크롤이라 건드리지 않는다. */}
+            <View {...pickDismiss.panHandlers}>
+              <View style={styles.handle} />
+              <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
+                <Text style={styles.pickTitle}>어디서 드실 예정이세요?</Text>
+                <Text style={styles.pickSub}>선택한 식당에 ‘모집 중’으로 표시돼요</Text>
+              </View>
             </View>
             <ScrollView style={styles.pickList} showsVerticalScrollIndicator={false}>
               {nearbySt !== 'ready' ? (
@@ -505,7 +519,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
             >
               <Text style={styles.pickSearchText}>직접 검색해서 찾기</Text>
             </Pressable>
-          </View>
+          </Animated.View>
         </>
       )}
 
@@ -515,11 +529,19 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         return (
           <>
             <Pressable style={styles.scrim} onPress={() => setClusterIds(null)} />
-            <View style={[styles.pickSheet, { paddingBottom: insets.bottom + 24 }]}>
-              <View style={styles.handle} />
-              <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
-                <Text style={styles.pickTitle}>여기 {group.length}집</Text>
-                <Text style={styles.pickSub}>같은 자리(건물)에 있는 식당이에요</Text>
+            <Animated.View
+              style={[
+                styles.pickSheet,
+                { paddingBottom: insets.bottom + 24, transform: [{ translateY: clusterDismiss.translateY }] },
+              ]}
+            >
+              {/* 끌어 내리는 영역 — 손잡이와 제목까지(위 식당 선택 시트와 같은 규칙). */}
+              <View {...clusterDismiss.panHandlers}>
+                <View style={styles.handle} />
+                <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
+                  <Text style={styles.pickTitle}>여기 {group.length}집</Text>
+                  <Text style={styles.pickSub}>같은 자리(건물)에 있는 식당이에요</Text>
+                </View>
               </View>
               <ScrollView style={styles.pickList} showsVerticalScrollIndicator={false}>
                 {group.map((p, i) => (
@@ -547,7 +569,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                   </Pressable>
                 ))}
               </ScrollView>
-            </View>
+            </Animated.View>
           </>
         );
       })()}

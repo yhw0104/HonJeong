@@ -46,7 +46,7 @@ export function FavoriteSheet({ placeId, visible, onClose }: { placeId: number; 
       <View style={styles.panel}>
         <View style={styles.handle} />
         <Text style={styles.title}>어디에 저장할까요?</Text>
-        <ScrollView style={{ maxHeight: 320 }}>
+        <ScrollView style={{ maxHeight: 320 }} keyboardDismissMode="on-drag">
           {groups.map((g) => (
             <Pressable key={g.groupId} style={styles.row} onPress={() => toggle(g.groupId, g.contains)}>
               <Icon name="star" size={22} color={g.color} />

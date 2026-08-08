@@ -56,7 +56,7 @@ export function PhoneAuthScreen({ navigation }: RootStackScreenProps<'PhoneAuth'
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <StepProgress step={1} />
 
           <Text style={styles.h1}>휴대폰 번호를{'\n'}입력해주세요</Text>

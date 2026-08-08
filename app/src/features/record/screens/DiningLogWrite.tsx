@@ -90,7 +90,7 @@ export function DiningLogWriteScreen({ navigation, route }: RootStackScreenProps
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         {/* 타이틀 */}
         <Text style={styles.h1}>{isEdit ? '리뷰 수정' : '오늘의 혼밥 기록'}</Text>
 

@@ -9,6 +9,20 @@ import type { RootStackParamList } from './types';
  */
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
+/**
+ * 지금 보고 있는 화면. 준비 전이면 null.
+ *
+ * 인앱 배너가 "이 알림을 띄울까"를 정하는 데 쓴다 — 보고 있는 대화방의 메시지는 안 띄운다
+ * (`shared/push/banner.ts`). 컴포넌트 밖에서 물어야 해서 훅이 아니라 이 ref를 쓴다.
+ *
+ * @returns 화면 이름과 파라미터, 또는 null
+ */
+export function currentRoute(): { name: string; params?: Record<string, unknown> } | null {
+  if (!navigationRef.isReady()) return null;
+  const route = navigationRef.getCurrentRoute();
+  return route ? { name: route.name, params: route.params as Record<string, unknown> | undefined } : null;
+}
+
 /** 준비된 경우에만 이동한다. 준비 전 호출은 조용히 무시된다(앱 기동 직후 짧은 구간). */
 export function navigateFromPush(
   screen: keyof RootStackParamList,

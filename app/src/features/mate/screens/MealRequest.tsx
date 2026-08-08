@@ -54,7 +54,7 @@ export function MealRequestScreen({ navigation, route }: RootStackScreenProps<'M
           <View style={{ width: 28 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <View style={styles.placeCard}>
             {/* 이모지 대신 브랜드 핀 타일 — 받은 신청 카드의 핀 아이콘과 같은 언어. */}
             <View style={styles.placeThumb}><Icon name="pin" size={22} color={T2.brand} /></View>

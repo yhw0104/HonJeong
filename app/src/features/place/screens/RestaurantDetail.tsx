@@ -2,7 +2,7 @@
 // 풀블리드 히어로 + 플로팅 헤더 + 탭(홈/리뷰/사진/메이트/주변) + 하단 고정 CTA.
 // 메뉴 탭은 보류(데이터 출처 미정) — TABS에서 임시 숨김. MenuTab 컴포넌트/렌더는 복원 위해 보존.
 // 원본의 하단 MinTabBar는 제거(상세는 탭 위로 push되는 풀스크린이라 뒤로가기로 복귀).
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Alert, Image, Share, Linking, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -75,13 +75,9 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const reviews = usePlaceReviews(placeId);
   const summary = usePlaceReviewSummary(placeId);
 
-  // 종료 시트가 떠 있는 동안은 화면 뒤로가기 스와이프를 끈다.
-  // ★'밀어서 완료'(SlideToConfirm)는 가로 드래그인데, 이 화면은 스택에 푸시된 화면이라
-  //   iOS 기본 뒤로가기 제스처가 같은 방향의 드래그를 가로챈다 — 완료하려고 밀면 홈으로 나가버린다.
-  //   홈 탭에서는 이 문제가 없다(탭 루트라 뒤로가기 제스처 자체가 없다).
-  useEffect(() => {
-    navigation.setOptions({ gestureEnabled: ending == null });
-  }, [navigation, ending]);
+  // 종료 시트가 떠 있는 동안 뒤로가기 스와이프를 끄는 처리는 **EndHonbabSheet 안으로 옮겼다**.
+  // 여기서 화면별로 하던 것을 시트가 스스로 하게 바꾼 이유는 그 파일 주석 참조 — 화면마다 막는
+  // 방식이라 홈 탭에서 같은 버그가 재발했다(08-08).
 
   const [favSheet, setFavSheet] = useState(false);
   const [dirOpen, setDirOpen] = useState(false);

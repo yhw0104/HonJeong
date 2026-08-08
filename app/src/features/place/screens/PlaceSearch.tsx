@@ -71,7 +71,11 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
             <Text style={styles.hintText}>식당 이름으로 검색해보세요</Text>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.emptyScroll} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            contentContainerStyle={styles.emptyScroll}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
             {recent.length > 0 && (
               <View style={styles.recentWrap}>
                 <View style={styles.recentHeader}>
@@ -133,6 +137,7 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
           data={results}
           keyExtractor={(it) => String(it.placeId)}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             isFetching || settling ? (

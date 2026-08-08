@@ -6,6 +6,7 @@
 // checkIn=null이면 렌더 안 함. 닫히면 서브뷰 상태 초기화(다음 열림 대비).
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SlideToConfirm } from '@/shared/components';
 import { useSheetDismissGesture } from '@/shared/components/useSheetDismissGesture';
@@ -28,6 +29,27 @@ export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
   useEffect(() => { if (!checkIn) { setNoShow(false); setCantGo(false); } }, [checkIn]); // 닫히면 초기화(컴포넌트는 언마운트 안 됨)
   // 아래로 끌어 닫기. 핸들러는 아래 헤더 영역에만 붙인다 — '밀어서 완료'(가로 드래그)를 삼키지 않게.
   const dismiss = useSheetDismissGesture(checkIn != null, onClose);
+
+  // ★시트가 열려 있는 동안 화면 뒤로가기 스와이프를 끈다. 이 시트를 쓰는 화면마다가 아니라
+  // **시트 자신이** 끄는 게 핵심이다.
+  //
+  // 왜: '밀어서 완료'(SlideToConfirm)는 가로 드래그인데 iOS 뒤로가기도 같은 방향 가로 드래그다.
+  // 둘이 겹치면 네이티브 제스처가 이겨서, 완료하려고 밀면 이전 화면으로 나가버린다. 특히 썸의
+  // 시작 위치가 화면 왼쪽에서 ~24pt(시트 패딩 20 + 트랙 패딩 4)라 엣지 영역과 정확히 겹친다.
+  //
+  // 08-04에 식당 상세에서 이 문제를 고치면서 "홈 탭은 탭 루트라 뒤로가기 제스처가 없으니 안전"하다고
+  // 적어 뒀는데 **그 전제가 틀렸다** — 알림에서 '수락됨'을 눌러 홈으로 온 경로에서 홈에도 뒤로가기가
+  // 살아 있었다(실기 확인). 화면마다 막는 방식이라 새 화면에 붙일 때마다 같은 버그가 재발한다.
+  //
+  // getParent()는 탭 안(MapHome)에서 루트 스택을 집고, 스택 화면(RestaurantDetail)에서는
+  // undefined라 자기 자신으로 떨어진다 — 두 경우 모두 뒤로가기를 소유한 내비게이터를 가리킨다.
+  const navigation = useNavigation();
+  useEffect(() => {
+    const owner = (navigation.getParent() ?? navigation) as unknown as {
+      setOptions: (options: { gestureEnabled: boolean }) => void;
+    };
+    owner.setOptions({ gestureEnabled: checkIn == null });
+  }, [navigation, checkIn]);
   if (!checkIn) return null;
 
   const together = checkIn.status === 'TOGETHER';

@@ -162,7 +162,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <StepProgress step={3} />
 
         <Text style={styles.h1}>프로필을{'\n'}완성해주세요</Text>

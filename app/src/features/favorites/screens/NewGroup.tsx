@@ -43,7 +43,7 @@ export function NewGroupScreen({ navigation, route }: RootStackScreenProps<'NewG
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View style={styles.nameRow}>
           <View style={[styles.iconPreview, { borderColor: color }]}>
             <Icon name="star" size={30} color={color} />

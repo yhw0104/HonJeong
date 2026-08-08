@@ -126,7 +126,7 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
       ) : isError ? (
         <StateView kind="error" onRetry={() => refetch()} />
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         {/* 사진 변경 / 기본 이미지로 */}
         <View style={styles.photoBlock}>
           <Pressable onPress={onChangePhoto} disabled={uploading}>

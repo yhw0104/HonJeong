@@ -4,8 +4,8 @@
 //   · 핀치        확대/축소(최대 5배). 원배율보다 작게 밀면 손을 뗄 때 원배율로 되돌아온다.
 //   · 더블탭      원배율 ↔ 2.5배 토글(한 손으로 빠르게 확대할 때).
 //   · 드래그      확대 상태에서만 이동. 가장자리를 넘어가지 않게 잘린다.
-//   · 탭          닫기 — 단, **원배율일 때만**. 확대한 채로 사진을 짚으면 닫히던 문제를 막는다.
-//   · ×           배율과 무관하게 항상 닫힌다(확대 상태에서 빠져나가는 유일한 출구라 꼭 필요하다).
+//   · 탭          **아무 일도 하지 않는다.** 사진을 짚는 건 닫으려는 게 아니라 보려는 동작이다.
+//   · ×           유일한 출구(안드로이드는 뒤로가기도).
 //
 // 제스처는 Modal 안에 있으므로 GestureHandlerRootView로 한 번 더 감싼다 —
 // App.tsx의 루트는 Modal 내부까지 미치지 않아, 없으면 안드로이드에서 제스처가 죽는다.
@@ -16,8 +16,6 @@ import { Modal, View, Text, Image, Pressable, StyleSheet, useWindowDimensions } 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
-// Reanimated 4에서 runOnJS는 deprecated — 대체는 worklets의 scheduleOnRN이다.
-import { scheduleOnRN } from 'react-native-worklets';
 
 const MAX_SCALE = 5;
 const DOUBLE_TAP_SCALE = 2.5;
@@ -107,15 +105,13 @@ export function PhotoViewer({ uri, onClose }: { uri: string | null; onClose: () 
       }
     });
 
-  // 확대 중에는 탭으로 닫지 않는다 — 사진을 짚어 이리저리 보는 동작이 곧바로 닫기가 되면 안 된다.
-  // 1.01은 withTiming이 정확히 1.0에서 끝나지 않는 경우를 흡수하기 위한 여유다.
-  const singleTap = Gesture.Tap()
-    .numberOfTaps(1)
-    .onEnd(() => {
-      if (scale.value <= 1.01) scheduleOnRN(close);
-    });
-
-  const gesture = Gesture.Simultaneous(pinch, pan, Gesture.Exclusive(doubleTap, singleTap));
+  // ★사진을 탭해도 닫지 않는다. 크게 보는 중에 사진을 짚는 것은 "닫아 달라"가 아니라
+  // 이리저리 보려는 동작이고, 손이 스치기만 해도 닫히면 다시 열어야 한다.
+  // 출구는 ×와 (안드로이드) 뒤로가기뿐이다.
+  //
+  // 08-04에는 '확대 중일 때만' 탭 닫기를 막았는데, 원배율에서도 같은 불편이 남는다는
+  // 실기 피드백으로 아예 없앴다. 더블탭 확대는 그대로 둔다.
+  const gesture = Gesture.Simultaneous(pinch, pan, doubleTap);
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: tx.value }, { translateY: ty.value }, { scale: scale.value }],
