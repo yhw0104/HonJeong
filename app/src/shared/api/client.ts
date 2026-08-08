@@ -71,13 +71,33 @@ export function setOnSessionExpired(cb: (() => void) | null): void {
   onSessionExpired = cb;
 }
 
-/** 등록된 세션 만료 콜백을 호출한다(request() 밖의 경로 — 예: 파일 업로드 — 에서 만료 처리에 사용). */
+/**
+ * 등록된 세션 만료 콜백을 호출한다.
+ *
+ * ★ 부르는 곳은 {@link refreshSession} 하나뿐이다. 호출처마다 "언제가 만료인가"를 각자 판단하면
+ * 반드시 어긋나기 때문이다(그 Javadoc의 2번). 새 경로를 만들더라도 여기를 직접 부르지 말고
+ * refreshSession의 실패를 그대로 흘려보낼 것.
+ */
 export function notifySessionExpired(): void {
   onSessionExpired?.();
 }
 
-/** refresh 토큰으로 새 토큰 쌍 발급. single-flight — 동시 호출은 하나의 refresh를 공유(회전 토큰 stale 방지).
- *  request() 401 재시도와 request() 밖 경로(파일 업로드)가 공유한다. */
+/**
+ * refresh 토큰으로 새 토큰 쌍 발급. single-flight — 동시 호출은 하나의 refresh를 공유(회전 토큰 stale 방지).
+ * request() 401 재시도와 request() 밖 경로(파일 업로드)가 공유한다.
+ *
+ * ★ **세션 만료 통지는 여기서만 낸다.** 두 가지가 여기 모여야 한다:
+ *
+ *  1. **횟수** — single-flight라 실패는 하나인데 대기자는 N명이다. 대기자가 각자 통지하면
+ *     로그아웃 1회에 FCM 폐기(deleteToken, 서버 왕복)가 N번 돈다. 앱을 포그라운드로 되돌릴 때
+ *     쿼리가 한꺼번에 뜨므로 실제로 자주 겹친다. 공유 promise 안에서 내면 몇 명이 기다리든 1회다.
+ *  2. **판정** — "401만 만료다"({@link isAuthRejection})는 호출처마다 따로 쓰면 반드시 어긋난다.
+ *     실제로 어긋나 있었다: 08-07에 request() 경로만 고치고 업로드 경로(imageUpload)는 어떤 실패든
+ *     만료로 처리해서, 배포로 컨테이너가 재시작되는 동안 사진을 올리면 502 하나에 강제 로그아웃 +
+ *     FCM 토큰 폐기가 됐다. 판정이 한 곳에 있으면 이 갈라짐이 구조적으로 생기지 않는다.
+ *
+ * 호출처는 실패를 받아 자기 화면 처리만 하면 된다 — 만료 통지는 신경 쓰지 않는다.
+ */
 export function refreshSession(): Promise<void> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
@@ -86,9 +106,14 @@ export function refreshSession(): Promise<void> {
       // token:null → 이 요청은 refresh 로직 대상에서 제외(재귀 없음).
       const tokens = await request<Tokens>('POST', '/auth/refresh', { refreshToken: rt }, { token: null });
       await setTokens(tokens);
-    })().finally(() => {
-      refreshInFlight = null;
-    });
+    })()
+      .catch((error: unknown) => {
+        if (isAuthRejection(error)) notifySessionExpired();
+        throw error;
+      })
+      .finally(() => {
+        refreshInFlight = null;
+      });
   }
   return refreshInFlight;
 }
@@ -132,12 +157,12 @@ async function request<T>(
       envelope?.error?.code ?? `HTTP_${res.status}`,
       envelope?.error?.message ?? `요청 실패 (HTTP ${res.status})`,
     );
-    // 세션 요청이 401이면 refresh 후 원요청을 1회 재시도. refresh가 '거부'당했으면 세션 만료 처리.
+    // 세션 요청이 401이면 refresh 후 원요청을 1회 재시도.
+    // 만료 통지는 refreshSession이 낸다(횟수·판정을 한 곳에 모으는 이유는 그 Javadoc 참조).
     if (shouldAttemptRefresh(res.status, isSessionAuthed(options), retried)) {
       try {
         await refreshSession();
-      } catch (refreshError) {
-        if (isAuthRejection(refreshError)) onSessionExpired?.();
+      } catch {
         throw err;
       }
       return request<T>(method, path, body, options, true);

@@ -2,7 +2,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { API_BASE_URL } from '@/shared/config/api';
 import { getAccessToken } from '@/shared/auth/session';
-import { refreshSession, notifySessionExpired } from '@/shared/api/client';
+import { refreshSession } from '@/shared/api/client';
 
 /** 남은 선택 가능 장수(0 미만이면 0). */
 export function remainingSlots(current: number, max: number): number {
@@ -68,12 +68,14 @@ async function uploadOne(uri: string, token: string | undefined, retried = false
     throw new Error('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
   });
 
-  // 세션 토큰 업로드가 401이면 refresh 후 1회 재시도. refresh 실패면 세션 만료(조용한 로그아웃).
+  // 세션 토큰 업로드가 401이면 refresh 후 1회 재시도.
+  // 만료 통지는 여기서 내지 않는다 — refreshSession이 '401일 때만' 낸다. 예전엔 여기서 어떤
+  // 실패든 만료로 처리해서, 배포로 컨테이너가 재시작되는 동안 사진을 올리면 502 하나에
+  // 강제 로그아웃 + FCM 토큰 폐기가 됐다(request() 경로는 08-07에 고쳤는데 여기만 빠져 있었다).
   if (res.status === 401 && usingSession && !retried) {
     try {
       await refreshSession();
     } catch {
-      notifySessionExpired();
       throw new Error('사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.');
     }
     return uploadOne(uri, token, true);
