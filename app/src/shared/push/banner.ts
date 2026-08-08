@@ -6,6 +6,11 @@
 // 그 경우 안 띄우는 이유이기도 하다. 그래서 포그라운드만 우리가 그린다
 // (firebase.json은 포그라운드 표시를 끄고, 백그라운드·종료 상태는 그대로 OS 배너다).
 //
+// ★ 그 설정이 `app/firebase.json`의 messaging_ios_foreground_presentation_options: [] 다.
+//   그 파일에는 설명을 적을 수 없다 — JSON이라 주석이 안 되고, 주석 대신 "_comment" 같은 키를
+//   넣으면 RNFirebase가 파싱에 실패해 **빌드가 깨진다**(2026-08-08 빌드 12에서 실제로 겪었다:
+//   "Failed to parse firebase.json"). 그래서 그 설정의 사유는 여기에 남긴다.
+//
 // 이 파일은 @/shared/push(index.ts)를 import하지 않는다 — index.ts는 @react-native-firebase를
 // import 시점에 조회해서 jest에서 즉사한다(prompt.ts·target.ts·installation.ts와 같은 이유).
 // 판단 로직을 여기 순수 함수로 두는 것도 그래서다.

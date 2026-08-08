@@ -1,6 +1,5 @@
 {
   "react-native": {
-    "_comment": "포그라운드에서는 OS 배너를 띄우지 않는다. 앱을 보고 있을 때의 알림은 PushBanner(인앱 배너)가 담당한다 — OS는 어느 화면을 보고 있는지 모르기 때문에 '지금 그 대화방을 보고 있으면 안 띄운다' 같은 규칙을 표현할 수 없다. 백그라운드·종료 상태는 그대로 OS 배너다.",
     "messaging_ios_foreground_presentation_options": []
   }
 }
