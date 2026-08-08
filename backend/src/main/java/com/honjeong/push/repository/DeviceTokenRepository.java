@@ -70,6 +70,24 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
     List<DeviceToken> findAllByUser_Id(Long userId);
 
     /**
+     * 한 사용자의 <b>아직 신선한</b> 기기 토큰(발송 대상).
+     *
+     * <p>{@code lastRegisteredAt}이 임계값보다 <b>뒤</b>인 행만 준다. 앱은 시작할 때마다 재등록하므로
+     * 살아 있는 기기는 계속 신선하고, 로그아웃 뒤 폐기에 실패해 주인 없이 남은 토큰만 늙는다.
+     * Firebase가 "보내기 전에 staleness window 안인지 확인하라"고 권고하는 자리이기도 하다.
+     *
+     * <p>경계는 등호를 뺀다 — {@link #deleteAllByLastRegisteredAtBefore}와 짝이다.
+     *
+     * <p>{@link #findAllByUser_Id}는 남겨 둔다 — 테스트가 "전부 지워졌나"를 확인하는 데 쓰고 있고,
+     * 그것을 이 메서드로 바꾸면 단언의 의미가 "window 안에 없나"로 달라진다.
+     *
+     * @param userId    사용자 ID
+     * @param threshold 이 시각보다 뒤에 등록된 것만 발송 대상
+     * @return 신선한 토큰 목록(없으면 빈 리스트)
+     */
+    List<DeviceToken> findAllByUser_IdAndLastRegisteredAtAfter(Long userId, LocalDateTime threshold);
+
+    /**
      * 한 사용자의 기기 토큰을 전부 지운다(탈퇴).
      *
      * @param userId 사용자 ID

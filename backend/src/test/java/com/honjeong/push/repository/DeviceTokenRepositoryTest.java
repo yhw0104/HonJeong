@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -192,6 +193,20 @@ class DeviceTokenRepositoryTest extends AbstractPostgresTest {
         DeviceToken after = deviceTokenRepository.findByToken("tok-send").orElseThrow();
         assertThat(after.getLastUsedAt()).isEqualTo(NOW.plusDays(90));
         assertThat(after.getLastRegisteredAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("window 밖 토큰은 발송 대상 조회에서 빠진다 — Firebase 권고(보내기 전 신선도 확인)")
+    void window_밖_토큰은_조회되지_않는다() {
+        User u = userRepository.save(newUser("01011110015"));
+        deviceTokenRepository.saveAndFlush(DeviceToken.of(u, "tok-fresh", Platform.IOS, NOW));
+        deviceTokenRepository.saveAndFlush(DeviceToken.of(u, "tok-stale", Platform.IOS, NOW.minusDays(90)));
+        entityManager.clear();
+
+        List<DeviceToken> found = deviceTokenRepository
+                .findAllByUser_IdAndLastRegisteredAtAfter(u.getId(), NOW.minusDays(60));
+
+        assertThat(found).extracting(DeviceToken::getToken).containsExactly("tok-fresh");
     }
 
     /**
