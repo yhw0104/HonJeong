@@ -209,6 +209,22 @@ class DeviceTokenRepositoryTest extends AbstractPostgresTest {
         assertThat(found).extracting(DeviceToken::getToken).containsExactly("tok-fresh");
     }
 
+    @Test
+    @DisplayName("청소는 window 밖 행만 지운다 — 신선한 토큰은 남긴다")
+    void 청소는_window_밖만_지운다() {
+        User u = userRepository.save(newUser("01011110016"));
+        deviceTokenRepository.saveAndFlush(DeviceToken.of(u, "tok-keep", Platform.IOS, NOW));
+        deviceTokenRepository.saveAndFlush(DeviceToken.of(u, "tok-sweep", Platform.IOS, NOW.minusDays(90)));
+        entityManager.clear();
+
+        int deleted = deviceTokenRepository.deleteAllByLastRegisteredAtBefore(NOW.minusDays(60));
+        entityManager.clear();
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(deviceTokenRepository.findByToken("tok-sweep")).isEmpty();
+        assertThat(deviceTokenRepository.findByToken("tok-keep")).isPresent();
+    }
+
     /**
      * 테스트용 PENDING 회원. 다른 리포지토리 슬라이스 테스트와 같은 방식이다(User.pending).
      *

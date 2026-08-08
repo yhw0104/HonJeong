@@ -4,6 +4,9 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,13 +26,17 @@ import com.honjeong.push.repository.DeviceTokenRepository;
 public class DeviceTokenService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final Logger log = LoggerFactory.getLogger(DeviceTokenService.class);
 
     private final DeviceTokenRepository deviceTokenRepository;
     private final Clock clock;
+    private final int stalenessDays;
 
-    public DeviceTokenService(DeviceTokenRepository deviceTokenRepository, Clock clock) {
+    public DeviceTokenService(DeviceTokenRepository deviceTokenRepository, Clock clock,
+            @Value("${honjeong.push.staleness-days:60}") int stalenessDays) {
         this.deviceTokenRepository = deviceTokenRepository;
         this.clock = clock;
+        this.stalenessDays = stalenessDays;
     }
 
     /**
@@ -61,6 +68,30 @@ public class DeviceTokenService {
         deviceTokenRepository.findByToken(token)
                 .filter(t -> t.getUser().getId().equals(userId))
                 .ifPresent(t -> deviceTokenRepository.deleteByToken(token));
+    }
+
+    /**
+     * staleness window를 벗어난 기기 토큰을 지운다(청소 스케줄러가 주기 호출).
+     *
+     * <p><b>무엇을 지우는가.</b> 로그아웃은 서버 삭제와 FCM 폐기 두 단계로 토큰을 끊는데, 둘 다
+     * 실패하면 그 토큰은 FCM에 살아 있고 우리 DB에도 남아 있는데 기기에는 없다 — 다시는 지목해
+     * 지울 수 없다. 그러면 그 폰을 넘겨받은 사람의 잠금화면에 이전 사용자의 알림이 계속 뜬다.
+     * 앱은 시작할 때마다 재등록하므로, 재등록이 {@code stalenessDays}만큼 끊긴 행이 곧 그런 토큰이다.
+     *
+     * <p><b>왜 window가 짧으면 안 되는가.</b> 오래 앱을 안 연 휴면 사용자의 토큰까지 지우면
+     * 푸시가 끊기고, 그러면 앱을 열 이유가 없어져 영영 돌아오지 않는다. Firebase가 window를
+     * 넉넉히 잡으라고 하는 것이 이 때문이다.
+     *
+     * @return 삭제된 행 수
+     */
+    @Transactional
+    public int sweepStale() {
+        int deleted = deviceTokenRepository.deleteAllByLastRegisteredAtBefore(now().minusDays(stalenessDays));
+        if (deleted > 0) {
+            // 0건이면 남기지 않는다 — 24시간마다 도는 작업이라 대부분의 날에는 소음이 된다.
+            log.info("[push] staleness 청소 — {}일 이상 재등록되지 않은 기기 토큰 {}건 삭제", stalenessDays, deleted);
+        }
+        return deleted;
     }
 
     /**

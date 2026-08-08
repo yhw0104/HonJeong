@@ -126,4 +126,21 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
     @Modifying
     @Query("DELETE FROM DeviceToken d WHERE d.token = :token AND d.user.id = :userId")
     int deleteByTokenAndUserId(@Param("token") String token, @Param("userId") Long userId);
+
+    /**
+     * staleness window를 벗어난 토큰을 전부 지운다(청소 스케줄러).
+     *
+     * <p>기준이 {@code lastUsedAt}이 아니라 {@code lastRegisteredAt}인 것이 핵심이다 —
+     * {@code lastUsedAt}은 발송 시도마다 갱신되므로, 정작 지우려는 고아 토큰(지금도 계속
+     * 발송되고 있는 토큰)이 영원히 신선해 보인다({@code PushDeliveryRecorder.recordResult} Javadoc).
+     *
+     * <p>경계는 등호를 뺀다 — {@link #findAllByUser_IdAndLastRegisteredAtAfter}와 짝이다.
+     *
+     * @param threshold 이 시각보다 앞에 등록된 행을 지운다
+     * @return 삭제된 행 수
+     */
+    // clearAutomatically 금지 — 위와 같은 이유.
+    @Modifying
+    @Query("DELETE FROM DeviceToken d WHERE d.lastRegisteredAt < :threshold")
+    int deleteAllByLastRegisteredAtBefore(@Param("threshold") LocalDateTime threshold);
 }
