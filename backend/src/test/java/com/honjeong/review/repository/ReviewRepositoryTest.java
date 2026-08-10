@@ -73,6 +73,27 @@ class ReviewRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
+    @DisplayName("★혼밥 평가 수는 별점을 낸 리뷰만 센다 — 전체 리뷰 수로 '혼밥러 N명'을 쓰면 부풀려진다")
+    void summarizeByPlace_countsOnlySoloRated() {
+        User user = persistUser("01000000010", "집계러");
+        Place place = persistPlace("ext-10");
+        CheckIn checkIn = persistCheckIn(user, place);
+
+        em.persist(Review.create(user, checkIn, place, NOW, 5, 5, "혼밥 인증"));   // 혼밥 별점 있음
+        em.persist(Review.create(user, null, place, NOW, 3, null, "같이 먹음"));    // 없음
+        em.persist(Review.create(user, null, place, NOW, 1, null, "그냥 리뷰"));    // 없음
+        em.flush();
+        em.clear();
+
+        Object[] agg = reviewRepository.summarizeByPlace(place.getId()).get(0);
+
+        assertThat(((Number) agg[2]).longValue()).isEqualTo(3);   // 전체 리뷰
+        assertThat(((Number) agg[3]).longValue()).isEqualTo(1);   // 혼밥 평가
+        assertThat(((Number) agg[1]).doubleValue()).isEqualTo(5.0);  // AVG가 NULL을 빼서 혼밥한 사람의 점수만 남는다
+        assertThat(((Number) agg[0]).doubleValue()).isEqualTo(3.0);  // 맛 평균은 셋 다 반영
+    }
+
+    @Test
     @DisplayName("★인증 아닌 리뷰는 혼밥 별점을 NULL로 저장한다 — 혼밥 친화도 평균에 안 섞이게(V28)")
     void savesNullSoloRating_whenNotAuthenticated() {
         User user = persistUser("01000000009", "같이먹은러");

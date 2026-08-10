@@ -36,13 +36,18 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             @Param("excludedUserIds") List<Long> excludedUserIds);
 
     /**
-     * 식당 리뷰의 별점 평균 2종과 리뷰 수를 집계한다.
+     * 식당 리뷰의 별점 평균 2종과 건수 2종을 집계한다.
+     *
+     * <p>건수가 둘인 이유: 혼밥 적합도는 <b>혼밥 인증 리뷰만</b> 값을 가진다(V28). 전체 리뷰 수로
+     * "혼밥러 N명 평가"를 표시하면 별점을 내지 않은 사람까지 세어 부풀려진다.
+     * {@code COUNT(컬럼)}은 NULL을 세지 않고 {@code AVG}도 NULL을 빼므로, 별도 필터 없이
+     * 혼밥 친화도가 혼자 먹어본 사람의 것으로 한정된다.
      *
      * @param placeId 식당 ID
-     * @return {@code [맛 평균, 혼밥 적합도 평균, 건수]} 단일 행
+     * @return {@code [맛 평균, 혼밥 적합도 평균, 전체 리뷰 수, 혼밥 평가 수]} 단일 행
      */
     @Query("""
-            SELECT AVG(r.tasteRating), AVG(r.soloFriendlyRating), COUNT(r)
+            SELECT AVG(r.tasteRating), AVG(r.soloFriendlyRating), COUNT(r), COUNT(r.soloFriendlyRating)
             FROM Review r WHERE r.place.id = :placeId
             """)
     List<Object[]> summarizeByPlace(@Param("placeId") Long placeId);

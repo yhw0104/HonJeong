@@ -74,24 +74,28 @@ public class ReviewService {
     }
 
     /**
-     * 식당 리뷰를 집계한다 — 리뷰 수, 별점 평균 2종(소수 1자리), 상위 태그 5개.
+     * 식당 리뷰를 집계한다 — 리뷰 수, 혼밥 평가 수, 별점 평균 2종(소수 1자리), 상위 태그 5개.
+     *
+     * <p>혼밥 적합도 평균은 <b>혼밥 평가가 하나도 없으면 null</b>이다 — 리뷰는 있는데 전부
+     * 인증이 아닌 경우다. 전체 리뷰 수로 판단하면 이 경우를 놓쳐 0.0으로 보이게 된다.
      *
      * @param placeId 식당 ID
-     * @return 리뷰 수, 맛·혼밥 적합도 평균(리뷰 없으면 null), 상위 태그
+     * @return 리뷰 수·혼밥 평가 수, 맛·혼밥 적합도 평균(각각 대상이 없으면 null), 상위 태그
      */
     @Transactional(readOnly = true)
     public PlaceReviewSummaryResponse getPlaceReviewSummary(Long placeId) {
         Object[] agg = reviewRepository.summarizeByPlace(placeId).get(0);
         long count = ((Number) agg[2]).longValue();
+        long soloRatedCount = ((Number) agg[3]).longValue();
         Double avgTaste = count == 0 ? null : round1(((Number) agg[0]).doubleValue());
-        Double avgSolo = count == 0 ? null : round1(((Number) agg[1]).doubleValue());
+        Double avgSolo = soloRatedCount == 0 ? null : round1(((Number) agg[1]).doubleValue());
 
         List<PlaceReviewSummaryResponse.TagCount> topTags = reviewRepository.countTagsByPlace(placeId).stream()
                 .limit(TOP_TAGS_LIMIT)
                 .map(row -> new PlaceReviewSummaryResponse.TagCount((String) row[0], ((Number) row[1]).longValue()))
                 .toList();
 
-        return new PlaceReviewSummaryResponse(placeId, count, avgTaste, avgSolo, topTags);
+        return new PlaceReviewSummaryResponse(placeId, count, soloRatedCount, avgTaste, avgSolo, topTags);
     }
 
     /** 소수 첫째 자리로 반올림한다. */

@@ -318,23 +318,40 @@ class ReviewServiceTest {
     @DisplayName("getPlaceReviewSummary — 리뷰 0건이면 count=0, 평균=null, topTags 비어있음")
     void getPlaceReviewSummary_empty() {
         when(reviewRepository.summarizeByPlace(3L))
-                .thenReturn(java.util.Collections.singletonList(new Object[]{null, null, 0L}));
+                .thenReturn(java.util.Collections.singletonList(new Object[]{null, null, 0L, 0L}));
         when(reviewRepository.countTagsByPlace(3L))
                 .thenReturn(java.util.Collections.emptyList());
 
         PlaceReviewSummaryResponse res = service.getPlaceReviewSummary(3L);
 
         assertThat(res.reviewCount()).isEqualTo(0L);
+        assertThat(res.soloRatedCount()).isEqualTo(0L);
         assertThat(res.avgTasteRating()).isNull();
         assertThat(res.avgSoloFriendlyRating()).isNull();
         assertThat(res.topTags()).isEmpty();
     }
 
     @Test
+    @DisplayName("★리뷰는 있는데 혼밥 평가가 하나도 없으면 혼밥 평균은 null — 0.0으로 보이면 안 된다")
+    void getPlaceReviewSummary_noSoloRatings() {
+        // 일반 리뷰만 3건 쌓인 식당. AVG(NULL만)는 NULL이고 COUNT(컬럼)은 0이다.
+        when(reviewRepository.summarizeByPlace(3L))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{4.0, null, 3L, 0L}));
+        when(reviewRepository.countTagsByPlace(3L)).thenReturn(java.util.Collections.emptyList());
+
+        PlaceReviewSummaryResponse res = service.getPlaceReviewSummary(3L);
+
+        assertThat(res.reviewCount()).isEqualTo(3L);
+        assertThat(res.soloRatedCount()).isEqualTo(0L);
+        assertThat(res.avgTasteRating()).isEqualTo(4.0);
+        assertThat(res.avgSoloFriendlyRating()).isNull();   // 전체 리뷰 수로 판단했다면 여기서 NPE가 났다
+    }
+
+    @Test
     @DisplayName("getPlaceReviewSummary — 비0건: 평균 반올림, topTags 상위 5개 제한, 첫 태그 순서 확인")
     void getPlaceReviewSummary_nonEmpty() {
         when(reviewRepository.summarizeByPlace(3L))
-                .thenReturn(java.util.Collections.singletonList(new Object[]{4.25, 4.6, 4L}));
+                .thenReturn(java.util.Collections.singletonList(new Object[]{4.25, 4.6, 4L, 4L}));
         when(reviewRepository.countTagsByPlace(3L))
                 .thenReturn(java.util.Arrays.asList(
                         new Object[]{"1인석 많음", 3L},
