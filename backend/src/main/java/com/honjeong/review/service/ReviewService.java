@@ -134,10 +134,20 @@ public class ReviewService {
     }
 
     /**
-     * 리뷰를 작성한다. 별점 2종은 필수이며(컨트롤러 {@code @Valid}), 태그는 허용 프리셋만 받는다(아니면 400).
+     * 리뷰를 작성한다. 맛 별점은 필수이며(컨트롤러 {@code @Valid}), 태그는 허용 프리셋만 받는다(아니면 400).
      *
-     * <p>인증 연결: checkInId가 주어지면 내 소유이고 place가 일치할 때 연결하고(타인 소유면 403),
-     * 없으면 그 place의 24h 내 최근 체크인을 자동 연결한다.
+     * <p><b>불변식: 혼밥 별점·태그는 혼밥 인증 리뷰만 가질 수 있다.</b> 혼밥 친화도 평균에 혼자
+     * 먹어보지 않은 사람의 점수가 섞이지 않게 하려는 것이고, 앱의 두 작성 화면(혼밥/일반)이 바로
+     * 이 규칙을 사람에게 보여주는 형태다. 서버가 강제하지 않으면 API로 우회할 수 있다.
+     *
+     * <p>인증 연결은 <b>앱이 넘긴 checkInId로만</b> 한다 — 자동 탐색은 하지 않는다.
+     * 앱은 {@link #getReviewContext}로 "지금 쓰면 연결될 체크인"을 먼저 받아 그 id를 그대로 넘기므로,
+     * 서버가 다시 추측하면 판단이 두 곳으로 갈라진다(추측한 답과 화면이 어긋나면 혼밥 별점을
+     * 안 물어보고 인증 리뷰를 만들게 된다).
+     *
+     * <p>넘긴 체크인을 쓸 수 없으면(타인 것은 403, 그 외 place 불일치·매칭됨·이미 리뷰 있음)
+     * <b>일반 리뷰로 강등하고 혼밥 별점·태그를 버린다.</b> 화면을 연 뒤 상태가 바뀐 드문 경우인데,
+     * 여기서 400을 주면 사용자가 쓴 글을 되돌릴 방법 없이 막히기 때문이다.
      *
      * @param userId 작성자 ID
      * @param req placeId, checkInId(선택), tasteRating, soloFriendlyRating, content, tags, imageUrls
@@ -150,16 +160,19 @@ public class ReviewService {
 
         LocalDateTime now = now();
         CheckIn linked = resolveCheckIn(userId, req.placeId(), req.checkInId(), now);
-        if (linked != null && reviewRepository.existsByCheckIn_Id(linked.getId())) {
-            linked = null;   // 그 방문엔 이미 인증 리뷰가 있음 → 차단하지 않고 인증 없는 일반 리뷰로 저장
-        }
+        validateSoloFields(req, linked);
+
+        // 강등된 경우(체크인을 지정했지만 쓸 수 없음) 혼밥 값은 버린다 — 불변식을 지킨다.
+        Integer soloRating = linked != null ? req.soloFriendlyRating() : null;
+        List<String> tags = linked != null ? req.tags() : null;
+
         LocalDateTime visitedAt = linked != null ? linked.getStartedAt() : now;
 
         User userRef = userRepository.getReferenceById(userId);
         Review review = Review.create(userRef, linked, place, visitedAt,
-                req.tasteRating(), req.soloFriendlyRating(), req.content());
-        if (req.tags() != null) {
-            req.tags().forEach(tag -> review.addTag(place, tag));
+                req.tasteRating(), soloRating, req.content());
+        if (tags != null) {
+            tags.forEach(tag -> review.addTag(place, tag));
         }
         review.replacePhotos(req.imageUrls());
         try {
@@ -227,29 +240,75 @@ public class ReviewService {
     }
 
     /**
-     * 리뷰에 연결할 체크인을 결정한다.
+     * 리뷰에 연결할 체크인을 결정한다. 앱이 넘긴 checkInId로만 판단한다 — 미지정이면 일반 리뷰다.
      *
-     * <p>checkInId를 명시하면 소유·식당·솔로 여부를 검증하고(타인 소유 403, 불일치나 매칭된 체크인이면 null),
-     * 미지정이면 24h 내 최근 솔로 체크인을 자동 탐색한다. 인증(혼밥 뱃지)은
-     * <b>혼자 먹은(matchedAt IS NULL) 체크인</b>만 대상이다.
+     * <p>자동 탐색을 하지 않는 이유는 {@link #createReview} 참조. 명시된 체크인은
+     * 소유(타인이면 403)·솔로 여부·식당 일치·이미 리뷰가 있는지를 검증하고, 하나라도 어긋나면
+     * null(일반 리뷰로 강등)을 준다. 이 조건들은 {@link #findLinkableCheckIn}이 앱에 알려주는
+     * 조건과 같아야 한다 — 그래야 앱이 연 화면과 서버가 만든 리뷰가 일치한다.
      */
     private CheckIn resolveCheckIn(Long userId, Long placeId, Long checkInId, LocalDateTime now) {
-        if (checkInId != null) {
-            CheckIn ci = checkInRepository.findById(checkInId).orElse(null);
-            if (ci == null) {
-                return null;
-            }
-            if (!ci.isOwnedBy(userId)) {
-                throw new BusinessException(ErrorCode.FORBIDDEN);
-            }
-            // 같이 먹은(matched) 체크인은 혼밥 인증이 아니다 → 연결 안 함(일반 리뷰로 저장). 자동연결(findRecentForReview)과 기준 일치.
-            if (ci.getMatchedAt() != null) {
-                return null;
-            }
-            return ci.getPlace().getId().equals(placeId) ? ci : null;   // place 불일치면 일반 리뷰
+        if (checkInId == null) {
+            return null;
         }
+        CheckIn ci = checkInRepository.findById(checkInId).orElse(null);
+        if (ci == null) {
+            return null;
+        }
+        if (!ci.isOwnedBy(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        // 같이 먹은(matched) 체크인은 혼밥 인증이 아니다 → 연결 안 함(일반 리뷰로 저장).
+        if (ci.getMatchedAt() != null) {
+            return null;
+        }
+        if (!ci.getPlace().getId().equals(placeId)) {
+            return null;   // place 불일치면 일반 리뷰
+        }
+        // 한 방문 = 한 리뷰. 이미 있으면 차단하지 않고 일반 리뷰로 강등한다.
+        return reviewRepository.existsByCheckIn_Id(ci.getId()) ? null : ci;
+    }
+
+    /**
+     * 지금 이 식당에 리뷰를 쓰면 인증으로 연결될 체크인. 없으면 null.
+     *
+     * <p>앱이 <b>어느 작성 화면을 열지</b> 정하는 데 쓴다({@link #getReviewContext}). 여기서 준 id를
+     * 앱이 그대로 되돌려 보내므로 화면과 결과가 어긋날 수 없다 — 이게 자동 탐색을 없앤 이유다.
+     *
+     * <p>규칙: 그 식당의 내 솔로 체크인(ACTIVE 또는 종료 24h 이내) 중 최신 1건. 단 그 체크인에
+     * 이미 리뷰가 있으면 쓸 수 없다({@link #resolveCheckIn}의 강등 조건과 같다).
+     *
+     * @param userId 회원 id
+     * @param placeId 식당 id
+     * @param now 기준 시각
+     * @return 연결 가능한 체크인, 없으면 null
+     */
+    public CheckIn findLinkableCheckIn(Long userId, Long placeId, LocalDateTime now) {
         LocalDateTime since = now.minusHours(AUTH_WINDOW_HOURS);
-        return checkInRepository.findRecentForReview(userId, placeId, since).orElse(null);
+        return checkInRepository.findRecentForReview(userId, placeId, since)
+                .filter(ci -> !reviewRepository.existsByCheckIn_Id(ci.getId()))
+                .orElse(null);
+    }
+
+    /**
+     * 혼밥 별점·태그가 인증 리뷰에만 붙었는지 검증한다({@link #createReview}의 불변식).
+     *
+     * <p>체크인을 <b>지정하지 않았는데</b> 혼밥 값을 보낸 경우만 막는다 — 앱의 일반 리뷰 화면을
+     * 우회해 혼밥 친화도를 오염시키는 경로다. 지정했는데 쓸 수 없게 된 경우(강등)는 막지 않고
+     * 값을 버린다 — 화면을 연 뒤 상태가 바뀐 것이라 사용자 잘못이 아니다.
+     *
+     * <p>반대 방향(연결됐는데 혼밥 별점이 없음)도 막는다. 혼밥 화면은 별점을 필수로 받으므로
+     * 정상 경로에서는 나오지 않는다 — 계약을 명시하는 검증이다.
+     */
+    private static void validateSoloFields(ReviewCreateRequest req, CheckIn linked) {
+        boolean hasTags = req.tags() != null && !req.tags().isEmpty();
+        if (req.checkInId() == null && (req.soloFriendlyRating() != null || hasTags)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "혼밥 별점과 친화 태그는 혼밥 인증 리뷰에만 남길 수 있습니다.");
+        }
+        if (linked != null && req.soloFriendlyRating() == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "혼밥 인증 리뷰에는 혼밥 별점이 필요합니다.");
+        }
     }
 
     /**

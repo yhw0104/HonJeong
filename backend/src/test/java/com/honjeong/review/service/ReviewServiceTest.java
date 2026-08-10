@@ -64,29 +64,111 @@ class ReviewServiceTest {
         return p;
     }
 
+    /** 혼밥 화면이 보내는 모양 — 체크인을 명시하고 혼밥 별점을 함께 보낸다. */
     private ReviewCreateRequest req(Long checkInId, List<String> tags) {
         return new ReviewCreateRequest(3L, checkInId, 5, 4, "편히 먹었다", tags, null);
     }
 
+    /** 일반 리뷰 화면이 보내는 모양 — 체크인도 혼밥 별점도 태그도 없다. */
+    private ReviewCreateRequest plainReq() {
+        return new ReviewCreateRequest(3L, null, 5, null, "둘이 와도 좋아요", List.of(), null);
+    }
+
+    /** 내 소유·솔로·place 일치인, 쓸 수 있는 체크인 mock을 세팅한다. */
+    private CheckIn usableCheckIn(long checkInId, Place p) {
+        CheckIn ci = mock(CheckIn.class);
+        when(ci.getId()).thenReturn(checkInId);
+        when(ci.isOwnedBy(1L)).thenReturn(true);
+        when(ci.getPlace()).thenReturn(p);
+        when(ci.getStartedAt()).thenReturn(LocalDateTime.of(2026, 6, 25, 11, 0));
+        when(checkInRepository.findById(checkInId)).thenReturn(Optional.of(ci));
+        return ci;
+    }
+
     @Test
-    @DisplayName("checkInId 없으면 24h 내 최근 체크인을 자동 인증 연결")
-    void create_autoLinksRecentCheckIn() {
+    @DisplayName("앱이 넘긴 checkInId로 인증 연결한다 — 서버는 스스로 찾지 않는다")
+    void create_linksGivenCheckIn() {
         Place p = place(3L);
         when(placeService.getById(3L)).thenReturn(p);
         when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
-        CheckIn recent = mock(CheckIn.class);
-        when(recent.getId()).thenReturn(7L);
-        when(recent.getStartedAt()).thenReturn(LocalDateTime.of(2026, 6, 25, 11, 0));
-        when(checkInRepository.findRecentForReview(eqL(1L), eqL(3L), any())).thenReturn(Optional.of(recent));
+        usableCheckIn(7L, p);
         when(reviewRepository.existsByCheckIn_Id(7L)).thenReturn(false);
         when(reviewRepository.saveAndFlush(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ReviewResponse res = service.createReview(1L, req(null, List.of("1인석 많음")));
+        ReviewResponse res = service.createReview(1L, req(7L, List.of("1인석 많음")));
 
         assertThat(res.placeId()).isEqualTo(3L);
         assertThat(res.authenticated()).isTrue();
         assertThat(res.checkInId()).isEqualTo(7L);
         verify(badgeService).checkAndAward(1L, true);
+    }
+
+    @Test
+    @DisplayName("★checkInId가 없으면 자동으로 찾지 않는다 — 판단은 앱이 미리 받아간 답 하나뿐이다")
+    void create_doesNotAutoLink() {
+        Place p = place(3L);
+        when(placeService.getById(3L)).thenReturn(p);
+        when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
+        when(reviewRepository.saveAndFlush(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ReviewResponse res = service.createReview(1L, plainReq());
+
+        assertThat(res.authenticated()).isFalse();
+        // 자동 탐색 쿼리를 아예 부르지 않는다 — 서버의 두 번째 판단이 사라졌다는 뜻이다.
+        verify(checkInRepository, never()).findRecentForReview(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("★인증 없는 리뷰에 혼밥 별점을 보내면 400 — 일반 리뷰 화면을 우회해 지표를 오염시킬 수 없다")
+    void create_rejectsSoloRatingWithoutCheckIn() {
+        Place p = place(3L);   // place()가 when()을 쓰므로 thenReturn 인자로 바로 넣으면 nested-when 오류
+        when(placeService.getById(3L)).thenReturn(p);
+
+        assertThatThrownBy(() -> service.createReview(1L, req(null, List.of())))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT));
+    }
+
+    @Test
+    @DisplayName("인증 없는 리뷰에 친화 태그를 보내도 400 — 태그도 혼밥한 사람만 붙일 수 있다")
+    void create_rejectsTagsWithoutCheckIn() {
+        Place p = place(3L);
+        when(placeService.getById(3L)).thenReturn(p);
+        ReviewCreateRequest withTags = new ReviewCreateRequest(3L, null, 5, null, "본문", List.of("바테이블"), null);
+
+        assertThatThrownBy(() -> service.createReview(1L, withTags))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT));
+    }
+
+    @Test
+    @DisplayName("인증 리뷰인데 혼밥 별점이 없으면 400 — 혼밥 화면은 반드시 별점을 보낸다")
+    void create_rejectsMissingSoloRatingWhenLinked() {
+        Place p = place(3L);
+        when(placeService.getById(3L)).thenReturn(p);
+        usableCheckIn(7L, p);
+        when(reviewRepository.existsByCheckIn_Id(7L)).thenReturn(false);
+        ReviewCreateRequest noRating = new ReviewCreateRequest(3L, 7L, 5, null, "본문", List.of(), null);
+
+        assertThatThrownBy(() -> service.createReview(1L, noRating))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT));
+    }
+
+    @Test
+    @DisplayName("일반 리뷰는 혼밥 별점 없이 저장된다 — 혼밥 친화도 평균에 안 들어간다")
+    void create_savesPlainReviewWithNullSoloRating() {
+        Place p = place(3L);
+        when(placeService.getById(3L)).thenReturn(p);
+        when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
+        when(reviewRepository.saveAndFlush(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.createReview(1L, plainReq());
+
+        ArgumentCaptor<Review> captor = ArgumentCaptor.forClass(Review.class);
+        verify(reviewRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getSoloFriendlyRating()).isNull();
+        assertThat(captor.getValue().getTags()).isEmpty();
     }
 
     @Test
@@ -170,21 +252,26 @@ class ReviewServiceTest {
     }
 
     @Test
-    @DisplayName("그 체크인에 이미 인증 리뷰가 있으면 차단 않고 인증 없는 일반 리뷰로 저장")
-    void create_degradesToGeneralWhenCheckInAlreadyReviewed() {
+    @DisplayName("★강등되면 혼밥 별점·태그를 버린다 — 화면을 연 뒤 그 체크인에 리뷰가 생긴 드문 경우")
+    void create_dropsSoloFieldsWhenDegraded() {
         Place p = place(3L);
         when(placeService.getById(3L)).thenReturn(p);
         when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
-        CheckIn recent = mock(CheckIn.class);
-        when(recent.getId()).thenReturn(7L);
-        when(checkInRepository.findRecentForReview(eqL(1L), eqL(3L), any())).thenReturn(Optional.of(recent));
-        when(reviewRepository.existsByCheckIn_Id(7L)).thenReturn(true);
+        usableCheckIn(7L, p);
+        when(reviewRepository.existsByCheckIn_Id(7L)).thenReturn(true);   // 그 사이 리뷰가 생겼다
         when(reviewRepository.saveAndFlush(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ReviewResponse res = service.createReview(1L, req(null, List.of()));
+        // 400을 주지 않는다 — 사용자가 이미 쓴 글을 되돌릴 방법 없이 막히기 때문이다.
+        ReviewResponse res = service.createReview(1L, req(7L, List.of("1인석 많음")));
 
-        assertThat(res.authenticated()).isFalse();   // 인증 강등
+        assertThat(res.authenticated()).isFalse();
         assertThat(res.checkInId()).isNull();
+
+        // 대신 혼밥 값은 버려야 한다. 남기면 인증 없는 리뷰가 혼밥 친화도에 섞인다.
+        ArgumentCaptor<Review> captor = ArgumentCaptor.forClass(Review.class);
+        verify(reviewRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getSoloFriendlyRating()).isNull();
+        assertThat(captor.getValue().getTags()).isEmpty();
     }
 
     @Test
@@ -385,11 +472,11 @@ class ReviewServiceTest {
         Place p = place(3L);
         when(placeService.getById(3L)).thenReturn(p);
         when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
-        when(checkInRepository.findRecentForReview(eqL(1L), eqL(3L), any())).thenReturn(Optional.empty());
         when(reviewRepository.saveAndFlush(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
 
+        // 일반 리뷰(체크인 없음) — 혼밥 별점은 보내지 않는다. 사진은 두 화면 모두 붙일 수 있다.
         ReviewCreateRequest req = new ReviewCreateRequest(
-                3L, null, 5, 4, "좋아요", List.of(), List.of("url1", "url2"));
+                3L, null, 5, null, "좋아요", List.of(), List.of("url1", "url2"));
 
         service.createReview(1L, req);
 
