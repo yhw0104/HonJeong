@@ -515,6 +515,12 @@ class CheckInRepositoryTest extends AbstractPostgresTest {
         assertThat(together).isEqualTo(1);
         assertThat(solo + together).isEqualTo(total);
         assertThat(total).isEqualTo(2);
+
+        // ★메이트 목록의 배치 집계도 '혼밥'이라 표시되므로 solo와 같아야 한다. 총합(2)을 내면
+        // 남이 볼 때만 혼밥 횟수가 부풀어 오른다 — 2026-08-10에 실제로 그랬다(본인 6, 남이 볼 땐 11).
+        assertThat(checkInRepository.countByUserIds(List.of(user.getId())))
+                .singleElement()
+                .satisfies(row -> assertThat(row.getCnt()).isEqualTo(solo));
     }
 
     @Test

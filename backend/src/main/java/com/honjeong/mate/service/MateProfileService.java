@@ -131,7 +131,10 @@ public class MateProfileService {
                 AgeGroups.rangeOf(t.getBirthDate(), LocalDate.now(clock.withZone(KST))),
                 t.getDiningStyle() == null ? null : t.getDiningStyle().name(),
                 foods,
-                checkInRepository.countCompletedByUser(targetId),
+                // ★혼자 먹은 것만 센다. 앱은 이 값을 '혼밥'으로 표시하는데, 총합(countCompletedByUser)을
+                // 쓰면 같이먹기까지 더해져 본인 프로필의 '혼밥'과 숫자가 달라진다(2026-08-10 실기 지적:
+                // 본인 6인데 남이 볼 땐 11 = 6+5). 같은 사람의 같은 항목이 보는 사람에 따라 달라져선 안 된다.
+                checkInRepository.countSoloCompletedByUser(targetId),
                 checkInRepository.countTogetherBetween(viewerId, targetId),  // 함께 먹음(나↔대상 실제 매칭 체크인 pairwise)
                 userBadgeRepository.countByUserId(targetId),  // badgeCount — 대상(프로필 주인)의 뱃지 개수
                 online, currentPlaceName, currentPlaceId,

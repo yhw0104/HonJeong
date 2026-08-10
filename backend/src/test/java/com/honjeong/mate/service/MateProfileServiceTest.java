@@ -94,7 +94,7 @@ class MateProfileServiceTest {
                 .thenReturn(Optional.empty());
         when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(2L, 1L, MateRequestStatus.PENDING))
                 .thenReturn(Optional.empty());
-        when(checkInRepository.countCompletedByUser(2L)).thenReturn(3L);
+        when(checkInRepository.countSoloCompletedByUser(2L)).thenReturn(3L);
         when(foodRepository.findByUserId(2L)).thenReturn(Optional.empty());
 
         Place place = mock(Place.class);
@@ -125,7 +125,7 @@ class MateProfileServiceTest {
                 .thenReturn(Optional.empty());
         when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(2L, 1L, MateRequestStatus.PENDING))
                 .thenReturn(Optional.empty());
-        when(checkInRepository.countCompletedByUser(2L)).thenReturn(0L);
+        when(checkInRepository.countSoloCompletedByUser(2L)).thenReturn(0L);
         when(foodRepository.findByUserId(2L)).thenReturn(Optional.empty());
 
         Place place = mock(Place.class);
@@ -158,7 +158,7 @@ class MateProfileServiceTest {
         when(active.getPlace()).thenReturn(place);
         when(checkInRepository.findByUser_IdAndStatusIn(2L, List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE)))
                 .thenReturn(Optional.of(active));
-        when(checkInRepository.countCompletedByUser(2L)).thenReturn(5L);
+        when(checkInRepository.countSoloCompletedByUser(2L)).thenReturn(5L);
 
         UserFoodPreference pref = mock(UserFoodPreference.class);
         when(pref.toFoods()).thenReturn(List.of("한식"));
@@ -189,7 +189,7 @@ class MateProfileServiceTest {
         when(mateRepository.existsByUser_IdAndMateUser_Id(1L, 2L)).thenReturn(false);
         when(checkInRepository.findByUser_IdAndStatusIn(2L, List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE)))
                 .thenReturn(Optional.empty());
-        when(checkInRepository.countCompletedByUser(2L)).thenReturn(8L);
+        when(checkInRepository.countSoloCompletedByUser(2L)).thenReturn(8L);
         when(foodRepository.findByUserId(2L)).thenReturn(Optional.empty());
         when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(1L, 2L, MateRequestStatus.PENDING))
                 .thenReturn(Optional.empty());
@@ -208,7 +208,7 @@ class MateProfileServiceTest {
         User target = user(2L, "상대");
         when(userRepository.findById(2L)).thenReturn(Optional.of(target));
         when(mateRepository.existsByUser_IdAndMateUser_Id(1L, 2L)).thenReturn(false);
-        when(checkInRepository.countCompletedByUser(2L)).thenReturn(0L);
+        when(checkInRepository.countSoloCompletedByUser(2L)).thenReturn(0L);
         when(foodRepository.findByUserId(2L)).thenReturn(Optional.empty());
         // 내가 보낸 건 없고(상대→나) PENDING만 존재
         when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(1L, 2L, MateRequestStatus.PENDING))
@@ -230,7 +230,7 @@ class MateProfileServiceTest {
         when(mateRepository.existsByUser_IdAndMateUser_Id(1L, 2L)).thenReturn(false);
         when(checkInRepository.findByUser_IdAndStatusIn(2L, List.of(CheckInStatus.SEEKING, CheckInStatus.ACTIVE)))
                 .thenReturn(Optional.empty());
-        when(checkInRepository.countCompletedByUser(2L)).thenReturn(0L);
+        when(checkInRepository.countSoloCompletedByUser(2L)).thenReturn(0L);
         when(foodRepository.findByUserId(2L)).thenReturn(Optional.empty());
         when(mateRequestRepository.findByFromUser_IdAndToUser_IdAndStatus(1L, 2L, MateRequestStatus.PENDING))
                 .thenReturn(Optional.empty());

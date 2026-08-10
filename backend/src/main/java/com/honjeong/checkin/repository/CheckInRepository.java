@@ -364,11 +364,14 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     List<CheckIn> findSeekingOrActiveWithPlaceByUserIds(@Param("userIds") List<Long> userIds);
 
     /**
-     * 주어진 사용자 id 목록의 체크인 수(혼밥 횟수)를 사용자별로 배치 집계한다
+     * 주어진 사용자 id 목록의 <b>혼밥</b> 횟수를 사용자별로 배치 집계한다
      * (메이트 목록 checkInCount N+1 방지).
      *
-     * <p>본인 프로필·메이트 상세와 같은 기준({@code countCompletedByUser})으로
-     * CANCELLED(30분 미만 취소)와 SEEKING(모집만 하고 안 먹음)은 제외한다 — 포함하면 화면마다 혼밥 횟수가 달라진다.
+     * <p>기준은 {@link #countSoloCompletedByUser}와 같다 — CANCELLED(30분 미만 취소)·SEEKING(모집만 하고
+     * 안 먹음) 제외 + <b>매칭 안 됨(matchedAt IS NULL)</b>. 화면마다 혼밥 횟수가 달라지지 않게 하려는 것이고,
+     * 실제로 두 번 어긋났다: 2026-07-04에 CANCELLED 포함 여부로 한 번(a9966d8), 그리고 07-12에 본인
+     * 프로필만 혼밥/같이먹음으로 쪼개지면서(81a2e9c) 매칭 여부로 또 한 번(2026-08-10 실기 지적).
+     * <b>'혼밥'이라는 라벨이 붙는 숫자는 반드시 이 세 조건을 전부 만족해야 한다.</b>
      * 유효 체크인이 0건인 사용자는 결과에 포함되지 않는다(호출 측에서 기본값 0으로 처리).
      *
      * <p><b>주의:</b> userIds가 빈 리스트이면 JPQL {@code IN ()} 오류가 발생할 수 있으므로
@@ -382,6 +385,7 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             WHERE c.user.id IN :userIds AND c.status NOT IN (
                 com.honjeong.checkin.domain.CheckInStatus.CANCELLED,
                 com.honjeong.checkin.domain.CheckInStatus.SEEKING)
+              AND c.matchedAt IS NULL
             GROUP BY c.user.id
             """)
     List<CheckInCountRow> countByUserIds(@Param("userIds") List<Long> userIds);
