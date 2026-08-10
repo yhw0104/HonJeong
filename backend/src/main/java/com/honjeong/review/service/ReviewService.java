@@ -29,6 +29,7 @@ import com.honjeong.review.dto.MyReviewsResponse;
 import com.honjeong.review.dto.PlacePhotoResponse;
 import com.honjeong.review.dto.PlaceReviewResponse;
 import com.honjeong.review.dto.PlaceReviewSummaryResponse;
+import com.honjeong.review.dto.ReviewContextResponse;
 import com.honjeong.review.dto.ReviewCreateRequest;
 import com.honjeong.review.dto.ReviewResponse;
 import com.honjeong.review.dto.ReviewUpdateRequest;
@@ -131,6 +132,19 @@ public class ReviewService {
         return reviewPhotoRepository.findByPlaceFlattened(placeId).stream()
                 .map(row -> new PlacePhotoResponse(row.getImageUrl(), row.getReviewId()))
                 .toList();
+    }
+
+    /**
+     * 리뷰 작성 화면을 고르기 위한 사전 조회 — 지금 이 식당에 리뷰를 쓰면 연결될 체크인이 있는가.
+     *
+     * @param userId 회원 id
+     * @param placeId 식당 id
+     * @return 연결될 체크인 ID(없으면 null을 담은 응답)
+     */
+    @Transactional(readOnly = true)
+    public ReviewContextResponse getReviewContext(Long userId, Long placeId) {
+        CheckIn linkable = findLinkableCheckIn(userId, placeId, now());
+        return new ReviewContextResponse(linkable == null ? null : linkable.getId());
     }
 
     /**

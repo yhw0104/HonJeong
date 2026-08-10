@@ -20,6 +20,7 @@ import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.security.JwtProvider;
 import com.honjeong.review.dto.PlacePhotoResponse;
 import com.honjeong.review.dto.PlaceReviewResponse;
+import com.honjeong.review.dto.ReviewContextResponse;
 import com.honjeong.review.service.ReviewService;
 import com.honjeong.support.ActiveUserSliceSupport;
 
@@ -46,6 +47,28 @@ class PlaceReviewControllerTest extends ActiveUserSliceSupport {
                 .andExpect(jsonPath("$.data[0].user.nickname").value("연남러"))
                 .andExpect(jsonPath("$.data[0].authenticated").value(true))
                 .andExpect(jsonPath("$.data[0].mine").value(true));
+    }
+
+    @Test
+    @DisplayName("GET /api/places/{id}/review-context: 200 + 연결될 체크인 ID")
+    void reviewContext_200() throws Exception {
+        when(reviewService.getReviewContext(1L, 3L)).thenReturn(new ReviewContextResponse(7L));
+
+        mockMvc.perform(get("/api/places/3/review-context")
+                        .header("Authorization", "Bearer " + jwtProvider.createAccessToken(1L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.linkableCheckInId").value(7));
+    }
+
+    @Test
+    @DisplayName("GET /api/places/{id}/review-context: 연결할 체크인이 없으면 null — 앱은 일반 리뷰 화면을 연다")
+    void reviewContext_200_null() throws Exception {
+        when(reviewService.getReviewContext(1L, 3L)).thenReturn(new ReviewContextResponse(null));
+
+        mockMvc.perform(get("/api/places/3/review-context")
+                        .header("Authorization", "Bearer " + jwtProvider.createAccessToken(1L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.linkableCheckInId").doesNotExist());
     }
 
     @Test

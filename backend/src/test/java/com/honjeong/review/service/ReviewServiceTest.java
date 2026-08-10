@@ -119,6 +119,46 @@ class ReviewServiceTest {
     }
 
     @Test
+    @DisplayName("★review-context가 '쓸 수 있다'고 한 체크인은 createReview도 연결한다 — 화면과 결과가 같아야 한다")
+    void reviewContext_agreesWithCreate() {
+        Place p = place(3L);
+        when(placeService.getById(3L)).thenReturn(p);
+        when(userRepository.getReferenceById(1L)).thenReturn(mock(User.class));
+        CheckIn ci = usableCheckIn(7L, p);
+        when(checkInRepository.findRecentForReview(eqL(1L), eqL(3L), any())).thenReturn(Optional.of(ci));
+        when(reviewRepository.existsByCheckIn_Id(7L)).thenReturn(false);
+        when(reviewRepository.saveAndFlush(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // 앱이 받는 답
+        Long fromContext = service.getReviewContext(1L, 3L).linkableCheckInId();
+        assertThat(fromContext).isEqualTo(7L);
+
+        // 앱이 그 답을 그대로 되돌려 보냈을 때 실제로 연결되는가
+        ReviewResponse res = service.createReview(1L, req(fromContext, List.of()));
+        assertThat(res.checkInId()).isEqualTo(7L);
+        assertThat(res.authenticated()).isTrue();
+    }
+
+    @Test
+    @DisplayName("★이미 리뷰가 있는 체크인은 review-context도 null을 준다 — createReview의 강등 조건과 같다")
+    void reviewContext_nullWhenCheckInAlreadyReviewed() {
+        CheckIn ci = mock(CheckIn.class);
+        when(ci.getId()).thenReturn(7L);
+        when(checkInRepository.findRecentForReview(eqL(1L), eqL(3L), any())).thenReturn(Optional.of(ci));
+        when(reviewRepository.existsByCheckIn_Id(7L)).thenReturn(true);
+
+        assertThat(service.getReviewContext(1L, 3L).linkableCheckInId()).isNull();
+    }
+
+    @Test
+    @DisplayName("연결할 체크인이 없으면 review-context는 null — 앱은 일반 리뷰 화면을 연다")
+    void reviewContext_nullWhenNoCheckIn() {
+        when(checkInRepository.findRecentForReview(eqL(1L), eqL(3L), any())).thenReturn(Optional.empty());
+
+        assertThat(service.getReviewContext(1L, 3L).linkableCheckInId()).isNull();
+    }
+
+    @Test
     @DisplayName("★인증 없는 리뷰에 혼밥 별점을 보내면 400 — 일반 리뷰 화면을 우회해 지표를 오염시킬 수 없다")
     void create_rejectsSoloRatingWithoutCheckIn() {
         Place p = place(3L);   // place()가 when()을 쓰므로 thenReturn 인자로 바로 넣으면 nested-when 오류
