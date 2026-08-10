@@ -21,6 +21,7 @@ import { ReceivedRequestsScreen } from '@/features/mate/screens/ReceivedRequests
 import { DiningHistoryScreen } from '@/features/record/screens/DiningHistory';
 import { MyReviewsScreen } from '@/features/review/screens/MyReviews';
 import { DiningLogWriteScreen } from '@/features/record/screens/DiningLogWrite';
+import { ReviewWriteScreen } from '@/features/review/screens/ReviewWrite';
 import { ChallengeBadgesScreen } from '@/features/record/screens/ChallengeBadges';
 import { MyProfileScreen } from '@/features/profile/screens/MyProfile';
 import { ProfileEditScreen } from '@/features/profile/screens/ProfileEdit';
@@ -75,6 +76,7 @@ export function RootNavigator() {
           <Stack.Screen name="ChallengeBadges" component={ChallengeBadgesScreen} />
           <Stack.Screen name="MyProfile" component={MyProfileScreen} />
           <Stack.Screen name="DiningLogWrite" component={DiningLogWriteScreen} options={{ presentation: 'modal' }} />
+          <Stack.Screen name="ReviewWrite" component={ReviewWriteScreen} options={{ presentation: 'modal' }} />
           <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} options={{ presentation: 'modal' }} />
           <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} />

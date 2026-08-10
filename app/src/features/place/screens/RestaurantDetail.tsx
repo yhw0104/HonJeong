@@ -20,7 +20,8 @@ import type { Seeker, CheckIn } from '@/features/checkin/api';
 import { formatElapsed, addressHead } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { listState, type ListState } from '@/shared/state/listState';
-import { usePlaceReviews, usePlaceReviewSummary, useDeleteReview, usePlacePhotos } from '@/features/review/queries';
+import { usePlaceReviews, usePlaceReviewSummary, useReviewContext, useDeleteReview, usePlacePhotos } from '@/features/review/queries';
+import { reviewWriteTarget, reviewEditScreen } from '@/features/review/reviewWriteTarget';
 import type { PlaceReview, PlaceReviewSummary } from '@/features/review/api';
 import { reviewAuthorUnavailableMessage } from '@/features/review/reviewAuthorCopy';
 import { FavoriteSheet } from '@/features/favorites/components/FavoriteSheet';
@@ -74,6 +75,8 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const seekersSt = listState({ isLoading: seekers.isLoading, isError: seekers.isError, count: (seekers.data ?? []).length });
   const reviews = usePlaceReviews(placeId);
   const summary = usePlaceReviewSummary(placeId);
+  // 버튼을 누를 때 기다리지 않게 화면 진입 시 미리 받아 둔다(어느 작성 화면을 열지 판단용).
+  const reviewCtx = useReviewContext(placeId);
 
   // 종료 시트가 떠 있는 동안 뒤로가기 스와이프를 끄는 처리는 **EndHonbabSheet 안으로 옮겼다**.
   // 여기서 화면별로 하던 것을 시트가 스스로 하게 바꾼 이유는 그 파일 주석 참조 — 화면마다 막는
@@ -90,13 +93,42 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
       { text: '취소', style: 'cancel' },
       { text: '삭제', style: 'destructive', onPress: () => delMut.mutate(reviewId) },
     ]);
-  const editReview = (r: PlaceReview) =>
-    navigation.navigate('DiningLogWrite', {
+  // 새 리뷰 — 어느 화면을 열지는 서버가 정한다(연결될 체크인이 있으면 혼밥 화면).
+  // 조회에 실패하면 일반 리뷰 화면으로 간다: 혼밥 화면을 잘못 열면 혼밥 별점을 물어봐 놓고
+  // 서버가 400으로 거절해 사용자가 저장할 수 없게 된다.
+  const writeReview = () => {
+    const target = reviewWriteTarget(reviewCtx.data?.linkableCheckInId ?? null);
+    if (target.screen === 'DiningLogWrite') {
+      navigation.navigate('DiningLogWrite', { placeId, placeName: name, checkInId: target.checkInId });
+    } else {
+      navigation.navigate('ReviewWrite', { placeId, placeName: name });
+    }
+  };
+
+  // 수정 — 인증 여부는 서버가 이미 판정했고 바뀌지 않는다(checkIn이 불변).
+  const editReview = (r: PlaceReview) => {
+    if (reviewEditScreen(r.authenticated) === 'DiningLogWrite') {
+      navigation.navigate('DiningLogWrite', {
+        placeId,
+        placeName: name,
+        reviewId: r.reviewId,
+        initial: { taste: r.tasteRating, honbab: r.soloFriendlyRating, tags: r.tags, content: r.content ?? '', photos: r.imageUrls },
+      });
+      return;
+    }
+    navigation.navigate('ReviewWrite', {
       placeId,
       placeName: name,
       reviewId: r.reviewId,
-      initial: { taste: r.tasteRating, honbab: r.soloFriendlyRating, tags: r.tags, content: r.content ?? '', photos: r.imageUrls },
+      initial: {
+        taste: r.tasteRating,
+        content: r.content ?? '',
+        photos: r.imageUrls,
+        // 화면엔 안 보이지만 그대로 되돌려 보낸다 — 예전에 쓰인 인증 없는 리뷰에 남아 있는 값을 지키려고.
+        keepSolo: { honbab: r.soloFriendlyRating, tags: r.tags },
+      },
     });
+  };
   const reportReview = (r: PlaceReview) =>
     navigation.navigate('ReportForm', { targetType: 'REVIEW', targetId: r.reviewId, targetNickname: r.user.nickname });
   // 리뷰 작성자 닉네임 탭 → 프로필. 내 리뷰는 내 프로필로 보낸다(MateProfile은 남의 프로필용이라
@@ -244,7 +276,10 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
               reviews={reviews.data ?? []}
               isLoading={reviews.isLoading}
               isError={reviews.isError}
-              onWrite={() => navigation.navigate('DiningLogWrite', { placeId, placeName: name })}
+              onWrite={writeReview}
+              // 아직 어느 화면인지 모르는 동안은 누르지 못하게 한다 — 이 짧은 구간에 누르면
+              // 혼밥 후인데도 일반 리뷰 화면이 열려 인증을 놓친다.
+              writeDisabled={reviewCtx.isPending}
               onEdit={editReview}
               onDelete={confirmDelete}
               onReport={reportReview}
@@ -563,9 +598,11 @@ function MenuTab() {
 }
 
 /* ── 리뷰 탭 ─────────────────────────────────────── */
-function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete, onReport, onOpenAuthor }: {
+function ReviewTab({ reviews, isLoading, isError, onWrite, writeDisabled, onEdit, onDelete, onReport, onOpenAuthor }: {
   reviews: PlaceReview[];
   isLoading: boolean; isError: boolean; onWrite: () => void;
+  /** 어느 작성 화면을 열지 아직 모르는 동안 true — 잘못된 화면이 열리지 않게 잠시 막는다. */
+  writeDisabled: boolean;
   onEdit: (r: PlaceReview) => void; onDelete: (reviewId: number) => void; onReport: (r: PlaceReview) => void;
   onOpenAuthor: (r: PlaceReview) => void;
 }) {
@@ -576,7 +613,12 @@ function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete, onR
           <Text style={styles.reviewHeadTitle}>리뷰</Text>
           <Text style={styles.reviewHeadCount}> {reviews.length}개</Text>
         </View>
-        <Pressable style={styles.writeBtn} onPress={onWrite} accessibilityRole="button">
+        <Pressable
+          style={[styles.writeBtn, writeDisabled && { opacity: 0.5 }]}
+          onPress={onWrite}
+          disabled={writeDisabled}
+          accessibilityRole="button"
+        >
           <Icon name="pencil" size={14} color="#fff" />
           <Text style={styles.writeText}>리뷰 쓰기</Text>
         </Pressable>

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { createReview, updateReview, deleteReview, listPlaceReviews, fetchPlaceReviewSummary, fetchDiningHistory, fetchMyReviews, fetchPlacePhotos, type CreateReviewBody, type UpdateReviewBody } from './api';
+import { createReview, updateReview, deleteReview, listPlaceReviews, fetchPlaceReviewSummary, fetchReviewContext, fetchDiningHistory, fetchMyReviews, fetchPlacePhotos, type CreateReviewBody, type UpdateReviewBody } from './api';
 
 export function usePlaceReviews(placeId: number) {
   return useQuery({
@@ -12,6 +12,20 @@ export function usePlaceReviewSummary(placeId: number) {
   return useQuery({
     queryKey: ['place', placeId, 'review-summary'],
     queryFn: () => fetchPlaceReviewSummary(placeId),
+  });
+}
+
+/**
+ * '리뷰 쓰기'를 누르면 어느 화면을 열지 — 지금 쓰면 혼밥 인증으로 연결될 체크인이 있는가.
+ *
+ * 식당 상세에 들어올 때 미리 걸어 둔다(버튼을 누를 때 기다리지 않게). 체크인 상태는 수시로
+ * 바뀌므로 캐시를 오래 들고 있지 않는다 — 화면에 머무는 동안 시작·종료할 수 있다.
+ */
+export function useReviewContext(placeId: number) {
+  return useQuery({
+    queryKey: ['place', placeId, 'review-context'],
+    queryFn: () => fetchReviewContext(placeId),
+    staleTime: 0,
   });
 }
 

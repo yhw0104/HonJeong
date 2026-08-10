@@ -5,6 +5,7 @@ import { Screen, MoreHeader } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { useMyReviews, useDeleteReview } from '@/features/review/queries';
+import { reviewEditScreen } from '@/features/review/reviewWriteTarget';
 import type { MyReview } from '@/features/review/api';
 
 export function MyReviewsScreen({ navigation }: RootStackScreenProps<'MyReviews'>) {
@@ -16,6 +17,38 @@ export function MyReviewsScreen({ navigation }: RootStackScreenProps<'MyReviews'
       { text: '취소', style: 'cancel' },
       { text: '삭제', style: 'destructive', onPress: () => delMut.mutate(reviewId) },
     ]);
+
+  // 인증 리뷰만 혼밥 별점·태그를 가질 수 있어 수정 화면도 갈린다. 인증 여부는 불변이라
+  // (checkIn을 못 바꾼다) 서버가 내려준 값으로 그대로 판단한다.
+  const editReview = (r: MyReview) => {
+    if (reviewEditScreen(r.authenticated) === 'DiningLogWrite') {
+      navigation.navigate('DiningLogWrite', {
+        placeId: r.placeId,
+        placeName: r.placeName,
+        reviewId: r.reviewId,
+        initial: {
+          taste: r.tasteRating,
+          honbab: r.soloFriendlyRating,
+          tags: r.tags,
+          content: r.content ?? '',
+          photos: r.imageUrls,
+        },
+      });
+      return;
+    }
+    navigation.navigate('ReviewWrite', {
+      placeId: r.placeId,
+      placeName: r.placeName,
+      reviewId: r.reviewId,
+      initial: {
+        taste: r.tasteRating,
+        content: r.content ?? '',
+        photos: r.imageUrls,
+        // 화면엔 안 보이지만 그대로 되돌려 보낸다 — 예전 리뷰에 남아 있는 값을 지우지 않으려고.
+        keepSolo: { honbab: r.soloFriendlyRating, tags: r.tags },
+      },
+    });
+  };
 
   const reviews = data?.reviews ?? [];
 
@@ -99,23 +132,7 @@ export function MyReviewsScreen({ navigation }: RootStackScreenProps<'MyReviews'
                 )}
 
                 <View style={styles.actionRow}>
-                  <Pressable
-                    hitSlop={6}
-                    onPress={() =>
-                      navigation.navigate('DiningLogWrite', {
-                        placeId: r.placeId,
-                        placeName: r.placeName,
-                        reviewId: r.reviewId,
-                        initial: {
-                          taste: r.tasteRating,
-                          honbab: r.soloFriendlyRating,
-                          tags: r.tags,
-                          content: r.content ?? '',
-                          photos: r.imageUrls,
-                        },
-                      })
-                    }
-                  >
+                  <Pressable hitSlop={6} onPress={() => editReview(r)}>
                     <Text style={styles.actionEdit}>수정</Text>
                   </Pressable>
                   <Pressable hitSlop={6} onPress={() => confirmDelete(r.reviewId)}>
