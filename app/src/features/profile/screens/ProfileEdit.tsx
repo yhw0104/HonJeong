@@ -126,7 +126,13 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
       ) : isError ? (
         <StateView kind="error" onRetry={() => refetch()} />
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          // 아래쪽 입력칸이 키보드에 가리지 않게(DiningLogWrite에 이유를 적어 뒀다).
+          automaticallyAdjustKeyboardInsets
+        >
         {/* 사진 변경 / 기본 이미지로 */}
         <View style={styles.photoBlock}>
           <Pressable onPress={onChangePhoto} disabled={uploading}>

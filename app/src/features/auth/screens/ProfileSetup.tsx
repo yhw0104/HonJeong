@@ -162,7 +162,13 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+      {/* automaticallyAdjustKeyboardInsets — 아래쪽 입력칸이 키보드에 가리지 않게(DiningLogWrite와 같은 이유). */}
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
+      >
         <StepProgress step={3} />
 
         <Text style={styles.h1}>프로필을{'\n'}완성해주세요</Text>

@@ -1,6 +1,6 @@
 // FavoriteSheet — 식당상세 하트용 그룹 선택 바텀시트(RN 기본 Modal). 체크 토글로 담기/빼기, 인라인 새 그룹.
-import React, { useState } from 'react';
-import { Modal, View, Text, Pressable, ScrollView, TextInput, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Modal, View, Text, Pressable, ScrollView, TextInput, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { Icon } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { DEFAULT_FAVORITE_COLOR } from '../favoriteColors';
@@ -20,9 +20,30 @@ export function FavoriteSheet({ placeId, visible, onClose }: { placeId: number; 
   const [newName, setNewName] = useState('');
   const groups = statusQ.data?.groups ?? [];
 
+  // ★시트가 닫히면 입력 상태를 되돌린다. Modal은 visible=false로도 언마운트되지 않아
+  // creating이 true로 남고, 다시 열면 그 TextInput이 포커스를 되찾아 **키보드가 같이 올라왔다**
+  // (실기 지적). 여는 쪽이 아니라 닫히는 쪽에서 치워야 다음 열림이 항상 깨끗하다.
+  useEffect(() => {
+    if (!visible) {
+      setCreating(false);
+      setNewName('');
+    }
+  }, [visible]);
+
   const toggle = (groupId: number, contains: boolean) => {
     if (contains) remove.mutate(groupId);
     else add.mutate(groupId);
+  };
+
+  // 바깥을 눌렀을 때. 이름을 입력 중이면 **입력만** 취소한다 — 키보드를 내리려고 빈 곳을 눌렀는데
+  // 시트까지 닫혀버리던 문제(실기 지적). 입력 중이 아니면 원래대로 시트를 닫는다.
+  const onBackdrop = () => {
+    if (creating) {
+      setCreating(false);
+      setNewName('');
+      return; // TextInput이 사라지면서 키보드도 함께 내려간다
+    }
+    onClose();
   };
 
   const submitNew = () => {
@@ -42,53 +63,61 @@ export function FavoriteSheet({ placeId, visible, onClose }: { placeId: number; 
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.panel}>
-        <View style={styles.handle} />
-        <Text style={styles.title}>어디에 저장할까요?</Text>
-        <ScrollView style={{ maxHeight: 320 }} keyboardDismissMode="on-drag">
-          {groups.map((g) => (
-            <Pressable key={g.groupId} style={styles.row} onPress={() => toggle(g.groupId, g.contains)}>
-              <Icon name="star" size={22} color={g.color} />
-              <Text style={styles.rowName}>{g.name}</Text>
-              <View style={[styles.check, g.contains && styles.checkOn]}>
-                {g.contains ? <Text style={styles.checkMark}>✓</Text> : null}
-              </View>
-            </Pressable>
-          ))}
-        </ScrollView>
+      {/*
+        KeyboardAvoidingView — 키보드가 올라오면 시트를 그 위로 밀어 올린다. 없으면 새 그룹
+        이름을 칠 때 입력칸이 키보드에 가려진다(실기 지적). 배경(flex:1)이 줄어들며 시트가 올라간다.
+      */}
+      <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Pressable style={styles.backdrop} onPress={onBackdrop} />
+        <View style={styles.panel}>
+          <View style={styles.handle} />
+          <Text style={styles.title}>어디에 저장할까요?</Text>
+          {/* 입력 중에는 목록을 줄인다 — 시트가 키보드 위 좁은 공간에 다 들어가야 한다. */}
+          <ScrollView style={{ maxHeight: creating ? 200 : 320 }} keyboardDismissMode="on-drag">
+            {groups.map((g) => (
+              <Pressable key={g.groupId} style={styles.row} onPress={() => toggle(g.groupId, g.contains)}>
+                <Icon name="star" size={22} color={g.color} />
+                <Text style={styles.rowName}>{g.name}</Text>
+                <View style={[styles.check, g.contains && styles.checkOn]}>
+                  {g.contains ? <Text style={styles.checkMark}>✓</Text> : null}
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
 
-        {creating ? (
-          <View style={styles.newRow}>
-            <TextInput
-              style={styles.newInput}
-              value={newName}
-              onChangeText={setNewName}
-              placeholder="새 그룹 이름"
-              placeholderTextColor={T2.textMute}
-              maxLength={20}
-              autoFocus
-              onSubmitEditing={submitNew}
-            />
-            <Pressable onPress={submitNew} hitSlop={8}>
-              <Text style={styles.newAdd}>추가</Text>
+          {creating ? (
+            <View style={styles.newRow}>
+              <TextInput
+                style={styles.newInput}
+                value={newName}
+                onChangeText={setNewName}
+                placeholder="새 그룹 이름"
+                placeholderTextColor={T2.textMute}
+                maxLength={20}
+                autoFocus
+                onSubmitEditing={submitNew}
+              />
+              <Pressable onPress={submitNew} hitSlop={8}>
+                <Text style={styles.newAdd}>추가</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable style={styles.newTrigger} onPress={() => setCreating(true)}>
+              <Text style={styles.newTriggerText}>＋ 새 그룹 만들기</Text>
             </Pressable>
-          </View>
-        ) : (
-          <Pressable style={styles.newTrigger} onPress={() => setCreating(true)}>
-            <Text style={styles.newTriggerText}>＋ 새 그룹 만들기</Text>
+          )}
+
+          <Pressable style={styles.doneBtn} onPress={onClose}>
+            <Text style={styles.doneText}>완료</Text>
           </Pressable>
-        )}
-
-        <Pressable style={styles.doneBtn} onPress={onClose}>
-          <Text style={styles.doneText}>완료</Text>
-        </Pressable>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   panel: { backgroundColor: T2.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 28 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: T2.border, marginBottom: 14 },

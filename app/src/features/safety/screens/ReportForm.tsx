@@ -50,7 +50,13 @@ export function ReportFormScreen({ navigation, route }: RootStackScreenProps<'Re
     <Screen bg={T2.bg} edges={['top']}>
       <MoreHeader title="신고하기" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+      {/* automaticallyAdjustKeyboardInsets — 아래쪽 입력칸이 키보드에 가리지 않게(DiningLogWrite와 같은 이유). */}
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
+      >
         <Text style={styles.target}>
           {targetType === 'REVIEW' ? `${targetNickname}님의 리뷰` : `${targetNickname}님`}
         </Text>

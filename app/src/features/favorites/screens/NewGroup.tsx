@@ -43,7 +43,13 @@ export function NewGroupScreen({ navigation, route }: RootStackScreenProps<'NewG
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+      {/* automaticallyAdjustKeyboardInsets — 아래쪽 입력칸이 키보드에 가리지 않게(DiningLogWrite와 같은 이유). */}
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
+      >
         <View style={styles.nameRow}>
           <View style={[styles.iconPreview, { borderColor: color }]}>
             <Icon name="star" size={30} color={color} />

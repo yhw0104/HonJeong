@@ -90,7 +90,19 @@ export function DiningLogWriteScreen({ navigation, route }: RootStackScreenProps
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+      {/*
+        automaticallyAdjustKeyboardInsets — '한 줄 기록'이 화면 맨 아래에 있어서 키보드가 올라오면
+        가려졌다(실기 지적). iOS는 키보드가 떠도 화면이 줄지 않으니 스크롤뷰가 스스로 아래 여백을
+        만들고 포커스된 입력칸을 키보드 위로 올려줘야 한다. RN이 그 둘을 다 해 주는 prop이다.
+        Android는 이 prop을 무시한다 — 거기선 화면 자체가 줄어들어(Expo 기본 softwareKeyboardLayoutMode=resize)
+        스크롤만으로 닿는다.
+      */}
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
+      >
         {/* 타이틀 */}
         <Text style={styles.h1}>{isEdit ? '리뷰 수정' : '오늘의 혼밥 기록'}</Text>
 
