@@ -79,13 +79,17 @@ export function useSheetDismissGesture(open: boolean, onClose: () => void) {
   /** 닫는 애니메이션이 도는 중인지 — 그 사이 또 닫으라고 해도 onClose가 두 번 불리지 않게. */
   const closingRef = useRef(false);
 
-  // 닫히면 다음 열림을 위해 원점으로. 애니메이션 없이 즉시 되돌린다(닫힌 뒤는 안 보인다).
+  // ★열고 닫는 **양쪽 모두**에서 원점으로 되돌린다. 특히 '열릴 때'가 중요하다.
+  //
+  // 닫힐 때만 되돌리면 안 된다: 그 시점엔 부모가 이미 시트를 언마운트해서 이 Animated 값이
+  // 네이티브 뷰에서 떨어져 있고(useNativeDriver: true), setValue가 화면에 반영되지 않을 수 있다.
+  // 그러면 다시 열었을 때 시트가 화면 밖(내려간 자리)에 그려져 **스크림만 어둡게 깔리고 시트는
+  // 안 보인다** — 2026-08-10 실기에서 "닫았다 다시 열면 안 뜬다"로 나온 증상이다.
+  // 슬라이드 아웃 애니메이션을 넣기 전에는 값이 늘 0이라 이 문제가 없었다.
   useEffect(() => {
-    if (!open) {
-      translateY.setValue(0);
-      offsetRef.current = 0;
-      closingRef.current = false;
-    }
+    translateY.setValue(0);
+    offsetRef.current = 0;
+    closingRef.current = false;
   }, [open, translateY]);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
@@ -103,7 +107,15 @@ export function useSheetDismissGesture(open: boolean, onClose: () => void) {
       useNativeDriver: true,
       // 다 내려간 뒤에야 부모가 시트를 치운다. 중간에 끊겨도(finished=false) 부르는 게 맞다 —
       // 안 부르면 시트가 화면 밖에 내려간 채 '열린 상태'로 남는다.
-    }).start(() => closeRef.current());
+    }).start(() => {
+      // ★onClose보다 **먼저** 원점으로 되돌린다. 아직 시트가 마운트돼 있어 Animated 값이
+      // 네이티브 뷰에 붙어 있는 마지막 순간이다 — 여기서 되돌려야 확실히 반영된다.
+      // 되돌린 모습이 보이지는 않는다: 바로 다음 줄에서 부모가 언마운트하고, 그 사이에
+      // 프레임이 그려지지 않는다.
+      translateY.setValue(0);
+      offsetRef.current = 0;
+      closeRef.current();
+    });
   }, [translateY]);
 
   const closeAction = useRef(requestClose);
