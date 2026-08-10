@@ -19,13 +19,13 @@ public record MyReviewsResponse(List<Item> reviews) {
      * @param visitedAt 방문 시각
      * @param content 리뷰 본문
      * @param tasteRating 맛 별점(1~5)
-     * @param soloFriendlyRating 혼밥 적합도 별점(1~5)
+     * @param soloFriendlyRating 혼밥 적합도 별점(1~5). 혼밥 인증 리뷰가 아니면 null
      * @param tags 혼밥 친화 태그 목록
      * @param imageUrls 첨부 사진 URL 목록
      * @param authenticated 인증(체크인 연결) 리뷰 여부
      * @param createdAt 작성 시각
      */
     public record Item(Long reviewId, Long placeId, String placeName, LocalDateTime visitedAt,
-            String content, int tasteRating, int soloFriendlyRating,
+            String content, int tasteRating, Integer soloFriendlyRating,
             List<String> tags, List<String> imageUrls, boolean authenticated, LocalDateTime createdAt) {}
 }

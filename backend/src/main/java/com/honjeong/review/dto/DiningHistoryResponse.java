@@ -40,10 +40,10 @@ public record DiningHistoryResponse(Summary summary, List<Entry> entries) {
      * @param reviewId 리뷰 ID
      * @param content 리뷰 본문
      * @param tasteRating 맛 별점(1~5)
-     * @param soloFriendlyRating 혼밥 적합도 별점(1~5)
+     * @param soloFriendlyRating 혼밥 적합도 별점(1~5). 혼밥 인증 리뷰가 아니면 null
      * @param tags 혼밥 친화 태그 목록
      * @param imageUrls 첨부 사진 URL 목록
      */
-    public record ReviewBrief(Long reviewId, String content, int tasteRating, int soloFriendlyRating,
+    public record ReviewBrief(Long reviewId, String content, int tasteRating, Integer soloFriendlyRating,
             List<String> tags, List<String> imageUrls) {}
 }

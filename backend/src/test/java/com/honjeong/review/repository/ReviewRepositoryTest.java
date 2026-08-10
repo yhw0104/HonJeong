@@ -73,6 +73,23 @@ class ReviewRepositoryTest extends AbstractPostgresTest {
     }
 
     @Test
+    @DisplayName("★인증 아닌 리뷰는 혼밥 별점을 NULL로 저장한다 — 혼밥 친화도 평균에 안 섞이게(V28)")
+    void savesNullSoloRating_whenNotAuthenticated() {
+        User user = persistUser("01000000009", "같이먹은러");
+        Place place = persistPlace("ext-9");
+
+        // 같이먹기 후 쓴 리뷰·체크인 없이 쓴 리뷰가 이 모양이다 — 맛 별점만 있고 혼밥 별점은 없다.
+        Review review = Review.create(user, null, place, NOW, 4, null, "둘이 와도 좋아요");
+        em.persist(review);
+        em.flush();
+        em.clear();
+
+        Review found = reviewRepository.findById(review.getId()).orElseThrow();
+        assertThat(found.getSoloFriendlyRating()).isNull();
+        assertThat(found.isAuthenticated()).isFalse();
+    }
+
+    @Test
     @DisplayName("식당 리뷰 목록: 제외 id 목록의 작성자 리뷰는 빠진다")
     void findByPlaceWithUserAndTags_excludesBlocked() {
         User userA = persistUser("01000000030", "정상러");

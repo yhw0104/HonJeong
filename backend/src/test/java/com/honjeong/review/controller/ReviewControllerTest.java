@@ -67,12 +67,27 @@ class ReviewControllerTest extends ActiveUserSliceSupport {
     }
 
     @Test
-    @DisplayName("별점 누락이면 400")
-    void create_400_whenRatingMissing() throws Exception {
+    @DisplayName("맛 별점 누락이면 400 — 맛 별점은 두 화면 모두 필수다")
+    void create_400_whenTasteRatingMissing() throws Exception {
         mockMvc.perform(post("/api/reviews").header("Authorization", userToken())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"placeId\":3,\"tasteRating\":5}"))
+                        .content("{\"placeId\":3,\"soloFriendlyRating\":4}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("★혼밥 별점 누락은 DTO 검증을 통과한다 — 인증 여부를 아는 건 서비스뿐이라 거기서 판단한다")
+    void create_201_whenSoloRatingMissing() throws Exception {
+        // 일반 리뷰 화면이 보내는 모양. 연결될 체크인이 있는지는 컨트롤러가 알 수 없으므로
+        // @NotNull로 막을 수 없다 — ReviewService.createReview가 불변식을 강제한다.
+        when(reviewService.createReview(eq(1L), any()))
+                .thenReturn(new ReviewResponse(43L, 3L, null, false));
+
+        mockMvc.perform(post("/api/reviews").header("Authorization", userToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"placeId\":3,\"tasteRating\":5,\"content\":\"둘이 와도 좋아요\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.authenticated").value(false));
     }
 
     @Test
@@ -100,12 +115,24 @@ class ReviewControllerTest extends ActiveUserSliceSupport {
     }
 
     @Test
-    @DisplayName("PATCH: 별점 누락이면 400")
-    void update_400_whenRatingMissing() throws Exception {
+    @DisplayName("PATCH: 맛 별점 누락이면 400")
+    void update_400_whenTasteRatingMissing() throws Exception {
         mockMvc.perform(patch("/api/reviews/42").header("Authorization", userToken())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"tasteRating\":4}"))
+                        .content("{\"soloFriendlyRating\":3}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("PATCH: 혼밥 별점 없이도 수정된다 — 일반 리뷰 화면의 수정 흐름")
+    void update_200_whenSoloRatingMissing() throws Exception {
+        when(reviewService.updateReview(eq(1L), eq(42L), any()))
+                .thenReturn(new ReviewResponse(42L, 3L, null, false));
+
+        mockMvc.perform(patch("/api/reviews/42").header("Authorization", userToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tasteRating\":4,\"content\":\"바뀜\"}"))
+                .andExpect(status().isOk());
     }
 
     @Test
