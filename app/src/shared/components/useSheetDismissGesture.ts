@@ -11,7 +11,7 @@
 // 예전에는 손을 떼는 순간 부모가 시트를 언마운트해서 화면에서 툭 사라졌다 — iOS 기본 모달
 // (presentation:'modal'인 같이먹기 신청·프로필 편집)이 아래로 미끄러지는 것과 달라 어색하다는
 // 지적을 받았다. 그래서 시트를 화면 밖까지 내린 다음 onClose를 부른다.
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { Animated, Dimensions, Easing, PanResponder, type LayoutChangeEvent } from 'react-native';
 
 /** 이만큼 아래로 끌면 닫는다(px). 손이 미끄러진 정도로는 안 닫히게 여유를 둔다. */
@@ -60,7 +60,7 @@ export function closeDuration(remaining: number): number {
 }
 
 /**
- * @param open 시트가 열려 있는지. false가 되면 위치를 원점으로 되돌린다.
+ * @param open 시트가 열려 있는지. true가 되는 순간 위치를 원점으로 되돌린다.
  * @param onClose 닫기 요청 콜백. **미끄러져 내려간 뒤에** 불린다.
  * @returns translateY - 시트에 줄 Animated 값 / panHandlers - 헤더 영역에 펼칠 핸들러 /
  *   onLayout - 시트(Animated.View)에 달 핸들러. 시트 높이를 알아야 딱 화면 밖까지만 내린다 /
@@ -79,18 +79,28 @@ export function useSheetDismissGesture(open: boolean, onClose: () => void) {
   /** 닫는 애니메이션이 도는 중인지 — 그 사이 또 닫으라고 해도 onClose가 두 번 불리지 않게. */
   const closingRef = useRef(false);
 
-  // ★열고 닫는 **양쪽 모두**에서 원점으로 되돌린다. 특히 '열릴 때'가 중요하다.
+  // ★원점으로 되돌리는 일은 **'열릴 때', 렌더 도중**에 한다. 두 가지가 다 조건이다.
   //
-  // 닫힐 때만 되돌리면 안 된다: 그 시점엔 부모가 이미 시트를 언마운트해서 이 Animated 값이
-  // 네이티브 뷰에서 떨어져 있고(useNativeDriver: true), setValue가 화면에 반영되지 않을 수 있다.
-  // 그러면 다시 열었을 때 시트가 화면 밖(내려간 자리)에 그려져 **스크림만 어둡게 깔리고 시트는
-  // 안 보인다** — 2026-08-10 실기에서 "닫았다 다시 열면 안 뜬다"로 나온 증상이다.
-  // 슬라이드 아웃 애니메이션을 넣기 전에는 값이 늘 0이라 이 문제가 없었다.
-  useEffect(() => {
-    translateY.setValue(0);
-    offsetRef.current = 0;
-    closingRef.current = false;
-  }, [open, translateY]);
+  // 왜 '열릴 때'인가: 닫는 애니메이션이 끝난 자리에서 값을 0으로 돌리면, 부모가 시트를
+  // 걷어내는 건 그다음 렌더라 그사이 네이티브가 **원위치의 시트를 한 프레임 그린다** —
+  // 2026-08-10 실기에서 "아래로 스와이프하면 잠깐 반짝하며 목록이 나왔다 사라진다"로 나온
+  // 증상이다. 값은 내려간 채로 두고, 다음에 열릴 때 되돌리는 것이 맞다.
+  //
+  // 왜 렌더 도중인가: 시트는 열릴 때 비로소 마운트된다({picking && <시트/>}). useEffect는
+  // 커밋 뒤에 돌기 때문에 그때 되돌리면 이미 '내려간 자리'에 한 번 그려진 뒤다. 렌더 중에
+  // 되돌리면 시트 뷰가 만들어지는 순간부터 값이 0이라 그런 프레임 자체가 없다.
+  //
+  // 되돌리기를 아예 빼면 안 된다: 훅은 시트가 아니라 **화면**(MapHome)에 살아서 Animated 값이
+  // 내려간 채 살아남는다. 그러면 다시 열었을 때 스크림만 깔리고 시트는 화면 밖에 그려진다.
+  const wasOpen = useRef(open);
+  if (open !== wasOpen.current) {
+    wasOpen.current = open;
+    if (open) {
+      translateY.setValue(0);
+      offsetRef.current = 0;
+      closingRef.current = false;
+    }
+  }
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     heightRef.current = e.nativeEvent.layout.height;
@@ -107,15 +117,10 @@ export function useSheetDismissGesture(open: boolean, onClose: () => void) {
       useNativeDriver: true,
       // 다 내려간 뒤에야 부모가 시트를 치운다. 중간에 끊겨도(finished=false) 부르는 게 맞다 —
       // 안 부르면 시트가 화면 밖에 내려간 채 '열린 상태'로 남는다.
-    }).start(() => {
-      // ★onClose보다 **먼저** 원점으로 되돌린다. 아직 시트가 마운트돼 있어 Animated 값이
-      // 네이티브 뷰에 붙어 있는 마지막 순간이다 — 여기서 되돌려야 확실히 반영된다.
-      // 되돌린 모습이 보이지는 않는다: 바로 다음 줄에서 부모가 언마운트하고, 그 사이에
-      // 프레임이 그려지지 않는다.
-      translateY.setValue(0);
-      offsetRef.current = 0;
-      closeRef.current();
-    });
+      //
+      // ★여기서 원점으로 되돌리지 않는다 — 되돌리면 부모가 시트를 걷어내기 전에 원위치의
+      // 시트가 한 프레임 비친다. 되돌리기는 다음에 열릴 때 한다(위 wasOpen 참고).
+    }).start(() => closeRef.current());
   }, [translateY]);
 
   const closeAction = useRef(requestClose);
