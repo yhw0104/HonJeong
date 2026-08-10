@@ -31,11 +31,13 @@ export function DirectionsSheet({ visible, placeName, onClose, onPick }: {
 
   return (
     <>
-      <Pressable style={styles.scrim} onPress={onClose} />
+      {/* 스크림·X도 requestClose로 — 스와이프와 같은 모양으로 미끄러져 닫힌다. */}
+      <Pressable style={styles.scrim} onPress={dismiss.requestClose} />
       <Animated.View
+        onLayout={dismiss.onLayout}
         style={[styles.sheet, { paddingBottom: insets.bottom + 14, transform: [{ translateY: dismiss.translateY }] }]}
       >
-        <Pressable style={styles.close} onPress={onClose} hitSlop={8} accessibilityRole="button">
+        <Pressable style={styles.close} onPress={dismiss.requestClose} hitSlop={8} accessibilityRole="button">
           <Text style={styles.closeX}>×</Text>
         </Pressable>
         {/* 끌어 내리는 영역 — 손잡이와 제목까지. 아래 지도앱 목록은 탭이 우선이라 제외한다. */}

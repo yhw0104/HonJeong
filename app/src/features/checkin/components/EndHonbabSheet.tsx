@@ -69,11 +69,13 @@ export function EndHonbabSheet({ checkIn, onClose, onReportNoShow }: {
 
   return (
     <>
-      <Pressable style={styles.scrim} onPress={onClose} />
+      {/* 스크림·X도 requestClose로 — 스와이프만 미끄러지고 탭은 툭 사라지면 따로 노는 두 동작이 된다. */}
+      <Pressable style={styles.scrim} onPress={dismiss.requestClose} />
       <Animated.View
+        onLayout={dismiss.onLayout}
         style={[styles.sheet, { paddingBottom: insets.bottom + 6, transform: [{ translateY: dismiss.translateY }] }]}
       >
-        <Pressable style={styles.close} onPress={onClose} hitSlop={8} accessibilityRole="button">
+        <Pressable style={styles.close} onPress={dismiss.requestClose} hitSlop={8} accessibilityRole="button">
           <Text style={styles.closeX}>×</Text>
         </Pressable>
         {/* 끌어 내리는 영역 — 손잡이와 그 주변 여백. 아래 본문(밀어서 완료)은 건드리지 않는다. */}

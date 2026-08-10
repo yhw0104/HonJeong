@@ -130,9 +130,12 @@ export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'Dining
                         <View style={styles.tasteChip}>
                           <Text style={styles.tasteText}>맛 ★ {e.review.tasteRating.toFixed(1)}</Text>
                         </View>
-                        <View style={styles.honbabChip}>
-                          <Text style={styles.honbabText}>혼밥 ★ {e.review.soloFriendlyRating.toFixed(1)}</Text>
-                        </View>
+                        {/* 이 화면은 솔로 체크인만 나오므로 실제로는 늘 값이 있다 — 타입이 nullable이라 방어한다. */}
+                        {e.review.soloFriendlyRating != null && (
+                          <View style={styles.honbabChip}>
+                            <Text style={styles.honbabText}>혼밥 ★ {e.review.soloFriendlyRating.toFixed(1)}</Text>
+                          </View>
+                        )}
                       </View>
                       <View style={styles.actionRow}>
                         <Pressable

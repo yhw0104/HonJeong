@@ -421,10 +421,14 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                       <Text style={styles.ratingLabel}>맛</Text>
                       <Text style={styles.listStar}>★ {(r.avgTasteRating ?? 0).toFixed(1)}</Text>
                     </View>
-                    <View style={styles.ratingItem}>
-                      <Text style={styles.ratingLabel}>혼밥</Text>
-                      <Text style={styles.listStar}>★ {(r.avgSoloFriendlyRating ?? 0).toFixed(1)}</Text>
-                    </View>
+                    {/* 혼밥 평균은 혼밥 인증 리뷰만 반영한다 — 리뷰는 있는데 전부 인증이 아니면
+                        평균이 없다. ?? 0으로 두면 그런 식당이 '★ 0.0'(최악)으로 보인다. */}
+                    {r.avgSoloFriendlyRating != null && (
+                      <View style={styles.ratingItem}>
+                        <Text style={styles.ratingLabel}>혼밥</Text>
+                        <Text style={styles.listStar}>★ {r.avgSoloFriendlyRating.toFixed(1)}</Text>
+                      </View>
+                    )}
                     <Text style={styles.ratingCount}>리뷰 {r.reviewCount}</Text>
                   </View>
                 )}
@@ -462,8 +466,10 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
       {/* 식당 선택 시트 — 혼밥 시작 전 어디서 먹는지 선택 */}
       {picking && (
         <>
-          <Pressable style={styles.scrim} onPress={() => setPicking(false)} />
+          {/* 스크림 탭도 requestClose로 — 스와이프와 같은 모양으로 미끄러져 닫힌다. */}
+          <Pressable style={styles.scrim} onPress={pickDismiss.requestClose} />
           <Animated.View
+            onLayout={pickDismiss.onLayout}
             style={[
               styles.pickSheet,
               { paddingBottom: insets.bottom + 24, transform: [{ translateY: pickDismiss.translateY }] },
@@ -528,8 +534,9 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         const group = nearbyList.filter((p) => clusterIds.includes(p.placeId));
         return (
           <>
-            <Pressable style={styles.scrim} onPress={() => setClusterIds(null)} />
+            <Pressable style={styles.scrim} onPress={clusterDismiss.requestClose} />
             <Animated.View
+              onLayout={clusterDismiss.onLayout}
               style={[
                 styles.pickSheet,
                 { paddingBottom: insets.bottom + 24, transform: [{ translateY: clusterDismiss.translateY }] },

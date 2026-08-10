@@ -26,7 +26,8 @@ export type RootStackParamList = {
     placeName: string;
     checkInId?: number;
     reviewId?: number;
-    initial?: { taste: number; honbab: number; tags: string[]; content: string; photos?: string[] };
+    /** honbab은 혼밥 인증 리뷰만 값을 갖는다 — 인증 아닌 리뷰를 수정할 때는 null이 온다. */
+    initial?: { taste: number; honbab: number | null; tags: string[]; content: string; photos?: string[] };
   };
   ChallengeBadges: undefined;
   MyProfile: undefined;

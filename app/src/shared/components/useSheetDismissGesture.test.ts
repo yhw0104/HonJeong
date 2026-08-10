@@ -1,6 +1,6 @@
 // 시트를 아래로 끌어 닫는 판단. 실기 테스트에서 "너무 살짝만 내려도 바로 닫힌다"는
 // 지적을 받아 고친 규칙이라, 그 지적이 되살아나지 않게 여기서 고정한다.
-import { shouldDismissSheet } from './useSheetDismissGesture';
+import { shouldDismissSheet, closeDuration } from './useSheetDismissGesture';
 
 describe('shouldDismissSheet', () => {
   describe('거리로 닫기', () => {
@@ -36,5 +36,21 @@ describe('shouldDismissSheet', () => {
       expect(shouldDismissSheet(-100, -3)).toBe(false);
       expect(shouldDismissSheet(0, -3)).toBe(false);
     });
+  });
+});
+
+describe('closeDuration', () => {
+  it('남은 거리에 비례한다 — 손을 뗀 흐름을 이어 미끄러진다', () => {
+    expect(closeDuration(440)).toBeCloseTo(200);
+    expect(closeDuration(330)).toBeCloseTo(150);
+  });
+
+  it('거의 다 내려온 시트가 굼뜨지 않게 하한을 둔다', () => {
+    expect(closeDuration(0)).toBe(130);
+    expect(closeDuration(20)).toBe(130);
+  });
+
+  it('키가 큰 시트도 늘어지지 않게 상한을 둔다', () => {
+    expect(closeDuration(2000)).toBe(300);
   });
 });

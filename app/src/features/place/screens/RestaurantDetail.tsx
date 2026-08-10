@@ -258,7 +258,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
               onMeal={goMealRequest}
               onOpenProfile={goDinerProfile}
               soloRating={summary.data?.avgSoloFriendlyRating ?? null}
-              soloReviewCount={summary.data?.reviewCount ?? 0}
+              soloReviewCount={summary.data?.soloRatedCount ?? 0}
             />
           )}
           {stab === 'nearby' && (
@@ -361,14 +361,16 @@ function HomeTab({ seekers, seekersState, onRetrySeekers, onMeal, onDinerPress, 
       <View style={styles.friendlyInline}>
         <View style={styles.friendlyHeadRow}>
           <Text style={styles.friendlyTitle}>혼밥 친화도</Text>
-          {(summary?.reviewCount ?? 0) > 0 ? (
-            <Text style={styles.friendlyCount}>혼밥러 {summary?.reviewCount}명 평가</Text>
+          {/* ★전체 리뷰 수가 아니라 '혼밥 평가 수'다 — 혼밥 별점은 인증 리뷰만 갖기 때문에
+              reviewCount를 쓰면 평가하지 않은 사람까지 세어 부풀려진다. */}
+          {(summary?.soloRatedCount ?? 0) > 0 ? (
+            <Text style={styles.friendlyCount}>혼밥러 {summary?.soloRatedCount}명 평가</Text>
           ) : null}
         </View>
         <View style={styles.friendlyScoreRow}>
           <Text style={styles.friendlyScore}>{summary?.avgSoloFriendlyRating?.toFixed(1) ?? '-'}</Text>
           <Text style={styles.friendlyDot}>·</Text>
-          <Text style={styles.friendlyLabel}>{soloFriendlyLabel(summary?.avgSoloFriendlyRating ?? null, summary?.reviewCount ?? 0)}</Text>
+          <Text style={styles.friendlyLabel}>{soloFriendlyLabel(summary?.avgSoloFriendlyRating ?? null, summary?.soloRatedCount ?? 0)}</Text>
         </View>
 
         {/* 점수 5칸 바 */}
@@ -616,7 +618,10 @@ function ReviewTab({ reviews, isLoading, isError, onWrite, onEdit, onDelete, onR
             )}
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
               <View style={styles.tasteChip}><Text style={styles.tasteText}>맛 ★ {r.tasteRating.toFixed(1)}</Text></View>
-              <View style={styles.honbabChip}><Text style={styles.honbabText}>혼밥 ★ {r.soloFriendlyRating.toFixed(1)}</Text></View>
+              {/* 혼밥 별점은 혼밥 인증 리뷰만 갖는다 — 없으면 칩 자체를 안 그린다. */}
+              {r.soloFriendlyRating != null && (
+                <View style={styles.honbabChip}><Text style={styles.honbabText}>혼밥 ★ {r.soloFriendlyRating.toFixed(1)}</Text></View>
+              )}
             </View>
             {r.tags.length > 0 ? (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>

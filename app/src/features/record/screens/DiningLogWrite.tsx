@@ -1,7 +1,7 @@
 // DiningLogWrite — 혼밥 인증 작성(저널) (원본: screens/DiningLogWrite.jsx)
 // 내 혼밥 기록의 '일기 쓰기'에서 모달로 진입. 별점/친화태그/본문 기록.
-import React, { useState } from 'react';
-import { Alert, Image, View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Image, Keyboard, View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { pickImages, uploadImages, remainingSlots, type PickedAsset } from '@/shared/upload/imageUpload';
 import { Screen } from '@/shared/components';
 import { T2 } from '@/shared/theme';
@@ -11,6 +11,10 @@ import { buildReviewBody } from '@/features/review/reviewEdit';
 import { reviewErrorMessage } from '@/features/review/reviewCopy';
 
 const FRIENDLY = ['1인석 많음', '바테이블', '칸막이', '눈치 없음', '오래 OK'];
+
+// 본문 최대 길이. ★서버 ReviewCreateRequest·ReviewUpdateRequest의 @Size(max = 1000)와 같아야 한다 —
+// 넘겨 보내면 400으로 튕긴다. DB reviews.content는 TEXT라 제한이 없어서, 실질 상한은 이 검증값이다.
+const MAX_CONTENT = 1000;
 
 function Stars({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
@@ -37,7 +41,26 @@ export function DiningLogWriteScreen({ navigation, route }: RootStackScreenProps
     () => (initial?.photos ?? []).map((url) => ({ uri: url, assetId: null })),
   );
   const [uploading, setUploading] = useState(false);
+  const [bodyFocused, setBodyFocused] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
   const MAX_PHOTOS = 5;
+
+  // 본문에 커서를 두면 상자 **전체**가 키보드 위로 오게 끝까지 스크롤한다.
+  //
+  // automaticallyAdjustKeyboardInsets만으로는 모자란다: 여러 줄 입력에서 RN이 기준으로 삼는 건
+  // 상자가 아니라 '커서가 놓인 줄'이라(RCTTextInputComponentView가 selectionRect를 넘긴다),
+  // 빈 상자에 처음 커서를 두면 맨 윗줄만 올라오고 상자 아랫부분은 키보드에 덮인 채 남는다.
+  // 본문 상자가 화면의 마지막 내용이라 끝까지 스크롤하면 상자와 글자 수가 함께 보인다.
+  //
+  // keyboardDidShow를 듣는 이유: 포커스 시점엔 아직 키보드 여백이 안 붙어서 끝까지 못 간다.
+  // 이미 키보드가 올라와 있는 상태에서 옮겨온 경우(이벤트가 안 옴)를 위해 즉시 한 번도 부른다.
+  useEffect(() => {
+    if (!bodyFocused) return;
+    const toEnd = () => scrollRef.current?.scrollToEnd({ animated: true });
+    const shown = Keyboard.addListener('keyboardDidShow', toEnd);
+    toEnd();
+    return () => shown.remove();
+  }, [bodyFocused]);
 
   const canSave = taste >= 1 && honbab >= 1 && !createMut.isPending && !updateMut.isPending && !uploading;
 
@@ -98,6 +121,7 @@ export function DiningLogWriteScreen({ navigation, route }: RootStackScreenProps
         스크롤만으로 닿는다.
       */}
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -189,16 +213,26 @@ export function DiningLogWriteScreen({ navigation, route }: RootStackScreenProps
 
         {/* 본문 */}
         <View style={{ marginTop: 28 }}>
-          <Text style={styles.label}>한 줄 기록</Text>
-          <TextInput
-            style={styles.bodyInput}
-            value={body}
-            onChangeText={setBody}
-            multiline
-            maxLength={1000}
-            placeholder="오늘의 혼밥을 기록해보세요"
-            placeholderTextColor={T2.textMute}
-          />
+          <Text style={styles.label}>이 곳은 어땠나요</Text>
+          <View style={[styles.bodyBox, bodyFocused && styles.bodyBoxOn]}>
+            <TextInput
+              style={styles.bodyInput}
+              value={body}
+              onChangeText={setBody}
+              multiline
+              maxLength={MAX_CONTENT}
+              // 라벨이 '이 곳은 어땠나요'로 이미 묻고 있으니 placeholder는 짧게 받는다 —
+              // 둘 다 길게 쓰면 같은 말을 두 번 하게 된다. 가게 이름도 바로 위 placeRow에 이미 있다.
+              placeholder="자유롭게 적어주세요"
+              placeholderTextColor={T2.textMute}
+              onFocus={() => setBodyFocused(true)}
+              onBlur={() => setBodyFocused(false)}
+            />
+          </View>
+          {/* 남은 분량을 눈으로 알 수 있게. maxLength가 막아 주지만 '왜 안 써지지'가 되지 않도록 보여준다. */}
+          <Text style={[styles.counter, body.length >= MAX_CONTENT && styles.counterFull]}>
+            {body.length} / {MAX_CONTENT}
+          </Text>
         </View>
       </ScrollView>
     </Screen>
@@ -237,16 +271,28 @@ const styles = StyleSheet.create({
   ratingHr: { height: 1, backgroundColor: T2.border, marginVertical: 16 },
   tagChip: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1 },
 
+  bodyBox: {
+    marginTop: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: T2.border,
+    backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  bodyBoxOn: { borderColor: T2.brand },
   bodyInput: {
-    marginTop: 14,
-    fontSize: 17,
+    fontSize: 15,
     color: T2.text,
-    lineHeight: 28,
+    lineHeight: 24,
     letterSpacing: -0.3,
     textAlignVertical: 'top',
-    minHeight: 120,
+    minHeight: 132,
     padding: 0,
   },
+  // tabular-nums — 자릿수가 바뀔 때 글자 폭이 흔들리지 않게.
+  counter: { marginTop: 8, alignSelf: 'flex-end', fontSize: 12, color: T2.textMute, fontVariant: ['tabular-nums'] },
+  counterFull: { color: T2.brand, fontWeight: '700' },
 
   photoAddWide: { marginTop: 12, height: 88, borderRadius: 14, borderWidth: 1, borderColor: T2.border, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
   photoAddWideText: { fontSize: 14, fontWeight: '600', color: T2.textMute, letterSpacing: -0.3 },

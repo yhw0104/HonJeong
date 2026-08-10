@@ -72,9 +72,12 @@ export function MyReviewsScreen({ navigation }: RootStackScreenProps<'MyReviews'
                   <View style={styles.tasteChip}>
                     <Text style={styles.tasteText}>맛 ★ {r.tasteRating.toFixed(1)}</Text>
                   </View>
-                  <View style={styles.honbabChip}>
-                    <Text style={styles.honbabText}>혼밥 ★ {r.soloFriendlyRating.toFixed(1)}</Text>
-                  </View>
+                  {/* 혼밥 별점은 혼밥 인증 리뷰만 갖는다 — 없으면 칩 자체를 안 그린다. */}
+                  {r.soloFriendlyRating != null && (
+                    <View style={styles.honbabChip}>
+                      <Text style={styles.honbabText}>혼밥 ★ {r.soloFriendlyRating.toFixed(1)}</Text>
+                    </View>
+                  )}
                 </View>
 
                 {r.tags.length > 0 && (
