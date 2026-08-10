@@ -90,7 +90,8 @@ export function MyReviewsScreen({ navigation }: RootStackScreenProps<'MyReviews'
             >
               <View style={{ flex: 1, minWidth: 0 }}>
                 <View style={styles.topRow}>
-                  <Text style={styles.place}>{r.placeName}</Text>
+                  {/* 긴 상호명이 옆의 '✓ 혼밥' 뱃지를 카드 밖으로 밀어내지 않게 줄인다. */}
+                  <Text style={styles.place} numberOfLines={1}>{r.placeName}</Text>
                   {r.authenticated && (
                     <View style={styles.authBadge}>
                       <Text style={styles.authBadgeText}>✓ 혼밥</Text>
@@ -163,7 +164,7 @@ const styles = StyleSheet.create({
 
   card: { flexDirection: 'row', gap: 14, padding: 14, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: T2.border },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  place: { fontSize: 14, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
+  place: { flexShrink: 1, fontSize: 14, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
   date: { fontSize: 11, color: T2.textMute, marginTop: 3, letterSpacing: -0.2 },
   note: { fontSize: 12, color: T2.textSub, lineHeight: 18, marginTop: 5, letterSpacing: -0.2 },
   ratingRow: { flexDirection: 'row', gap: 6, marginTop: 10 },

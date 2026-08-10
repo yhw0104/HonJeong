@@ -508,7 +508,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                     <Text style={styles.pickIconEmoji}>🍽</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.pickName}>{p.name}</Text>
+                    <Text style={styles.pickName} numberOfLines={1}>{p.name}</Text>
                     <Text style={styles.pickMeta}>{[p.category, distanceLabel(p)].filter(Boolean).join(' · ')}</Text>
                   </View>
                   <Icon name="chevronRight" size={18} color={T2.textMute} />
@@ -561,7 +561,7 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
                       <Text style={styles.pickIconEmoji}>🍽</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.pickName}>{p.name}</Text>
+                      <Text style={styles.pickName} numberOfLines={1}>{p.name}</Text>
                       <View style={styles.listMetaRow}>
                         <Text style={styles.listMeta}>{[p.category, distanceLabel(p)].filter(Boolean).join(' · ')}</Text>
                         {p.seekingCount > 0 && (

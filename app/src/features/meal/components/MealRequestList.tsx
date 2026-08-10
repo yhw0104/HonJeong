@@ -80,7 +80,9 @@ export function MealRequestLists({
             </Pressable>
             <Pressable style={styles.recvPlace} onPress={() => onOpenPlace(r.placeId, r.placeName)} accessibilityRole="button">
               <Icon name="pin" size={14} color={T2.brand} />
-              <Text style={styles.recvPlaceText}>{r.placeName}</Text>
+              {/* ★numberOfLines — 없으면 긴 상호명이 칩 폭을 밀어내고 오른쪽 화살표가 분홍 배경
+                  **밖으로** 튀어나간다(실기 지적). 식당명은 최대 49자까지 있다. */}
+              <Text style={styles.recvPlaceText} numberOfLines={1}>{r.placeName}</Text>
               <Icon name="chevronRight" size={13} color={T2.brand} />
             </Pressable>
             {r.message ? <Text style={styles.recvMsg}>"{r.message}"</Text> : null}
@@ -147,8 +149,10 @@ const styles = StyleSheet.create({
   recvTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   recvName: { fontSize: 15, fontWeight: '800', color: T2.text, letterSpacing: -0.3 },
   recvMeta: { fontSize: 11, color: T2.textMute, marginTop: 3 },
-  recvPlace: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 14, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: T2.brandSoft, alignSelf: 'flex-start' },
-  recvPlaceText: { fontSize: 12, fontWeight: '700', color: T2.brand, letterSpacing: -0.2 },
+  // alignSelf:'flex-start'라 내용만큼만 넓어지지만, 카드 폭을 넘지 않게 maxWidth로 잠근다.
+  recvPlace: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 14, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: T2.brandSoft, alignSelf: 'flex-start', maxWidth: '100%' },
+  // flexShrink — 짧으면 제 크기, 길면 줄어들며 말줄임. flex:1로 하면 짧은 이름도 칩이 폭 전체가 된다.
+  recvPlaceText: { flexShrink: 1, fontSize: 12, fontWeight: '700', color: T2.brand, letterSpacing: -0.2 },
   recvMsg: { fontSize: 13, color: T2.textSub, lineHeight: 21, marginTop: 12, letterSpacing: -0.3 },
   recvBtns: { flexDirection: 'row', gap: 8, marginTop: 16 },
   recvBtn: { paddingVertical: 13, borderRadius: 11, alignItems: 'center' },

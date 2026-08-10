@@ -909,7 +909,7 @@ function NearbyTab({
     <View style={{ marginTop: 12 }}>
       <View style={styles.nearbyNote}>
         <Icon name="pin" size={13} color={T2.textMute} />
-        <Text style={styles.nearbyNoteText}>{placeName} 주변 · 1km 이내</Text>
+        <Text style={styles.nearbyNoteText} numberOfLines={1}>{placeName} 주변 · 1km 이내</Text>
       </View>
 
       {/* 정렬 칩 — 목록이 있을 때만 */}
@@ -1152,7 +1152,7 @@ const styles = StyleSheet.create({
 
   // 주변 탭
   nearbyNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
-  nearbyNoteText: { fontSize: 12, color: T2.textMute, letterSpacing: -0.2 },
+  nearbyNoteText: { flexShrink: 1, fontSize: 12, color: T2.textMute, letterSpacing: -0.2 },
   nearbySortRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
   nearbySortChip: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
   nearbySortText: { fontSize: 13, fontWeight: '700', letterSpacing: -0.3 },

@@ -93,7 +93,7 @@ export function DiningHistoryScreen({ navigation }: RootStackScreenProps<'Dining
                       <Text style={styles.dateDay}>{day}</Text>
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.emptyPlace}>{e.placeName}</Text>
+                      <Text style={styles.emptyPlace} numberOfLines={1}>{e.placeName}</Text>
                       <Text style={styles.emptyMeta}>혼밥 기록 · 일기 없음</Text>
                     </View>
                     <Pressable
