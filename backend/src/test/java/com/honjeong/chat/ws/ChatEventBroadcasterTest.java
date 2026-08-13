@@ -100,4 +100,22 @@ class ChatEventBroadcasterTest {
 
         broadcaster.broadcastMessage(10L, 20L, false, 1L, MSG); // 예외가 새어 나오지 않으면 통과
     }
+
+    @Test
+    @DisplayName("읽음도 양쪽에 간다 — 상대는 '읽음' 표시, 나는 다른 기기의 안읽음 배지")
+    void broadcastsRead() {
+        broadcaster.broadcastRead(10L, 20L, false, 1L, LocalDateTime.parse("2026-08-13T13:05:00"));
+
+        verify(registry).sendTo(eq(10L), contains("\"type\":\"read\""));
+        verify(registry).sendTo(eq(20L), contains("\"readerUserId\":10"));
+    }
+
+    @Test
+    @DisplayName("읽음도 차단 관계면 상대에게 가지 않는다")
+    void skipsBlockedPartnerOnRead() {
+        broadcaster.broadcastRead(10L, 20L, true, 1L, LocalDateTime.parse("2026-08-13T13:05:00"));
+
+        verify(registry).sendTo(eq(10L), anyString());
+        verify(registry, never()).sendTo(eq(20L), anyString());
+    }
 }

@@ -3,6 +3,7 @@ package com.honjeong.chat.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -289,6 +290,35 @@ class ConversationMessagingTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONVERSATION_NOT_FOUND);
+    }
+
+    @Test
+    void markRead는_읽을_것이_있었으면_읽음을_브로드캐스트한다() {
+        // 상대(20)가 13:00에 마지막 메시지를 보냈고, 내(10) 읽음 시각은 12:00이다.
+        Conversation conv = withId(activeConversation(10L, 20L), 5L);
+        conv.touch(LocalDateTime.parse("2026-08-13T13:00:00"));
+        conv.markRead(10L, LocalDateTime.parse("2026-08-13T12:00:00"));
+        when(conversationRepository.findById(5L)).thenReturn(Optional.of(conv));
+
+        service.markRead(10L, 5L);
+
+        verify(chatEventBroadcaster).broadcastRead(eq(10L), eq(20L), anyBoolean(), eq(5L), any());
+    }
+
+    @Test
+    void markRead는_읽을_것이_없었으면_브로드캐스트하지_않는다() {
+        // 내(10) 읽음 시각이 이미 마지막 메시지 시각과 같다(내가 마지막으로 보낸 경우).
+        // "읽음 시각이 바뀌었는가"는 조건이 될 수 없다 — markRead는 언제나 새 now를 쓰므로 항상 바뀐다.
+        // 대화방을 열어만 놔도(새 메시지 없이) markRead가 반복 호출되므로, 이 가드가 없으면
+        // 이벤트가 계속 나간다.
+        Conversation conv = withId(activeConversation(10L, 20L), 5L);
+        conv.touch(LocalDateTime.parse("2026-08-13T13:00:00"));
+        conv.markRead(10L, LocalDateTime.parse("2026-08-13T13:00:00"));
+        when(conversationRepository.findById(5L)).thenReturn(Optional.of(conv));
+
+        service.markRead(10L, 5L);
+
+        verify(chatEventBroadcaster, never()).broadcastRead(anyLong(), anyLong(), anyBoolean(), anyLong(), any());
     }
 
     @Test

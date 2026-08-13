@@ -189,14 +189,34 @@ public class ConversationService {
     }
 
     /**
-     * 대화방을 읽음 처리(내 lastReadAt=now).
+     * 대화방을 읽음 처리(내 lastReadAt=now) — 읽을 것이 실제로 있었을 때만 읽음을 소켓으로 민다.
      *
      * @param userId         읽는 사용자(참여자) id
      * @param conversationId 대화방 id
      */
     @Transactional
     public void markRead(Long userId, Long conversationId) {
-        loadParticipating(conversationId, userId).markRead(userId, now());
+        Conversation conv = loadParticipating(conversationId, userId);
+        LocalDateTime before = conv.lastReadAtFor(userId);
+        LocalDateTime now = now();
+        conv.markRead(userId, now);
+
+        // ★"읽을 것이 실제로 있었을 때만" 내보낸다.
+        //
+        // "읽음 시각이 바뀌었는가"는 조건이 될 수 없다 — markRead가 언제나 새 now를 쓰므로 항상 바뀐다.
+        // 판정 기준은 읽음 포인터가 마지막 메시지를 넘어섰는가다. ChatRoom이 진입할 때와 새 메시지를
+        // 받을 때마다 이 메서드를 부르므로, 이 가드가 없으면 대화방을 열어만 놔도 이벤트가 계속 나간다.
+        //
+        // 내가 마지막 메시지를 보낸 경우엔 sendMessage가 이미 나를 읽음 처리해 두었으므로
+        // before == lastMessageAt이 되어 여기서 걸러진다.
+        LocalDateTime lastMessageAt = conv.getLastMessageAt();
+        boolean hadUnread = lastMessageAt != null && (before == null || before.isBefore(lastMessageAt));
+        if (!hadUnread) {
+            return;
+        }
+        Long partnerId = conv.partnerOf(userId);
+        chatEventBroadcaster.broadcastRead(userId, partnerId,
+                blockRepository.existsBlockBetween(userId, partnerId), conv.getId(), now);
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.honjeong.chat.ws;
 
+import java.time.LocalDateTime;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -8,6 +10,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import com.honjeong.chat.dto.ChatMessageResponse;
 import com.honjeong.chat.dto.WsMessageEvent;
+import com.honjeong.chat.dto.WsReadEvent;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -59,6 +62,29 @@ public class ChatEventBroadcaster {
         }
         afterCommit(() -> {
             registry.sendTo(senderId, payload);
+            if (!blocked) {
+                registry.sendTo(partnerId, payload);
+            }
+        });
+    }
+
+    /**
+     * 읽음을 양쪽에 민다. 대상 판정은 {@link #broadcastMessage}와 같다.
+     *
+     * @param readerId       읽은 사람
+     * @param partnerId      상대
+     * @param blocked        두 사람이 차단 관계인가
+     * @param conversationId 대화방 id
+     * @param readAt         읽은 시각
+     */
+    public void broadcastRead(Long readerId, Long partnerId, boolean blocked,
+            Long conversationId, LocalDateTime readAt) {
+        String payload = serialize(WsReadEvent.of(conversationId, readerId, readAt));
+        if (payload == null) {
+            return;
+        }
+        afterCommit(() -> {
+            registry.sendTo(readerId, payload);
             if (!blocked) {
                 registry.sendTo(partnerId, payload);
             }
