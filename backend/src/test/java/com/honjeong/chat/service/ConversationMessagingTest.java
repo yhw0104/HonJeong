@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -204,7 +205,7 @@ class ConversationMessagingTest {
     }
 
     @Test
-    void sendMessage는_수신자가_음소거한_대화엔_푸시를_보내지_않는다() {
+    void sendMessage는_수신자가_음소거한_대화엔_푸시를_보내지_않지만_소켓은_그대로_민다() {
         // 음소거는 '받는 쪽' 설정이다 — 보낸 사람(10)이 아니라 상대(20)가 껐을 때 막혀야 한다.
         Conversation conv = withId(activeConversation(10L, 20L), 5L);
         conv.setMuted(20L, true);
@@ -214,6 +215,9 @@ class ConversationMessagingTest {
         service.sendMessage(10L, 5L, new SendMessageRequest(MessageType.TEXT, "어디세요?", null));
 
         verify(pushDispatcher, never()).dispatch(anyLong(), any(), any(), any(), any());
+        // 뮤트는 "알림 끄기"지 "화면 갱신 끄기"가 아니다 — 소켓 브로드캐스트는 뮤트와 무관하게 나가야 한다.
+        // (푸시 가드 if문 안으로 브로드캐스트 호출이 실수로 들어가면 이 verify가 실패해서 잡아낸다.)
+        verify(chatEventBroadcaster).broadcastMessage(eq(10L), eq(20L), eq(false), eq(5L), any(ChatMessageResponse.class));
     }
 
     @Test
