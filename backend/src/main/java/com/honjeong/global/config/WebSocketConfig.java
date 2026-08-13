@@ -1,9 +1,8 @@
 package com.honjeong.global.config;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
@@ -11,9 +10,6 @@ import org.springframework.web.socket.server.standard.ServletServerContainerFact
 
 import com.honjeong.chat.ws.ChatWebSocketHandler;
 import com.honjeong.chat.ws.WsHandshakeInterceptor;
-
-import jakarta.servlet.ServletContext;
-import jakarta.websocket.server.ServerContainer;
 
 /**
  * 채팅 소켓 등록.
@@ -43,8 +39,6 @@ import jakarta.websocket.server.ServerContainer;
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
-
-    private static final Logger log = LoggerFactory.getLogger(WebSocketConfig.class);
 
     /**
      * 서버가 조용한 세션을 끊는 한계 시간(ms).
@@ -78,22 +72,23 @@ public class WebSocketConfig implements WebSocketConfigurer {
      * 그러면 죽은 세션에 계속 전송을 시도하고 메모리도 샌다. 하트비트가 끊긴 세션을 컨테이너가
      * 직접 끊게 해서 정리 경로를 태운다(설계 문서 §8).
      *
-     * <p>★ 진짜 서블릿 컨테이너가 있을 때만 만든다. {@code @SpringBootTest}의 기본 MOCK 웹 환경은
-     * {@code MockServletContext}라 {@code ServerContainer} 속성이 없고,
+     * <p>★ <b>{@code test} 프로파일에서는 만들지 않는다.</b> {@code @SpringBootTest}의 기본 MOCK 웹
+     * 환경은 {@code MockServletContext}라 {@code ServerContainer} 속성이 없고,
      * {@code ServletServerContainerFactoryBean}은 그 속성이 없으면 초기화 단계에서 예외를 던져
-     * <b>통합 테스트의 컨텍스트 로딩을 통째로 깨뜨린다.</b> 설정할 대상이 애초에 없는 환경이므로
-     * 조용히 건너뛴다.
+     * <b>통합 테스트의 컨텍스트 로딩을 통째로 깨뜨린다.</b> 설정할 대상이 애초에 없는 환경이다.
      *
-     * <p>운영 경로의 동작은 그대로다 — 내장 Tomcat은 {@code onRefresh()}에서 이미 기동해
-     * {@code WsSci}가 이 속성을 채워 둔 뒤에 이 빈이 만들어지므로, 여기서 null이 나올 일이 없다.
-     * 그럼에도 "조용히 적용 안 됨"은 증상이 안 보이는 고장이라(세션이 영영 안 끊긴다) 로그로 남긴다.
+     * <p>★ 런타임에 속성 유무를 보고 조용히 건너뛰는 방식을 <b>일부러 쓰지 않는다.</b> 그러면 운영에서
+     * 무언가 어긋났을 때도 그냥 넘어가고, 증상은 "세션이 영영 안 끊긴다"뿐이라 아무도 눈치채지 못한다.
+     * 프로파일로 잘라내면 운영에서는 <b>무조건</b> 이 빈을 만들고, 컨테이너가 없으면 부팅이 시끄럽게
+     * 실패한다 — {@code push.mode=real}에 자격증명이 없으면 부팅을 실패시키는 것과 같은 fail-closed다.
+     *
+     * <p>컨텍스트를 실제로 띄우는 테스트는 모두 {@code AbstractPostgresTest}를 상속해
+     * {@code @ActiveProfiles("test")}가 걸린다. 나머지 둘({@code OAuthVerifierWiringTest},
+     * {@code ExternalIntegrationWiringTest})은 {@code ApplicationContextRunner}라 이 설정을 로드하지 않는다.
      */
     @Bean
-    public ServletServerContainerFactoryBean createWebSocketContainer(ServletContext servletContext) {
-        if (servletContext.getAttribute(ServerContainer.class.getName()) == null) {
-            log.info("[ws] 서블릿 컨테이너가 없어 유휴 세션 타임아웃을 건너뛴다(테스트 환경)");
-            return null;
-        }
+    @Profile("!test")
+    public ServletServerContainerFactoryBean createWebSocketContainer() {
         ServletServerContainerFactoryBean container = new ServletServerContainerFactoryBean();
         container.setMaxSessionIdleTimeout(SESSION_IDLE_TIMEOUT_MS);
         return container;
