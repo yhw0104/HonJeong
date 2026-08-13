@@ -149,13 +149,31 @@ class WsSessionRegistryTest {
             registerer.start();
             unregisterer.start();
             start.countDown();
-            registerer.join();
-            unregisterer.join();
+            joinOrFail(registerer, i);
+            joinOrFail(unregisterer, i);
 
             // 등록/해제 순서와 무관하게 최종 상태는 항상 {keeper} 하나여야 한다 —
             // computeIfAbsent(...).add(...)라면 경쟁 상태로 keeper가 유령이 되어 0이 나올 수 있다.
             assertThat(registry.sessionCount(userId)).as("round %d", i).isEqualTo(1);
         }
+    }
+
+    /**
+     * 스레드가 끝나기를 기다리되 <b>영원히 기다리지는 않는다.</b>
+     *
+     * <p>★ 이 테스트는 register/unregister의 락 순서가 깨지는 회귀를 잡으려고 있다. 그런데 정작
+     * 그 회귀가 일어나면 두 스레드가 서로 물려 멈추고, 타임아웃 없는 {@code join()}도 같이 멈춘다 —
+     * CI가 <b>실패하지 않고 정지한다.</b> 에러 메시지 없이 러너 제한 시간까지 매달려 있어서 실패보다
+     * 진단이 어렵다. 시한을 두면 같은 회귀가 "데드락 의심"이라는 읽을 수 있는 실패로 나온다.
+     *
+     * @param t     기다릴 스레드
+     * @param round 실패 메시지에 남길 라운드 번호
+     */
+    private static void joinOrFail(Thread t, int round) throws InterruptedException {
+        t.join(5_000);
+        assertThat(t.isAlive())
+                .as("round %d: 스레드가 5초 안에 끝나지 않았다 — register/unregister 데드락 의심", round)
+                .isFalse();
     }
 
     private static void await(CountDownLatch latch) {

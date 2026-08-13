@@ -182,12 +182,17 @@ describe('useChatSocket', () => {
     expect(qc.getQueryData<ConversationSummary[]>(conversationKeys.list)?.[0].unreadCount).toBe(1);
   });
 
-  it('포그라운드로 오면 connect + [chat] 무효화, 백그라운드로 가면 disconnect', async () => {
+  it('★갱 복구는 connect 요청이 아니라 실제로 연결된 순간에 돈다', async () => {
     const qc = newClient();
     const invalidateSpy = jest.spyOn(qc, 'invalidateQueries');
     setup(qc); // 마운트 시 currentState='active' → 최초 sync(true)
 
     expect(mockConnect).toHaveBeenCalledTimes(1);
+    // connect()는 "연결해 달라"는 요청일 뿐 아직 붙지 않았다(티켓 왕복이 남았다).
+    // 여기서 무효화하면 소켓 없이 재조회가 나가고, 곧 onOpen이 한 번 더 걸어 왕복이 헛돈다.
+    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: ['chat'] });
+
+    act(() => { mockSocketHandlers.onOpen?.(); });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['chat'] });
 
     invalidateSpy.mockClear();
@@ -197,7 +202,10 @@ describe('useChatSocket', () => {
 
     act(() => { changeHandler?.('active'); });
     expect(mockConnect).toHaveBeenCalledTimes(2);
+    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: ['chat'] }); // 아직 안 붙었다
+
     // ★재연결 시 갱 복구 — 끊긴 사이의 메시지를 폴링(30초) 전에 따라잡는다.
+    act(() => { mockSocketHandlers.onOpen?.(); });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['chat'] });
   });
 

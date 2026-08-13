@@ -24,7 +24,8 @@ const PING_FRAME = '{"type":"ping"}';
  * ★이게 pong이 존재하는 유일한 이유다 — half-open 감지. 서버가 사라졌는데 TCP가 아직 눈치채지
  *  못하면 `onclose`가 **영원히 안 온다.** onclose가 안 오면 scheduleRetry도 안 돌아서, 소켓은
  *  아무 데도 연결돼 있지 않은 채로 "연결됨" 상태에 갇힌다(화면이 조용히 멈춘다). 그래서 앱이
- *  스스로 판정해 끊고, 평소의 onclose → scheduleRetry 경로를 태운다.
+ *  스스로 판정해 끊고 재연결한다 — **그 정리를 onclose에 맡기지 않고 직접 한다**
+ *  ({@link createChatSocket} 안의 armPongDeadline 참고. onclose를 기다리면 같은 이유로 또 막힌다).
  *
  *  PING_MS(30초)보다 넉넉히 짧아야 한다 — 안 그러면 다음 ping이 이전 deadline을 밀어내며
  *  판정이 영원히 유예된다.
@@ -94,8 +95,24 @@ export function createChatSocket({ onEvent, onOpen }: Options) {
     pongTimer = setTimeout(() => {
       if (myEpoch !== epoch) return; // 뒤처진 세대의 시한은 최신 소켓을 건드리면 안 된다.
       pongTimer = null;
-      // close()가 onclose를 부르고, 거기서 clearTimers → scheduleRetry가 평소대로 돈다.
+
+      // ★close()의 onclose를 **기다리지 않는다.** 여기가 이 함수의 핵심이다.
+      //
+      // iOS의 close()는 송신 버퍼가 비워진 뒤에야 onclose를 낸다. 그런데 half-open에서는
+      // 바로 그 버퍼가 막혀 있는 것이 원인이다 — 닫으라고 요청은 나가지만 onclose는 한참
+      // 안 오거나 영영 안 온다. 재연결이 onclose에 매달려 있으면 그 사이 ping 인터벌만
+      // 30초마다 돌며 다시 시한을 걸고 다시 close()를 부르는 제자리걸음이 된다.
+      // 증상은 "채팅이 조용히 30초 폴링으로 떨어짐"이라 사용자도 로그도 알아채지 못한다.
+      //
+      // 그래서 정리를 여기서 직접 끝낸다. epoch를 올려 이 소켓의 뒤늦은 콜백(onclose·
+      // onmessage)을 전부 무효로 만든 뒤, 새 세대로 재연결을 건다. close()는 최선의 노력일
+      // 뿐이고 언제 실제로 닫히든 우리는 기다리지 않는다.
+      const nextEpoch = epoch + 1;
+      epoch = nextEpoch;
+      clearTimers();
+      ws = null;
       socket.close();
+      scheduleRetry(nextEpoch);
     }, PONG_TIMEOUT_MS);
   }
 

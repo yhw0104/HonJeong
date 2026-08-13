@@ -81,10 +81,16 @@ export function useChatSocket(): void {
       if (hold === held) return;
       held = hold;
       if (hold) {
+        // ★여기서는 무효화하지 않는다 — 갱 복구는 전적으로 위 onOpen이 맡는다.
+        //
+        // connect()는 "연결해 달라"는 요청일 뿐이고, 실제로 붙는 건 티켓 발급 왕복 뒤다.
+        // 그 시점에 무효화하면 소켓이 아직 없는 상태에서 재조회가 나가고, 곧이어 onOpen이
+        // 한 번 더 무효화한다. React Query는 무효화 때 진행 중인 요청을 취소하고 다시
+        // 시작하므로, 앱을 켤 때마다 왕복 한 번이 통째로 헛돈다.
+        //
+        // onOpen만 남기면 "실제로 연결된 순간"에 정확히 한 번 갱신되고, 포그라운드 복귀와
+        // 앱이 떠 있는 채로 소켓만 끊겼다 붙는 경우가 같은 경로로 덮인다.
         socket.connect();
-        // ★백그라운드에서 돌아왔을 때의 갱 복구. 소켓 재연결 자체의 복구는 위 onOpen이 맡는다
-        //   (여기서만 하면 앱이 포그라운드에 머문 채 끊긴 경우를 놓친다).
-        qc.invalidateQueries({ queryKey: ['chat'] });
       } else {
         socket.disconnect();
       }

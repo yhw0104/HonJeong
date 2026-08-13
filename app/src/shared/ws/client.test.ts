@@ -202,10 +202,41 @@ describe('createChatSocket', () => {
     jest.advanceTimersByTime(10_000); // 시한 만료
     expect(first?.closed).toBe(true);
 
-    // close → onclose → scheduleRetry의 평소 경로를 그대로 탄다.
     jest.advanceTimersByTime(1_000);
     await flush();
     expect(FakeWebSocket.last).not.toBe(first);
+  });
+
+  it('★★close해도 onclose가 안 오는 소켓에서도 재연결한다 — 이게 half-open의 실제 모습이다', async () => {
+    // 위 테스트의 가짜 소켓은 close()가 onclose를 즉시 부른다. 그래서 재연결이 onclose에
+    // 매달려 있어도 통과한다 — 실제 결함을 잡지 못한다.
+    //
+    // 진짜 half-open은 그렇지 않다. iOS의 close()는 송신 버퍼가 비워진 뒤에야 onclose를
+    // 내는데, half-open에서는 바로 그 버퍼가 막혀 있는 것이 원인이다. 그래서 닫으라고
+    // 요청해도 onclose는 오지 않고, 재연결이 거기 걸려 있으면 영영 돌지 않는다 —
+    // ping만 30초마다 다시 돌며 제자리걸음하고, 채팅은 조용히 폴링으로 떨어진다.
+    //
+    // 여기서는 close()가 아무 일도 하지 않는 소켓으로 그 상황을 만든다.
+    const wedged = jest.spyOn(FakeWebSocket.prototype, 'close').mockImplementation(function (this: FakeWebSocket) {
+      this.closed = true; // 닫으라고 요청은 나갔다
+      // ...그러나 onclose는 오지 않는다.
+    });
+    try {
+      const socket = createChatSocket({ onEvent: jest.fn() });
+      socket.connect();
+      await flush();
+      const first = FakeWebSocket.last;
+      first?.onopen?.();
+
+      jest.advanceTimersByTime(30_000); // ping 발신 + 시한 시작
+      jest.advanceTimersByTime(10_000); // 시한 만료 → 스스로 정리하고 재연결을 건다
+
+      jest.advanceTimersByTime(1_000); // 백오프 1초
+      await flush();
+      expect(FakeWebSocket.last).not.toBe(first);
+    } finally {
+      wedged.mockRestore();
+    }
   });
 
   it('★시한 안에 pong이 오면 끊지 않는다 — 살아 있는 연결을 죽이면 안 된다', async () => {
