@@ -1,13 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from 'react-native';
 import { ApiError } from '@/shared/api/client';
+import { LIVE_REFETCH_MS } from '@/shared/realtime';
 import { deleteConversation, fetchConversations, fetchMessages, markConversationRead, sendMessage, setConversationMuted } from './api';
 
-// 채팅 폴링 주기. WebSocket이 붙은 뒤로는 **안전망**이다 — 소켓이 조용히 죽어도
+// 대화방(메시지) 폴링 주기. WebSocket이 붙은 뒤로는 **안전망**이다 — 소켓이 조용히 죽어도
 // 화면이 결국 따라잡게 한다(docs/08-실시간-전략.md §8).
 //
-// ★공용 LIVE_REFETCH_MS(15초)를 쓰지 않는다. 그 값을 올리면 지도·통계·혼밥러 목록까지
-//   같이 느려진다. 채팅은 소켓이 주 경로가 됐으므로 자기 상수를 갖는다.
+// ★대화방만 이 상수를 쓴다. 방은 소켓이 **완전히 덮는다** — 새 메시지는 message 이벤트로,
+//   읽음 표시는 read 이벤트로 즉시 들어오므로 폴링을 30초로 늦춰도 잃는 것이 없다.
+//   공용 LIVE_REFETCH_MS(15초)를 올려서 맞추지는 않는다. 그 값을 건드리면 지도·통계·
+//   혼밥러 목록까지 같이 느려지기 때문에, 채팅방만 자기 상수를 갖는다.
 const CHAT_POLL_MS = 30_000;
 
 export const conversationKeys = {
@@ -15,8 +18,15 @@ export const conversationKeys = {
   messages: (id: number) => ['chat', 'messages', id] as const,
 };
 
+// ★대화 목록은 방과 달리 **소켓이 덮지 못한다.** 소켓이 나르는 건 (a)이미 목록에 있는 행에
+//   붙는 새 메시지와 (b)읽음 포인터, 이 둘뿐이다. 나머지 목록 필드는 오직 이 폴링으로만 온다:
+//   - status가 CLOSED로 바뀌는 것. ChatRoom.tsx가 이 행의 status로 입력창 잠금을 정하므로,
+//     30초로 늦추면 대화가 닫힌 뒤에도 최대 30초 동안 계속 쓰고 보내다가 CONVERSATION_CLOSED
+//     에러를 맞는다("보냈는데 실패했다"는 최악의 실패 모양이다).
+//   - 새로 생긴 대화(매칭 성사). 아직 목록에 없는 행이라 소켓 이벤트로는 만들어지지 않는다.
+//   그래서 목록은 공용 LIVE_REFETCH_MS(15초)에 그대로 남긴다.
 export function useConversations() {
-  return useQuery({ queryKey: conversationKeys.list, queryFn: fetchConversations, refetchInterval: CHAT_POLL_MS });
+  return useQuery({ queryKey: conversationKeys.list, queryFn: fetchConversations, refetchInterval: LIVE_REFETCH_MS });
 }
 
 export function useMessages(id: number) {
