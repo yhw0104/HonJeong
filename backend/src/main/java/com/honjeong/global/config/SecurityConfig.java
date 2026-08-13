@@ -122,7 +122,10 @@ public class SecurityConfig {
                     auth
                             // 헬스 체크와 로그인 전(前) 인증 흐름(소셜 인증, 토큰 재발급)은 토큰 없이 공개.
                             // 휴대폰(/api/auth/phone/**)은 위 smsIsMock 분기에서 별도로 다룬다.
-                            .requestMatchers("/api/health", "/api/auth/oauth/**", "/api/auth/refresh").permitAll();
+                            // /ws는 시큐리티가 아니라 핸드셰이크 인터셉터가 지킨다 — 티켓이 없으면
+                            // 연결 자체가 성립하지 않는다(WsHandshakeInterceptor). 여기서 막으면
+                            // 티켓을 검사할 기회조차 없이 401이 나간다.
+                            .requestMatchers("/api/health", "/api/auth/oauth/**", "/api/auth/refresh", "/ws").permitAll();
                     if (smsIsMock) {
                         // mock인 동안은 컨트롤러에 닿기 전에 보안 계층에서 끊는다. 익명 사용자의
                         // denyAll은 ExceptionTranslationFilter가 AuthenticationEntryPoint로 돌려 401로 응답한다.
