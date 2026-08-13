@@ -35,10 +35,14 @@ jest.mock('@/features/users/api', () => ({
 //     이미 소켓 자체는 충분히 검증했으므로 여기서는 재검증하지 않는다) ---
 const mockConnect = jest.fn();
 const mockDisconnect = jest.fn();
-const mockSocketHandlers: { onEvent: ((e: WsEvent) => void) | null } = { onEvent: null };
+const mockSocketHandlers: {
+  onEvent: ((e: WsEvent) => void) | null;
+  onOpen: (() => void) | null;
+} = { onEvent: null, onOpen: null };
 jest.mock('./client', () => ({
-  createChatSocket: ({ onEvent }: { onEvent: (e: WsEvent) => void }) => {
+  createChatSocket: ({ onEvent, onOpen }: { onEvent: (e: WsEvent) => void; onOpen?: () => void }) => {
     mockSocketHandlers.onEvent = onEvent;
+    mockSocketHandlers.onOpen = onOpen ?? null;
     return { connect: mockConnect, disconnect: mockDisconnect };
   },
 }));
@@ -129,6 +133,7 @@ beforeEach(() => {
   mockDisconnect.mockClear();
   removeMock.mockClear();
   mockSocketHandlers.onEvent = null;
+  mockSocketHandlers.onOpen = null;
   changeHandler = null;
   (fetchMyProfile as jest.Mock).mockReset().mockResolvedValue(PROFILE_1);
   (AppState.addEventListener as jest.Mock).mockReset().mockImplementation((type: string, handler: (s: string) => void) => {
@@ -193,6 +198,37 @@ describe('useChatSocket', () => {
     act(() => { changeHandler?.('active'); });
     expect(mockConnect).toHaveBeenCalledTimes(2);
     // ★재연결 시 갱 복구 — 끊긴 사이의 메시지를 폴링(30초) 전에 따라잡는다.
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['chat'] });
+  });
+
+  it("★iOS 'inactive'에서는 끊지 않는다 — 제어센터·앱 스위처·전화 배너마다 재연결하면 안 된다", async () => {
+    const qc = newClient();
+    const invalidateSpy = jest.spyOn(qc, 'invalidateQueries');
+    setup(qc);
+    invalidateSpy.mockClear();
+
+    act(() => { changeHandler?.('inactive'); });
+    expect(mockDisconnect).not.toHaveBeenCalled();
+
+    // 돌아와도 아무 일이 없어야 한다 — 이미 붙어 있으므로 재연결도, 전량 재조회도 필요 없다.
+    act(() => { changeHandler?.('active'); });
+    expect(mockConnect).toHaveBeenCalledTimes(1);
+    expect(invalidateSpy).not.toHaveBeenCalled();
+
+    // 진짜 백그라운드는 여전히 끊는다(배터리).
+    act(() => { changeHandler?.('background'); });
+    expect(mockDisconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('★소켓이 재연결되면(onOpen) 갱을 복구한다 — 포그라운드에 머문 채 WiFi↔LTE로 끊긴 경우', async () => {
+    const qc = newClient();
+    const invalidateSpy = jest.spyOn(qc, 'invalidateQueries');
+    setup(qc);
+    invalidateSpy.mockClear(); // 마운트 시의 무효화는 걷어내고 재연결분만 본다
+
+    // AppState는 내내 'active'다 — 이 경로가 없으면 끊긴 사이의 메시지를 아무도 채우지 않는다.
+    act(() => { mockSocketHandlers.onOpen?.(); });
+
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['chat'] });
   });
 

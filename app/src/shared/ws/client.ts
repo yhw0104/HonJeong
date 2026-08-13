@@ -9,19 +9,46 @@ import { parseWsEvent } from './applyEvent';
 import { toWsUrl } from './wsUrl';
 import type { WsEvent } from './types';
 
-/** 하트비트 주기(ms). */
+/**
+ * 하트비트 주기(ms).
+ *
+ * ★서버의 유휴 세션 타임아웃(WebSocketConfig.SESSION_IDLE_TIMEOUT_MS = 60초)과 한 쌍이다.
+ *  한쪽만 바꾸면 멀쩡한 연결이 조용히 끊긴다.
+ */
 const PING_MS = 30_000;
 const PING_FRAME = '{"type":"ping"}';
 
-type Options = { onEvent: (event: WsEvent) => void };
+/**
+ * ping을 보낸 뒤 pong(또는 아무 프레임이든)을 기다리는 한계 시간(ms).
+ *
+ * ★이게 pong이 존재하는 유일한 이유다 — half-open 감지. 서버가 사라졌는데 TCP가 아직 눈치채지
+ *  못하면 `onclose`가 **영원히 안 온다.** onclose가 안 오면 scheduleRetry도 안 돌아서, 소켓은
+ *  아무 데도 연결돼 있지 않은 채로 "연결됨" 상태에 갇힌다(화면이 조용히 멈춘다). 그래서 앱이
+ *  스스로 판정해 끊고, 평소의 onclose → scheduleRetry 경로를 태운다.
+ *
+ *  PING_MS(30초)보다 넉넉히 짧아야 한다 — 안 그러면 다음 ping이 이전 deadline을 밀어내며
+ *  판정이 영원히 유예된다.
+ */
+const PONG_TIMEOUT_MS = 10_000;
+
+type Options = {
+  onEvent: (event: WsEvent) => void;
+  /**
+   * 연결이 (재)수립됐을 때. 끊겼던 사이의 갱(gap)을 메우는 자리다 — 소켓은 끊겨 있던 동안의
+   * 메시지를 나중에 채워 주지 않으므로, 여기서 전량 재조회를 걸지 않으면 그 구간의 메시지가
+   * 다음 폴링 때까지 안 보인다(설계 문서 §8·§14).
+   */
+  onOpen?: () => void;
+};
 
 /**
  * 소켓 하나를 만들고 그 수명을 관리한다.
  *
  * @param onEvent 수신 이벤트 콜백(깨진 프레임은 여기까지 오지 않는다)
+ * @param onOpen 연결 성공 콜백(재연결마다 불린다)
  * @returns connect/disconnect
  */
-export function createChatSocket({ onEvent }: Options) {
+export function createChatSocket({ onEvent, onOpen }: Options) {
   let ws: WebSocket | null = null;
   let attempt = 0;
   /** disconnect가 불린 뒤에는 재연결하지 않는다. 로그아웃·백그라운드에서 되살아나면 안 된다. */
@@ -39,12 +66,37 @@ export function createChatSocket({ onEvent }: Options) {
   let epoch = 0;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let pingTimer: ReturnType<typeof setInterval> | null = null;
+  /** ping을 보낸 뒤 응답을 기다리는 시한. 프레임이 하나라도 오면 지운다. */
+  let pongTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function clearPongDeadline() {
+    if (pongTimer) clearTimeout(pongTimer);
+    pongTimer = null;
+  }
 
   function clearTimers() {
     if (retryTimer) clearTimeout(retryTimer);
     if (pingTimer) clearInterval(pingTimer);
     retryTimer = null;
     pingTimer = null;
+    clearPongDeadline();
+  }
+
+  /**
+   * ping을 보낸 직후 시한을 건다. 시한 안에 아무 프레임도 안 오면 half-open으로 보고 직접 닫는다.
+   *
+   * 판정 기준을 "pong이 왔는가"가 아니라 "아무 프레임이든 왔는가"로 둔다 — 메시지가 흐르고
+   * 있다는 것 자체가 연결이 살아 있다는 더 강한 증거이고, 서버가 pong 규약을 바꿔도 살아 있는
+   * 연결을 끊지 않는다.
+   */
+  function armPongDeadline(myEpoch: number, socket: WebSocket) {
+    clearPongDeadline(); // 이전 시한이 남아 있으면 지운다 — 안 그러면 참조를 잃은 타이머가 뒤늦게 닫는다.
+    pongTimer = setTimeout(() => {
+      if (myEpoch !== epoch) return; // 뒤처진 세대의 시한은 최신 소켓을 건드리면 안 된다.
+      pongTimer = null;
+      // close()가 onclose를 부르고, 거기서 clearTimers → scheduleRetry가 평소대로 돈다.
+      socket.close();
+    }, PONG_TIMEOUT_MS);
   }
 
   function scheduleRetry(myEpoch: number) {
@@ -81,10 +133,17 @@ export function createChatSocket({ onEvent }: Options) {
         return;
       }
       attempt = 0;
-      pingTimer = setInterval(() => socket.send(PING_FRAME), PING_MS);
+      pingTimer = setInterval(() => {
+        socket.send(PING_FRAME);
+        armPongDeadline(myEpoch, socket);
+      }, PING_MS);
+      // 갱 복구는 여기서만 걸 수 있다 — 포그라운드 복귀뿐 아니라 WiFi↔LTE 전환처럼 앱이 계속
+      // 떠 있는 채로 소켓만 끊겼다 붙는 경우까지 덮어야 한다(그때는 AppState 이벤트가 없다).
+      onOpen?.();
     };
     socket.onmessage = (e: { data: string }) => {
       if (myEpoch !== epoch) return; // 뒤처진 세대의 메시지는 무시한다.
+      clearPongDeadline(); // 프레임이 왔다 = 연결이 살아 있다(pong이든 message든 상관없다).
       const event = parseWsEvent(String(e.data));
       if (event) onEvent(event);
     };

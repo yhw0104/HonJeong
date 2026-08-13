@@ -3,7 +3,7 @@
 // 언제 연결하나: 로그인 상태(authed)이고 앱이 포그라운드일 때만.
 // 백그라운드에서 소켓을 붙들면 배터리를 태우고, 어차피 OS가 곧 끊는다.
 import { useEffect, useRef } from 'react';
-import { AppState } from 'react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '@/shared/auth/AuthContext';
@@ -11,6 +11,22 @@ import { useMyProfile } from '@/features/users/queries';
 import { conversationKeys } from '@/features/chat/queries';
 import { createChatSocket } from './client';
 import { applyMessageToList, applyReadToList } from './applyEvent';
+
+/**
+ * 이 앱 상태에서 소켓을 붙들고 있어야 하는가.
+ *
+ * ★'inactive'는 끊지 않는다. iOS에서 'inactive'는 제어센터를 내릴 때, 앱 스위처를 띄울 때,
+ *  전화 배너가 뜰 때, 권한 팝업이 뜰 때마다 스쳐 가는 **일상적이고 일시적인** 상태다. 이걸
+ *  백그라운드와 같이 취급하면 그때마다 소켓 teardown + 티켓 POST + 핸드셰이크 + 전량 재조회가
+ *  통째로 한 번 돈다. 배터리를 태우는 건 진짜 백그라운드뿐이므로 거기서만 끊는다.
+ *
+ * shared/realtime.ts의 appStateToFocused와 기준이 다른 것은 의도적이다 — 그쪽은 React Query
+ * 포커스 판정이라 "화면을 실제로 보고 있는가"가 맞고(‘inactive’는 보고 있지 않다), 여기는
+ * "연결을 유지할 가치가 있는가"라 기준이 다르다.
+ */
+function shouldHoldSocket(state: AppStateStatus): boolean {
+  return state !== 'background';
+}
 
 export function useChatSocket(): void {
   const { status } = useAuth();
@@ -31,6 +47,12 @@ export function useChatSocket(): void {
     if (status !== 'authed') return;
 
     const socket = createChatSocket({
+      // ★소켓이 실제로 (재)연결된 순간의 갱 복구. AppState 훅만으로는 앱이 포그라운드에 머문 채
+      //   소켓만 끊겼다 붙는 경우(WiFi↔LTE 핸드오프, 터널, 서버 재기동)를 못 잡는다 — 그때는
+      //   AppState 이벤트가 아예 발생하지 않아, 끊긴 사이의 메시지가 폴링 전까지 통째로 사라진다.
+      onOpen: () => {
+        qc.invalidateQueries({ queryKey: ['chat'] });
+      },
       onEvent: (event) => {
         const uid = myUserIdRef.current;
         // 내 프로필이 아직 로딩 중이면 uid가 null이다 — 잘못된 값(0 등)으로 안읽음·읽음을
@@ -50,19 +72,26 @@ export function useChatSocket(): void {
       },
     });
 
-    function sync(active: boolean) {
-      if (active) {
+    // 지금 붙들고 있는 상태인가. 상태가 실제로 바뀔 때만 움직이려고 기억한다 — 'inactive'를
+    // 연결 유지로 바꾼 뒤에는 active↔inactive를 오갈 때마다 sync(true)가 연달아 들어오는데,
+    // 그때마다 전량 재조회를 걸면 끊지 않기로 한 이득을 재조회 비용으로 되돌려주게 된다.
+    let held = false;
+
+    function sync(hold: boolean) {
+      if (hold === held) return;
+      held = hold;
+      if (hold) {
         socket.connect();
-        // ★재연결 시 갱 복구 — 끊겨 있던 사이의 메시지는 소켓이 채워 주지 못한다.
-        //   이게 없으면 백그라운드에 다녀온 뒤의 메시지가 폴링(30초) 전까지 안 보인다.
+        // ★백그라운드에서 돌아왔을 때의 갱 복구. 소켓 재연결 자체의 복구는 위 onOpen이 맡는다
+        //   (여기서만 하면 앱이 포그라운드에 머문 채 끊긴 경우를 놓친다).
         qc.invalidateQueries({ queryKey: ['chat'] });
       } else {
         socket.disconnect();
       }
     }
 
-    sync(AppState.currentState === 'active');
-    const sub = AppState.addEventListener('change', (s) => sync(s === 'active'));
+    sync(shouldHoldSocket(AppState.currentState));
+    const sub = AppState.addEventListener('change', (s) => sync(shouldHoldSocket(s)));
 
     return () => {
       sub.remove();

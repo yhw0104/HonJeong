@@ -84,6 +84,9 @@ describe('createChatSocket', () => {
     // 30초를 두 번 흘려서 확인한다. 한 번만 흘리면 setInterval 대신 setTimeout(1회성)으로
     // 잘못 구현해도 테스트가 통과해버린다.
     jest.advanceTimersByTime(30_000);
+    // 살아 있는 서버를 흉내 낸다 — pong이 없으면 응답 시한(10초)이 걸려 소켓이 스스로 끊기고
+    // 두 번째 ping이 아예 안 나간다. 그 동작은 아래 half-open 테스트가 따로 잠근다.
+    FakeWebSocket.last?.onmessage?.({ data: '{"type":"pong"}' });
     jest.advanceTimersByTime(30_000);
 
     expect(FakeWebSocket.last?.sent).toEqual(['{"type":"ping"}', '{"type":"ping"}']);
@@ -149,6 +152,75 @@ describe('createChatSocket', () => {
 
     // 버려진 세대 1의 open()이 뒤늦게 재개돼도 소켓을 만들지 않아야, 세대 2 소켓 하나만 남는다.
     expect(FakeWebSocket.instances.length).toBe(1);
+  });
+
+  it('★연결될 때마다 onOpen이 불린다 — 끊겼다 붙은 사이의 갱을 여기서 메운다', async () => {
+    const onOpen = jest.fn();
+    const socket = createChatSocket({ onEvent: jest.fn(), onOpen });
+    socket.connect();
+    await flush();
+    FakeWebSocket.last?.onopen?.();
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+
+    // 앱은 포그라운드 그대로인데 소켓만 끊긴 상황(WiFi↔LTE 핸드오프) — AppState 이벤트가 없으므로
+    // 재연결의 onOpen이 유일한 갱 복구 지점이다.
+    FakeWebSocket.last?.onclose?.();
+    jest.advanceTimersByTime(1_000);
+    await flush();
+    FakeWebSocket.last?.onopen?.();
+
+    expect(onOpen).toHaveBeenCalledTimes(2);
+  });
+
+  it('★뒤처진 세대의 onopen은 onOpen을 부르지 않는다 — 버려진 소켓이 재조회를 일으키면 안 된다', async () => {
+    const onOpen = jest.fn();
+    const socket = createChatSocket({ onEvent: jest.fn(), onOpen });
+    socket.connect();
+    await flush();
+    const first = FakeWebSocket.last;
+
+    socket.disconnect();
+    socket.connect();
+    await flush();
+
+    first?.onopen?.(); // 버려진 세대 1의 open이 뒤늦게 도착했다
+
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('★ping을 보내고 10초 안에 아무 프레임도 안 오면 스스로 끊고 재연결한다 — half-open이면 onclose가 영영 안 온다', async () => {
+    const socket = createChatSocket({ onEvent: jest.fn() });
+    socket.connect();
+    await flush();
+    const first = FakeWebSocket.last;
+    first?.onopen?.();
+
+    jest.advanceTimersByTime(30_000); // ping 발신 + 응답 시한 시작
+    expect(first?.closed).toBe(false);
+
+    jest.advanceTimersByTime(10_000); // 시한 만료
+    expect(first?.closed).toBe(true);
+
+    // close → onclose → scheduleRetry의 평소 경로를 그대로 탄다.
+    jest.advanceTimersByTime(1_000);
+    await flush();
+    expect(FakeWebSocket.last).not.toBe(first);
+  });
+
+  it('★시한 안에 pong이 오면 끊지 않는다 — 살아 있는 연결을 죽이면 안 된다', async () => {
+    const socket = createChatSocket({ onEvent: jest.fn() });
+    socket.connect();
+    await flush();
+    const first = FakeWebSocket.last;
+    first?.onopen?.();
+
+    jest.advanceTimersByTime(30_000); // ping 발신
+    first?.onmessage?.({ data: '{"type":"pong"}' }); // 시한 안에 응답이 왔다
+    jest.advanceTimersByTime(10_000);
+
+    expect(first?.closed).toBe(false);
+    expect(FakeWebSocket.instances.length).toBe(1); // 재연결도 없다
   });
 
   it('★뒤처진 소켓의 close가 늦게 도착해도 최신 연결의 하트비트를 죽이지 않는다', async () => {
