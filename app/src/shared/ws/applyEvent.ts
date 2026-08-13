@@ -21,6 +21,8 @@ export function parseWsEvent(raw: string): WsEvent | null {
   if (typeof parsed !== 'object' || parsed === null) return null;
   const type = (parsed as { type?: unknown }).type;
   if (type === 'message' || type === 'read' || type === 'pong') {
+    // type만 확인하고 나머지 필드는 그대로 신뢰한다(깊은 검증 없음) — 서버만이 유일한 발신자라는
+    // 전제의 의도적인 신뢰 경계다. 여기를 "검증 끝났다"는 뜻으로 오해하지 말 것.
     return parsed as WsEvent;
   }
   return null;
@@ -44,9 +46,14 @@ export function applyMessageToList(
   return list.map((c) => {
     if (c.conversationId !== event.conversationId) return c;
     const fromPartner = event.message.senderUserId !== myUserId;
+    // '사진' 문자열은 서버 ConversationService.previewsOf()의 목록 미리보기 규칙과 맞춰야 한다.
+    // 소켓 이벤트는 미리보기 문자열이 아니라 메시지 DTO를 그대로 들고 오므로, 클라이언트가
+    // 이 규칙을 다시 구현해야 한다 — REST 재조회(30초 폴링) 전까지 화면이 서버와 어긋나지 않도록.
+    // (PushMessages.chatPreview()의 '사진을 보냈어요'는 푸시 알림 문구라 다른 규칙 — 섞지 말 것)
+    const preview = event.message.type === 'IMAGE' ? '사진' : (event.message.text ?? c.lastMessagePreview);
     return {
       ...c,
-      lastMessagePreview: event.message.text ?? c.lastMessagePreview,
+      lastMessagePreview: preview,
       lastMessageAt: event.message.createdAt,
       unreadCount: fromPartner ? c.unreadCount + 1 : c.unreadCount,
     };

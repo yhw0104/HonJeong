@@ -68,6 +68,16 @@ describe('applyMessageToList', () => {
     expect(next.unreadCount).toBe(2);
   });
 
+  it('★사진 메시지는 미리보기가 이전 텍스트에 머물지 않고 "사진"이 된다 — 서버 목록과 일치', () => {
+    const image = {
+      type: 'message' as const,
+      conversationId: 1,
+      message: { id: 9, senderUserId: 20, type: 'IMAGE' as const, text: null, imageUrl: 'https://x/1.jpg', createdAt: '2026-08-13T13:00:00' },
+    };
+    const [next] = applyMessageToList([conv({ lastMessagePreview: '안녕' })], image, 10);
+    expect(next.lastMessagePreview).toBe('사진');
+  });
+
   it('다른 대화는 건드리지 않는다', () => {
     const other = conv({ conversationId: 2, lastMessagePreview: '그대로' });
     const [next] = applyMessageToList([other], event, 10);
