@@ -1,10 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from 'react-native';
 import { ApiError } from '@/shared/api/client';
-import { LIVE_REFETCH_MS } from '@/shared/realtime';
 import { deleteConversation, fetchConversations, fetchMessages, markConversationRead, sendMessage, setConversationMuted } from './api';
 
-const CHAT_REFETCH_MS = 5_000;
+// 채팅 폴링 주기. WebSocket이 붙은 뒤로는 **안전망**이다 — 소켓이 조용히 죽어도
+// 화면이 결국 따라잡게 한다(docs/08-실시간-전략.md §8).
+//
+// ★공용 LIVE_REFETCH_MS(15초)를 쓰지 않는다. 그 값을 올리면 지도·통계·혼밥러 목록까지
+//   같이 느려진다. 채팅은 소켓이 주 경로가 됐으므로 자기 상수를 갖는다.
+const CHAT_POLL_MS = 30_000;
 
 export const conversationKeys = {
   list: ['chat', 'conversations'] as const,
@@ -12,14 +16,14 @@ export const conversationKeys = {
 };
 
 export function useConversations() {
-  return useQuery({ queryKey: conversationKeys.list, queryFn: fetchConversations, refetchInterval: LIVE_REFETCH_MS });
+  return useQuery({ queryKey: conversationKeys.list, queryFn: fetchConversations, refetchInterval: CHAT_POLL_MS });
 }
 
 export function useMessages(id: number) {
   return useQuery({
     queryKey: conversationKeys.messages(id),
     queryFn: () => fetchMessages(id),
-    refetchInterval: CHAT_REFETCH_MS,
+    refetchInterval: CHAT_POLL_MS,
   });
 }
 

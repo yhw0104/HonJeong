@@ -4,6 +4,8 @@ export type DiningStyle = 'TALK' | 'QUIET';
 
 // GET /users/me 응답 중 앱에서 쓰는 필드만 타입화(나머지는 무시).
 export type MyProfile = {
+  // 서버 UserProfileResponse의 첫 필드(Long id) — 소켓 이벤트의 안읽음·읽음 귀속 판정에 필요해 추가.
+  id: number;
   nickname: string | null;
   profileImageUrl: string | null;
   region: string | null;

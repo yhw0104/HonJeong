@@ -10,6 +10,7 @@ import { navigationRef } from '@/navigation/navigationRef';
 import { setupRealtimeFocus } from '@/shared/realtime';
 import { usePushMessaging } from '@/shared/push/usePushMessaging';
 import { PushBanner } from '@/shared/push/PushBanner';
+import { useChatSocket } from '@/shared/ws/useChatSocket';
 import { ErrorBoundary } from '@/shared/components';
 import { initKakao } from '@/features/auth/kakaoLogin';
 
@@ -28,6 +29,8 @@ initKakao();
 // 리스너가 내보낸 핸들러를 그대로 넘긴다(규칙이 두 벌이 되면 반드시 갈린다).
 function PushBridge() {
   const openFromPush = usePushMessaging();
+  // 채팅 소켓도 여기서 붙인다 — useQueryClient·useAuth를 쓰므로 두 provider 안쪽이어야 한다.
+  useChatSocket();
   return <PushBanner onOpen={openFromPush} />;
 }
 
