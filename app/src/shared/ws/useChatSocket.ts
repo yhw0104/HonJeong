@@ -15,7 +15,12 @@ import { applyMessageToList, applyReadToList } from './applyEvent';
 export function useChatSocket(): void {
   const { status } = useAuth();
   const qc = useQueryClient();
-  const { data: me } = useMyProfile();
+  // ★이 훅은 App.tsx의 PushBridge(로그인 여부와 무관하게 항상 마운트)에서 불린다 — enabled를
+  // 안 걸면 guest·loading 상태(로그인 전, 로그아웃 직후)에도 GET /users/me가 나가고,
+  // 401 → refresh 실패(refresh 토큰도 없음) → notifySessionExpired → revokePushToken·
+  // clearTokens 순으로 캐스케이드가 돈다. push/index.ts의 onPushTokenRefresh가 같은 이유로
+  // getAccessToken() 가드를 두고 있는 것과 동일한 위험 — 여기서는 authed일 때만 조회한다.
+  const { data: me } = useMyProfile({ enabled: status === 'authed' });
   const myUserId = me?.id ?? null;
 
   // 콜백이 매 렌더 새로 만들어져도 소켓을 다시 만들지 않도록 최신 값을 ref로 본다.
