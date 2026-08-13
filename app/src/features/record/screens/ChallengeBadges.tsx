@@ -1,9 +1,10 @@
 // ChallengeBadges — 혼밥 챌린지 · 뱃지 (원본: screens/ChallengeBadges.jsx)
 // 더보기 '챌린지·뱃지' 또는 프로필 '뱃지' 스탯에서 진입. 뱃지 탭 시 획득 방법 바텀시트.
 import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, MoreHeader, StateView } from '@/shared/components';
+import { useSheetDismissGesture } from '@/shared/components/useSheetDismissGesture';
 import { T2 } from '@/shared/theme';
 import { useBadges } from '@/features/record/queries';
 import { toBadgeViews, earnedCount, BADGE_DEFS, type BadgeView } from '@/features/record/badges';
@@ -93,27 +94,38 @@ function formatEarnedDate(iso: string): string | null {
 /** 뱃지 탭 시 획득 방법·상태를 보여주는 하단 시트(DirectionsSheet 톤). */
 function BadgeDetailSheet({ view, onClose }: { view: BadgeView; onClose: () => void }) {
   const insets = useSafeAreaInsets();
+  // 이 컴포넌트는 시트가 열려 있는 동안에만 마운트된다(부모가 selected로 조건부 렌더).
+  // 그래서 '열림'은 늘 true다 — DirectionsSheet처럼 visible prop을 들고 있는 형태가 아니다.
+  const dismiss = useSheetDismissGesture(true, onClose);
   const earnedDate = view.earnedAt ? formatEarnedDate(view.earnedAt) : null;
   return (
     <>
-      <Pressable style={styles.scrim} onPress={onClose} accessibilityRole="button" accessibilityLabel="닫기" />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
-        <Pressable style={styles.close} onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="닫기">
+      {/* 스크림·X도 requestClose로 — 스와이프와 같은 모양으로 미끄러져 닫힌다. */}
+      <Pressable style={styles.scrim} onPress={dismiss.requestClose} accessibilityRole="button" accessibilityLabel="닫기" />
+      <Animated.View
+        onLayout={dismiss.onLayout}
+        style={[styles.sheet, { paddingBottom: insets.bottom + 24, transform: [{ translateY: dismiss.translateY }] }]}
+      >
+        <Pressable style={styles.close} onPress={dismiss.requestClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="닫기">
           <Text style={styles.closeX}>×</Text>
         </Pressable>
-        <View style={styles.handle} />
-        <View style={{ marginTop: 4 }}>
-          <BadgeMedal icon={view.icon} tier={view.tier} tierNum={view.tierNum} earned={view.earned} size={96} />
+        {/* 끌어 내리는 영역 — 이 시트는 X 말고 누를 것이 없어 본문 전체를 잡아도 탭을 삼키지 않는다.
+            (다른 시트들이 헤더만 잡는 것은 그 아래에 목록·가로 제스처가 있어서다.) */}
+        <View {...dismiss.panHandlers} style={styles.grabArea}>
+          <View style={styles.handle} />
+          <View style={{ marginTop: 4 }}>
+            <BadgeMedal icon={view.icon} tier={view.tier} tierNum={view.tierNum} earned={view.earned} size={96} />
+          </View>
+          <Text style={styles.sheetName}>{view.name}</Text>
+          <Text style={styles.sheetHowLabel}>이렇게 획득해요</Text>
+          <Text style={styles.sheetHow}>{view.how}</Text>
+          <View style={[styles.sheetStatus, { backgroundColor: view.earned ? T2.brandSoft : T2.bg }]}>
+            <Text style={[styles.sheetStatusText, { color: view.earned ? T2.brand : T2.textMute }]}>
+              {view.earned ? `✓ ${earnedDate ?? '획득함'}` : '아직 획득 전'}
+            </Text>
+          </View>
         </View>
-        <Text style={styles.sheetName}>{view.name}</Text>
-        <Text style={styles.sheetHowLabel}>이렇게 획득해요</Text>
-        <Text style={styles.sheetHow}>{view.how}</Text>
-        <View style={[styles.sheetStatus, { backgroundColor: view.earned ? T2.brandSoft : T2.bg }]}>
-          <Text style={[styles.sheetStatusText, { color: view.earned ? T2.brand : T2.textMute }]}>
-            {view.earned ? `✓ ${earnedDate ?? '획득함'}` : '아직 획득 전'}
-          </Text>
-        </View>
-      </View>
+      </Animated.View>
     </>
   );
 }
@@ -147,6 +159,8 @@ const styles = StyleSheet.create({
   },
   close: { position: 'absolute', top: 10, right: 12, width: 34, height: 34, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   closeX: { fontSize: 24, color: T2.textMute, lineHeight: 26 },
+  // 시트가 alignItems:'center'라, 감싸는 View가 내용만큼 좁아지지 않도록 폭을 늘리고 정렬을 물려받는다.
+  grabArea: { alignSelf: 'stretch', alignItems: 'center' },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E5E5', alignSelf: 'center', marginBottom: 18 },
   sheetName: { fontSize: 20, fontWeight: '800', color: T2.text, letterSpacing: -0.5, marginTop: 16 },
   sheetHowLabel: { fontSize: 11, fontWeight: '700', color: T2.textMute, letterSpacing: 0.6, marginTop: 20 },
