@@ -47,11 +47,12 @@ class WsTicketControllerTest extends ActiveUserSliceSupport {
     @DisplayName("로그인 사용자는 티켓을 받는다")
     void issuesTicket() throws Exception {
         when(wsTicketService.issue(eq(1L))).thenReturn("TICKET-ABC");
+        when(wsTicketService.ttlSeconds()).thenReturn(99);
 
         mockMvc.perform(post("/api/ws-ticket").header("Authorization", userToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.ticket").value("TICKET-ABC"))
-                .andExpect(jsonPath("$.data.expiresInSeconds").value(30));
+                .andExpect(jsonPath("$.data.expiresInSeconds").value(99));
     }
 
     @Test

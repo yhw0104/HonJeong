@@ -81,6 +81,18 @@ public class WsTicketService {
     }
 
     /**
+     * 티켓 수명(초). 발급 응답에 실어 클라이언트에게 알려줄 때 쓴다.
+     *
+     * <p>{@link #TTL}을 상수로 복제하지 않고 이 메서드로 노출하는 이유 — 값을 두 곳에 따로
+     * 적으면 한쪽만 바뀌었을 때 응답이 실제 수명과 어긋나도 컴파일도 테스트도 잡아내지 못한다.
+     *
+     * @return TTL을 초 단위 정수로 환산한 값
+     */
+    public int ttlSeconds() {
+        return (int) TTL.toSeconds();
+    }
+
+    /**
      * 만료된 티켓을 치운다.
      *
      * <p>{@link #issue}·{@link #consume} 양쪽 진입점에서 다 호출한다 — {@code consume}에서만

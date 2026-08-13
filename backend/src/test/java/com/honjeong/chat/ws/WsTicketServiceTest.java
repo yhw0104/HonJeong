@@ -106,6 +106,14 @@ class WsTicketServiceTest {
     }
 
     @Test
+    @DisplayName("ttlSeconds()는 실제 TTL(30초)을 그대로 알려준다")
+    void ttlSecondsMatchesActualTtl() {
+        WsTicketService service = new WsTicketService(new MovableClock());
+
+        assertThat(service.ttlSeconds()).isEqualTo(30);
+    }
+
+    @Test
     @DisplayName("티켓은 매번 다른 값이다 — 추측할 수 없어야 한다")
     void ticketsAreUnique() {
         WsTicketService service = new WsTicketService(new MovableClock());

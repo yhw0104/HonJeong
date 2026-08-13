@@ -21,9 +21,6 @@ import com.honjeong.global.security.CurrentUserId;
 @RequestMapping("/api/ws-ticket")
 public class WsTicketController {
 
-    /** 응답에 실어 보내는 수명. {@code WsTicketService}의 TTL과 같아야 한다. */
-    private static final int EXPIRES_IN_SECONDS = 30;
-
     private final WsTicketService wsTicketService;
 
     public WsTicketController(WsTicketService wsTicketService) {
@@ -33,11 +30,16 @@ public class WsTicketController {
     /**
      * 티켓을 발급한다.
      *
+     * <p>남은 수명은 상수로 따로 들고 있지 않고 {@code wsTicketService.ttlSeconds()}에서 그대로
+     * 가져온다 — 값을 두 곳에 적으면 서비스 쪽 TTL이 바뀌었을 때 응답만 옛 값을 계속 돌려줄 수
+     * 있고, 그러면 클라이언트가 이미 죽은 티켓을 붙들고 있거나 아직 살아 있는 티켓을 일찍
+     * 버리게 된다. 단일 진실 공급원을 서비스로 두면 이 어긋남 자체가 불가능해진다.
+     *
      * @param userId 로그인 사용자 id
      * @return 티켓과 남은 수명
      */
     @PostMapping
     public ApiResponse<WsTicketResponse> issue(@CurrentUserId Long userId) {
-        return ApiResponse.success(new WsTicketResponse(wsTicketService.issue(userId), EXPIRES_IN_SECONDS));
+        return ApiResponse.success(new WsTicketResponse(wsTicketService.issue(userId), wsTicketService.ttlSeconds()));
     }
 }
