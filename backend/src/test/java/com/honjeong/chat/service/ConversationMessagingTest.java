@@ -35,6 +35,7 @@ import com.honjeong.chat.dto.ConversationSummaryResponse;
 import com.honjeong.chat.dto.SendMessageRequest;
 import com.honjeong.chat.repository.ChatMessageRepository;
 import com.honjeong.chat.repository.ConversationRepository;
+import com.honjeong.chat.ws.ChatEventBroadcaster;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
@@ -57,6 +58,7 @@ class ConversationMessagingTest {
     @Mock UserRepository userRepository;
     @Mock BlockRepository blockRepository;
     @Mock PushDispatcher pushDispatcher;
+    @Mock ChatEventBroadcaster chatEventBroadcaster;
     // 2026-07-25T03:00:00Z(UTC) == KST(UTC+9) 2026-07-25T12:00:00 — now()가 KST로 변환하는지도 함께 확인.
     Clock clock = Clock.fixed(Instant.parse("2026-07-25T03:00:00Z"), ZoneId.of("UTC"));
     LocalDateTime expectedNow = LocalDateTime.of(2026, 7, 25, 12, 0, 0);
@@ -65,7 +67,7 @@ class ConversationMessagingTest {
     @BeforeEach
     void setUp() {
         service = new ConversationService(conversationRepository, placeRepository, userRepository,
-                chatMessageRepository, blockRepository, pushDispatcher, clock);
+                chatMessageRepository, blockRepository, pushDispatcher, clock, chatEventBroadcaster);
     }
 
     private User userRef(long id) {

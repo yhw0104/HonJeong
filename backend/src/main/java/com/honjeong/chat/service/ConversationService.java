@@ -19,6 +19,7 @@ import com.honjeong.chat.dto.ConversationSummaryResponse;
 import com.honjeong.chat.dto.SendMessageRequest;
 import com.honjeong.chat.repository.ChatMessageRepository;
 import com.honjeong.chat.repository.ConversationRepository;
+import com.honjeong.chat.ws.ChatEventBroadcaster;
 import com.honjeong.global.common.DisplayNames;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
@@ -47,13 +48,15 @@ public class ConversationService {
     private final BlockRepository blockRepository;
     private final PushDispatcher pushDispatcher;
     private final Clock clock;
+    private final ChatEventBroadcaster chatEventBroadcaster;
 
     public ConversationService(ConversationRepository conversationRepository,
                                 PlaceRepository placeRepository,
                                 UserRepository userRepository,
                                 ChatMessageRepository chatMessageRepository,
                                 BlockRepository blockRepository,
-                                PushDispatcher pushDispatcher, Clock clock) {
+                                PushDispatcher pushDispatcher, Clock clock,
+                                ChatEventBroadcaster chatEventBroadcaster) {
         this.conversationRepository = conversationRepository;
         this.placeRepository = placeRepository;
         this.userRepository = userRepository;
@@ -61,6 +64,7 @@ public class ConversationService {
         this.blockRepository = blockRepository;
         this.pushDispatcher = pushDispatcher;
         this.clock = clock;
+        this.chatEventBroadcaster = chatEventBroadcaster;
     }
 
     private LocalDateTime now() {
@@ -121,6 +125,10 @@ public class ConversationService {
      * <p>저장이 끝나면 상대에게 {@link com.honjeong.push.domain.PushType#CHAT_MESSAGE} 푸시를 예약한다
      * (커밋 후 발송). 서로 차단한 사이거나 <b>수신자가</b> 이 대화를 음소거했으면 보내지 않는다.
      *
+     * <p>동시에 {@link ChatEventBroadcaster}로 양쪽 소켓에도 새 메시지를 민다(역시 커밋 후). 차단은 푸시와
+     * 같은 조건을 공유하지만, 뮤트는 소켓 쪽에는 적용하지 않는다 — 뮤트는 "알림 끄기"지 "화면 갱신 끄기"가
+     * 아니라서, 뮤트한 대화를 열어 두고 있어도 새 메시지는 떠야 한다.
+     *
      * @param userId         발신자(참여자) id
      * @param conversationId 대화방 id
      * @param req            메시지 타입·내용
@@ -152,12 +160,18 @@ public class ConversationService {
         // 상대에게 푸시. 채팅은 알림함에 쌓지 않으므로(메시지마다 쌓으면 도배된다)
         // NotificationService.publish()를 거치지 않고 발송기를 직접 부른다.
         Long partnerId = conv.partnerOf(userId);
-        if (!blockRepository.existsBlockBetween(userId, partnerId) && !conv.isMutedBy(partnerId)) {
+        boolean blocked = blockRepository.existsBlockBetween(userId, partnerId);
+        if (!blocked && !conv.isMutedBy(partnerId)) {
             boolean isImage = req.type() != MessageType.TEXT;
             String preview = PushMessages.chatPreview(isImage ? null : req.text().trim(), isImage);
             pushDispatcher.dispatch(partnerId, PushType.CHAT_MESSAGE, userId, conv.getId(), preview);
         }
-        return ChatMessageResponse.from(msg);
+
+        // 저장된 메시지를 양쪽 소켓으로 민다. 차단은 푸시와 같은 조건을 쓰고, 뮤트는 보지 않는다
+        // (뮤트는 알림을 끄는 것이지 화면 갱신을 끄는 것이 아니다 — ChatEventBroadcaster 참조).
+        ChatMessageResponse response = ChatMessageResponse.from(msg);
+        chatEventBroadcaster.broadcastMessage(userId, partnerId, blocked, conv.getId(), response);
+        return response;
     }
 
     /**

@@ -27,6 +27,7 @@ import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.chat.domain.Conversation;
 import com.honjeong.chat.repository.ChatMessageRepository;
 import com.honjeong.chat.repository.ConversationRepository;
+import com.honjeong.chat.ws.ChatEventBroadcaster;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
@@ -48,13 +49,14 @@ class ConversationServiceTest {
     @Mock UserRepository userRepository;
     @Mock BlockRepository blockRepository;
     @Mock PushDispatcher pushDispatcher;
+    @Mock ChatEventBroadcaster chatEventBroadcaster;
     Clock clock = Clock.fixed(Instant.parse("2026-07-25T03:00:00Z"), ZoneId.of("UTC"));
     ConversationService service;
 
     @BeforeEach
     void setUp() {
         service = new ConversationService(conversationRepository, placeRepository, userRepository,
-                chatMessageRepository, blockRepository, pushDispatcher, clock);
+                chatMessageRepository, blockRepository, pushDispatcher, clock, chatEventBroadcaster);
     }
 
     /**
@@ -197,9 +199,11 @@ class ConversationServiceTest {
         Clock firstCallClock = Clock.fixed(Instant.parse("2026-07-25T03:00:00Z"), ZoneId.of("UTC"));
         Clock secondCallClock = Clock.fixed(Instant.parse("2026-07-25T03:10:00Z"), ZoneId.of("UTC"));
         ConversationService firstCallService = new ConversationService(conversationRepository, placeRepository,
-                userRepository, chatMessageRepository, blockRepository, pushDispatcher, firstCallClock);
+                userRepository, chatMessageRepository, blockRepository, pushDispatcher, firstCallClock,
+                chatEventBroadcaster);
         ConversationService secondCallService = new ConversationService(conversationRepository, placeRepository,
-                userRepository, chatMessageRepository, blockRepository, pushDispatcher, secondCallClock);
+                userRepository, chatMessageRepository, blockRepository, pushDispatcher, secondCallClock,
+                chatEventBroadcaster);
 
         firstCallService.deleteForMe(10L, 100L);
         LocalDateTime firstDeletedAt = conv.getFromDeletedAt();
