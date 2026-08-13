@@ -84,7 +84,40 @@ module.exports = {
       favicon: './assets/favicon.png',
     },
     plugins: [
-      'expo-secure-store',
+      // ★권한 문구는 여기가 유일한 출처다.
+      //
+      // 플러그인을 등록하지 않으면 각 모듈이 **Expo 기본 영문 문구**("Allow $(PRODUCT_NAME) to
+      // access your location")를 Info.plist에 넣는다. 한국어 앱인데 시스템 권한 창이 영어로 뜬다.
+      //
+      // ★안 쓰는 권한은 `false`로 지운다. Expo의 IOSConfig.Permissions가 false를 받으면 해당 키를
+      // Info.plist에서 **삭제**한다(applyPermissions의 `delete infoPlist[permission]`). 선언만 해두면
+      // 애플이 심사에서 "쓰지도 않는데 왜 요구하느냐"를 묻는다 — 특히 '항상 허용' 위치는 집중 대상이다.
+      // 이 앱이 실제로 쓰는 권한은 **앱 사용 중 위치**와 **사진 보관함** 둘뿐이다
+      // (useLocation의 requestForegroundPermissionsAsync, imageUpload의 launchImageLibraryAsync).
+      [
+        'expo-location',
+        {
+          locationWhenInUsePermission:
+            '지금 계신 곳 주변의 식당과 혼밥 중인 이웃을 보여드리기 위해 사용합니다. 앱을 사용하는 동안에만 확인하고, 이동 경로는 저장하지 않습니다.',
+          // 백그라운드 위치를 쓰지 않는다 — 워처(watchPositionAsync)도 앱이 떠 있을 때만 돈다.
+          locationAlwaysAndWhenInUsePermission: false,
+          locationAlwaysPermission: false,
+          // 모션 센서는 쓰지 않는다(위치 플러그인이 기본으로 끼워 넣을 뿐이다).
+          motionUsagePermission: false,
+        },
+      ],
+      [
+        'expo-image-picker',
+        {
+          photosPermission:
+            '리뷰와 프로필에 넣을 사진을 직접 고르실 때만 사진 보관함을 엽니다.',
+          // 카메라·마이크는 쓰지 않는다 — 사진은 보관함에서 고르기만 한다(launchCameraAsync 미사용).
+          cameraPermission: false,
+          microphonePermission: false,
+        },
+      ],
+      // Face ID는 쓰지 않는다 — SecureStore를 토큰 보관에만 쓰고 requireAuthentication을 켜지 않는다.
+      ['expo-secure-store', { faceIDPermission: false }],
       [
         '@react-native-kakao/core',
         {
