@@ -34,11 +34,24 @@ public class WsSessionRegistry {
     /**
      * 세션을 등록한다(연결 수립 시).
      *
+     * <p>★{@code computeIfAbsent(...).add(...)}로 "단순화"하고 싶겠지만 하면 안 된다 —
+     * {@code computeIfAbsent}가 집합을 반환한 뒤 {@code add}가 실행되기까지의 틈에서
+     * 다른 스레드의 {@link #unregister}가 그 집합을 마지막 세션까지 비우고 맵에서
+     * 키를 지워버릴 수 있다. 그러면 이 스레드의 {@code add}는 이미 맵에서 떨어져 나간
+     * 집합에 성공적으로 들어가고, 그 세션은 {@link #sendTo}·{@link #sessionCount} 어디에서도
+     * 보이지 않는 유령이 된다("기기 하나가 재접속하는 동안 다른 기기가 접속을 끊는" 흔한
+     * 케이스에서 실제로 발생). {@code compute}는 이 read-modify-write 전체를 해당 키의
+     * 락 안에서 원자적으로 수행해 그 틈을 없앤다.
+     *
      * @param userId  세션의 주인
      * @param session 열린 세션
      */
     public void register(Long userId, WebSocketSession session) {
-        sessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(session);
+        sessions.compute(userId, (k, existing) -> {
+            Set<WebSocketSession> set = existing == null ? ConcurrentHashMap.newKeySet() : existing;
+            set.add(session);
+            return set;
+        });
     }
 
     /**
@@ -60,6 +73,19 @@ public class WsSessionRegistry {
      * <p>닫힌 세션은 보내지 않고 그 자리에서 정리한다 — 연결이 끊겼는데 close 콜백이
      * 오지 않는 경우가 있어서, 여기가 실질적인 두 번째 청소 지점이다.
      *
+     * <p>★{@code session}에 대해 {@code synchronized}로 감싸 전송을 직렬화한다.
+     * {@link WebSocketSession#sendMessage}는 스프링 문서상 여러 스레드가 동시에 호출하는
+     * 것이 안전하지 않다 — 채팅 메시지 브로드캐스트와 읽음 처리 브로드캐스트가 서로 다른
+     * 요청 스레드에서 같은 수신자에게 겹쳐 들어오면 실제로 벌어질 수 있는 상황이다.
+     * 컨테이너에 따라 예외가 나거나 연결의 쓰기 상태가 깨져, 그 세션은 이후의 모든 푸시가
+     * 계속 실패하게 된다. 스프링이 제공하는 {@code ConcurrentWebSocketSessionDecorator}가
+     * 같은 문제를 풀지만 채택하지 않았다 — 우리 페이로드는 단일 서버에서 도는 작은 JSON이라
+     * 그 데코레이터가 주는 버퍼링·전송 시간 제한이 필요 없고, 무엇보다 핸들러는 연결 종료 시
+     * 원본(raw) 세션으로 {@link #unregister}를 부르는데 맵에는 데코레이터(wrapper)가 들어있게
+     * 되어 둘이 {@code equals}로 같지 않으니 해제가 조용히 실패한다 — 레지스트리 구조를 함께
+     * 바꾸지 않고는 못 붙인다. 나중에 느린 클라이언트를 위한 버퍼링이 필요해지면, 세션을
+     * {@code session.getId()}로 키잉하도록 바꾸는 리팩터를 거쳐 그때 도입할 것.
+     *
      * @param userId  받을 사람
      * @param payload 이미 JSON으로 직렬화된 본문
      */
@@ -74,7 +100,9 @@ public class WsSessionRegistry {
                 continue;
             }
             try {
-                session.sendMessage(new TextMessage(payload));
+                synchronized (session) {
+                    session.sendMessage(new TextMessage(payload));
+                }
             } catch (IOException | RuntimeException e) {
                 // 한 기기의 실패가 다른 기기의 전달을 막으면 안 된다.
                 log.debug("[ws] 전송 실패 user={} session={}", userId, session.getId(), e);
