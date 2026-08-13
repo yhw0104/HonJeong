@@ -29,10 +29,29 @@ export function parseWsEvent(raw: string): WsEvent | null {
 }
 
 /**
+ * 목록 정렬 기준 — 서버의 `ConversationRepository.findAllForUser`와 **글자 그대로 같아야 한다**:
+ * `ORDER BY COALESCE(lastMessageAt, createdAt) DESC, id DESC`.
+ *
+ * 서버가 내려보내는 시각은 전부 같은 형식의 ISO-8601 LocalDateTime 문자열이라 사전순 비교가
+ * 곧 시간순 비교다(자리수가 고정이고 소수부는 뒤에 붙는다). `Date`로 파싱하지 않는 이유는
+ * 타임존이 없는 문자열의 해석이 런타임마다 갈릴 수 있어 오히려 위험하기 때문이다.
+ */
+function byLastActivityDesc(a: ConversationSummary, b: ConversationSummary): number {
+  const at = a.lastMessageAt ?? a.createdAt;
+  const bt = b.lastMessageAt ?? b.createdAt;
+  if (at !== bt) return at < bt ? 1 : -1;
+  return b.conversationId - a.conversationId; // 동시각 tie-break도 서버(id DESC)와 맞춘다.
+}
+
+/**
  * 새 메시지를 대화 목록에 반영한다.
  *
  * ★ 안읽음은 **상대가 보낸 경우에만** 올린다. 내 다른 기기에서 보낸 메시지도 이 이벤트로
  * 들어오는데, 그걸 세면 내가 보낼 때마다 내 안읽음이 늘어난다.
+ *
+ * ★ 반영 후 **다시 정렬한다.** 제자리 갱신만 하면, 맨 위가 아닌 대화에 메시지가 오는 순간
+ * 그 행은 있던 자리에 남은 채 시각만 최신으로 바뀐다 — 목록에 "위쪽이 더 오래된" 뒤집힌 순서가
+ * 보이고, 다음 폴링이 올 때까지 그대로다.
  *
  * @param list 현재 목록 캐시
  * @param event 새 메시지 이벤트
@@ -43,7 +62,7 @@ export function applyMessageToList(
   event: WsMessageEvent,
   myUserId: number,
 ): ConversationSummary[] {
-  return list.map((c) => {
+  const next = list.map((c) => {
     if (c.conversationId !== event.conversationId) return c;
     const fromPartner = event.message.senderUserId !== myUserId;
     // '사진' 문자열은 서버 ConversationService.previewsOf()의 목록 미리보기 규칙과 맞춰야 한다.
@@ -58,6 +77,8 @@ export function applyMessageToList(
       unreadCount: fromPartner ? c.unreadCount + 1 : c.unreadCount,
     };
   });
+  // map이 이미 새 배열을 만들었으므로 그 위에서 정렬해도 캐시 원본을 건드리지 않는다.
+  return next.sort(byLastActivityDesc);
 }
 
 /**

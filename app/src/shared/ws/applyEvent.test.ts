@@ -87,6 +87,34 @@ describe('applyMessageToList', () => {
   it('목록에 없는 대화면 그대로 둔다 — 재조회가 채운다', () => {
     expect(applyMessageToList([], event, 10)).toEqual([]);
   });
+
+  it('★아래쪽 대화에 메시지가 오면 맨 위로 올라온다 — 제자리 갱신만 하면 순서가 뒤집힌다', () => {
+    const top = conv({ conversationId: 2, lastMessageAt: '2026-08-13T12:30:00' });
+    const bottom = conv({ conversationId: 1, lastMessageAt: '2026-08-13T12:00:00' });
+
+    const next = applyMessageToList([top, bottom], event, 10); // event는 conversationId=1, 13:00
+
+    expect(next.map((c) => c.conversationId)).toEqual([1, 2]);
+  });
+
+  it('★메시지가 아직 없는 대화는 createdAt으로 줄을 선다 — 서버의 COALESCE와 같은 규칙', () => {
+    // 방금 매칭돼 lastMessageAt이 null인 대화(createdAt 14:00)가 메시지 13:00짜리보다 위다.
+    const fresh = conv({ conversationId: 3, lastMessageAt: null, createdAt: '2026-08-13T14:00:00' });
+    const target = conv({ conversationId: 1, lastMessageAt: '2026-08-13T12:00:00' });
+
+    const next = applyMessageToList([target, fresh], event, 10);
+
+    expect(next.map((c) => c.conversationId)).toEqual([3, 1]);
+  });
+
+  it('★활동 시각이 같으면 id가 큰 쪽이 위 — 서버의 id DESC tie-break와 같다', () => {
+    const a = conv({ conversationId: 5, lastMessageAt: '2026-08-13T13:00:00' });
+    const b = conv({ conversationId: 9, lastMessageAt: '2026-08-13T13:00:00' });
+
+    const next = applyMessageToList([a, b], { ...event, conversationId: 5 }, 10);
+
+    expect(next.map((c) => c.conversationId)).toEqual([9, 5]);
+  });
 });
 
 describe('applyReadToList', () => {
