@@ -128,4 +128,19 @@ class WsTicketServiceTest {
 
         assertThat(service.size()).isZero();
     }
+
+    @Test
+    @DisplayName("★소모 없이 발급만 반복해도 맵이 무한정 자라지 않는다")
+    void issueAloneDoesNotGrowUnbounded() {
+        MovableClock clock = new MovableClock();
+        WsTicketService service = new WsTicketService(clock);
+        service.issue(1L);
+        service.issue(2L);
+        service.issue(3L);
+
+        clock.advance(Duration.ofSeconds(31));
+        service.issue(4L); // consume은 한 번도 호출하지 않는다
+
+        assertThat(service.size()).isOne();
+    }
 }

@@ -46,6 +46,7 @@ public class WsTicketService {
      * @return 불투명 티켓 문자열(URL-safe)
      */
     public String issue(Long userId) {
+        sweepExpired();
         byte[] bytes = new byte[TICKET_BYTES];
         random.nextBytes(bytes);
         String ticket = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
@@ -82,8 +83,13 @@ public class WsTicketService {
     /**
      * 만료된 티켓을 치운다.
      *
-     * <p>별도 스케줄러를 두지 않는다 — 티켓은 30초짜리고 발급량도 접속 시도 수준이라,
-     * 소모 시점마다 훑는 것으로 충분하다. 스케줄러는 관리할 것만 늘린다.
+     * <p>{@link #issue}·{@link #consume} 양쪽 진입점에서 다 호출한다 — {@code consume}에서만
+     * 훑으면, 발급만 되고 소모는 안 되는 경우(방치된 핸드셰이크 등)에 맵이 무한정 자란다.
+     * 양쪽에서 훑으면 아무도 연결하지 않아도 맵에는 TTL 한 창(window) 분량만 남는다는
+     * 불변식이 성립한다.
+     *
+     * <p>별도 스케줄러는 두지 않는다 — 티켓은 30초짜리고 발급량도 접속 시도 수준이라,
+     * 진입점마다 훑는 것으로 충분하다. 스케줄러는 관리할 것만 늘린다.
      */
     private void sweepExpired() {
         Instant now = clock.instant();
