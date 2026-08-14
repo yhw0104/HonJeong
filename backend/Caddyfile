@@ -3,5 +3,21 @@
 # 덕분에 도메인 없이도 로컬에서 전체 스택(https)을 그대로 검증할 수 있다.
 # 실제 도메인을 주면 Let's Encrypt 인증서를 자동 발급·갱신한다.
 {$DOMAIN:localhost} {
-	reverse_proxy app:8080
+	# 법무 문서는 정적 파일로 직접 서빙한다 — 앱을 거치지 않는다.
+	#
+	# 왜 여기 두나: App Store 심사는 **개인정보 처리방침 URL을 필수로 요구**한다. 앱 안에만 있으면
+	# 안 되고 웹에서 열려야 한다. 이미 도메인과 인증서가 있는 이 서버가 가장 단순한 자리다.
+	#
+	# ★handle 블록은 위에서부터 **먼저 맞는 하나만** 실행된다. 그래서 이 블록이 reverse_proxy보다
+	#   위에 있어야 한다 — 아래에 두면 모든 요청이 앱으로 넘어가 정적 파일에 닿지 못한다.
+	handle /legal/* {
+		root * /srv
+		file_server
+	}
+	# 짧은 주소로도 열리게 — 심사 양식이나 메일에 적기 좋다.
+	redir /privacy /legal/privacy.html permanent
+
+	handle {
+		reverse_proxy app:8080
+	}
 }
