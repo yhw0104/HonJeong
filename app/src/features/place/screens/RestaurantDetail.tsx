@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Dimensions, ActivityIndicator, Alert, Image, Share, Linking, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
-import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H, StateView } from '@/shared/components';
+import { ImagePlaceholder, Avatar, Icon, HonbabStatusBar, HONBAB_BAR_H, StateView, PhotoViewer } from '@/shared/components';
 import { T2 } from '@/shared/theme';
 import { usePlaceDetail, useNearby, usePlaceCheckinSummary, usePlaceMates } from '@/features/place/queries';
 import { soloFriendlyLabel } from '@/features/place/soloFriendlyLabel';
@@ -63,6 +63,8 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
   const myCheckIn = useMyCheckIn();
   const startMut = useStartCheckIn();
   const [ending, setEnding] = useState<CheckIn | null>(null); // 종료 시트(밀어서 완료) 대상
+  // 크게 볼 사진. 프로필·대화창과 같은 뷰어를 쓴다(핀치 확대·아래로 쓸어 닫기 동일).
+  const [photoViewer, setPhotoViewer] = useState<string | null>(null);
   const dineAloneMut = useDineAlone();
   const cancelMut = useCancelCheckIn();
   const name = detail.data?.name ?? route.params.name ?? '식당';
@@ -187,7 +189,7 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
     <View style={styles.root}>
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
         {/* 히어로 */}
-        <HeroPhotos placeId={placeId} />
+        <HeroPhotos placeId={placeId} onPhotoPress={setPhotoViewer} />
 
         <View style={styles.content}>
           {/* 카테고리 */}
@@ -284,9 +286,10 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
               onDelete={confirmDelete}
               onReport={reportReview}
               onOpenAuthor={openReviewAuthor}
+              onPhotoPress={setPhotoViewer}
             />
           )}
-          {stab === 'photo' && <PhotoTab placeId={placeId} />}
+          {stab === 'photo' && <PhotoTab placeId={placeId} onPhotoPress={setPhotoViewer} />}
           {stab === 'mate' && (
             <MateTab
               placeId={placeId}
@@ -384,6 +387,9 @@ export function RestaurantDetailScreen({ navigation, route }: RootStackScreenPro
         onClose={() => setDirOpen(false)}
         onPick={(p) => { setDirOpen(false); openMap(p); }}
       />
+
+      {/* 사진 크게 보기 — 프로필·대화창과 같은 뷰어(핀치 확대·아래로 쓸어 닫기). */}
+      <PhotoViewer uri={photoViewer} onClose={() => setPhotoViewer(null)} />
     </View>
   );
 }
@@ -598,13 +604,15 @@ function MenuTab() {
 }
 
 /* ── 리뷰 탭 ─────────────────────────────────────── */
-function ReviewTab({ reviews, isLoading, isError, onWrite, writeDisabled, onEdit, onDelete, onReport, onOpenAuthor }: {
+function ReviewTab({ reviews, isLoading, isError, onWrite, writeDisabled, onEdit, onDelete, onReport, onOpenAuthor, onPhotoPress }: {
   reviews: PlaceReview[];
   isLoading: boolean; isError: boolean; onWrite: () => void;
   /** 어느 작성 화면을 열지 아직 모르는 동안 true — 잘못된 화면이 열리지 않게 잠시 막는다. */
   writeDisabled: boolean;
   onEdit: (r: PlaceReview) => void; onDelete: (reviewId: number) => void; onReport: (r: PlaceReview) => void;
   onOpenAuthor: (r: PlaceReview) => void;
+  /** 리뷰 사진을 눌렀을 때 — 전체화면 뷰어로 넘긴다. */
+  onPhotoPress: (uri: string) => void;
 }) {
   return (
     <View style={{ marginTop: 4 }}>
@@ -654,7 +662,14 @@ function ReviewTab({ reviews, isLoading, isError, onWrite, writeDisabled, onEdit
                 contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}
               >
                 {r.imageUrls!.map((uri, idx) => (
-                  <Image key={`${uri}-${idx}`} source={{ uri }} style={{ width: 220, height: 220, borderRadius: 12 }} />
+                  <Pressable
+                    key={`${uri}-${idx}`}
+                    onPress={() => onPhotoPress(uri)}
+                    accessibilityRole="button"
+                    accessibilityLabel="사진 크게 보기"
+                  >
+                    <Image source={{ uri }} style={{ width: 220, height: 220, borderRadius: 12 }} />
+                  </Pressable>
                 ))}
               </ScrollView>
             )}
@@ -688,7 +703,7 @@ function ReviewTab({ reviews, isLoading, isError, onWrite, writeDisabled, onEdit
 }
 
 /* ── 히어로 대표사진 (리뷰 사진 캐러셀) ──────────────── */
-function HeroPhotos({ placeId }: { placeId: number }) {
+function HeroPhotos({ placeId, onPhotoPress }: { placeId: number; onPhotoPress: (uri: string) => void }) {
   const photos = usePlacePhotos(placeId);
   const items = photos.data ?? [];
   const [idx, setIdx] = useState(0);
@@ -705,7 +720,14 @@ function HeroPhotos({ placeId }: { placeId: number }) {
         onMomentumScrollEnd={(e) => setIdx(Math.round(e.nativeEvent.contentOffset.x / W))}
       >
         {items.map((p, i) => (
-          <Image key={`${p.photoUrl}-${i}`} source={{ uri: p.photoUrl }} style={{ width: W, height: 320 }} />
+          <Pressable
+            key={`${p.photoUrl}-${i}`}
+            onPress={() => onPhotoPress(p.photoUrl)}
+            accessibilityRole="button"
+            accessibilityLabel="사진 크게 보기"
+          >
+            <Image source={{ uri: p.photoUrl }} style={{ width: W, height: 320 }} />
+          </Pressable>
         ))}
       </ScrollView>
       {items.length > 1 ? (
@@ -718,7 +740,7 @@ function HeroPhotos({ placeId }: { placeId: number }) {
 }
 
 /* ── 사진 탭 ─────────────────────────────────────── */
-function PhotoTab({ placeId }: { placeId: number }) {
+function PhotoTab({ placeId, onPhotoPress }: { placeId: number; onPhotoPress: (uri: string) => void }) {
   const photos = usePlacePhotos(placeId);
   if (photos.isLoading) return <Text style={styles.tabEmpty}>불러오는 중…</Text>;
   const items = photos.data ?? [];
@@ -726,7 +748,14 @@ function PhotoTab({ placeId }: { placeId: number }) {
   return (
     <View style={styles.photoGrid}>
       {items.map((p, i) => (
-        <Image key={`${p.photoUrl}-${i}`} source={{ uri: p.photoUrl }} style={{ width: GRID_W, height: GRID_W, borderRadius: 10 }} />
+        <Pressable
+          key={`${p.photoUrl}-${i}`}
+          onPress={() => onPhotoPress(p.photoUrl)}
+          accessibilityRole="button"
+          accessibilityLabel="사진 크게 보기"
+        >
+          <Image source={{ uri: p.photoUrl }} style={{ width: GRID_W, height: GRID_W, borderRadius: 10 }} />
+        </Pressable>
       ))}
     </View>
   );

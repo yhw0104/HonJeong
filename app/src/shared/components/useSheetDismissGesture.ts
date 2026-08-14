@@ -37,11 +37,19 @@ const CLOSE_MAX_MS = 300;
  * "살짝만 내려도 바로 닫힌다"는 지적을 받았다. 튕겨서 닫으려면 실제로
  * {@link FLICK_MIN_DISTANCE}만큼은 내려와 있어야 한다.
  *
+ * ★`'worklet'`이 붙어 있는 이유: 이 규칙을 PhotoViewer도 쓴다. 거기는 Reanimated라 판정이
+ * UI 스레드에서 돌아야 한다. 앱 안에서 "아래로 쓸어 닫기"의 문턱은 한 곳에만 있어야 한다 —
+ * 시트와 사진 뷰어가 서로 다른 감각으로 닫히면 그게 곧 버그로 읽힌다.
+ *
+ * ★단위 주의: Reanimated의 `velocityY`는 **px/초**이고 이 함수는 **px/ms**를 받는다.
+ * 호출부에서 1000으로 나눠 넘길 것(안 나누면 살짝만 스쳐도 닫힌다).
+ *
  * @param dy 제스처를 잡은 지점부터 내려온 거리(px, 아래가 양수)
  * @param vy 놓는 순간의 세로 속도(px/ms, 아래가 양수)
  * @returns 닫아야 하면 true
  */
 export function shouldDismissSheet(dy: number, vy: number): boolean {
+  'worklet';
   if (dy >= DISMISS_DISTANCE) return true;
   return vy >= DISMISS_VELOCITY && dy >= FLICK_MIN_DISTANCE;
 }

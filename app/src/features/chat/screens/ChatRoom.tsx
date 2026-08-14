@@ -128,6 +128,13 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
     return -1;
   })();
 
+  // 상대 프로필로 이동. 만나기 전에 누구인지 다시 확인하고 싶은 자리가 바로 여기다 —
+  // 대화 목록에서만 갈 수 있고 정작 대화방에서는 못 가는 게 이상했다.
+  const openPartnerProfile = () => {
+    if (!conv) return;
+    navigation.navigate('MateProfile', { userId: conv.partnerUserId });
+  };
+
   const openReport = () => {
     setMenuOpen(false);
     if (!conv) return;
@@ -197,9 +204,15 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
     return (
       <View style={[styles.bubbleRow, styles.rowOther, { marginTop: firstOfRun ? 8 : 2 }]}>
         {firstOfRun ? (
-          <View style={styles.avatarWrap}>
+          <Pressable
+            style={styles.avatarWrap}
+            onPress={openPartnerProfile}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={`${conv?.partnerNickname ?? '상대'} 프로필 보기`}
+          >
             <Avatar uri={conv?.partnerProfileImageUrl} size={32} />
-          </View>
+          </Pressable>
         ) : (
           <View style={styles.avatarSpacer} />
         )}
@@ -218,7 +231,13 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
         <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.headerBack}>
           <Text style={styles.headerArrow}>←</Text>
         </Pressable>
-        <View style={styles.headerCenter}>
+        <Pressable
+          style={styles.headerCenter}
+          onPress={openPartnerProfile}
+          disabled={!conv}
+          accessibilityRole="button"
+          accessibilityLabel={`${conv?.partnerNickname ?? '상대'} 프로필 보기`}
+        >
           <Text style={styles.headerName} numberOfLines={1}>
             {conv?.partnerNickname ?? '대화'}
           </Text>
@@ -227,7 +246,7 @@ export function ChatRoomScreen({ navigation, route }: RootStackScreenProps<'Chat
               {truncate(conv.placeName, PLACE_MAX_CHARS)}
             </Text>
           )}
-        </View>
+        </Pressable>
         <View style={styles.headerRight}>
           {conv ? (
             <Pressable onPress={() => setMenuOpen(true)} hitSlop={10} style={styles.moreBtn}>
