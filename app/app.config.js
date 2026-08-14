@@ -89,21 +89,31 @@ module.exports = {
       // 플러그인을 등록하지 않으면 각 모듈이 **Expo 기본 영문 문구**("Allow $(PRODUCT_NAME) to
       // access your location")를 Info.plist에 넣는다. 한국어 앱인데 시스템 권한 창이 영어로 뜬다.
       //
-      // ★안 쓰는 권한은 `false`로 지운다. Expo의 IOSConfig.Permissions가 false를 받으면 해당 키를
-      // Info.plist에서 **삭제**한다(applyPermissions의 `delete infoPlist[permission]`). 선언만 해두면
-      // 애플이 심사에서 "쓰지도 않는데 왜 요구하느냐"를 묻는다 — 특히 '항상 허용' 위치는 집중 대상이다.
-      // 이 앱이 실제로 쓰는 권한은 **앱 사용 중 위치**와 **사진 보관함** 둘뿐이다
-      // (useLocation의 requestForegroundPermissionsAsync, imageUpload의 launchImageLibraryAsync).
+      // ★★키를 지울 수 있는 기준은 "JS에서 부르지 않는다"가 아니라 **"바이너리에 그 API가
+      // 링크되지 않았다"**이다. 애플의 업로드 정적 검사는 앱이 실제로 호출하는지가 아니라 심볼이
+      // 들어 있는지를 본다 — 안 쓰는 키를 지웠다가 빌드 21이 ITMS-90683(Missing purpose string)으로
+      // 반려됐다. 네이티브 모듈은 우리가 안 불러도 통째로 링크된다:
+      //
+      //   expo-image-picker  → UIImagePickerController·AVFoundation → 카메라·마이크 키 필요
+      //   expo-location      → CMMotionActivityManager             → 모션 키 필요
+      //   expo-secure-store  → LocalAuthentication                 → Face ID 키 필요
+      //
+      // 그래서 실제로 지울 수 있는 건 **'항상 허용' 위치 2종뿐**이다. expo-location의 Swift에는
+      // requestAlwaysAuthorization이 없어(권한을 요청할 방법 자체가 없다) 정적 검사 대상이 아니고,
+      // 심사에서 "쓰지도 않는데 왜 요구하느냐"를 가장 많이 묻는 항목이라 지우는 값이 크다.
+      //
+      // 나머지는 지우는 대신 **한국어로** 적는다. 이 창들은 앱이 해당 API를 부르지 않으므로 실제로
+      // 뜨지 않지만, 뜬다면 무엇에 쓰이는지 정확히 말해야 한다 — 없는 기능을 있다고 적지 않는다.
       [
         'expo-location',
         {
           locationWhenInUsePermission:
             '지금 계신 곳 주변의 식당과 혼밥 중인 이웃을 보여드리기 위해 사용합니다. 앱을 사용하는 동안에만 확인하고, 이동 경로는 저장하지 않습니다.',
-          // 백그라운드 위치를 쓰지 않는다 — 워처(watchPositionAsync)도 앱이 떠 있을 때만 돈다.
+          // 백그라운드 위치는 쓰지 않고, 요청할 방법도 없다(위 설명 참고).
           locationAlwaysAndWhenInUsePermission: false,
           locationAlwaysPermission: false,
-          // 모션 센서는 쓰지 않는다(위치 플러그인이 기본으로 끼워 넣을 뿐이다).
-          motionUsagePermission: false,
+          motionUsagePermission:
+            '위치 기능에 포함된 시스템 구성요소입니다. 혼정은 걸음 수나 활동 기록을 수집하지 않습니다.',
         },
       ],
       [
@@ -111,13 +121,20 @@ module.exports = {
         {
           photosPermission:
             '리뷰와 프로필에 넣을 사진을 직접 고르실 때만 사진 보관함을 엽니다.',
-          // 카메라·마이크는 쓰지 않는다 — 사진은 보관함에서 고르기만 한다(launchCameraAsync 미사용).
-          cameraPermission: false,
-          microphonePermission: false,
+          // 혼정은 촬영·녹음 기능을 제공하지 않는다. 사진 선택 화면이 시스템 구성요소로 함께 링크될 뿐이다.
+          cameraPermission:
+            '사진 선택 화면에 포함된 시스템 구성요소입니다. 혼정이 직접 사진이나 영상을 촬영하지는 않습니다.',
+          microphonePermission:
+            '사진 선택 화면에 포함된 시스템 구성요소입니다. 혼정이 소리를 녹음하지는 않습니다.',
         },
       ],
-      // Face ID는 쓰지 않는다 — SecureStore를 토큰 보관에만 쓰고 requireAuthentication을 켜지 않는다.
-      ['expo-secure-store', { faceIDPermission: false }],
+      [
+        'expo-secure-store',
+        {
+          faceIDPermission:
+            '로그인 정보를 기기 안전 영역에 보관하는 기능에 포함된 시스템 구성요소입니다.',
+        },
+      ],
       [
         '@react-native-kakao/core',
         {
