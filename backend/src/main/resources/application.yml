@@ -19,6 +19,11 @@ honjeong:
       app-key: ${KAKAO_APP_KEY:}
       issuer: https://kauth.kakao.com
       jwks-uri: https://kauth.kakao.com/.well-known/jwks.json
+  # 애플 로그인. issuer·jwks-uri는 애플 고정값이고, client-id는 ID 토큰의 aud로 기대하는 번들 ID다.
+  apple:
+    client-id: ${APPLE_CLIENT_ID:com.honjeong.app}
+    issuer: https://appleid.apple.com
+    jwks-uri: https://appleid.apple.com/auth/keys
   sms:
     mode: mock
   files:
