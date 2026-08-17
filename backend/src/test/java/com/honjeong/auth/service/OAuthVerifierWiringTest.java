@@ -26,12 +26,17 @@ class OAuthVerifierWiringTest {
     private static final String JWKS_URI = "https://dummy-issuer.example/.well-known/jwks.json";
     private static final String APP_KEY = "dummy-app-key"; // 실제 카카오 키 아님
 
+    private static final String APPLE_ISSUER = "https://dummy-apple.example";
+    private static final String APPLE_JWKS_URI = "https://dummy-apple.example/keys";
+    private static final String APPLE_CLIENT_ID = "com.honjeong.app";
+
     // @Value 플레이스홀더(${...}) 해석에는 PropertySourcesPlaceholderConfigurer가 필요하다
     // (일반 스프링 부트 앱은 자동 등록되지만, ApplicationContextRunner는 직접 추가해야 한다).
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(org.springframework.boot.autoconfigure.AutoConfigurations
                     .of(PropertyPlaceholderAutoConfiguration.class))
-            .withUserConfiguration(MockOAuthVerifier.class, KakaoOAuthVerifier.class);
+            .withUserConfiguration(MockOAuthVerifier.class, KakaoOAuthVerifier.class,
+                    AppleOAuthVerifier.class, DelegatingOAuthVerifier.class);
 
     @Test
     @DisplayName("mode 미지정 시 MockOAuthVerifier만 조립된다")
@@ -46,30 +51,39 @@ class OAuthVerifierWiringTest {
     }
 
     @Test
-    @DisplayName("mode=real + 필수값을 채우면 KakaoOAuthVerifier만 조립된다(부팅 실패 회귀 방지)")
-    void mode_real시_Kakao만_조립된다() {
+    @DisplayName("mode=real + 필수값을 채우면 카카오·애플 검증기가 조립되고 위임 빈이 대표가 된다")
+    void mode_real시_위임빈이_대표가_된다() {
         contextRunner
                 .withPropertyValues(
                         "honjeong.oauth.mode=real",
                         "honjeong.oauth.kakao.issuer=" + ISSUER,
                         "honjeong.oauth.kakao.jwks-uri=" + JWKS_URI,
-                        "honjeong.oauth.kakao.app-key=" + APP_KEY)
+                        "honjeong.oauth.kakao.app-key=" + APP_KEY,
+                        "honjeong.apple.issuer=" + APPLE_ISSUER,
+                        "honjeong.apple.jwks-uri=" + APPLE_JWKS_URI,
+                        "honjeong.apple.client-id=" + APPLE_CLIENT_ID)
                 .run(context -> {
                     assertThat(context).hasNotFailed();
-                    assertThat(context).hasSingleBean(OAuthVerifier.class);
-                    assertThat(context.getBean(OAuthVerifier.class)).isInstanceOf(KakaoOAuthVerifier.class);
+                    assertThat(context).hasSingleBean(KakaoOAuthVerifier.class);
+                    assertThat(context).hasSingleBean(AppleOAuthVerifier.class);
+                    // @Primary라 주입 대상은 위임 빈이다 — AuthService가 받는 것이 이것이다.
+                    assertThat(context.getBean(OAuthVerifier.class))
+                            .isInstanceOf(DelegatingOAuthVerifier.class);
                 });
     }
 
     @Test
-    @DisplayName("mode=real인데 app-key가 비어 있으면 부팅이 실패한다(Assert.hasText 검사 회귀 방지)")
-    void mode_real_appKey가_비어있으면_부팅실패한다() {
+    @DisplayName("mode=real인데 애플 client-id가 비어 있으면 부팅이 실패한다")
+    void mode_real_애플clientId가_비어있으면_부팅실패한다() {
         contextRunner
                 .withPropertyValues(
                         "honjeong.oauth.mode=real",
                         "honjeong.oauth.kakao.issuer=" + ISSUER,
                         "honjeong.oauth.kakao.jwks-uri=" + JWKS_URI,
-                        "honjeong.oauth.kakao.app-key=")
+                        "honjeong.oauth.kakao.app-key=" + APP_KEY,
+                        "honjeong.apple.issuer=" + APPLE_ISSUER,
+                        "honjeong.apple.jwks-uri=" + APPLE_JWKS_URI,
+                        "honjeong.apple.client-id=")
                 .run(context -> assertThat(context).hasFailed());
     }
 

@@ -127,8 +127,8 @@ class KakaoOAuthVerifierTest {
     }
 
     @Test
-    @DisplayName("애플은 아직 미지원 — 조용히 통과시키지 않고 명시적으로 거부한다")
-    void 애플은_미지원_예외() throws Exception {
+    @DisplayName("애플은 이 검증기가 처리하지 않는다 — 조용히 통과시키지 않고 거부한다(라우팅은 DelegatingOAuthVerifier가 한다)")
+    void 애플은_거부한다() throws Exception {
         String token = signedToken(ISSUER, APP_KEY, Instant.now().plusSeconds(600), privateKey);
 
         assertThatThrownBy(() -> verifier().verify(Provider.APPLE, token))
