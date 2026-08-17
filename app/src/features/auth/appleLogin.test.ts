@@ -59,13 +59,21 @@ describe('loginWithApple', () => {
     await expect(loginWithApple()).rejects.toThrow();
   });
 
-  it('authorizationCode가 없어도 로그인은 성립한다 — null로 채운다', async () => {
-    signInAsync.mockResolvedValue({ identityToken: 'id-token', authorizationCode: null });
+  it('authorizationCode 키가 아예 없으면 undefined가 아니라 null로 채운다', async () => {
+    // 키를 빼는 게 중요하다 — null을 흘려 넣으면 `?? null`을 지워도 통과해 버려서
+    // 이 테스트가 아무것도 지키지 못한다. undefined만이 두 구현을 갈라놓는 입력이다.
+    signInAsync.mockResolvedValue({ identityToken: 'id-token' });
 
     await expect(loginWithApple()).resolves.toEqual({
       identityToken: 'id-token',
       authorizationCode: null,
     });
+  });
+
+  it('code가 없어도 메시지로 취소를 알아본다 — 폴백 경로', async () => {
+    signInAsync.mockRejectedValue(new Error('The user canceled the authorization attempt'));
+
+    await expect(loginWithApple()).resolves.toBeNull();
   });
 
   it('취소가 아닌 실패는 그대로 던진다', async () => {

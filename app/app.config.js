@@ -41,8 +41,12 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.honjeong.app',
-      // Sign in with Apple entitlement을 붙이려면 필요하다. 이 값이 없으면 플러그인이
-      // entitlement를 쓰지 않아 실기기에서 "Sign in with Apple 사용 불가"로 실패한다.
+      // Expo 문서가 애플 로그인에 지시하는 선언. 다만 **entitlement를 붙이는 건 이 값이 아니다** —
+      // 아래 expo-apple-authentication 플러그인이 붙이고, 그 플러그인은 이 값을 읽지도 않는다
+      // (패키지 CHANGELOG: "Apply entitlements regardless of ios.usesAppleSignIn").
+      // 이 값이 실제로 쓰이는 곳은 @expo/prebuild-config의 폴백 한 군데뿐이다: 이 값이 true인데
+      // 패키지가 설치돼 있지 않으면 "expo-apple-authentication을 설치하라"는 경고를 낸다.
+      // 즉 안전망이다 — 누가 패키지를 지워도 로그인만 조용히 깨지는 대신 prebuild가 알려준다.
       usesAppleSignIn: true,
       // Firebase가 APNs로 푸시를 중계하려면 이 파일이 네이티브 프로젝트에 들어가야 한다.
       // 저장소에는 없다(.gitignore) — Firebase 콘솔에서 내려받아 이 경로에 둔다.
@@ -151,9 +155,12 @@ module.exports = {
       // Firebase만 CocoaPods로 받게 해서 앱 전체의 링크 방식을 건드리지 않는다.
       // 이유는 플러그인 파일 주석 참고(요약: SPM은 동적 링크만 지원하는데 이 앱은 정적 링크다).
       './plugins/withRNFirebaseDisableSPM',
-      // Sign in with Apple entitlement(com.apple.developer.applesignin)을 네이티브 프로젝트에
-      // 붙여 준다. 위 ios.usesAppleSignIn과 한 쌍으로 동작한다 — 둘 중 하나만 있으면 entitlement가
-      // 안 붙어 실기기에서 로그인 시트가 뜨지 않는다.
+      // com.apple.developer.applesignin entitlement를 네이티브 프로젝트에 붙인다 —
+      // 애플 로그인이 실기기에서 동작하게 만드는 건 이 플러그인이다
+      // (plugin/build/withAppleAuthIOS.js가 조건 없이 넣는다. 위 usesAppleSignIn 값은 보지 않는다).
+      // 엄밀히는 이 줄이 없어도 붙는다 — 패키지가 설치·autolink돼 있으면 prebuild가 패키지의
+      // app.plugin.js를 알아서 적용하고 createRunOncePlugin이 중복을 막는다. 그래도 문서 권장대로
+      // 남겨 둔다: 이 파일만 보고도 앱이 애플 로그인을 쓴다는 걸 알 수 있어야 한다.
       // 맨 위 '★권한 문구' 묶음에 끼우지 않고 여기 둔 이유: 이 플러그인은 권한 문구(purpose string)를
       // 만들지 않는다. 애플 로그인은 시스템 권한 창을 띄우지 않으므로 적을 문구 자체가 없다.
       'expo-apple-authentication',
