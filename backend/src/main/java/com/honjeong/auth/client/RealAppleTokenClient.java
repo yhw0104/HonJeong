@@ -4,6 +4,7 @@ import java.time.Duration;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
@@ -51,6 +52,10 @@ public class RealAppleTokenClient implements AppleTokenClient {
      * @param tokenUri         토큰 교환 주소
      * @param revokeUri        토큰 폐기 주소
      */
+    // 생성자가 (아래 테스트용 private 생성자와) 둘이라 스프링이 어느 쪽을 쓸지 스스로 정하지 못하고
+    // 기본(무인자) 생성자를 찾다가 부팅에 실패한다("No default constructor found").
+    // @Autowired로 이 생성자를 쓰도록 명시한다(KakaoOAuthVerifier·FcmPushSender와 같은 이유).
+    @Autowired
     public RealAppleTokenClient(@Value("${honjeong.apple.client-id}") String clientId,
             @Value("${honjeong.apple.team-id}") String teamId,
             @Value("${honjeong.apple.key-id}") String keyId,
@@ -65,6 +70,26 @@ public class RealAppleTokenClient implements AppleTokenClient {
         this.tokenUri = tokenUri;
         this.revokeUri = revokeUri;
         log.info("[APPLE] real 모드 — 애플 토큰을 교환·폐기합니다.");
+    }
+
+    private RealAppleTokenClient(RestClient restClient, AppleClientSecretFactory secretFactory,
+            String clientId, String tokenUri, String revokeUri) {
+        this.restClient = restClient;
+        this.secretFactory = secretFactory;
+        this.clientId = clientId;
+        this.tokenUri = tokenUri;
+        this.revokeUri = revokeUri;
+    }
+
+    /**
+     * 테스트용 — 목 서버에 물린 {@link RestClient}를 주입한다(네트워크 없이 요청 형식과 실패 처리
+     * 규칙만 확인). 운영 생성자는 애플 주소로 직접 나가므로 테스트가 그 경로를 가로챌 수 없고,
+     * {@code RestClient.Builder} 빈 주입도 이 프로젝트에서는 불가능하다(위 {@link #requestFactory()}
+     * 주석 참고) — {@code KakaoOAuthVerifier.withDecoder}와 같은 방식으로 협력자를 열어 둔다.
+     */
+    static RealAppleTokenClient withRestClient(RestClient restClient, AppleClientSecretFactory secretFactory,
+            String clientId, String tokenUri, String revokeUri) {
+        return new RealAppleTokenClient(restClient, secretFactory, clientId, tokenUri, revokeUri);
     }
 
     /**
