@@ -17,19 +17,17 @@ import com.honjeong.auth.service.SmsSender;
 import com.honjeong.auth.service.VerificationCodeGenerator;
 import com.honjeong.file.storage.FileStorage;
 import com.honjeong.file.storage.LocalFileStorage;
-import com.honjeong.geo.service.MockReverseGeocoder;
-import com.honjeong.geo.service.ReverseGeocoder;
 import com.honjeong.push.service.FcmPushSender;
 import com.honjeong.push.service.NoopPushSender;
 import com.honjeong.push.service.PushSender;
 
 /**
- * prod 프로파일 설정으로 외부연동(SMS·역지오코딩·파일저장·푸시) 빈이 실제로 조립되는지 확인하는 회귀 테스트.
+ * prod 프로파일 설정으로 외부연동(SMS·파일저장·푸시) 빈이 실제로 조립되는지 확인하는 회귀 테스트.
  *
  * <p><b>배경</b>: mock 구현체들은 {@code @ConditionalOnProperty(havingValue="mock", matchIfMissing=true)}로
  * 등록되는데, application-prod.yml이 이들을 {@code real}로 선언한 시기가 있었다. real 구현체가 존재하지
- * 않으므로 빈이 하나도 등록되지 않아 {@code AuthService}·{@code GeoService}의 생성자 주입이 실패하고
- * 컨텍스트가 죽었다 — {@code docker compose up -d}가 100% 실패했다.
+ * 않으므로 빈이 하나도 등록되지 않아 {@code AuthService}의 생성자 주입이 실패하고 컨텍스트가 죽었다 —
+ * {@code docker compose up -d}가 100% 실패했다.
  *
  * <p>이 테스트는 <b>yml 파일 자체</b>를 읽어 검증한다({@link ConfigDataApplicationContextInitializer}가
  * application.yml + application-prod.yml을 Environment에 로드한다). 누군가 prod 기본값을 다시 real로
@@ -48,7 +46,6 @@ class ExternalIntegrationWiringTest {
             .withUserConfiguration(
                     MockSmsSender.class,
                     FixedVerificationCodeGenerator.class,
-                    MockReverseGeocoder.class,
                     LocalFileStorage.class,
                     NoopPushSender.class);
 
@@ -59,15 +56,6 @@ class ExternalIntegrationWiringTest {
             assertThat(context).hasNotFailed();
             assertThat(context).hasSingleBean(SmsSender.class);
             assertThat(context).hasSingleBean(VerificationCodeGenerator.class);
-        });
-    }
-
-    @Test
-    @DisplayName("prod 프로파일에서 역지오코딩 빈이 조립된다(부팅 불가 회귀 방지)")
-    void prod에서_역지오코딩빈이_조립된다() {
-        prodRunner.run(context -> {
-            assertThat(context).hasNotFailed();
-            assertThat(context).hasSingleBean(ReverseGeocoder.class);
         });
     }
 

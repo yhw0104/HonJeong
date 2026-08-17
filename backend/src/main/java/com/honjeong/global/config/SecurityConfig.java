@@ -144,8 +144,6 @@ public class SecurityConfig {
                             .requestMatchers(HttpMethod.GET, "/api/users/nickname-check").hasAnyRole("ONBOARDING", "USER")
                             // 파일 업로드(프로필 사진)는 온보딩(ProfileSetup) 단계에서도 호출하므로 ONBOARDING도 허용.
                             .requestMatchers(HttpMethod.POST, "/api/files").hasAnyRole("ONBOARDING", "USER")
-                            // 역지오코딩(동네 설정)도 온보딩(ProfileSetup) 단계에서 호출하므로 ONBOARDING도 허용.
-                            .requestMatchers(HttpMethod.GET, "/api/geo/reverse").hasAnyRole("ONBOARDING", "USER")
                             // 그 외 모든 요청은 정식 가입 사용자(USER)만 허용.
                             // authenticated() 대신 hasRole("USER")로 게이팅하는 이유: authenticated()면 온보딩 토큰도
                             // "인증됨"으로 통과하므로, 가입 미완료 온보딩 토큰이 일반 API를 호출하는 것을 막기 위함.

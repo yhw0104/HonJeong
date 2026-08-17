@@ -201,7 +201,7 @@ docker compose down            # 중지 (-v 추가 시 DB·업로드 볼륨까�
 
 - `local` (기본) — **PostgreSQL**(docker compose `db`), `show-sql` 활성, 스키마는 Flyway 적용 후 `ddl-auto: validate`.
 - `test` — Testcontainers Postgres(`@ActiveProfiles("test")`, 단위 테스트는 Mockito로 DB 불필요).
-- `prod` — PostgreSQL, 환경변수(`DB_URL`/`DB_USERNAME`/`DB_PASSWORD`) 주입, `ddl-auto: validate`, 외부연동은 `oauth.mode`만 기본 real(`OAUTH_MODE`로 전환), `sms.mode`·`geo.mode`는 real 구현체가 없어 기본 mock(각각 `SMS_MODE`·`GEO_MODE`로 override 가능).
+- `prod` — PostgreSQL, 환경변수(`DB_URL`/`DB_USERNAME`/`DB_PASSWORD`) 주입, `ddl-auto: validate`, 외부연동은 `oauth.mode`·`push.mode`가 기본 real(`OAUTH_MODE`·`PUSH_MODE`로 전환), `sms.mode`는 real 구현체가 없어 기본 mock(`SMS_MODE`로 override 가능).
 - 전환: `SPRING_PROFILES_ACTIVE=prod ./gradlew bootRun` (Docker는 자동 지정).
   단 prod는 비밀값에 기본값을 두지 않으므로 `DB_PASSWORD`·`JWT_SECRET`을 함께 넘겨야 뜬다
   (없으면 바인딩 단계에서 즉시 실패한다). `docker compose`는 `.env`에서 주입하므로 신경 쓸 필요 없다.
