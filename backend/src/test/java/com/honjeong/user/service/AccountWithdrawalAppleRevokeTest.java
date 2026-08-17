@@ -1,6 +1,7 @@
 package com.honjeong.user.service;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
@@ -20,6 +21,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.honjeong.auth.client.AppleTokenClient;
@@ -84,7 +86,7 @@ class AccountWithdrawalAppleRevokeTest {
     @DisplayName("★소셜 연동을 지우기 전에 폐기한다 — 순서가 뒤집히면 폐기할 토큰이 사라진다")
     void 폐기가_삭제보다_먼저다() {
         givenActiveUser(1L);
-        when(socialAccountRepository.findAllByUserId(1L)).thenReturn(List.of(appleAccount("r-token")));
+        when(socialAccountRepository.findAllByUserId(1L)).thenReturn(List.of(appleAccount(1L, "r-token")));
 
         withdrawalService.withdraw(1L);
 
@@ -97,7 +99,7 @@ class AccountWithdrawalAppleRevokeTest {
     @DisplayName("★폐기가 실패해도 탈퇴는 완료된다 — 탈퇴권이 애플 가용성에 인질로 잡히면 안 된다")
     void 폐기실패해도_탈퇴는_된다() {
         givenActiveUser(1L);
-        when(socialAccountRepository.findAllByUserId(1L)).thenReturn(List.of(appleAccount("r-token")));
+        when(socialAccountRepository.findAllByUserId(1L)).thenReturn(List.of(appleAccount(1L, "r-token")));
         doThrow(new RuntimeException("apple down")).when(appleTokenClient).revoke(any());
 
         assertThatCode(() -> withdrawalService.withdraw(1L)).doesNotThrowAnyException();
@@ -118,21 +120,39 @@ class AccountWithdrawalAppleRevokeTest {
     }
 
     @Test
-    @DisplayName("보관된 토큰이 없는 애플 계정은 폐기를 부르지 않는다 — 가입 때 code 교환에 실패하면 null로 남는다")
+    @DisplayName("보관된 토큰이 없거나 공백뿐인 애플 계정은 폐기를 부르지 않는다 — 가입 때 code 교환에 실패하면 null로 남는다")
     void 토큰없는_애플계정은_폐기없음() {
         givenActiveUser(1L);
-        when(socialAccountRepository.findAllByUserId(1L)).thenReturn(List.of(appleAccount(null)));
-
+        when(socialAccountRepository.findAllByUserId(1L)).thenReturn(List.of(appleAccount(1L, null)));
         withdrawalService.withdraw(1L);
 
+        // 빈 문자열은 현재 어느 경로로도 저장되지 않지만(교환 실패는 null 계약), 필터의 절반이
+        // 검증 없이 남지 않도록 함께 고정한다.
+        givenActiveUser(2L);
+        when(socialAccountRepository.findAllByUserId(2L)).thenReturn(List.of(appleAccount(2L, "   ")));
+        withdrawalService.withdraw(2L);
+
         verify(appleTokenClient, never()).revoke(any());
+    }
+
+    @Test
+    @DisplayName("★조회가 DB에서 실패하면 애플 실패로 감추지 않고 그대로 터뜨린다 — try는 폐기 호출만 감싼다")
+    void 조회_DB실패는_삼키지_않는다() {
+        givenActiveUser(1L);
+        when(socialAccountRepository.findAllByUserId(1L))
+                .thenThrow(new DataAccessResourceFailureException("db down"));
+
+        // 삼키면 트랜잭션이 rollback-only인 채로 흘러가 커밋 때 UnexpectedRollbackException으로 터지고,
+        // 로그에는 "애플 폐기 실패"만 남아 원인을 오해하게 된다.
+        assertThatThrownBy(() -> withdrawalService.withdraw(1L))
+                .isInstanceOf(DataAccessResourceFailureException.class);
     }
 
     // --- 픽스처 --------------------------------------------------------------
 
     /** 애플 연동 1건. token이 null이면 "가입 때 교환에 실패해 토큰이 없는" 계정이 된다. */
-    private SocialAccount appleAccount(String token) {
-        SocialAccount social = SocialAccount.of(1L, Provider.APPLE, "apple-sub", null);
+    private SocialAccount appleAccount(Long userId, String token) {
+        SocialAccount social = SocialAccount.of(userId, Provider.APPLE, "apple-sub-" + userId, null);
         social.attachAppleRefreshToken(token);
         return social;
     }

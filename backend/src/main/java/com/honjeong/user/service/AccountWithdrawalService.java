@@ -214,20 +214,35 @@ public class AccountWithdrawalService {
      * 된다. {@link AppleTokenClient#revoke(String)}가 이미 내부에서 모든 실패를 삼키지만, 구현체가
      * 바뀌어도 이 성질이 유지되도록 호출부에서도 한 번 더 막고 로그만 남긴다.
      *
+     * <p><b>{@code try}는 폐기 호출만 감싼다 — 조회는 일부러 밖에 둔다.</b> 조회까지 감싸면 DB 장애로
+     * 난 {@code DataAccessException}까지 "애플 폐기 실패"로 기록된다. 그 시점에 트랜잭션은 이미
+     * rollback-only라서 삼켜 봐야 탈퇴가 되는 것도 아니고(뒤따르는 삭제도 같은 DB로 나가 실패한다),
+     * 커밋 단계에서 {@code UnexpectedRollbackException}으로 뒤늦게 터지면서 로그에는 애플 탓만 남는다.
+     * 원인을 감추지 않도록 DB 예외는 그대로 올려보낸다.
+     *
      * <p><b>트랜잭션 안에서 외부 호출을 하는 이유.</b> 프로젝트 관례는 "트랜잭션 내 외부 호출 지양"이지만
      * 여기서는 의도적으로 감수한다 — 같은 메서드의 {@code fileStorage.delete}가 이미 같은 트레이드오프를
-     * 택하고 있고(위 주석), 폐기는 그보다 가볍다. 폐기 후 롤백이 나도 사용자는 애플로 다시 로그인해
-     * 새 토큰을 받으면 그만이지만, 지워진 사진은 되돌아오지 않는다. 커밋 이후로 미루려면 이 한 흐름을 위해
-     * after-commit 훅 인프라를 새로 두어야 하는데, 그 비용이 이득보다 크다고 봤다.
+     * 택하고 있고(위 주석), 폐기 쪽 손해가 그보다 작다.
+     *
+     * <p>폐기한 뒤 롤백이 나면 회원은 ACTIVE로 남고 {@code apple_refresh_token}만 죽은 값이 된다.
+     * <b>그 토큰은 저절로 되살아나지 않는다</b> — 애플 {@code sub}는 그대로라 다시 로그인하면 원래 계정에
+     * 정확히 붙지만, 재방문 로그인 경로는 인가 코드를 다시 교환하지 않기로 못박혀 있고
+     * ({@code AuthService.oauthLogin}의 재방문 분기 주석 — "재방문 계정에는 애플 코드를 교환하지 않는다"),
+     * {@code attachAppleRefreshToken}을 부르는 곳은 최초 가입 경로 하나뿐이다.
+     * 그래서 나중에 다시 탈퇴하면 이미 죽은 토큰으로 폐기를 시도하게 되는데
+     * 그건 {@link AppleTokenClient#revoke(String)}가 조용히 삼킨다 — 계정은 멀쩡하고 손해는 "폐기가 한 번
+     * 헛돈다"에서 끝난다. 반면 지워진 프로필 사진은 어떤 경로로도 돌아오지 않는다. 커밋 이후로 미루려면
+     * 이 한 흐름을 위해 after-commit 훅 인프라를 새로 두어야 하는데, 그 비용이 이득보다 크다고 봤다.
      */
     private void revokeAppleTokens(Long userId) {
+        List<String> tokens = socialAccountRepository.findAllByUserId(userId).stream()
+                .filter(social -> social.getProvider() == Provider.APPLE)
+                .map(SocialAccount::getAppleRefreshToken)
+                // 가입 때 code 교환에 실패했거나 이 기능 이전에 가입한 계정은 토큰이 없다.
+                .filter(token -> token != null && !token.isBlank())
+                .toList();
         try {
-            socialAccountRepository.findAllByUserId(userId).stream()
-                    .filter(social -> social.getProvider() == Provider.APPLE)
-                    .map(SocialAccount::getAppleRefreshToken)
-                    // 가입 때 code 교환에 실패했거나 이 기능 이전에 가입한 계정은 토큰이 없다.
-                    .filter(token -> token != null && !token.isBlank())
-                    .forEach(appleTokenClient::revoke);
+            tokens.forEach(appleTokenClient::revoke);
         } catch (Exception e) {
             // 토큰 원문은 로그에 남기지 않는다(RealAppleTokenClient와 같은 규칙).
             log.warn("탈퇴 중 애플 토큰 폐기에 실패했습니다 — 탈퇴는 그대로 진행합니다. userId={}", userId, e);
