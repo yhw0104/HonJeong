@@ -231,28 +231,41 @@ public class AuthService {
                     ? AuthResult.login(tokenService.issue(user.getId()))                     // 정상 회원 → 로그인
                     : AuthResult.onboarding(jwtProvider.createOnboardingToken(user.getId())); // 미완 → 온보딩 계속
         }
-        // 신규: PENDING 회원 생성 + 소셜 계정 연결 저장 → 온보딩 토큰
+        // 신규 가입 경로. 애플이면 여기서 코드를 교환한다.
+        //
+        // ★실패하면 null이 돌아온다(AppleTokenClient의 계약 — 어떤 실패든 예외 대신 null). 로그인을
+        // 막지 않는다: 애플 장애로 가입이 막히면 안 된다. 이 경우 refresh token 없이 저장되고, 탈퇴 시
+        // revoke를 건너뛰게 된다. 예외가 나오지 않으므로 트랜잭션을 롤백시키지도 않는다.
+        //
+        // ★트랜잭션 안에서 외부 호출을 한다(CLAUDE.md의 "트랜잭션 내 외부 호출 지양"에 대한 의도적 예외).
+        // 밖으로 빼려면 자기호출(같은 빈의 메서드 호출은 @Transactional이 조용히 무효가 된다 — 더 나쁜
+        // 함정)이나 새 빈이 필요한데, 이 호출은 매 로그인이 아니라 "생애 최초 가입" 한 번뿐이라 그만한
+        // 값이 없다고 봤다.
+        //
+        // ★대신 "모든 쓰기보다 앞"에 둔다. 아래 userRepository.save() 뒤에 두면 커밋되지 않은 users
+        // insert를 붙든 채로 최대 15초(연결 5초 + 응답 10초)를 애플 응답에 매달리게 된다. 이 메서드의
+        // 다른 외부 호출(oAuthVerifier.verify)도 쓰기보다 앞이다 — 같은 자리로 맞춘 것이다.
+        String appleRefreshToken = provider == Provider.APPLE
+                ? appleTokenClient.exchangeRefreshToken(authorizationCode)
+                : null;
+        // PENDING 회원 생성 + 소셜 계정 연결 저장 → 온보딩 토큰
         User user = userRepository.save(User.pending(null, identity.email()));
         // 위 재방문 분기의 조회 결과(account)와 이름이 겹치지 않게 newAccount로 둔다.
         SocialAccount newAccount =
                 SocialAccount.of(user.getId(), provider, identity.providerUserId(), identity.email());
-        if (provider == Provider.APPLE) {
-            // ★실패하면 null이 돌아온다(AppleTokenClient의 계약). 로그인을 막지 않는다 — 애플 장애로
-            // 가입이 막히면 안 된다. 이 경우 refresh token이 없으므로 탈퇴 시 revoke를 건너뛰게 된다.
-            //
-            // ★트랜잭션 안에서 외부 호출을 한다(CLAUDE.md의 "트랜잭션 내 외부 호출 지양"에 대한 의도적 예외).
-            // 이유 셋: ① 이 메서드는 같은 트랜잭션에서 이미 oAuthVerifier.verify()로 외부에 나간다(검증이
-            // DB 작업보다 먼저여야 하므로 뺄 수 없다) ② 이 호출은 매 로그인이 아니라 "생애 최초 가입" 한 번뿐이다
-            // ③ 밖으로 빼려면 자기호출(같은 빈의 메서드 호출은 @Transactional이 조용히 무효가 된다 — 더 나쁜 함정)
-            // 이나 새 빈이 필요하다. 교환은 실패해도 null로 끝나므로 트랜잭션을 롤백시키지도 않는다.
-            newAccount.attachAppleRefreshToken(appleTokenClient.exchangeRefreshToken(authorizationCode));
-        }
+        newAccount.attachAppleRefreshToken(appleRefreshToken); // 애플이 아니거나 교환에 실패했으면 null
         socialAccountRepository.save(newAccount);
         return AuthResult.onboarding(jwtProvider.createOnboardingToken(user.getId()));
     }
 
     /**
-     * authorizationCode 없이 호출하는 경로(카카오·기존 호출부)를 위한 오버로드.
+     * authorizationCode 없이 호출하는 경로를 위한 오버로드 — 현재 호출자는 카카오 경로의 기존 테스트뿐이다
+     * (운영 코드는 컨트롤러가 3인자 쪽을 부른다).
+     *
+     * <p>★{@code @Transactional}을 지우면 안 된다. "3인자 쪽에 이미 붙어 있으니 중복"처럼 보이지만,
+     * 아래 위임은 <b>자기호출</b>이라 프록시를 거치지 않아 3인자의 {@code @Transactional}이 다시 적용되지
+     * 않는다. 지우는 순간 이 경로의 회원 저장과 소셜 계정 저장이 서로 다른 트랜잭션으로 쪼개진다
+     * (= 3인자 본문이 경고하는 바로 그 함정).
      *
      * @param provider 소셜 공급자
      * @param idToken  공급자가 발급한 ID 토큰

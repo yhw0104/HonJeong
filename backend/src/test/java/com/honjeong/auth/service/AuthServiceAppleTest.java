@@ -85,6 +85,23 @@ class AuthServiceAppleTest {
         when(jwtProvider.createOnboardingToken(1L)).thenReturn("onb");
     }
 
+    /**
+     * "이 애플 계정으로 예전에 이미 가입한 사람"을 재현한다 — 재방문(로그인) 분기로 흐르게 한다.
+     * 가입 때 교환에 실패해 apple_refresh_token이 비어 있는 계정을 일부러 쓴다(backfill 유혹이 가장
+     * 큰 상황이 정확히 이 모양이다).
+     */
+    private void givenReturningAppleUser(String sub) {
+        when(oAuthVerifier.verify(Provider.APPLE, ID_TOKEN))
+                .thenReturn(new OAuthIdentity(Provider.APPLE, sub, null));
+        when(socialAccountRepository.findByProviderAndProviderUserId(Provider.APPLE, sub))
+                .thenReturn(Optional.of(SocialAccount.of(5L, Provider.APPLE, sub, null)));
+        User user = User.pending(null, null);
+        user.completeProfile("닉", null, null, null, null, null, null, null, null); // ACTIVE 전환
+        ReflectionTestUtils.setField(user, "id", 5L);
+        when(userRepository.findById(5L)).thenReturn(Optional.of(user));
+        when(tokenService.issue(5L)).thenReturn(new TokenPair("acc", "ref", 3600));
+    }
+
     /** 저장된 소셜 계정을 붙잡아 돌려준다(저장 자체가 일어났는지도 함께 검증된다). */
     private SocialAccount savedSocialAccount() {
         ArgumentCaptor<SocialAccount> saved = ArgumentCaptor.forClass(SocialAccount.class);
@@ -144,5 +161,28 @@ class AuthServiceAppleTest {
 
         verify(appleTokenClient, never()).exchangeRefreshToken(any());
         assertThat(savedSocialAccount().getAppleRefreshToken()).isNull();
+    }
+
+    /**
+     * given: 이미 가입한 애플 계정(가입 때 교환에 실패해 refresh token이 비어 있다) + 앱이 이번에도
+     * authorizationCode를 보냄.
+     * when: 재방문 로그인.
+     * then: 코드를 교환하지도, 소셜 계정을 다시 저장하지도 않고 그대로 로그인만 된다.
+     *
+     * <p>"재방문에는 backfill하지 않는다"는 결정을 코드가 아니라 <b>테스트</b>로 고정한다. 이 단언이
+     * 없으면 ⓐ 친절하게 뒤늦게 채우는 코드가 들어와도, ⓑ 교환을 {@code account.isPresent()} 검사보다
+     * 위로 옮겨 매 로그인마다 애플로 나가게 돼도 전 스위트가 초록으로 통과한다 — 둘 다 지금은 읽기만
+     * 하는 로그인 경로에 외부 HTTP 호출(과 쓰기)을 얹는 변경이다.
+     */
+    @Test
+    @DisplayName("재방문 로그인은 코드를 교환하지 않는다 — backfill하지 않기로 한 결정을 고정한다")
+    void 재방문에는_교환하지_않는다() {
+        givenReturningAppleUser("apple-sub");
+
+        AuthResult result = authService.oauthLogin(Provider.APPLE, ID_TOKEN, "code-123");
+
+        assertThat(result.onboarding()).isFalse(); // 기존 ACTIVE 회원 → 곧바로 로그인
+        verify(appleTokenClient, never()).exchangeRefreshToken(any());
+        verify(socialAccountRepository, never()).save(any());
     }
 }

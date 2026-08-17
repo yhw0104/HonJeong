@@ -285,10 +285,14 @@ class ExternalIntegrationWiringTest {
      * ★위 대조군과 {@code honjeong.apple.mode} 값 하나만 다르다. "rea1"은 mock에도 real에도 걸리지 않아
      * 빈이 <b>0개</b>가 된다.
      *
-     * <p>이 상태는 예전엔 무해했지만(아무도 주입받지 않았다), 지금은 {@code AuthService}가 이 빈을
-     * 생성자로 받으므로 기동 자체가 실패한다. 즉 오타는 "애플 연동만 조용히 죽은 서버"가 아니라
-     * 즉시 드러나는 부팅 실패로 나타난다 — 그 사실을 여기 고정해 둔다(빈값 자격증명 가드와 같은
-     * fail-closed 방향).
+     * <p>여기서 고정하는 명제는 정확히 이것이다 — <b>빈이 0개면 이 빈을 생성자로 받는 어떤 소비자든
+     * 기동에 실패한다</b>. 즉 오타는 "애플 연동만 조용히 죽은 서버"가 아니라 즉시 드러나는 부팅 실패로
+     * 나타난다(빈값 자격증명 가드와 같은 fail-closed 방향).
+     *
+     * <p>실패를 내는 소비자는 이 파일의 {@link AppleTokenClientConsumer}지 {@code AuthService}가 아니다.
+     * 그러니 이 테스트는 "운영이 반드시 죽는다"까지는 보장하지 못한다 — {@code AuthService}의 의존이
+     * 나중에 {@code ObjectProvider}나 {@code @Nullable}로 느슨해지면 이 테스트는 초록인 채로 운영만
+     * 애플 없이 조용히 뜰 수 있다. 그때는 이 테스트가 아니라 그 변경을 의심할 것.
      */
     @Test
     @DisplayName("honjeong.apple.mode에 오타가 있으면 기동에 실패한다 — 빈 0개인 채로 조용히 뜨지 않는다")
