@@ -15,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.honjeong.auth.client.AppleTokenClient;
 import com.honjeong.block.repository.BlockRepository;
 import com.honjeong.chat.service.ConversationService;
 import com.honjeong.checkin.domain.CheckIn;
@@ -61,6 +62,8 @@ class AccountWithdrawalServiceTest {
     private final PhoneVerificationRepository phoneVerificationRepository = mock(PhoneVerificationRepository.class);
     private final ConversationService conversationService = mock(ConversationService.class);
     private final FileStorage fileStorage = mock(FileStorage.class);
+    // 폐기 순서·실패 내성은 AccountWithdrawalAppleRevokeTest가 본다 — 여기서는 배선만 채운다.
+    private final AppleTokenClient appleTokenClient = mock(AppleTokenClient.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-28T03:00:00Z"), ZoneId.of("Asia/Seoul"));
 
     private final AccountWithdrawalService service = new AccountWithdrawalService(
@@ -68,7 +71,7 @@ class AccountWithdrawalServiceTest {
             blockRepository, notificationRepository, notificationSettingsRepository, userBadgeRepository,
             deviceTokenRepository, favoriteGroupRepository, foodPreferenceRepository, refreshTokenRepository,
             socialAccountRepository,
-            phoneVerificationRepository, conversationService, fileStorage, clock);
+            phoneVerificationRepository, conversationService, fileStorage, appleTokenClient, clock);
 
     @Test
     @DisplayName("탈퇴하면 개인정보가 익명화되고 상태가 WITHDRAWN이 된다")

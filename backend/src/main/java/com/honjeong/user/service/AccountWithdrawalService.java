@@ -5,9 +5,14 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.honjeong.auth.client.AppleTokenClient;
+import com.honjeong.auth.domain.Provider;
+import com.honjeong.auth.domain.SocialAccount;
 import com.honjeong.auth.repository.PhoneVerificationRepository;
 import com.honjeong.auth.repository.RefreshTokenRepository;
 import com.honjeong.auth.repository.SocialAccountRepository;
@@ -49,6 +54,8 @@ import com.honjeong.user.repository.UserRepository;
 @Service
 public class AccountWithdrawalService {
 
+    private static final Logger log = LoggerFactory.getLogger(AccountWithdrawalService.class);
+
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final UserRepository userRepository;
@@ -68,6 +75,7 @@ public class AccountWithdrawalService {
     private final PhoneVerificationRepository phoneVerificationRepository;
     private final ConversationService conversationService;
     private final FileStorage fileStorage;
+    private final AppleTokenClient appleTokenClient;   // 탈퇴 시 애플 토큰 폐기(심사 지침 5.1.1(v))
     private final Clock clock;
 
     public AccountWithdrawalService(UserRepository userRepository, CheckInRepository checkInRepository,
@@ -80,7 +88,8 @@ public class AccountWithdrawalService {
             UserFoodPreferenceRepository foodPreferenceRepository,
             RefreshTokenRepository refreshTokenRepository, SocialAccountRepository socialAccountRepository,
             PhoneVerificationRepository phoneVerificationRepository,
-            ConversationService conversationService, FileStorage fileStorage, Clock clock) {
+            ConversationService conversationService, FileStorage fileStorage,
+            AppleTokenClient appleTokenClient, Clock clock) {
         this.userRepository = userRepository;
         this.checkInRepository = checkInRepository;
         this.mealRequestRepository = mealRequestRepository;
@@ -98,6 +107,7 @@ public class AccountWithdrawalService {
         this.phoneVerificationRepository = phoneVerificationRepository;
         this.conversationService = conversationService;
         this.fileStorage = fileStorage;
+        this.appleTokenClient = appleTokenClient;
         this.clock = clock;
     }
 
@@ -168,6 +178,7 @@ public class AccountWithdrawalService {
      * 비운다" 관례를 여기서 "복원"하면 이 버그가 재발한다 — 이 트랜잭션에 한해서는 절대 금지.
      */
     private void deletePersonalData(Long userId, String profileImageUrl, String phone) {
+        revokeAppleTokens(userId);                           // ★반드시 소셜 연동 삭제보다 먼저
         socialAccountRepository.deleteAllByUserId(userId);   // 재가입에 필수
         refreshTokenRepository.deleteAllByUserId(userId);    // 세션 즉시 무효화
         foodPreferenceRepository.deleteAllByUserId(userId);
@@ -188,6 +199,38 @@ public class AccountWithdrawalService {
             // 이미 사라진 상태가 된다. after-commit 훅이 더 정확하지만, 이 한 흐름을 위해 훅 인프라를
             // 새로 두는 비용은 아니라고 보고 의도적으로 감수한다(오밤중 실수 아님).
             fileStorage.delete(profileImageUrl);
+        }
+    }
+
+    /**
+     * 애플 연동이 있으면 애플에 토큰 폐기를 요청한다(App Store 심사 지침 5.1.1(v) — 계정 삭제를
+     * 제공하는 앱은 애플이 발급한 토큰도 함께 무효화해야 한다).
+     *
+     * <p>★<b>소셜 연동 삭제보다 먼저 호출해야 한다.</b> {@code social_accounts}를 지운 뒤에는 폐기할
+     * refresh token을 읽을 방법이 없다 — 순서가 뒤집히면 폐기가 조용히 사라지고, 그 사실은 심사에서야
+     * 드러난다.
+     *
+     * <p>★<b>실패해도 탈퇴를 막지 않는다.</b> 애플 서버 장애로 사용자가 계정에서 나가지 못하게 되면 안
+     * 된다. {@link AppleTokenClient#revoke(String)}가 이미 내부에서 모든 실패를 삼키지만, 구현체가
+     * 바뀌어도 이 성질이 유지되도록 호출부에서도 한 번 더 막고 로그만 남긴다.
+     *
+     * <p><b>트랜잭션 안에서 외부 호출을 하는 이유.</b> 프로젝트 관례는 "트랜잭션 내 외부 호출 지양"이지만
+     * 여기서는 의도적으로 감수한다 — 같은 메서드의 {@code fileStorage.delete}가 이미 같은 트레이드오프를
+     * 택하고 있고(위 주석), 폐기는 그보다 가볍다. 폐기 후 롤백이 나도 사용자는 애플로 다시 로그인해
+     * 새 토큰을 받으면 그만이지만, 지워진 사진은 되돌아오지 않는다. 커밋 이후로 미루려면 이 한 흐름을 위해
+     * after-commit 훅 인프라를 새로 두어야 하는데, 그 비용이 이득보다 크다고 봤다.
+     */
+    private void revokeAppleTokens(Long userId) {
+        try {
+            socialAccountRepository.findAllByUserId(userId).stream()
+                    .filter(social -> social.getProvider() == Provider.APPLE)
+                    .map(SocialAccount::getAppleRefreshToken)
+                    // 가입 때 code 교환에 실패했거나 이 기능 이전에 가입한 계정은 토큰이 없다.
+                    .filter(token -> token != null && !token.isBlank())
+                    .forEach(appleTokenClient::revoke);
+        } catch (Exception e) {
+            // 토큰 원문은 로그에 남기지 않는다(RealAppleTokenClient와 같은 규칙).
+            log.warn("탈퇴 중 애플 토큰 폐기에 실패했습니다 — 탈퇴는 그대로 진행합니다. userId={}", userId, e);
         }
     }
 }
