@@ -62,6 +62,18 @@ services:
       # 보간용일 뿐 컨테이너 환경변수로 자동 전달되지 않기 때문이다.
       PUSH_MODE: ${PUSH_MODE:-real}
       FIREBASE_CREDENTIALS_BASE64: ${FIREBASE_CREDENTIALS_BASE64:-}
+      # 애플 토큰 교환·폐기 스위치. 위 두 스위치와 같은 이유로 기본값을 real로 맞춘다 —
+      # prod 프로파일(application-prod.yml)이 이미 APPLE_MODE 기본값을 real로 선언하므로
+      # 여기서 다른 기본값을 주면 그 선언을 덮어써 조용히 mock으로 뜬다(탈퇴해도 애플 토큰이
+      # 안 지워지는데 서버는 멀쩡해 보인다 — 심사에서야 드러난다). 자격증명이 비어 있으면
+      # RealAppleTokenClient 생성자가 부팅을 실패시킨다.
+      # ★이 다섯 줄이 없으면 컨테이너에 값이 전달되지 않는다. compose의 .env는 compose 파일
+      # 보간용일 뿐 컨테이너 환경변수로 자동 전달되지 않기 때문이다(푸시에서 겪은 함정과 같다).
+      APPLE_MODE: ${APPLE_MODE:-real}
+      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-com.honjeong.app}
+      APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
+      APPLE_KEY_ID: ${APPLE_KEY_ID:-}
+      APPLE_PRIVATE_KEY_BASE64: ${APPLE_PRIVATE_KEY_BASE64:-}
     # 호스트 포트를 열지 않는다 — Caddy가 내부망(app:8080)으로 접근한다.
     volumes:
       # 업로드 사진 영속화. 없으면 컨테이너 재생성 시 사진이 전량 소실된다.

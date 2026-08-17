@@ -33,6 +33,12 @@ honjeong:
   push:
     mode: ${PUSH_MODE:real}
     credentials-base64: ${FIREBASE_CREDENTIALS_BASE64:}
+  apple:
+    # ★real이 기본이다. 자격증명이 비어 있으면 부팅에 실패한다 — 조용히 mock으로 떨어지면
+    # "배포는 됐는데 탈퇴 시 애플 토큰만 안 지워지는" 상태가 되고, 그건 심사에서야 드러난다.
+    # push(FCM)와 같은 fail-closed 방식이다.
+    # ★그래서 배포 전에 서버 .env에 APPLE_* 넷을 반드시 채워야 한다(안 채우면 크래시 루프).
+    mode: ${APPLE_MODE:real}
 
 server:
   port: 8080

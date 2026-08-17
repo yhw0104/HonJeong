@@ -2,6 +2,11 @@ package com.honjeong.global.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.security.KeyPairGenerator;
+import java.security.spec.ECGenParameterSpec;
+import java.util.Base64;
+
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,6 +16,9 @@ import org.springframework.boot.test.context.ConfigDataApplicationContextInitial
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 
+import com.honjeong.auth.client.AppleTokenClient;
+import com.honjeong.auth.client.NoopAppleTokenClient;
+import com.honjeong.auth.client.RealAppleTokenClient;
 import com.honjeong.auth.service.FixedVerificationCodeGenerator;
 import com.honjeong.auth.service.MockSmsSender;
 import com.honjeong.auth.service.SmsSender;
@@ -22,7 +30,7 @@ import com.honjeong.push.service.NoopPushSender;
 import com.honjeong.push.service.PushSender;
 
 /**
- * prod 프로파일 설정으로 외부연동(SMS·파일저장·푸시) 빈이 실제로 조립되는지 확인하는 회귀 테스트.
+ * prod 프로파일 설정으로 외부연동(SMS·파일저장·푸시·애플 토큰) 빈이 실제로 조립되는지 확인하는 회귀 테스트.
  *
  * <p><b>배경</b>: mock 구현체들은 {@code @ConditionalOnProperty(havingValue="mock", matchIfMissing=true)}로
  * 등록되는데, application-prod.yml이 이들을 {@code real}로 선언한 시기가 있었다. real 구현체가 존재하지
@@ -147,5 +155,75 @@ class ExternalIntegrationWiringTest {
     void real이면_mock빈이_없다() {
         prodRunner.withPropertyValues("honjeong.push.mode=real")
                 .run(context -> assertThat(context).doesNotHaveBean(NoopPushSender.class));
+    }
+
+    // --- 애플 토큰 클라이언트 배선 ---
+
+    /**
+     * real 대조군에 넣을 자격증명. .p8 개인키를 저장소에 커밋하지 않으려고 실행할 때마다 새로 만든다
+     * (운영에 넣는 값과 같은 모양: PEM 파일 전체를 base64로 인코딩한 값).
+     */
+    private static String applePrivateKeyBase64;
+
+    @BeforeAll
+    static void generateApplePrivateKey() throws Exception {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("EC");
+        generator.initialize(new ECGenParameterSpec("secp256r1"));
+        String pem = "-----BEGIN PRIVATE KEY-----\n"
+                + Base64.getMimeEncoder(64, "\n".getBytes())
+                        .encodeToString(generator.generateKeyPair().getPrivate().getEncoded())
+                + "\n-----END PRIVATE KEY-----\n";
+        applePrivateKeyBase64 = Base64.getEncoder().encodeToString(pem.getBytes());
+    }
+
+    /**
+     * apple.mode=real로 {@link RealAppleTokenClient}를 올리는 러너. <b>자격증명 셋만</b> 인자로 받는다 —
+     * 아래 두 테스트가 정확히 그 값들만 다르게 두고 돌기 위한 장치다(대조군/실험군).
+     */
+    private ApplicationContextRunner appleRealRunner(String teamId, String keyId, String privateKeyBase64) {
+        return prodRunner
+                .withUserConfiguration(RealAppleTokenClient.class)
+                .withPropertyValues("honjeong.apple.mode=real",
+                        "honjeong.apple.team-id=" + teamId,
+                        "honjeong.apple.key-id=" + keyId,
+                        "honjeong.apple.private-key-base64=" + privateKeyBase64);
+    }
+
+    @Test
+    @DisplayName("apple.mode 기본(mock)에서 애플 토큰 클라이언트가 조립된다")
+    void 애플_토큰클라이언트가_조립된다() {
+        prodRunner
+                .withPropertyValues("honjeong.apple.mode=mock")
+                .withUserConfiguration(NoopAppleTokenClient.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(AppleTokenClient.class);
+                });
+    }
+
+    @Test
+    @DisplayName("apple.mode=real이고 자격증명이 채워져 있으면 정상 기동한다(아래 기동실패 테스트의 대조군)")
+    void 애플real이고_자격증명이_있으면_기동한다() {
+        appleRealRunner("TEAM123456", "KEY1234567", applePrivateKeyBase64).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).hasSingleBean(AppleTokenClient.class);
+        });
+    }
+
+    /**
+     * ★이 테스트는 위 대조군과 <b>자격증명 값 셋만</b> 다르다. 그래서 실패는 다른 배선 문제가 아니라
+     * {@code AppleClientSecretFactory}의 빈값 가드가 낸 것이다 — 근거를 예외 타입·메시지로 한 번 더 고정한다.
+     * ({@code hasFailed()}만 단언하면 엉뚱한 이유로 죽은 컨텍스트도 통과한다 — 이 브랜치의 카카오
+     * 회귀 테스트가 실제로 그렇게 통과하고 있었다.)
+     */
+    @Test
+    @DisplayName("apple.mode=real인데 자격증명이 없으면 기동에 실패한다 — 조용히 mock으로 떨어지지 않는다")
+    void 애플real인데_자격증명이_없으면_기동실패() {
+        appleRealRunner("", "", "").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context).getFailure().rootCause()
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("honjeong.apple.team-id");
+        });
     }
 }
