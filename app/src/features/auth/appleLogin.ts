@@ -36,6 +36,17 @@ export async function isAppleLoginAvailable(): Promise<boolean> {
  */
 export async function loginWithApple(): Promise<AppleCredential | null> {
   try {
+    // nonce를 보내지 않는다. 보낼 수는 있다(signInAsync의 nonce 옵션) — 하지만 우리 서버는 무상태라
+    // 방금 만든 nonce를 어디에도 보관하지 않고, 따라서 돌아온 id_token의 nonce claim과 대조할 방법이 없다.
+    // 대조하지 않는 nonce는 아무것도 막지 못한다. 보안 장치의 겉모양만 남는 쪽이 없는 것보다 나쁘다.
+    // kakaoLogin.ts도 같은 처지를 적어 두었다(거긴 카카오가 OIDC 플로우를 타게 만드는 트리거로 필요해서
+    // 보낼 뿐, 서버가 검증하지는 않는다). 애플은 nonce 없이도 id_token을 주므로 보낼 이유조차 없다.
+    //
+    // 정직한 한계: 그래서 재전송 방어는 서버의 aud(우리 번들 ID인가)·exp(만료되지 않았나) 검증뿐이다.
+    // 유효기간 안의 id_token을 통째로 가로챈 공격자는 그걸 우리 서버에 다시 낼 수 있다(토큰은 TLS 안에서만
+    // 오가고 애플이 유효기간을 짧게 주지만, 그건 완화지 차단이 아니다).
+    // 제대로 닫으려면 클라이언트에 값을 하나 더 싣는 게 아니라 **서버가 nonce를 발급·보관하고 1회만
+    // 소비하는 상태**를 가져야 한다. 그건 이 슬라이스 밖의 일이다.
     const credential = await AppleAuthentication.signInAsync({ requestedScopes: [] });
     if (!credential.identityToken) {
       // ★현재 SDK에서는 도달하지 않는 방어선이다 — signInAsync가 identityToken·authorizationCode·user

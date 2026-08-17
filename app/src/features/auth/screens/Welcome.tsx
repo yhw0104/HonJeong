@@ -1,6 +1,6 @@
 // Welcome — 웰컴 / 로그인 진입 (원본: screens/Welcome.jsx)
 // absolute 레이아웃을 flex 컬럼(상단 타이포 / 중단 카운터 / 하단 CTA)으로 재배치.
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert, Platform } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Screen, Icon } from '@/shared/components';
@@ -17,15 +17,25 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
   const [counts, setCounts] = useState<{ seekingCount: number; activeCount: number } | null>(null);
   const { signIn } = useAuth();
   const [kakaoBusy, setKakaoBusy] = useState(false);
-  const [appleBusy, setAppleBusy] = useState(false);
-  // 애플 버튼은 기기가 지원할 때만 그린다. 값을 물어보는 동안(첫 프레임)은 false라 버튼이 없다가
-  // 뜨는데, 비동기로만 답을 얻을 수 있어 어쩔 수 없다. 안드로이드에서는 물어보지도 않는다.
-  const [appleAvailable, setAppleAvailable] = useState(false);
+  // 더블탭 가드를 상태가 아니라 ref로 둔다. 상태는 리렌더가 돌아야 갱신돼, 같은 프레임에 두 번 누르면
+  // 두 호출 모두 false를 읽고 통과한다. 카카오 버튼은 그래도 disabled prop이라는 뒷받침이 있지만,
+  // 애플 네이티브 버튼에는 그런 prop 자체가 없어(onPress·buttonType·buttonStyle·cornerRadius·style이
+  // 전부다) 이 가드가 유일한 방어선이다. ref는 동기적으로 읽고 써서 창이 아예 열리지 않는다.
+  const appleBusy = useRef(false);
+  // 애플 로그인 지원 여부. 비동기로만 알 수 있어 '아직 모름'이 별도의 상태로 필요하다 —
+  // 모르는 동안 자리(48pt)를 비워 두면 나중에 버튼이 끼어들 때 위쪽이 통째로 밀려 올라간다(아래 참고).
+  // ★안드로이드는 물어볼 일이 없으므로 처음부터 'unavailable'로 시작한다. 여기서 'unknown'으로
+  //   두면 effect가 즉시 return해 영영 갱신되지 않아, 버튼이 뜰 리 없는 플랫폼에 빈 48pt가 남는다.
+  const [appleAvailability, setAppleAvailability] = useState<'unknown' | 'available' | 'unavailable'>(
+    Platform.OS === 'ios' ? 'unknown' : 'unavailable',
+  );
 
   useEffect(() => {
-    if (Platform.OS !== 'ios') return;
+    if (Platform.OS !== 'ios') return; // 초기값이 이미 'unavailable'이라 그대로 둔다
     let alive = true;
-    isAppleLoginAvailable().then((ok) => { if (alive) setAppleAvailable(ok); });
+    isAppleLoginAvailable().then((ok) => {
+      if (alive) setAppleAvailability(ok ? 'available' : 'unavailable');
+    });
     return () => { alive = false; };
   }, []);
 
@@ -68,8 +78,8 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
 
   // 애플 로그인 → 서버 검증 → 신규면 프로필 설정, 기존이면 바로 입장. onKakao와 같은 구조다.
   const onApple = async () => {
-    if (appleBusy) return; // 더블탭 방지
-    setAppleBusy(true);
+    if (appleBusy.current) return; // 더블탭 방지 — ref라 같은 프레임의 두 번째 탭도 막힌다
+    appleBusy.current = true;
     try {
       const credential = await loginWithApple();
       if (credential === null) return; // 사용자가 취소 — 알림 없이 조용히 복귀
@@ -91,7 +101,7 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
       console.warn('[apple] 로그인 실패', e);
       Alert.alert('로그인 실패', e instanceof ApiError ? e.message : '잠시 후 다시 시도해주세요.');
     } finally {
-      setAppleBusy(false);
+      appleBusy.current = false;
     }
   };
 
@@ -136,7 +146,7 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
               덜 눈에 띄게 배치하지 말라고 요구한다. iOS 13+에서만 뜬다.
               직접 그리지 않고 애플 공식 컴포넌트를 쓰는 이유: 로고·문구·색·현지화가 애플 승인
               규격 그대로 나와 브랜딩 규칙을 어길 여지가 없다. */}
-          {appleAvailable ? (
+          {appleAvailability === 'available' ? (
             <AppleAuthentication.AppleAuthenticationButton
               buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
               buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
@@ -144,6 +154,15 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
               style={styles.appleBtn}
               onPress={onApple}
             />
+          ) : appleAvailability === 'unknown' ? (
+            // 지원 여부를 묻는 동안 자리만 잡아 둔다(아무것도 그리지 않는 빈 View).
+            // cta가 flex 컬럼 맨 아래에 있어서, 뒤늦게 버튼이 끼어들면 위쪽 카운터 블록이
+            // 56pt(버튼 48 + gap 8)만큼 솟구친다 — 앱을 새로 켤 때마다 첫 화면이 덜컥이고,
+            // 하필 그 화면이 심사자가 앱에서 처음 보는 장면이다. 같은 크기를 미리 비워 두면
+            // 버튼이 그 자리에 그대로 들어와 아무것도 움직이지 않는다.
+            // 미리 진짜 버튼을 그려 두지 않는 이유: isAppleLoginAvailable()이 false로 답하면
+            // 버튼이 떴다가 사라지는 게 되고, "resolves true일 때만 노출" 조건도 깨진다.
+            <View style={styles.appleBtn} />
           ) : null}
           {/* 카카오 — 대표 소셜 로그인 */}
           <Pressable
