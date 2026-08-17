@@ -73,6 +73,23 @@ class OAuthVerifierWiringTest {
     }
 
     @Test
+    @DisplayName("mode=real인데 카카오 app-key가 비어 있으면 부팅이 실패한다(Assert.hasText 검사 회귀 방지)")
+    void mode_real_appKey가_비어있으면_부팅실패한다() {
+        // 애플 값도 일부러 채운다 — 비워 두면 애플 쪽 검증기가 먼저 실패해 이 테스트가 지키려는
+        // "카카오 app-key 비었을 때" 가드를 더 이상 보장하지 못하게 된다.
+        contextRunner
+                .withPropertyValues(
+                        "honjeong.oauth.mode=real",
+                        "honjeong.oauth.kakao.issuer=" + ISSUER,
+                        "honjeong.oauth.kakao.jwks-uri=" + JWKS_URI,
+                        "honjeong.oauth.kakao.app-key=",
+                        "honjeong.apple.issuer=" + APPLE_ISSUER,
+                        "honjeong.apple.jwks-uri=" + APPLE_JWKS_URI,
+                        "honjeong.apple.client-id=" + APPLE_CLIENT_ID)
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
     @DisplayName("mode=real인데 애플 client-id가 비어 있으면 부팅이 실패한다")
     void mode_real_애플clientId가_비어있으면_부팅실패한다() {
         contextRunner
