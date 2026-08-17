@@ -64,14 +64,15 @@ public class AuthController {
      * <p><b>인증:</b> 불필요(SecurityConfig에서 {@code /api/auth/oauth/**}는 permitAll). 진입 단계이므로 토큰이 없다.
      *
      * @param provider 소셜 공급자(kakao/apple) — 대소문자를 가리지 않는다
-     * @param request 소셜에서 받은 {@code idToken}
+     * @param request 소셜에서 받은 {@code idToken}과, 애플만 함께 보내는 {@code authorizationCode}(선택)
      * @return 신규/미완이면 onboarding=true + onboardingToken, 기존 ACTIVE 회원이면 access/refresh/expiresIn
      *         (해당 없는 필드는 null이라 직렬화에서 빠진다)
      */
     @PostMapping("/oauth/{provider}")
     public ApiResponse<AuthResultResponse> oauth(@PathVariable String provider,
             @RequestBody @Valid OAuthLoginRequest request) {
-        AuthResultResponse body = AuthResultResponse.from(authService.oauthLogin(parseProvider(provider), request.idToken()));
+        AuthResultResponse body = AuthResultResponse.from(
+                authService.oauthLogin(parseProvider(provider), request.idToken(), request.authorizationCode()));
         return ApiResponse.success(body);
     }
 

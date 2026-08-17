@@ -9,6 +9,7 @@ import java.util.Base64;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
@@ -224,6 +225,79 @@ class ExternalIntegrationWiringTest {
             assertThat(context).getFailure().rootCause()
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("honjeong.apple.team-id");
+        });
+    }
+
+    // --- 애플 토큰 클라이언트가 "정확히 하나" 뜨는지 ---
+    //
+    // 위 테스트들은 후보를 한쪽만 등록해 돌리므로, 두 @ConditionalOnProperty가 서로 배타적인지를
+    // 증명하지 못한다. 아래 두 테스트는 mock·real 후보를 <b>동시에</b> 올리고 mode 값 하나만 다르게 둔다.
+
+    /**
+     * {@link AppleTokenClient}를 생성자로 요구하는 소비자. 실제로는 {@code AuthService}가 이 역할이다
+     * (가입 시 애플 코드를 교환하려고 주입받는다). AuthService를 그대로 올리려면 저장소·서비스 열넷을
+     * 함께 세워야 해 이 파일의 목적(배선만 가볍게 보기)에서 벗어나므로, 같은 모양의 최소 빈으로 대신한다.
+     */
+    @Configuration(proxyBeanMethods = false)
+    static class AppleTokenClientConsumer {
+        private final AppleTokenClient appleTokenClient;
+
+        AppleTokenClientConsumer(AppleTokenClient appleTokenClient) {
+            this.appleTokenClient = appleTokenClient;
+        }
+
+        AppleTokenClient client() {
+            return appleTokenClient;
+        }
+    }
+
+    /**
+     * mock·real 후보와 소비자를 함께 올리는 러너. 자격증명은 real이 실제로 조립될 수 있게 채워 둔다 —
+     * 이 러너를 쓰는 두 테스트는 오직 {@code honjeong.apple.mode} 값 하나만 다르다(대조군/실험군).
+     */
+    private ApplicationContextRunner appleCandidatesRunner() {
+        return prodRunner
+                .withUserConfiguration(NoopAppleTokenClient.class, RealAppleTokenClient.class,
+                        AppleTokenClientConsumer.class)
+                .withPropertyValues("honjeong.apple.team-id=TEAM123456",
+                        "honjeong.apple.key-id=KEY1234567",
+                        "honjeong.apple.private-key-base64=" + applePrivateKeyBase64);
+    }
+
+    /**
+     * mode를 지정하지 않은 <b>prod 기본값</b> 그대로 돌린다 — 운영 서버가 실제로 뜨는 조건이다.
+     * 후보 둘이 동시에 뜨지도(주입 모호), 둘 다 빠지지도(주입 불가) 않고 정확히 하나여야 한다.
+     */
+    @Test
+    @DisplayName("prod 기본값에서 애플 토큰 클라이언트가 정확히 하나 조립된다 — 후보 둘이 겹치거나 둘 다 빠지지 않는다")
+    void prod기본값에서_애플토큰클라이언트가_정확히_하나다() {
+        appleCandidatesRunner().run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).hasSingleBean(AppleTokenClient.class);
+            // prod 기본값은 real이다(application-prod.yml) — mock으로 조용히 떨어지지 않았음도 함께 고정한다.
+            assertThat(context).hasSingleBean(RealAppleTokenClient.class);
+            assertThat(context).doesNotHaveBean(NoopAppleTokenClient.class);
+            assertThat(context.getBean(AppleTokenClientConsumer.class).client()).isNotNull();
+        });
+    }
+
+    /**
+     * ★위 대조군과 {@code honjeong.apple.mode} 값 하나만 다르다. "rea1"은 mock에도 real에도 걸리지 않아
+     * 빈이 <b>0개</b>가 된다.
+     *
+     * <p>이 상태는 예전엔 무해했지만(아무도 주입받지 않았다), 지금은 {@code AuthService}가 이 빈을
+     * 생성자로 받으므로 기동 자체가 실패한다. 즉 오타는 "애플 연동만 조용히 죽은 서버"가 아니라
+     * 즉시 드러나는 부팅 실패로 나타난다 — 그 사실을 여기 고정해 둔다(빈값 자격증명 가드와 같은
+     * fail-closed 방향).
+     */
+    @Test
+    @DisplayName("honjeong.apple.mode에 오타가 있으면 기동에 실패한다 — 빈 0개인 채로 조용히 뜨지 않는다")
+    void 애플mode에_오타가_있으면_기동실패() {
+        appleCandidatesRunner().withPropertyValues("honjeong.apple.mode=rea1").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context).getFailure().rootCause()
+                    .isInstanceOf(NoSuchBeanDefinitionException.class)
+                    .hasMessageContaining("AppleTokenClient");
         });
     }
 }

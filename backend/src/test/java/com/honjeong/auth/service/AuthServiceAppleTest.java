@@ -1,0 +1,148 @@
+package com.honjeong.auth.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Optional;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import com.honjeong.auth.client.AppleTokenClient;
+import com.honjeong.auth.domain.Provider;
+import com.honjeong.auth.domain.SocialAccount;
+import com.honjeong.auth.repository.PhoneVerificationRepository;
+import com.honjeong.auth.repository.SocialAccountRepository;
+import com.honjeong.auth.repository.TermsAgreementRepository;
+import com.honjeong.favorite.service.FavoriteGroupService;
+import com.honjeong.global.security.JwtProvider;
+import com.honjeong.user.domain.User;
+import com.honjeong.user.repository.UserRepository;
+import com.honjeong.user.service.UserFoodPreferenceService;
+
+/**
+ * 애플 로그인에서 refresh token을 받아 두는 동작만 본다({@link AuthServiceTest}가 이미 덮는 분기는
+ * 다시 보지 않는다).
+ *
+ * <p>이 클래스는 AuthService의 기존 협력자 전부를 모킹해야 하므로, 프로젝트의 기존
+ * {@link AuthServiceTest}가 쓰는 셋업 방식(모든 저장소·서비스 Mockito mock 필드 +
+ * {@code new AuthService(...)} 조립)을 그대로 따른다. 공통 셋업을 부모 클래스로 뽑지 않은 이유는
+ * 이 저장소가 그런 구조를 쓰지 않기 때문이다 — 이 한 파일을 위해 상속 계층을 새로 만들지 않는다.
+ *
+ * <p><b>여기서 지키는 계약</b>: 애플 토큰 교환은 가입에 <b>딸린</b> 작업이다. 실패하면 refresh token만
+ * 없는 채로 가입이 그대로 끝나야 한다 — 애플 서버 장애가 회원가입을 막으면 안 된다.
+ */
+class AuthServiceAppleTest {
+
+    private static final String ID_TOKEN = "id-token";
+
+    private final UserRepository userRepository = mock(UserRepository.class);
+    private final SocialAccountRepository socialAccountRepository = mock(SocialAccountRepository.class);
+    private final PhoneVerificationRepository phoneVerificationRepository = mock(PhoneVerificationRepository.class);
+    private final PhoneAttemptRecorder phoneAttemptRecorder = mock(PhoneAttemptRecorder.class);
+    private final TermsAgreementRepository termsAgreementRepository = mock(TermsAgreementRepository.class);
+    private final OAuthVerifier oAuthVerifier = mock(OAuthVerifier.class);
+    private final SmsSender smsSender = mock(SmsSender.class);
+    private final VerificationCodeGenerator codeGenerator = mock(VerificationCodeGenerator.class);
+    private final TokenService tokenService = mock(TokenService.class);
+    private final JwtProvider jwtProvider = mock(JwtProvider.class);
+    private final UserFoodPreferenceService userFoodPreferenceService = mock(UserFoodPreferenceService.class);
+    private final FavoriteGroupService favoriteGroupService = mock(FavoriteGroupService.class);
+    private final AppleTokenClient appleTokenClient = mock(AppleTokenClient.class);
+    private final Clock clock = Clock.fixed(Instant.parse("2026-08-17T00:00:00Z"), ZoneOffset.UTC);
+
+    private final AuthService authService = new AuthService(userRepository, socialAccountRepository,
+            phoneVerificationRepository, phoneAttemptRecorder, termsAgreementRepository, oAuthVerifier, smsSender,
+            codeGenerator, tokenService, jwtProvider, clock, userFoodPreferenceService, favoriteGroupService,
+            appleTokenClient);
+
+    /**
+     * "이 공급자의 이 sub로 처음 들어온 사람"을 재현한다 — 신규 가입 분기(회원 생성 + 소셜 계정 저장)로
+     * 흐르게 하는 최소 스텁 셋이다.
+     *
+     * <ol>
+     *   <li>토큰 검증이 해당 신원을 돌려준다(이메일은 애플이 늘 null이라 여기서도 null이다).</li>
+     *   <li>그 (공급자, sub)로 연결된 소셜 계정이 아직 없다 → 신규 분기.</li>
+     *   <li>회원 저장이 id가 박힌 User를 돌려준다(온보딩 토큰 발급에 id가 필요하다).</li>
+     *   <li>그 id로 온보딩 토큰이 발급된다 → 반환값으로 "가입이 끝났음"을 확인할 수 있다.</li>
+     * </ol>
+     */
+    private void givenNewSocialUser(Provider provider, String sub) {
+        when(oAuthVerifier.verify(provider, ID_TOKEN)).thenReturn(new OAuthIdentity(provider, sub, null));
+        when(socialAccountRepository.findByProviderAndProviderUserId(provider, sub)).thenReturn(Optional.empty());
+        User user = User.pending(null, null);
+        ReflectionTestUtils.setField(user, "id", 1L); // 자동 생성 id를 테스트에서 강제 지정
+        when(userRepository.save(any())).thenReturn(user);
+        when(jwtProvider.createOnboardingToken(1L)).thenReturn("onb");
+    }
+
+    /** 저장된 소셜 계정을 붙잡아 돌려준다(저장 자체가 일어났는지도 함께 검증된다). */
+    private SocialAccount savedSocialAccount() {
+        ArgumentCaptor<SocialAccount> saved = ArgumentCaptor.forClass(SocialAccount.class);
+        verify(socialAccountRepository).save(saved.capture());
+        return saved.getValue();
+    }
+
+    /**
+     * given: 애플로 처음 들어온 사용자 + 코드 교환이 성공하도록 모킹.
+     * when: authorizationCode를 함께 넘겨 소셜 로그인.
+     * then: 교환해 받은 refresh token이 저장되는 소셜 계정에 실려 있다(탈퇴 시 폐기에 쓸 값).
+     */
+    @Test
+    @DisplayName("애플 신규 가입: authorizationCode를 교환해 refresh token을 소셜 계정에 저장한다")
+    void 애플가입시_refreshToken을_저장한다() {
+        givenNewSocialUser(Provider.APPLE, "apple-sub");
+        when(appleTokenClient.exchangeRefreshToken("code-123")).thenReturn("r-token");
+
+        authService.oauthLogin(Provider.APPLE, ID_TOKEN, "code-123");
+
+        assertThat(savedSocialAccount().getAppleRefreshToken()).isEqualTo("r-token");
+    }
+
+    /**
+     * ★이 프로젝트에서 가장 중요한 애플 관련 계약. given: 코드 교환이 실패(null)하도록 모킹.
+     * when: 소셜 로그인.
+     * then: 예외 없이 온보딩 토큰이 나오고, 소셜 계정은 refresh token만 null인 채로 저장된다.
+     *
+     * <p>교환 실패가 예외로 번지거나 저장을 건너뛰도록 바뀌면 여기서 잡힌다 — 온보딩 토큰 단언이
+     * "가입이 끝까지 갔다"를, 저장 단언이 "소셜 계정 연결은 그대로 만들어졌다"를 각각 고정한다.
+     */
+    @Test
+    @DisplayName("★교환에 실패해도 로그인은 성공한다 — 애플 장애가 가입을 막으면 안 된다")
+    void 교환실패해도_가입은_된다() {
+        givenNewSocialUser(Provider.APPLE, "apple-sub");
+        when(appleTokenClient.exchangeRefreshToken(any())).thenReturn(null);
+
+        AuthResult result = authService.oauthLogin(Provider.APPLE, ID_TOKEN, "code-123");
+
+        assertThat(result.onboarding()).isTrue();
+        assertThat(result.onboardingToken()).isEqualTo("onb"); // 온보딩 토큰이 정상 발급된다
+        assertThat(savedSocialAccount().getAppleRefreshToken()).isNull();
+    }
+
+    /**
+     * given: 카카오로 처음 들어온 사용자.
+     * when: 소셜 로그인(카카오는 authorizationCode를 보내지 않으므로 null).
+     * then: 애플 토큰 클라이언트를 아예 부르지 않는다 — 카카오 가입 경로에 애플 HTTP 호출이 끼어들면
+     * 안 된다(공급자 분기가 사라지면 여기서 잡힌다).
+     */
+    @Test
+    @DisplayName("카카오 로그인은 애플 토큰 클라이언트를 부르지 않는다")
+    void 카카오는_애플을_안부른다() {
+        givenNewSocialUser(Provider.KAKAO, "kakao-sub");
+
+        authService.oauthLogin(Provider.KAKAO, ID_TOKEN, null);
+
+        verify(appleTokenClient, never()).exchangeRefreshToken(any());
+        assertThat(savedSocialAccount().getAppleRefreshToken()).isNull();
+    }
+}

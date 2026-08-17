@@ -10,6 +10,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.honjeong.auth.client.AppleTokenClient;
 import com.honjeong.auth.domain.PhoneVerification;
 import com.honjeong.auth.domain.Provider;
 import com.honjeong.auth.domain.SocialAccount;
@@ -64,6 +65,7 @@ public class AuthService {
     private final Clock clock;                                               // 현재 시각 공급자(테스트 시 고정 주입)
     private final UserFoodPreferenceService foodPreferenceService;           // 선호 음식 upsert(가입 시 저장)
     private final FavoriteGroupService favoriteGroupService;                 // 기본 즐겨찾기 그룹 생성
+    private final AppleTokenClient appleTokenClient;                         // 애플 refresh token 교환(탈퇴 시 폐기용)
 
     /**
      * 인증에 필요한 저장소·외부 연동·토큰 발급기를 모두 주입받아 서비스를 구성한다.
@@ -74,7 +76,8 @@ public class AuthService {
             TermsAgreementRepository termsAgreementRepository,
             OAuthVerifier oAuthVerifier, SmsSender smsSender, VerificationCodeGenerator codeGenerator,
             TokenService tokenService, JwtProvider jwtProvider, Clock clock,
-            UserFoodPreferenceService foodPreferenceService, FavoriteGroupService favoriteGroupService) {
+            UserFoodPreferenceService foodPreferenceService, FavoriteGroupService favoriteGroupService,
+            AppleTokenClient appleTokenClient) {
         this.userRepository = userRepository;
         this.socialAccountRepository = socialAccountRepository;
         this.phoneVerificationRepository = phoneVerificationRepository;
@@ -88,6 +91,7 @@ public class AuthService {
         this.clock = clock;
         this.foodPreferenceService = foodPreferenceService;
         this.favoriteGroupService = favoriteGroupService;
+        this.appleTokenClient = appleTokenClient;
     }
 
     /**
@@ -198,13 +202,18 @@ public class AuthService {
      *       온보딩 토큰을 발급한다.</li>
      * </ol>
      *
+     * <p><b>애플 authorizationCode:</b> 애플만 보내는 1회용 코드로, 신규 가입 시 refresh token으로 교환해
+     * 소셜 계정에 보관한다(탈퇴 때 애플에 폐기를 요청하려면 이 토큰이 필요하다 — 심사 지침 5.1.1(v)).
+     * 교환에 실패해도 가입은 그대로 진행한다.
+     *
      * @param provider 소셜 공급자(KAKAO·APPLE 등)
      * @param idToken  공급자가 발급한 ID 토큰(검증 대상)
+     * @param authorizationCode 애플이 준 1회용 인가 코드(nullable — 카카오는 보내지 않는다)
      * @return 로그인 결과 또는 온보딩 결과를 담은 {@link AuthResult}
      * @throws BusinessException 소셜 계정은 있는데 연결된 회원을 못 찾을 때({@code USER_NOT_FOUND})
      */
     @Transactional // 회원·소셜계정 생성 등 쓰기를 한 트랜잭션으로 묶는다
-    public AuthResult oauthLogin(Provider provider, String idToken) {
+    public AuthResult oauthLogin(Provider provider, String idToken, String authorizationCode) {
         OAuthIdentity identity = oAuthVerifier.verify(provider, idToken); // 공급자 토큰 검증 → 신원 추출
         Optional<SocialAccount> account =
                 socialAccountRepository.findByProviderAndProviderUserId(provider, identity.providerUserId());
@@ -215,14 +224,43 @@ public class AuthService {
             if (user.getStatus() != UserStatus.PENDING && user.getStatus() != UserStatus.ACTIVE) {
                 throw new BusinessException(ErrorCode.ACCOUNT_INACTIVE);
             }
+            // 재방문 계정에는 애플 코드를 교환하지 않는다. 가입 때 교환에 실패해 apple_refresh_token이 비어
+            // 있으면 그 회원은 영영 비어 있게 되지만(탈퇴 시 애플 폐기를 건너뛴다), 여기서 뒤늦게 채우려면
+            // 지금은 읽기만 하는 로그인 경로에 외부 HTTP 호출과 쓰기가 매번 끼어든다. 감수하는 한계다.
             return user.isActive()
                     ? AuthResult.login(tokenService.issue(user.getId()))                     // 정상 회원 → 로그인
                     : AuthResult.onboarding(jwtProvider.createOnboardingToken(user.getId())); // 미완 → 온보딩 계속
         }
         // 신규: PENDING 회원 생성 + 소셜 계정 연결 저장 → 온보딩 토큰
         User user = userRepository.save(User.pending(null, identity.email()));
-        socialAccountRepository.save(SocialAccount.of(user.getId(), provider, identity.providerUserId(), identity.email()));
+        // 위 재방문 분기의 조회 결과(account)와 이름이 겹치지 않게 newAccount로 둔다.
+        SocialAccount newAccount =
+                SocialAccount.of(user.getId(), provider, identity.providerUserId(), identity.email());
+        if (provider == Provider.APPLE) {
+            // ★실패하면 null이 돌아온다(AppleTokenClient의 계약). 로그인을 막지 않는다 — 애플 장애로
+            // 가입이 막히면 안 된다. 이 경우 refresh token이 없으므로 탈퇴 시 revoke를 건너뛰게 된다.
+            //
+            // ★트랜잭션 안에서 외부 호출을 한다(CLAUDE.md의 "트랜잭션 내 외부 호출 지양"에 대한 의도적 예외).
+            // 이유 셋: ① 이 메서드는 같은 트랜잭션에서 이미 oAuthVerifier.verify()로 외부에 나간다(검증이
+            // DB 작업보다 먼저여야 하므로 뺄 수 없다) ② 이 호출은 매 로그인이 아니라 "생애 최초 가입" 한 번뿐이다
+            // ③ 밖으로 빼려면 자기호출(같은 빈의 메서드 호출은 @Transactional이 조용히 무효가 된다 — 더 나쁜 함정)
+            // 이나 새 빈이 필요하다. 교환은 실패해도 null로 끝나므로 트랜잭션을 롤백시키지도 않는다.
+            newAccount.attachAppleRefreshToken(appleTokenClient.exchangeRefreshToken(authorizationCode));
+        }
+        socialAccountRepository.save(newAccount);
         return AuthResult.onboarding(jwtProvider.createOnboardingToken(user.getId()));
+    }
+
+    /**
+     * authorizationCode 없이 호출하는 경로(카카오·기존 호출부)를 위한 오버로드.
+     *
+     * @param provider 소셜 공급자
+     * @param idToken  공급자가 발급한 ID 토큰
+     * @return {@link #oauthLogin(Provider, String, String)}의 결과
+     */
+    @Transactional
+    public AuthResult oauthLogin(Provider provider, String idToken) {
+        return oauthLogin(provider, idToken, null);
     }
 
     /**

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.honjeong.auth.client.AppleTokenClient;
 import com.honjeong.auth.domain.PhoneVerification;
 import com.honjeong.auth.domain.Provider;
 import com.honjeong.auth.domain.SocialAccount;
@@ -62,11 +63,15 @@ class AuthServiceTest {
     private final JwtProvider jwtProvider = mock(JwtProvider.class);
     private final UserFoodPreferenceService userFoodPreferenceService = mock(UserFoodPreferenceService.class);
     private final FavoriteGroupService favoriteGroupService = mock(FavoriteGroupService.class);
+    // 애플 전용 협력자. 여기 테스트는 전부 카카오·휴대폰 경로라 실제로 호출되지 않는다
+    // (애플 refresh token 보관은 AuthServiceAppleTest가 본다).
+    private final AppleTokenClient appleTokenClient = mock(AppleTokenClient.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-06-12T00:00:00Z"), ZoneOffset.UTC);
 
     private final AuthService authService = new AuthService(userRepository, socialAccountRepository,
             phoneVerificationRepository, phoneAttemptRecorder, termsAgreementRepository, oAuthVerifier, smsSender,
-            codeGenerator, tokenService, jwtProvider, clock, userFoodPreferenceService, favoriteGroupService);
+            codeGenerator, tokenService, jwtProvider, clock, userFoodPreferenceService, favoriteGroupService,
+            appleTokenClient);
 
     /**
      * 테스트용 User를 만든다. active=true면 프로필을 채워 ACTIVE 상태로 만들고, 엔티티에는 보통 자동
