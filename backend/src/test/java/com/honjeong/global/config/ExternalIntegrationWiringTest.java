@@ -311,8 +311,9 @@ class ExternalIntegrationWiringTest {
     // honjeong.oauth.mode로 켜진다. 두 설정이 어긋난 조합을 부팅에서 거부하는지는 별도 문제다.
 
     /**
-     * {@link AppleModeConsistencyCheck}만 올리는 러너. oauth.mode는 prod 기본값(real)을 그대로 쓴다 —
-     * 아래 두 테스트는 오직 {@code honjeong.apple.mode} 값 하나만 다르다(대조군/실험군).
+     * {@link AppleModeConsistencyCheck}만 올리는 러너. <b>prod 프로파일</b>이고(prodRunner) oauth.mode는
+     * prod 기본값(real)을 그대로 쓴다 — 아래 두 테스트는 오직 {@code honjeong.apple.mode} 값 하나만
+     * 다르다(대조군/실험군).
      */
     private ApplicationContextRunner modeConsistencyRunner() {
         return prodRunner.withUserConfiguration(AppleModeConsistencyCheck.class);
@@ -335,8 +336,8 @@ class ExternalIntegrationWiringTest {
      * {@code hasFailed()}만으로 통과해 이 가드가 사라진 걸 놓치지 않도록).
      */
     @Test
-    @DisplayName("oauth.mode=real인데 apple.mode가 real이 아니면 기동에 실패한다 — 두 스위치가 어긋난 채로 뜨지 않는다")
-    void 두_모드가_어긋나면_기동실패() {
+    @DisplayName("prod에서 oauth.mode=real인데 apple.mode가 real이 아니면 기동에 실패한다 — 두 스위치가 어긋난 채로 뜨지 않는다")
+    void prod에서_두_모드가_어긋나면_기동실패() {
         modeConsistencyRunner().withPropertyValues("honjeong.apple.mode=mock").run(context -> {
             assertThat(context).hasFailed();
             assertThat(context).getFailure().rootCause()
@@ -344,5 +345,31 @@ class ExternalIntegrationWiringTest {
                     .hasMessageContaining("honjeong.oauth.mode=real")
                     .hasMessageContaining("honjeong.apple.mode=mock");
         });
+    }
+
+    /**
+     * ★위 실험군과 <b>프로파일 하나만</b> 다르다(prod 아님). 같은 어긋난 조합인데 여기서는 떠야 한다.
+     *
+     * <p>가드를 prod로 자른 이유를 고정하는 테스트다: 로컬에는 카카오 로그인만 실서버로 검증하려고
+     * {@code OAUTH_MODE=real}을 켜는 워크플로가 있고, 전 프로파일에서 검사하면 카카오만 보려는
+     * 개발자에게 운영 애플 서명키(.p8)를 노트북에 두라고 요구하게 된다. 막으려는 규정 위반은 운영에서만
+     * 생긴다(로컬 DB의 계정은 심사 대상이 아니다). 이 단언이 없으면 {@code @Profile("prod")}가 조용히
+     * 사라져도 아무도 모르고, 그 회귀는 테스트가 아니라 개발자의 로컬 기동 실패로 드러난다.
+     *
+     * <p>로컬 풀스택 경로({@code docker compose up -d})는 여전히 검사 대상이다 — compose가
+     * {@code SPRING_PROFILES_ACTIVE=prod}로 띄우기 때문이다(위 실험군이 그 경로를 덮는다).
+     */
+    @Test
+    @DisplayName("prod가 아니면 두 모드가 어긋나도 기동한다 — 로컬 카카오 real 검증에 애플 .p8을 요구하지 않는다")
+    void 비prod에서는_두_모드가_어긋나도_기동한다() {
+        new ApplicationContextRunner()
+                .withInitializer(new ConfigDataApplicationContextInitializer())
+                .withConfiguration(AutoConfigurations.of(PropertyPlaceholderAutoConfiguration.class))
+                .withUserConfiguration(AppleModeConsistencyCheck.class)
+                .withPropertyValues("honjeong.oauth.mode=real", "honjeong.apple.mode=mock")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).doesNotHaveBean(AppleModeConsistencyCheck.class);
+                });
     }
 }
