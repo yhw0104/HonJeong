@@ -41,6 +41,9 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.honjeong.app',
+      // Sign in with Apple entitlement을 붙이려면 필요하다. 이 값이 없으면 플러그인이
+      // entitlement를 쓰지 않아 실기기에서 "Sign in with Apple 사용 불가"로 실패한다.
+      usesAppleSignIn: true,
       // Firebase가 APNs로 푸시를 중계하려면 이 파일이 네이티브 프로젝트에 들어가야 한다.
       // 저장소에는 없다(.gitignore) — Firebase 콘솔에서 내려받아 이 경로에 둔다.
       //
@@ -148,6 +151,12 @@ module.exports = {
       // Firebase만 CocoaPods로 받게 해서 앱 전체의 링크 방식을 건드리지 않는다.
       // 이유는 플러그인 파일 주석 참고(요약: SPM은 동적 링크만 지원하는데 이 앱은 정적 링크다).
       './plugins/withRNFirebaseDisableSPM',
+      // Sign in with Apple entitlement(com.apple.developer.applesignin)을 네이티브 프로젝트에
+      // 붙여 준다. 위 ios.usesAppleSignIn과 한 쌍으로 동작한다 — 둘 중 하나만 있으면 entitlement가
+      // 안 붙어 실기기에서 로그인 시트가 뜨지 않는다.
+      // 맨 위 '★권한 문구' 묶음에 끼우지 않고 여기 둔 이유: 이 플러그인은 권한 문구(purpose string)를
+      // 만들지 않는다. 애플 로그인은 시스템 권한 창을 띄우지 않으므로 적을 문구 자체가 없다.
+      'expo-apple-authentication',
     ],
     // EAS 프로젝트 식별자. `eas init`이 발급했지만 **이 파일이 동적 설정(app.config.js)이라
     // CLI가 자동으로 써넣지 못해**("Cannot automatically write to dynamic config") 손으로 넣었다.
