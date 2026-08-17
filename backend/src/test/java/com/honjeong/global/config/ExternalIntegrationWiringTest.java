@@ -304,4 +304,45 @@ class ExternalIntegrationWiringTest {
                     .hasMessageContaining("AppleTokenClient");
         });
     }
+
+    // --- 두 모드 스위치의 정합성 ---
+    //
+    // 위 테스트들은 honjeong.apple.mode 하나만 본다. 그런데 애플 기능의 나머지 반쪽(로그인 검증기)은
+    // honjeong.oauth.mode로 켜진다. 두 설정이 어긋난 조합을 부팅에서 거부하는지는 별도 문제다.
+
+    /**
+     * {@link AppleModeConsistencyCheck}만 올리는 러너. oauth.mode는 prod 기본값(real)을 그대로 쓴다 —
+     * 아래 두 테스트는 오직 {@code honjeong.apple.mode} 값 하나만 다르다(대조군/실험군).
+     */
+    private ApplicationContextRunner modeConsistencyRunner() {
+        return prodRunner.withUserConfiguration(AppleModeConsistencyCheck.class);
+    }
+
+    @Test
+    @DisplayName("oauth.mode=real + apple.mode=real이면 정상 기동한다(아래 기동실패 테스트의 대조군)")
+    void 두_모드가_모두real이면_기동한다() {
+        modeConsistencyRunner().withPropertyValues("honjeong.apple.mode=real")
+                .run(context -> assertThat(context).hasNotFailed());
+    }
+
+    /**
+     * ★위 대조군과 {@code honjeong.apple.mode} 값 하나만 다르다.
+     *
+     * <p>이 조합({@code oauth.mode=real} + {@code apple.mode=mock})은 <b>고장이 아니라 설정값 하나로</b>
+     * 만들어지고, 만들어지고 나면 아무 신호도 남기지 않는다 — 애플 로그인은 성공하고, 가입은 매번
+     * refresh token 없이 저장되고, 탈퇴는 폐기를 건너뛴다. 심사 지침 5.1.1(v) 위반 상태 그대로 배포된다.
+     * 그래서 "부팅이 실패한다"만이 아니라 <b>실패 이유</b>까지 고정한다(다른 이유로 죽은 컨텍스트가
+     * {@code hasFailed()}만으로 통과해 이 가드가 사라진 걸 놓치지 않도록).
+     */
+    @Test
+    @DisplayName("oauth.mode=real인데 apple.mode가 real이 아니면 기동에 실패한다 — 두 스위치가 어긋난 채로 뜨지 않는다")
+    void 두_모드가_어긋나면_기동실패() {
+        modeConsistencyRunner().withPropertyValues("honjeong.apple.mode=mock").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context).getFailure().rootCause()
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("honjeong.oauth.mode=real")
+                    .hasMessageContaining("honjeong.apple.mode=mock");
+        });
+    }
 }
