@@ -72,6 +72,13 @@ class OAuthVerifierWiringTest {
                 });
     }
 
+    /**
+     * ★{@code hasFailed()}만으로는 부족하다. 이 테스트가 지금 "카카오 app-key 가드"에 귀속되는 근거는
+     * 오직 <b>나머지 필수값을 전부 채워 둬서 다른 실패 원인이 없다</b>는 것뿐이다. 카카오·애플 검증기에
+     * 필수값이 하나라도 추가되면(그 값의 기본이 비어 있으면) 이 테스트는 그 새 가드가 낸 실패로 계속
+     * 초록이고, 정작 app-key 가드가 사라진 건 아무도 모른다. 그래서 실패 <b>원인</b>까지 못 박는다
+     * ({@code ExternalIntegrationWiringTest}가 세운 방식).
+     */
     @Test
     @DisplayName("mode=real인데 카카오 app-key가 비어 있으면 부팅이 실패한다(Assert.hasText 검사 회귀 방지)")
     void mode_real_appKey가_비어있으면_부팅실패한다() {
@@ -86,9 +93,15 @@ class OAuthVerifierWiringTest {
                         "honjeong.apple.issuer=" + APPLE_ISSUER,
                         "honjeong.apple.jwks-uri=" + APPLE_JWKS_URI,
                         "honjeong.apple.client-id=" + APPLE_CLIENT_ID)
-                .run(context -> assertThat(context).hasFailed());
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context).getFailure().rootCause()
+                            .isInstanceOf(IllegalArgumentException.class)
+                            .hasMessageContaining("honjeong.oauth.kakao.app-key");
+                });
     }
 
+    /** 위 테스트와 같은 이유로 실패 원인까지 단언한다(빈 값 하나만 다른 대조 구조). */
     @Test
     @DisplayName("mode=real인데 애플 client-id가 비어 있으면 부팅이 실패한다")
     void mode_real_애플clientId가_비어있으면_부팅실패한다() {
@@ -101,7 +114,12 @@ class OAuthVerifierWiringTest {
                         "honjeong.apple.issuer=" + APPLE_ISSUER,
                         "honjeong.apple.jwks-uri=" + APPLE_JWKS_URI,
                         "honjeong.apple.client-id=")
-                .run(context -> assertThat(context).hasFailed());
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context).getFailure().rootCause()
+                            .isInstanceOf(IllegalArgumentException.class)
+                            .hasMessageContaining("honjeong.apple.client-id");
+                });
     }
 
     private void assertMockAssembled(AssertableApplicationContext context) {

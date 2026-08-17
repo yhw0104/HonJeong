@@ -77,11 +77,19 @@ class AppleClientSecretFactoryTest {
         assertThat(jwt.getJWTClaimsSet().getExpirationTime().toInstant()).isAfter(Instant.now());
     }
 
+    /**
+     * ★예외 타입만 단언하면 이 테스트는 <b>아무 것도 지키지 못한다</b>. 생성자의
+     * {@code Assert.hasText(privateKeyBase64, ...)}를 지워도 빈 문자열은 그대로
+     * {@code readPrivateKey}로 흘러들어가 {@code KeyFactory.generatePrivate}에서 터지고, 그것도
+     * {@code IllegalArgumentException}으로 다시 감싸져 나온다 — 타입이 같아 테스트는 초록이다
+     * (실제로 확인했다). 그래서 <b>어느 가드가 잡았는지</b>를 메시지로 못 박는다.
+     */
     @Test
     @DisplayName("키가 비어 있으면 생성 시점에 실패한다 — 애플 호출 후에 알게 되지 않는다")
     void 키가_비면_실패한다() {
         assertThatThrownBy(() -> new AppleClientSecretFactory(TEAM_ID, CLIENT_ID, KEY_ID, ""))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("honjeong.apple.private-key-base64가 비어 있습니다");
     }
 
     /**
