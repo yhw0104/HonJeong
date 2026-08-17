@@ -15,7 +15,8 @@ import jakarta.persistence.Table;
  * 회원과 소셜 로그인 계정(공급자·공급자 사용자 id)의 연동 매핑을 나타내는 엔티티.
  * (매핑 테이블: social_accounts)
  *
- * <p>공급자 토큰은 저장하지 않고 (provider, providerUserId)로 회원을 식별한다.
+ * <p>회원 식별은 (provider, providerUserId)로만 한다 — 로그인에 쓰는 공급자 토큰은 저장하지 않는다.
+ * 유일한 예외가 {@link #getAppleRefreshToken()}인데, 이건 로그인용이 아니라 탈퇴 시 폐기 요청에만 쓴다.
  * UNIQUE(provider, provider_user_id)는 Flyway 스키마에서 강제한다.
  */
 @Entity
@@ -46,6 +47,13 @@ public class SocialAccount extends BaseTimeEntity {
     /** 공급자가 내려준 이메일(있을 때만). nullable. */
     private String email;
 
+    /**
+     * 애플이 발급한 refresh token. 탈퇴 시 애플에 폐기(revoke)를 요청할 때만 쓴다.
+     * 카카오 계정은 항상 null이고, 애플이라도 가입 시 code 교환에 실패하면 null로 남는다.
+     */
+    @Column(length = 512)
+    private String appleRefreshToken;
+
     /** JPA용 기본 생성자(외부 직접 사용 금지). */
     protected SocialAccount() {
     }
@@ -71,7 +79,7 @@ public class SocialAccount extends BaseTimeEntity {
         return new SocialAccount(userId, provider, providerUserId, email);
     }
 
-    // --- 이하 게터: 읽기 전용 접근자(상태 변경 없음) ---
+    // --- 이하 접근자: 게터는 읽기 전용, 상태를 바꾸는 것은 attach 계열뿐 ---
 
     public Long getId() {
         return id;
@@ -91,5 +99,16 @@ public class SocialAccount extends BaseTimeEntity {
 
     public String getEmail() {
         return email;
+    }
+
+    public String getAppleRefreshToken() {
+        return appleRefreshToken;
+    }
+
+    /**
+     * 애플 refresh token을 붙인다(가입 직후 1회). 실패 시 null로 남을 수 있으므로 값 검사는 하지 않는다.
+     */
+    public void attachAppleRefreshToken(String appleRefreshToken) {
+        this.appleRefreshToken = appleRefreshToken;
     }
 }
