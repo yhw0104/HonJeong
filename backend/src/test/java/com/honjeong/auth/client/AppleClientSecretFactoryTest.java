@@ -33,15 +33,9 @@ class AppleClientSecretFactoryTest {
 
     @BeforeAll
     static void generateKey() throws Exception {
-        KeyPairGenerator generator = KeyPairGenerator.getInstance("EC");
-        generator.initialize(new ECGenParameterSpec("secp256r1"));
-        KeyPair pair = generator.generateKeyPair();
+        KeyPair pair = generateKeyPair("secp256r1");
         publicKey = (ECPublicKey) pair.getPublic();
-        // 운영에서 넣는 값과 같은 모양을 만든다: .p8(PEM) 파일 전체를 base64로 인코딩한 값
-        String pem = "-----BEGIN PRIVATE KEY-----\n"
-                + Base64.getMimeEncoder(64, "\n".getBytes()).encodeToString(pair.getPrivate().getEncoded())
-                + "\n-----END PRIVATE KEY-----\n";
-        privateKeyBase64 = Base64.getEncoder().encodeToString(pem.getBytes());
+        privateKeyBase64 = encodeAsP8(pair.getPrivate().getEncoded());
     }
 
     private AppleClientSecretFactory factory() {
@@ -88,5 +82,40 @@ class AppleClientSecretFactoryTest {
     void 키가_비면_실패한다() {
         assertThatThrownBy(() -> new AppleClientSecretFactory(TEAM_ID, CLIENT_ID, KEY_ID, ""))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /**
+     * ★잘못된 곡선의 키는 <b>예외를 던져 주지 않는다</b> — 그래서 이 테스트가 필요하다.
+     *
+     * <p>P-384 키를 줘도 파싱은 물론 <b>서명까지 예외 없이 성공한다</b>(JCA가 SHA256withECDSA로
+     * 서명해 준다). 다만 그 서명은 ES256 규격이 아니라서 애플이 거부한다. 즉 "부팅 성공 → 매 호출
+     * 조용히 거부"가 되고, 그 거부는 {@link RealAppleTokenClient}가 설계상 삼키므로(가입·탈퇴를
+     * 막으면 안 되니까) 로그 한 줄로만 남는다. 배포는 멀쩡해 보이는데 애플 토큰만 영영 안 지워지고,
+     * 그건 심사에서야 드러난다.
+     *
+     * <p>그래서 생성자는 "서명이 되는지"가 아니라 <b>곡선이 P-256인지</b>를 본다.
+     */
+    @Test
+    @DisplayName("P-256이 아닌 키는 파싱도 서명도 되지만 애플이 거부한다 — 생성 시점에 세운다")
+    void 곡선이_다른키는_생성시점에_실패한다() throws Exception {
+        String wrongCurveKey = encodeAsP8(generateKeyPair("secp384r1").getPrivate().getEncoded());
+
+        assertThatThrownBy(() -> new AppleClientSecretFactory(TEAM_ID, CLIENT_ID, KEY_ID, wrongCurveKey))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("P-256");
+    }
+
+    private static KeyPair generateKeyPair(String curve) throws Exception {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("EC");
+        generator.initialize(new ECGenParameterSpec(curve));
+        return generator.generateKeyPair();
+    }
+
+    /** 운영에서 넣는 값과 같은 모양으로 감싼다: .p8(PEM) 파일 전체를 base64로 인코딩한 값. */
+    private static String encodeAsP8(byte[] pkcs8) {
+        String pem = "-----BEGIN PRIVATE KEY-----\n"
+                + Base64.getMimeEncoder(64, "\n".getBytes()).encodeToString(pkcs8)
+                + "\n-----END PRIVATE KEY-----\n";
+        return Base64.getEncoder().encodeToString(pem.getBytes());
     }
 }

@@ -2,6 +2,8 @@ package com.honjeong.auth.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
@@ -56,6 +58,7 @@ class RealAppleTokenClientTest {
     private static AppleClientSecretFactory secretFactory;
 
     private MockRestServiceServer server;
+    private RestClient restClient;
     private RealAppleTokenClient client;
 
     @BeforeAll
@@ -75,8 +78,12 @@ class RealAppleTokenClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = RealAppleTokenClient.withRestClient(
-                builder.build(), secretFactory, CLIENT_ID, TOKEN_URI, REVOKE_URI);
+        restClient = builder.build();
+        client = clientWith(secretFactory);
+    }
+
+    private RealAppleTokenClient clientWith(AppleClientSecretFactory factory) {
+        return RealAppleTokenClient.withRestClient(restClient, factory, CLIENT_ID, TOKEN_URI, REVOKE_URI);
     }
 
     @Test
@@ -190,6 +197,44 @@ class RealAppleTokenClientTest {
     }
 
     /**
+     * ★<b>client secret 서명이 실패해도 가입은 성공해야 한다.</b>
+     *
+     * <p>이 경로가 이 클래스에서 가장 놓치기 쉬운 자리다. {@code secretFactory.create()}는 HTTP 호출
+     * <b>전에</b> 실행되므로, 그 한 줄이 {@code try} 밖에 있으면 예외가 그대로 새어 나가 가입을 막는다
+     * (브리프의 원안이 그랬다). 서명은 실패할 수 있다고 선언된 동작이므로
+     * ({@link AppleClientSecretFactory#create()}의 {@code @throws}), 계약으로 못 박는다.
+     */
+    @Test
+    @DisplayName("★client secret 서명이 실패해도 교환은 null만 준다 — 가입을 막지 않는다")
+    void 서명이_실패해도_가입을_막지_않는다() {
+        RealAppleTokenClient broken = clientWith(throwingSecretFactory());
+
+        assertThatCode(() -> assertThat(broken.exchangeRefreshToken("APPLE_CODE")).isNull())
+                .doesNotThrowAnyException();
+        server.verify(); // 서명 단계에서 엎어졌으므로 애플로 나간 요청이 없어야 한다
+    }
+
+    /**
+     * ★<b>client secret 서명이 실패해도 탈퇴는 끝까지 완료돼야 한다.</b> 위와 같은 이유이고,
+     * 이쪽이 결과가 더 무겁다 — 사용자의 탈퇴권이 우리 키 설정 실수에 걸리면 안 된다.
+     */
+    @Test
+    @DisplayName("★client secret 서명이 실패해도 폐기는 예외를 던지지 않는다 — 탈퇴를 막지 않는다")
+    void 서명이_실패해도_탈퇴를_막지_않는다() {
+        RealAppleTokenClient broken = clientWith(throwingSecretFactory());
+
+        assertThatCode(() -> broken.revoke("r-1")).doesNotThrowAnyException();
+        server.verify(); // 마찬가지로 애플로 나간 요청이 없어야 한다
+    }
+
+    /** {@code create()}가 실패하는 팩토리. 실제 생성자는 곡선까지 검증하므로 목으로만 만들 수 있다. */
+    private static AppleClientSecretFactory throwingSecretFactory() {
+        AppleClientSecretFactory factory = mock(AppleClientSecretFactory.class);
+        when(factory.create()).thenThrow(new IllegalStateException("애플 client secret 생성에 실패했습니다."));
+        return factory;
+    }
+
+    /**
      * 애플로 나가는 form 본문을 뜯어본다: 필드 집합이 정확히 일치하는지(빠짐·군더더기 모두 잡는다),
      * 고정값 필드가 기대값인지, 그리고 {@code client_secret}이 우리 키로 서명된 JWT인지.
      *
@@ -214,6 +259,12 @@ class RealAppleTokenClientTest {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         for (String pair : request.getBodyAsString().split("&")) {
             int separator = pair.indexOf('=');
+            // ★AssertionError로 던져야 한다. 여기서 StringIndexOutOfBoundsException(= Exception)이
+            // 나면 RealAppleTokenClient의 catch(Exception)가 그대로 삼켜, 본문 검증이 조용히
+            // 사라진 채 테스트가 통과한다. AssertionError는 Error라 삼켜지지 않는다.
+            if (separator < 0) {
+                throw new AssertionError("form 형식이 아닌 본문입니다: " + pair);
+            }
             form.add(URLDecoder.decode(pair.substring(0, separator), StandardCharsets.UTF_8),
                     URLDecoder.decode(pair.substring(separator + 1), StandardCharsets.UTF_8));
         }

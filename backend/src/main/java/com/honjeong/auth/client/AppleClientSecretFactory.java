@@ -2,6 +2,7 @@ package com.honjeong.auth.client;
 
 import java.security.KeyFactory;
 import java.security.PrivateKey;
+import java.security.interfaces.ECPrivateKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.time.Instant;
 import java.util.Base64;
@@ -46,8 +47,8 @@ public class AppleClientSecretFactory {
      * @param clientId         번들 ID
      * @param keyId            Sign in with Apple 키 ID
      * @param privateKeyBase64 .p8 파일 전체를 base64로 인코딩한 값
-     * @throws IllegalArgumentException 값이 비었거나 키를 읽을 수 없을 때 — 애플에 호출을 보내 보고
-     *         알게 되는 게 아니라 이 자리에서 즉시 드러낸다
+     * @throws IllegalArgumentException 값이 비었거나, 키를 읽을 수 없거나, <b>읽히긴 해도 ES256
+     *         서명이 안 될 때</b> — 애플에 호출을 보내 보고 알게 되는 게 아니라 이 자리에서 즉시 드러낸다
      */
     public AppleClientSecretFactory(String teamId, String clientId, String keyId, String privateKeyBase64) {
         Assert.hasText(teamId, "honjeong.apple.team-id가 비어 있습니다. 환경변수 APPLE_TEAM_ID를 채워주세요.");
@@ -60,6 +61,18 @@ public class AppleClientSecretFactory {
         this.clientId = clientId;
         this.keyId = keyId;
         this.privateKey = readPrivateKey(privateKeyBase64);
+
+        // 곡선 검사(readPrivateKey)를 통과했으면 여기서 실패할 일은 사실상 없다. 그래도 한 번은
+        // 실제로 서명해 본다 — 곡선 외의 이유(JCA 공급자가 SHA256withECDSA를 못 하는 등)로 서명이
+        // 안 되는 키를 부팅 시점에 걸러내기 위해서다. 서명 실패는 호출자가 설계상 삼키므로
+        // (가입·탈퇴를 막으면 안 되니까) 여기서 안 잡으면 영영 조용하다.
+        try {
+            create();
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException(
+                    "애플 개인키로 ES256 서명을 하지 못했습니다. APPLE_PRIVATE_KEY_BASE64가 "
+                            + "Sign in with Apple 키(.p8)인지 확인해주세요.", e);
+        }
     }
 
     /**
@@ -68,18 +81,38 @@ public class AppleClientSecretFactory {
      * <p>실패 메시지에 입력값을 절대 싣지 않는다 — 그 입력이 곧 개인키다.
      */
     private static PrivateKey readPrivateKey(String privateKeyBase64) {
+        PrivateKey key;
         try {
             String pem = new String(Base64.getDecoder().decode(privateKeyBase64.trim()));
             String der = pem.replace("-----BEGIN PRIVATE KEY-----", "")
                     .replace("-----END PRIVATE KEY-----", "")
                     .replaceAll("\\s", "");
             byte[] bytes = Base64.getDecoder().decode(der);
-            return KeyFactory.getInstance("EC").generatePrivate(new PKCS8EncodedKeySpec(bytes));
+            key = KeyFactory.getInstance("EC").generatePrivate(new PKCS8EncodedKeySpec(bytes));
         } catch (Exception e) {
             throw new IllegalArgumentException(
                     "애플 개인키(.p8)를 읽지 못했습니다. APPLE_PRIVATE_KEY_BASE64가 .p8 파일 전체를 "
                             + "base64로 인코딩한 값인지 확인해주세요.", e);
         }
+        requireP256(key);
+        return key;
+    }
+
+    /**
+     * 곡선이 P-256인지 확인한다.
+     *
+     * <p>★<b>이 검사가 없으면 잘못된 키가 조용히 통과한다.</b> P-384 같은 다른 곡선의 EC 키를 줘도
+     * 파싱은 물론이고 <b>서명까지 예외 없이 성공한다</b> — JCA가 SHA256withECDSA로 서명해 주기
+     * 때문이다. 다만 그렇게 나온 서명은 ES256 규격(R‖S 64바이트)이 아니라서 <b>애플이 거부한다</b>.
+     * 즉 "부팅 성공 → 매 호출 조용히 거부"가 되고, 그 거부는 {@link RealAppleTokenClient}가 설계상
+     * 삼키므로 로그 한 줄로만 남는다. 결국 심사에서야 드러난다 — 정확히 fail-closed 설계가 막으려던
+     * 상태다. 그래서 "서명이 되는지"가 아니라 <b>"곡선이 맞는지"</b>를 봐야 한다.
+     */
+    private static void requireP256(PrivateKey key) {
+        Curve curve = key instanceof ECPrivateKey ec ? Curve.forECParameterSpec(ec.getParams()) : null;
+        Assert.isTrue(Curve.P_256.equals(curve),
+                "애플 개인키의 곡선이 P-256이 아니라 ES256 서명을 만들 수 없습니다. "
+                        + "APPLE_PRIVATE_KEY_BASE64가 Sign in with Apple 키(.p8)인지 확인해주세요.");
     }
 
     /**
