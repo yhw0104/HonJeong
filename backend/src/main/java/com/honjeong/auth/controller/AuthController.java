@@ -59,7 +59,8 @@ public class AuthController {
     /**
      * 소셜 로그인(카카오/애플) 진입.
      *
-     * <p>사용 화면: 앱에서는 아직 쓰지 않는다 — 시작 화면(Welcome)의 카카오/애플 버튼은 API 미연동 목업이다.
+     * <p>사용 화면: 시작 화면(Welcome)의 카카오 버튼과 애플 버튼이 각각 이 엔드포인트를 호출한다
+     * (애플 버튼은 기기가 Sign in with Apple을 지원할 때만 그려진다).
      *
      * <p><b>인증:</b> 불필요(SecurityConfig에서 {@code /api/auth/oauth/**}는 permitAll). 진입 단계이므로 토큰이 없다.
      *

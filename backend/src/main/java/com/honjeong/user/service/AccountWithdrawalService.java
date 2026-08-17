@@ -176,6 +176,15 @@ public class AccountWithdrawalService {
      * POJO를 고치는 셈이 되어 커밋 시 UPDATE가 나가지 않고, 개인정보만 삭제된 채 계정은 ACTIVE로
      * 살아남는다(실제로 발생했던 장애). 다른 도메인의 "벌크 DELETE는 clearAutomatically로 캐시를
      * 비운다" 관례를 여기서 "복원"하면 이 버그가 재발한다 — 이 트랜잭션에 한해서는 절대 금지.
+     *
+     * <p><b>주의 2 — {@link #revokeAppleTokens}가 읽어 온 {@code SocialAccount}는 "관리 상태"다.</b>
+     * 바로 다음 줄의 {@code socialAccountRepository.deleteAllByUserId}는 같은 테이블을 지우는 벌크
+     * JPQL DELETE라, 영속성 컨텍스트에는 <b>이미 사라진 행의 엔티티가 그대로 남는다</b>. 지금은
+     * {@code revokeAppleTokens}가 getter로 읽기만 해서 dirty가 아니라 안전하다. 하지만 "폐기에
+     * 성공했으면 토큰을 비워 두자"는 자연스러운 후속 수정(예:
+     * {@code social.attachAppleRefreshToken(null)})을 넣는 순간, 커밋 시점 flush가 이미 삭제된 행으로
+     * UPDATE를 날려 {@code StaleStateException}이 나고 <b>모든 탈퇴가 실패</b>한다. 그 값을 굳이
+     * 비워야 한다면 벌크 DELETE가 어차피 행을 지운다는 점을 먼저 따져 볼 것.
      */
     private void deletePersonalData(Long userId, String profileImageUrl, String phone) {
         revokeAppleTokens(userId);                           // ★반드시 소셜 연동 삭제보다 먼저
