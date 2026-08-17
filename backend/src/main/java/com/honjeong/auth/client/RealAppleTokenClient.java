@@ -137,8 +137,18 @@ public class RealAppleTokenClient implements AppleTokenClient {
                     .body(TokenResponse.class);
             return response == null ? null : response.refreshToken();
         } catch (Exception e) {
-            // 가입을 막지 않는다 — 토큰만 못 받고 넘어간다(탈퇴 시 revoke를 건너뛰게 된다).
-            log.warn("애플 authorizationCode 교환 실패 — refresh token 없이 진행합니다: {}", e.getMessage());
+            // 가입을 막지 않는다 — 토큰만 못 받고 넘어간다(반환 null 계약은 그대로다).
+            //
+            // ★warn이 아니라 error인 이유: 이건 "가끔 나는 외부 호출 실패"가 아니라, 이 사용자 한 명의
+            // 심사 지침 5.1.1(v) 의무가 방금 조용히 깨졌다는 뜻이다. 재방문 로그인에서 다시 교환하지
+            // 않기로 못박혀 있어(AuthService.oauthLogin 재방문 분기) 이 계정의 apple_refresh_token은
+            // 영영 null로 남는다. 게다가 자격증명 오설정(팀 ID·키 ID·.p8이 서로 안 맞는 경우)은 부팅도
+            // 로그인도 멀쩡히 통과하고 여기서만 드러난다 — 이 한 줄이 시스템 전체의 유일한 증상이다.
+            log.error("[APPLE-REVOKE-IMPOSSIBLE] 애플 authorizationCode 교환 실패 — 이 계정은 "
+                    + "refresh token 없이 가입되고, 재방문 로그인에서도 다시 채우지 않으므로 탈퇴 시 "
+                    + "애플 토큰 폐기(심사 지침 5.1.1(v))를 영영 건너뛰게 됩니다. 이 로그가 계속 찍히면 "
+                    + "APPLE_CLIENT_ID·APPLE_TEAM_ID·APPLE_KEY_ID·APPLE_PRIVATE_KEY_BASE64가 서로 맞지 "
+                    + "않는 것입니다(애플은 invalid_client로만 답합니다). 원인: {}", e.getMessage());
             return null;
         }
     }
