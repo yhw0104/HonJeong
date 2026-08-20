@@ -3,6 +3,9 @@ package com.honjeong.place.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -54,7 +57,7 @@ class PlaceControllerTest extends ActiveUserSliceSupport {
         List<PlaceSearchResponse> content = IntStream.range(0, 5)
                 .mapToObj(i -> new PlaceSearchResponse(
                         (long) (i + 1), "김밥 맛집 " + (i + 1), "분식",
-                        "서울 어딘가", "서울 도로명", 37.5 + i * 0.001, 127.0, "02-111"))
+                        "서울 어딘가", "서울 도로명", 37.5 + i * 0.001, 127.0, "02-111", 120L + i))
                 .toList();
         return PageResponse.of(content, 0, 5, 23L);
     }
@@ -63,7 +66,7 @@ class PlaceControllerTest extends ActiveUserSliceSupport {
     @DisplayName("GET /search: USER 토큰이면 200 + 페이지 엔벨로프(content/page/size/totalElements)")
     void search_ok_pagedEnvelope() throws Exception {
         // given: 서비스가 5건·전체 23건 페이지를 돌려주도록 스텁 + USER access 토큰
-        when(placeService.search(any(), anyInt(), anyInt())).thenReturn(samplePage());
+        when(placeService.search(any(), any(), any(), anyInt(), anyInt(), anyInt())).thenReturn(samplePage());
         String token = jwtProvider.createAccessToken(1L);
 
         // when & then
@@ -78,6 +81,44 @@ class PlaceControllerTest extends ActiveUserSliceSupport {
                 .andExpect(jsonPath("$.data.page").value(0))
                 .andExpect(jsonPath("$.data.size").value(5))
                 .andExpect(jsonPath("$.data.totalElements").value(23));
+    }
+
+    /**
+     * ★lat/lng가 서비스까지 실제로 전달되는지 못 박는다.
+     *
+     * <p>위 {@code search_ok_pagedEnvelope}는 {@code any()}로 스텁해서, 컨트롤러가 lat/lng를
+     * 받지 않도록 되돌려도(또는 null로 넘겨도) 그대로 초록이다. 그러면 "내 위치 기준 검색"이
+     * 조용히 전국 이름순으로 돌아가는데, 서버는 200을 주고 결과도 나오므로 아무 신호가 없다.
+     * 값 자체를 캡처해 확인해야 그 회귀가 잡힌다.
+     */
+    @Test
+    @DisplayName("★GET /search: lat/lng/radius를 주면 그 값이 서비스로 전달된다")
+    void search_forwardsCoordinates() throws Exception {
+        when(placeService.search(any(), any(), any(), anyInt(), anyInt(), anyInt())).thenReturn(samplePage());
+        String token = jwtProvider.createAccessToken(1L);
+
+        mockMvc.perform(get("/api/places/search")
+                        .param("query", "김밥")
+                        .param("lat", "37.5").param("lng", "127.0").param("radius", "3000")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        verify(placeService).search(eq("김밥"), eq(37.5), eq(127.0), eq(3000), anyInt(), anyInt());
+    }
+
+    /** 좌표를 안 주면 null로 내려간다 — 서비스가 그 null을 보고 전국 이름순으로 간다. */
+    @Test
+    @DisplayName("GET /search: lat/lng가 없으면 서비스에 null로 전달된다")
+    void search_withoutCoordinates_passesNull() throws Exception {
+        when(placeService.search(any(), any(), any(), anyInt(), anyInt(), anyInt())).thenReturn(samplePage());
+        String token = jwtProvider.createAccessToken(1L);
+
+        mockMvc.perform(get("/api/places/search")
+                        .param("query", "김밥")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        verify(placeService).search(eq("김밥"), isNull(), isNull(), anyInt(), anyInt(), anyInt());
     }
 
     @Test

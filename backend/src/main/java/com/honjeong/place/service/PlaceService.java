@@ -101,33 +101,101 @@ public class PlaceService {
     }
 
     /**
-     * 검색어로 우리 DB(영업 중인 장소)를 이름 부분일치 조회해 페이지 엔벨로프로 반환한다(이름순).
+     * 검색어로 우리 DB(영업 중인 장소)를 이름 부분일치 조회해 페이지 엔벨로프로 반환한다.
      *
-     * @param query 검색어(공백 불가, trim 적용됨)
-     * @param page  0-base 페이지 번호(0 이상)
-     * @param size  페이지 크기(1 이상, {@link #MAX_SIZE} 초과 시 클램프)
+     * <p><b>좌표를 주면 내 위치 기준</b>으로 반경 안을 거리순 정렬해 돌려주고, 좌표가 없으면
+     * 예전처럼 전국을 이름순으로 돌려준다. 좌표를 받기 전에는 "국밥"을 치면 부산 국밥집이 서울
+     * 국밥집보다 위에 뜰 수 있었다.
+     *
+     * <p>★<b>반경 안이 비면 전국 이름 검색으로 떨어진다.</b> 반경만 두면 "멀리 있는 가게를 이름으로
+     * 찾기"가 막히는데, 그건 좌표를 받기 전에는 되던 일이다. 기능을 더하면서 되던 것을 못 하게
+     * 만들지 않으려는 장치다. 떨어진 경로에서도 좌표를 알고 있으므로 거리는 채워 준다(정렬만 이름순).
+     *
+     * @param query  검색어(공백 불가, trim 적용됨)
+     * @param lat    내 위도(null이면 위치 기준 검색을 하지 않는다)
+     * @param lng    내 경도(null이면 위치 기준 검색을 하지 않는다)
+     * @param radius 반경(m, 1~{@link #MAX_RADIUS} 클램프). lat/lng가 없으면 무시된다.
+     * @param page   0-base 페이지 번호(0 이상)
+     * @param size   페이지 크기(1 이상, {@link #MAX_SIZE} 초과 시 클램프)
      * @return content/page/size/totalElements를 담은 페이지 엔벨로프
-     * @throws BusinessException 검색어가 공백이거나 page가 음수, size가 1 미만이면 {@link ErrorCode#INVALID_INPUT}
+     * @throws BusinessException 검색어가 공백이거나 page가 범위를 벗어나거나 size가 1 미만이면
+     *                           {@link ErrorCode#INVALID_INPUT}
      */
     @Transactional(readOnly = true)
-    public PageResponse<PlaceSearchResponse> search(String query, int page, int size) {
+    public PageResponse<PlaceSearchResponse> search(String query, Double lat, Double lng, int radius,
+            int page, int size) {
         if (query == null || query.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "검색어를 입력해주세요.");
         }
-        if (page < 0) {
+        // 상한을 두는 이유는 아래 page * clampedSize다 — 둘 다 int라 큰 page에서 곱이 넘쳐
+        // 음수가 되고, subList가 IndexOutOfBounds로 터진다(nearby가 같은 이유로 같은 상한을 쓴다).
+        if (page < 0 || page > 1_000_000) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "page는 0 이상이어야 합니다.");
         }
         if (size < 1) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "size는 1 이상이어야 합니다.");
         }
         int clampedSize = Math.min(size, MAX_SIZE);
+        String q = query.trim();
+
+        if (lat != null && lng != null) {
+            PageResponse<PlaceSearchResponse> nearbyHits = searchNearby(q, lat, lng, radius, page, clampedSize);
+            if (nearbyHits != null) {
+                return nearbyHits;
+            }
+            // null = 반경 안에 하나도 없었다 → 아래 전국 검색으로 떨어진다.
+        }
 
         Page<Place> result = placeRepository.searchOpenByName(
-                query.trim(), PageRequest.of(page, clampedSize, Sort.by("name")));
+                q, PageRequest.of(page, clampedSize, Sort.by("name")));
         List<PlaceSearchResponse> content = result.getContent().stream()
-                .map(PlaceSearchResponse::from)
+                .map(p -> PlaceSearchResponse.from(p, distanceOrNull(lat, lng, p)))
                 .toList();
         return PageResponse.of(content, page, clampedSize, result.getTotalElements());
+    }
+
+    /**
+     * 반경 안을 거리순으로 검색한다. {@code nearby}와 같은 방식이다 — 바운딩박스로 1차 필터한 뒤
+     * Haversine으로 원형 보정·정렬하고 메모리에서 페이지를 자른다(DB가 거리를 못 계산한다).
+     *
+     * @return 반경 안에 하나도 없으면 <b>null</b>(호출자가 전국 검색으로 떨어뜨린다). 빈 페이지를
+     *         돌려주면 "결과 없음"과 구분되지 않아 그 판단을 호출자가 할 수 없다.
+     */
+    private PageResponse<PlaceSearchResponse> searchNearby(String q, double lat, double lng, int radius,
+            int page, int clampedSize) {
+        int r = Math.min(Math.max(radius, 1), MAX_RADIUS);
+        double dLat = r / METERS_PER_DEGREE_LAT;
+        double dLng = r / (METERS_PER_DEGREE_LAT * Math.cos(Math.toRadians(lat)));
+
+        List<Place> inBox = placeRepository.searchOpenByNameWithinBounds(
+                q, lat - dLat, lat + dLat, lng - dLng, lng + dLng);
+
+        record PlaceDistance(Place place, double meters) {}
+
+        List<PlaceDistance> within = inBox.stream()
+                .map(p -> new PlaceDistance(p, haversine(lat, lng, p.getLatitude(), p.getLongitude())))
+                .filter(pd -> pd.meters() <= r) // 박스는 사각형이라 모서리가 반경 밖으로 삐져나온다
+                .sorted(Comparator.comparingDouble(PlaceDistance::meters)
+                        .thenComparingLong(pd -> pd.place().getId())) // 동거리 동점은 id로 안정 정렬
+                .toList();
+
+        if (within.isEmpty()) {
+            return null;
+        }
+        int from = Math.min(page * clampedSize, within.size());
+        int to = Math.min(from + clampedSize, within.size());
+        List<PlaceSearchResponse> content = within.subList(from, to).stream()
+                .map(pd -> PlaceSearchResponse.from(pd.place(), Math.round(pd.meters())))
+                .toList();
+        return PageResponse.of(content, page, clampedSize, within.size());
+    }
+
+    /** 좌표를 모르면 null, 알면 거리(m). 0으로 채우지 않는다 — "0m"와 "모름"은 다른 사실이다. */
+    private static Long distanceOrNull(Double lat, Double lng, Place p) {
+        if (lat == null || lng == null) {
+            return null;
+        }
+        return Math.round(haversine(lat, lng, p.getLatitude(), p.getLongitude()));
     }
 
     /**

@@ -49,9 +49,12 @@ public class PlaceController {
     @GetMapping("/search")
     public ApiResponse<PageResponse<PlaceSearchResponse>> search(
             @RequestParam String query,
+            @RequestParam(required = false) Double lat,
+            @RequestParam(required = false) Double lng,
+            @RequestParam(defaultValue = "10000") int radius,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.success(placeService.search(query, page, size));
+        return ApiResponse.success(placeService.search(query, lat, lng, radius, page, size));
     }
 
     /**

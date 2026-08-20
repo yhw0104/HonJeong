@@ -10,6 +10,7 @@ import { useDebouncedValue } from '@/shared/useDebouncedValue';
 import { MIN_SEARCH_LEN } from '@/shared/search';
 import { useRecentSearches } from '@/features/place/recentSearches';
 import { nearbyDiningPlaces } from '@/features/place/nearbyDining';
+import { searchOrigin } from '@/features/place/searchOrigin';
 import { useLocation } from '@/shared/location/useLocation';
 import { formatDistance } from '@/shared/location/distance';
 import { useMyCheckIn } from '@/features/checkin/queries';
@@ -19,9 +20,10 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const dq = useDebouncedValue(query, 300); // API 호출은 디바운스된 값으로(입력 표시는 query 그대로)
-  const { data, isFetching, isError, refetch } = usePlaceSearch(dq);
   const { recent, add, remove, clear } = useRecentSearches();
   const { coord, source } = useLocation();
+  // 거리순 정렬의 기준 좌표(기본 좌표는 제외하는 이유는 searchOrigin에 적혀 있다).
+  const { data, isFetching, isError, refetch } = usePlaceSearch(dq, searchOrigin(source, coord));
   // 주변 혼밥은 실제 GPS가 있을 때만(내 동네·기본좌표면 '주변'이 아니라 숨김). 폴링 없음.
   const nearbyQuery = useNearby(coord, 1000, source === 'gps', false);
   const myCheckIn = useMyCheckIn(); // 내가 모집중인 식당은 인원에서 나만 뺀다(seekingCount에 내가 포함돼 있어서)
@@ -160,7 +162,13 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
                 <Text style={styles.cardMeta} numberOfLines={1}>
-                  {[item.category, item.roadAddress ?? item.address].filter(Boolean).join(' · ') || '주소 정보 없음'}
+                  {/* 거리를 맨 앞에 둔다 — 거리순으로 정렬돼 있다는 사실이 목록에서 바로 읽혀야 한다.
+                      좌표를 안 보낸 검색이면 null이라 자연히 빠진다(0으로 오지 않는다). */}
+                  {[
+                    item.distanceMeters === null ? null : formatDistance(item.distanceMeters),
+                    item.category,
+                    item.roadAddress ?? item.address,
+                  ].filter(Boolean).join(' · ') || '주소 정보 없음'}
                 </Text>
               </View>
               <Icon name="chevronRight" size={18} color={T2.textMute} />

@@ -143,7 +143,7 @@ class PlaceServiceTest {
     @Test
     @DisplayName("빈 검색어는 INVALID_INPUT")
     void blankQuery() {
-        assertThatThrownBy(() -> service.search("  ", 0, 20))
+        assertThatThrownBy(() -> service.search("  ", null, null, 1000, 0, 20))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -153,7 +153,7 @@ class PlaceServiceTest {
     @Test
     @DisplayName("null 검색어는 INVALID_INPUT")
     void nullQuery() {
-        assertThatThrownBy(() -> service.search(null, 0, 20))
+        assertThatThrownBy(() -> service.search(null, null, null, 1000, 0, 20))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -163,7 +163,7 @@ class PlaceServiceTest {
     @Test
     @DisplayName("page가 음수면 INVALID_INPUT")
     void negativePage() {
-        assertThatThrownBy(() -> service.search("김밥", -1, 20))
+        assertThatThrownBy(() -> service.search("김밥", null, null, 1000, -1, 20))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -173,7 +173,7 @@ class PlaceServiceTest {
     @Test
     @DisplayName("size가 1 미만이면 INVALID_INPUT")
     void zeroSize() {
-        assertThatThrownBy(() -> service.search("김밥", 0, 0))
+        assertThatThrownBy(() -> service.search("김밥", null, null, 1000, 0, 0))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -187,7 +187,7 @@ class PlaceServiceTest {
         when(placeRepository.searchOpenByName(eq("김밥"), any()))
                 .thenReturn(new PageImpl<>(List.of(p), PageRequest.of(0, 20), 1));
 
-        var res = service.search("김밥", 0, 20);
+        var res = service.search("김밥", null, null, 1000, 0, 20);
 
         assertThat(res.content()).hasSize(1);
         assertThat(res.content().get(0).name()).isEqualTo("혼밥김밥");
@@ -203,7 +203,7 @@ class PlaceServiceTest {
         when(placeRepository.searchOpenByName(any(), any()))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 50), 0));
 
-        var res = service.search("김밥", 0, 999);
+        var res = service.search("김밥", null, null, 1000, 0, 999);
 
         assertThat(res.size()).isEqualTo(50);
     }
@@ -214,9 +214,91 @@ class PlaceServiceTest {
         when(placeRepository.searchOpenByName(eq("김밥"), any()))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
-        service.search("  김밥  ", 0, 20);
+        service.search("  김밥  ", null, null, 1000, 0, 20);
 
         verify(placeRepository).searchOpenByName(eq("김밥"), any());
+    }
+
+    // --- 좌표를 준 검색(내 위치 기준) ---
+    //
+    // 예전에는 검색이 좌표를 아예 받지 않아 이름 가나다순으로만 나왔다. "국밥"을 치면 부산 국밥집이
+    // 서울 국밥집보다 위에 뜰 수 있었다. 아래 테스트들이 그 동작으로 되돌아가는 것을 막는다.
+
+    /** 서울 어딘가. 아래 테스트들이 공유하는 기준점. */
+    private static final double MY_LAT = 37.5000;
+    private static final double MY_LNG = 127.0000;
+
+    private static Place placeAt(String sourceId, String name, long id, double lat, double lng) {
+        Place p = Place.ofPublicData(sourceId, name, "분식", "주소", "도로", lat, lng, "02", "영업");
+        ReflectionTestUtils.setField(p, "id", id);
+        return p;
+    }
+
+    @Test
+    @DisplayName("★좌표를 주면 반경 안에서 거리순으로 정렬하고 거리(m)를 채운다")
+    void search_withCoords_sortsByDistance() {
+        Place near = placeAt("A", "가까운김밥", 1L, MY_LAT, MY_LNG);              // 0m
+        Place far = placeAt("B", "먼김밥", 2L, MY_LAT + 0.0050, MY_LNG + 0.0050); // 약 700m
+        // 리포지토리는 일부러 먼 것을 먼저 준다 — 정렬이 서비스에서 일어난다는 것을 증명하기 위함이다.
+        when(placeRepository.searchOpenByNameWithinBounds(eq("김밥"), anyDouble(), anyDouble(),
+                anyDouble(), anyDouble())).thenReturn(List.of(far, near));
+
+        var res = service.search("김밥", MY_LAT, MY_LNG, 1000, 0, 20);
+
+        assertThat(res.content()).extracting(PlaceSearchResponse::placeId).containsExactly(1L, 2L);
+        assertThat(res.content().get(0).distanceMeters()).isZero();
+        assertThat(res.content().get(1).distanceMeters()).isGreaterThan(500L);
+        // 좌표를 줬으면 전국 이름 검색은 타지 않아야 한다(탔다면 정렬 근거가 거리가 아니게 된다).
+        verify(placeRepository, never()).searchOpenByName(any(), any());
+    }
+
+    @Test
+    @DisplayName("좌표를 주면 반경 밖은 제외한다 — 바운딩박스는 사각형이라 모서리가 남는다")
+    void search_withCoords_excludesOutsideRadius() {
+        Place inside = placeAt("A", "안김밥", 1L, MY_LAT, MY_LNG);
+        // 박스(±1000m) 안이지만 대각선 거리는 반경 1000m를 넘는 지점.
+        Place corner = placeAt("B", "모서리김밥", 2L, MY_LAT + 0.0089, MY_LNG + 0.0112);
+        when(placeRepository.searchOpenByNameWithinBounds(eq("김밥"), anyDouble(), anyDouble(),
+                anyDouble(), anyDouble())).thenReturn(List.of(inside, corner));
+
+        var res = service.search("김밥", MY_LAT, MY_LNG, 1000, 0, 20);
+
+        assertThat(res.content()).extracting(PlaceSearchResponse::placeId).containsExactly(1L);
+        assertThat(res.totalElements()).isEqualTo(1L);
+    }
+
+    /**
+     * ★반경을 두면 "멀리 있는 가게를 이름으로 찾기"가 막힌다 — 좌표를 받기 전에는 되던 일이다.
+     * 기능을 더하면서 되던 것을 못 하게 만들지 않으려고, 반경 안이 비면 전국 검색으로 떨어진다.
+     */
+    @Test
+    @DisplayName("★반경 안에 결과가 없으면 전국 이름 검색으로 떨어진다 — 멀리 있는 가게를 이름으로 찾던 길을 막지 않는다")
+    void search_withCoords_fallsBackToNationwide() {
+        Place farAway = placeAt("Z", "부산김밥", 9L, 35.1796, 129.0756); // 부산
+        when(placeRepository.searchOpenByNameWithinBounds(eq("김밥"), anyDouble(), anyDouble(),
+                anyDouble(), anyDouble())).thenReturn(List.of()); // 반경 안엔 없다
+        when(placeRepository.searchOpenByName(eq("김밥"), any()))
+                .thenReturn(new PageImpl<>(List.of(farAway), PageRequest.of(0, 20), 1));
+
+        var res = service.search("김밥", MY_LAT, MY_LNG, 1000, 0, 20);
+
+        assertThat(res.content()).extracting(PlaceSearchResponse::placeId).containsExactly(9L);
+        // 좌표를 알고 있으므로 떨어진 경로에서도 거리는 채워 준다(정렬만 이름순일 뿐이다).
+        assertThat(res.content().get(0).distanceMeters()).isGreaterThan(300_000L); // 서울-부산 300km+
+    }
+
+    @Test
+    @DisplayName("좌표가 없으면 기존대로 전국 이름순이고 거리는 null이다")
+    void search_withoutCoords_keepsNameOrderAndNullDistance() {
+        Place p = placeAt("A", "혼밥김밥", 1L, 37.5, 127.0);
+        when(placeRepository.searchOpenByName(eq("김밥"), any()))
+                .thenReturn(new PageImpl<>(List.of(p), PageRequest.of(0, 20), 1));
+
+        var res = service.search("김밥", null, null, 1000, 0, 20);
+
+        assertThat(res.content().get(0).distanceMeters()).isNull();
+        verify(placeRepository, never()).searchOpenByNameWithinBounds(any(), anyDouble(), anyDouble(),
+                anyDouble(), anyDouble());
     }
 
     @Test
