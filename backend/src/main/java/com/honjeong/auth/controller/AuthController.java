@@ -59,19 +59,21 @@ public class AuthController {
     /**
      * 소셜 로그인(카카오/애플) 진입.
      *
-     * <p>사용 화면: 앱에서는 아직 쓰지 않는다 — 시작 화면(Welcome)의 카카오/애플 버튼은 API 미연동 목업이다.
+     * <p>사용 화면: 시작 화면(Welcome)의 카카오 버튼과 애플 버튼이 각각 이 엔드포인트를 호출한다
+     * (애플 버튼은 기기가 Sign in with Apple을 지원할 때만 그려진다).
      *
      * <p><b>인증:</b> 불필요(SecurityConfig에서 {@code /api/auth/oauth/**}는 permitAll). 진입 단계이므로 토큰이 없다.
      *
      * @param provider 소셜 공급자(kakao/apple) — 대소문자를 가리지 않는다
-     * @param request 소셜에서 받은 {@code idToken}
+     * @param request 소셜에서 받은 {@code idToken}과, 애플만 함께 보내는 {@code authorizationCode}(선택)
      * @return 신규/미완이면 onboarding=true + onboardingToken, 기존 ACTIVE 회원이면 access/refresh/expiresIn
      *         (해당 없는 필드는 null이라 직렬화에서 빠진다)
      */
     @PostMapping("/oauth/{provider}")
     public ApiResponse<AuthResultResponse> oauth(@PathVariable String provider,
             @RequestBody @Valid OAuthLoginRequest request) {
-        AuthResultResponse body = AuthResultResponse.from(authService.oauthLogin(parseProvider(provider), request.idToken()));
+        AuthResultResponse body = AuthResultResponse.from(
+                authService.oauthLogin(parseProvider(provider), request.idToken(), request.authorizationCode()));
         return ApiResponse.success(body);
     }
 

@@ -1,12 +1,14 @@
 // Welcome — 웰컴 / 로그인 진입 (원본: screens/Welcome.jsx)
 // absolute 레이아웃을 flex 컬럼(상단 타이포 / 중단 카운터 / 하단 CTA)으로 재배치.
-import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, Pressable, StyleSheet, Alert, Platform } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { Screen, Icon } from '@/shared/components';
 import { T2, C } from '@/shared/theme';
 import { apiGet, apiPost, ApiError } from '@/shared/api/client';
 import { useAuth } from '@/shared/auth/AuthContext';
 import { loginWithKakao } from '@/features/auth/kakaoLogin';
+import { loginWithApple, isAppleLoginAvailable } from '@/features/auth/appleLogin';
 import { oauthNext, type OAuthResponse } from '@/features/auth/oauthResult';
 import type { RootStackScreenProps } from '@/navigation/types';
 
@@ -15,6 +17,27 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
   const [counts, setCounts] = useState<{ seekingCount: number; activeCount: number } | null>(null);
   const { signIn } = useAuth();
   const [kakaoBusy, setKakaoBusy] = useState(false);
+  // 더블탭 가드를 상태가 아니라 ref로 둔다. 상태는 리렌더가 돌아야 갱신돼, 같은 프레임에 두 번 누르면
+  // 두 호출 모두 false를 읽고 통과한다. 카카오 버튼은 그래도 disabled prop이라는 뒷받침이 있지만,
+  // 애플 네이티브 버튼에는 그런 prop 자체가 없어(onPress·buttonType·buttonStyle·cornerRadius·style이
+  // 전부다) 이 가드가 유일한 방어선이다. ref는 동기적으로 읽고 써서 창이 아예 열리지 않는다.
+  const appleBusy = useRef(false);
+  // 애플 로그인 지원 여부. 비동기로만 알 수 있어 '아직 모름'이 별도의 상태로 필요하다 —
+  // 모르는 동안 자리(48pt)를 비워 두면 나중에 버튼이 끼어들 때 위쪽이 통째로 밀려 올라간다(아래 참고).
+  // ★안드로이드는 물어볼 일이 없으므로 처음부터 'unavailable'로 시작한다. 여기서 'unknown'으로
+  //   두면 effect가 즉시 return해 영영 갱신되지 않아, 버튼이 뜰 리 없는 플랫폼에 빈 48pt가 남는다.
+  const [appleAvailability, setAppleAvailability] = useState<'unknown' | 'available' | 'unavailable'>(
+    Platform.OS === 'ios' ? 'unknown' : 'unavailable',
+  );
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return; // 초기값이 이미 'unavailable'이라 그대로 둔다
+    let alive = true;
+    isAppleLoginAvailable().then((ok) => {
+      if (alive) setAppleAvailability(ok ? 'available' : 'unavailable');
+    });
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -50,6 +73,35 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
       Alert.alert('로그인 실패', e instanceof ApiError ? e.message : '잠시 후 다시 시도해주세요.');
     } finally {
       setKakaoBusy(false);
+    }
+  };
+
+  // 애플 로그인 → 서버 검증 → 신규면 프로필 설정, 기존이면 바로 입장. onKakao와 같은 구조다.
+  const onApple = async () => {
+    if (appleBusy.current) return; // 더블탭 방지 — ref라 같은 프레임의 두 번째 탭도 막힌다
+    appleBusy.current = true;
+    try {
+      const credential = await loginWithApple();
+      if (credential === null) return; // 사용자가 취소 — 알림 없이 조용히 복귀
+      // token:null — 카카오와 같은 이유(공개 엔드포인트라 세션 토큰을 붙이지 않는다).
+      const result = await apiPost<OAuthResponse>(
+        '/auth/oauth/apple',
+        { idToken: credential.identityToken, authorizationCode: credential.authorizationCode },
+        { token: null },
+      );
+      const next = oauthNext(result);
+      if (next.kind === 'onboarding') {
+        navigation.navigate('ProfileSetup', { onboardingToken: next.onboardingToken });
+      } else if (next.kind === 'login') {
+        await signIn(next.tokens);
+      } else {
+        Alert.alert('로그인 오류', '예상치 못한 응답입니다. 다시 시도해주세요.');
+      }
+    } catch (e) {
+      console.warn('[apple] 로그인 실패', e);
+      Alert.alert('로그인 실패', e instanceof ApiError ? e.message : '잠시 후 다시 시도해주세요.');
+    } finally {
+      appleBusy.current = false;
     }
   };
 
@@ -90,6 +142,28 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
 
         {/* 하단 CTA */}
         <View style={styles.cta}>
+          {/* 애플 — 카카오보다 위에 둔다. HIG가 Sign in with Apple을 다른 로그인 수단보다
+              덜 눈에 띄게 배치하지 말라고 요구한다. iOS 13+에서만 뜬다.
+              직접 그리지 않고 애플 공식 컴포넌트를 쓰는 이유: 로고·문구·색·현지화가 애플 승인
+              규격 그대로 나와 브랜딩 규칙을 어길 여지가 없다. */}
+          {appleAvailability === 'available' ? (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+              cornerRadius={12}
+              style={styles.appleBtn}
+              onPress={onApple}
+            />
+          ) : appleAvailability === 'unknown' ? (
+            // 지원 여부를 묻는 동안 자리만 잡아 둔다(아무것도 그리지 않는 빈 View).
+            // cta가 flex 컬럼 맨 아래에 있어서, 뒤늦게 버튼이 끼어들면 위쪽 카운터 블록이
+            // 56pt(버튼 48 + gap 8)만큼 솟구친다 — 앱을 새로 켤 때마다 첫 화면이 덜컥이고,
+            // 하필 그 화면이 심사자가 앱에서 처음 보는 장면이다. 같은 크기를 미리 비워 두면
+            // 버튼이 그 자리에 그대로 들어와 아무것도 움직이지 않는다.
+            // 미리 진짜 버튼을 그려 두지 않는 이유: isAppleLoginAvailable()이 false로 답하면
+            // 버튼이 떴다가 사라지는 게 되고, "resolves true일 때만 노출" 조건도 깨진다.
+            <View style={styles.appleBtn} />
+          ) : null}
           {/* 카카오 — 대표 소셜 로그인 */}
           <Pressable
             style={[styles.btn, { backgroundColor: C.kakao }]}
@@ -99,17 +173,6 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
             <Icon name="kakao" size={18} color={C.kakaoText} />
             <Text style={[styles.btnText, { color: C.kakaoText }]}>카카오로 계속하기</Text>
           </Pressable>
-          {/* Apple — 실연동 전까지 숨김.
-              onPress가 MainTabs로 바로 보내는 목업 상태였는데, MainTabs는 로그인 후 스택이라
-              비로그인 상태에서 눌러도 아무 일도 일어나지 않는 죽은 버튼이었다.
-              애플 로그인 슬라이스에서 onPress를 실제 연동으로 바꾸면서 되살릴 것. */}
-          {/* <Pressable
-            style={[styles.btn, { backgroundColor: T2.text }]}
-            onPress={() => navigation.navigate('MainTabs')}
-          >
-            <Icon name="apple" size={16} color="#fff" />
-            <Text style={[styles.btnText, { color: '#fff' }]}>Apple로 계속하기</Text>
-          </Pressable> */}
           {/* 휴대폰 — TestFlight 배포 동안 숨김.
               mock SMS는 인증번호가 "000000" 고정이라, 공개된 서버에 이 경로를 열어두면
               전화번호만 알면 타인 계정으로 로그인된다. 실 SMS 게이트웨이를 붙이는
@@ -162,4 +225,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   btnText: { fontSize: 15, fontWeight: '700', letterSpacing: -0.3 },
+  // 애플 네이티브 버튼(ASAuthorizationAppleIDButton)은 내용으로 높이가 잡히지 않아 명시해야 한다.
+  // 48 = 카카오 버튼의 실제 높이: paddingVertical 15×2 + 내용 한 줄 18. 내용 높이를 정하는 건
+  // 텍스트가 아니라 아이콘이다 — Icon이 <Svg height={18}>로 딱 18을 차지하고, 15pt 한 줄 텍스트는
+  // 그보다 낮아서(≈17.9) 행 높이에 영향을 주지 않는다. 그래서 폰트 메트릭에 기대지 않고 확정된다.
+  // ★margin을 주지 않는다 — 부모 cta가 gap: 8로 간격을 이미 만든다(주면 이중 간격이 된다).
+  //   애플은 버튼 둘레에 높이의 1/10 이상(48 기준 4.8) 여백을 두라고 요구하는데, 좌우 28
+  //   (container.paddingHorizontal)·위 28(indicator.marginBottom)·아래 8(cta.gap)이 모두 그보다
+  //   크다. 높이를 키우거나 gap을 줄일 때만 이 계산을 다시 하면 된다(gap 8은 높이 80까지 버틴다).
+  // 모서리는 style이 아니라 cornerRadius **prop**으로 준다 — style 타입이 borderRadius를 아예
+  // 빼놓았고(SDK의 Omit<ViewStyle, 'backgroundColor' | 'borderRadius'>), 네이티브 버튼이라 스타일로
+  // 둥글리면 먹지 않는다. 값 12는 카카오 버튼의 borderRadius: 12와 맞춘 것이다.
+  appleBtn: { height: 48, width: '100%' },
 });

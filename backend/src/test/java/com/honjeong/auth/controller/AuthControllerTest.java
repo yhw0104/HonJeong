@@ -17,6 +17,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.honjeong.auth.domain.Provider;
 import com.honjeong.auth.service.AuthResult;
 import com.honjeong.auth.service.AuthService;
 import com.honjeong.auth.service.TokenPair;
@@ -111,6 +112,52 @@ class AuthControllerTest extends ActiveUserSliceSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.onboarding").value(true))
                 .andExpect(jsonPath("$.data.onboardingToken").value("onb-token"));
+    }
+
+    // --- 소셜 로그인 진입: 앱이 보낸 값이 서비스까지 그대로 도달하는지 ---
+    //
+    // 이 컨트롤러가 애플 로그인에서 하는 일은 사실상 authorizationCode를 서비스로 넘기는 것 하나뿐이라,
+    // 그 한 줄이 끊겨도 서비스·배선 테스트는 전부 초록으로 남는다(요청만 조용히 코드 없이 처리된다).
+    // 그래서 "위임 확인"을 자명한 코드로 보지 않고 여기서 못 박는다.
+
+    /**
+     * given: 서비스가 온보딩 결과를 돌려주도록 스텁.
+     * when: idToken과 authorizationCode를 함께 담아 {@code POST /oauth/apple} 호출(애플 로그인의 실제 모양).
+     * then: 200으로 응답하고, 경로변수에서 뽑은 {@code APPLE}과 본문의 두 값이 그대로 서비스에 위임된다.
+     */
+    @Test
+    @DisplayName("oauth: 애플이 보낸 authorizationCode가 서비스까지 그대로 전달된다")
+    void oauth_apple_passesAuthorizationCode() throws Exception {
+        when(authService.oauthLogin(any(), any(), any())).thenReturn(AuthResult.onboarding("onb-token"));
+
+        mockMvc.perform(post("/api/auth/oauth/apple")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"idToken\":\"t\",\"authorizationCode\":\"c\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.onboarding").value(true))
+                .andExpect(jsonPath("$.data.onboardingToken").value("onb-token"));
+
+        verify(authService).oauthLogin(Provider.APPLE, "t", "c");
+    }
+
+    /**
+     * given: 서비스가 온보딩 결과를 돌려주도록 스텁.
+     * when: authorizationCode 없이 idToken만 담아 {@code POST /oauth/kakao} 호출(카카오는 코드를 보내지 않고,
+     *       애플을 붙이기 전 앱이 보내던 본문도 정확히 이 모양이다).
+     * then: 검증에 걸리지 않고 200이며, 세 번째 인자로 null이 넘어간다 — 필드를 더해도 기존 클라가
+     *       그대로 동작한다는 하위 호환 주장을 증거로 만든다.
+     */
+    @Test
+    @DisplayName("oauth: authorizationCode가 없으면 null로 위임된다 — 기존 클라 본문도 그대로 통한다")
+    void oauth_withoutAuthorizationCode_passesNull() throws Exception {
+        when(authService.oauthLogin(any(), any(), any())).thenReturn(AuthResult.onboarding("onb-token"));
+
+        mockMvc.perform(post("/api/auth/oauth/kakao")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"idToken\":\"t\"}"))
+                .andExpect(status().isOk());
+
+        verify(authService).oauthLogin(Provider.KAKAO, "t", null);
     }
 
     /**

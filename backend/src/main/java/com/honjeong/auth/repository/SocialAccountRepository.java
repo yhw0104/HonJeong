@@ -1,5 +1,6 @@
 package com.honjeong.auth.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -28,6 +29,17 @@ public interface SocialAccountRepository extends JpaRepository<SocialAccount, Lo
      * @return 연동 계정(없으면 빈 Optional)
      */
     Optional<SocialAccount> findByProviderAndProviderUserId(Provider provider, String providerUserId);
+
+    /**
+     * 사용자의 소셜 연동을 전부 조회한다 — 탈퇴 시 애플에 폐기를 요청할 refresh token을 찾는 용도다.
+     *
+     * <p>{@link #deleteAllByUserId(Long)}보다 <b>먼저</b> 불러야 한다. 지운 뒤에는 폐기할 토큰을
+     * 읽을 수 없다(AccountWithdrawalService.deletePersonalData 참조).
+     *
+     * @param userId 대상 사용자 ID
+     * @return 연동 계정 목록(없으면 빈 리스트)
+     */
+    List<SocialAccount> findAllByUserId(Long userId);
 
     /**
      * 사용자의 소셜 계정 연동을 전부 삭제한다(탈퇴 시 재가입 경로 확보용).
