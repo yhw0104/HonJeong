@@ -22,6 +22,11 @@ export const C = {
   openDark: '#1B8049',
   kakao: '#FEE500',
   kakaoText: '#191600',
+  // ★애플 로그인 버튼 색은 브랜드 취향이 아니라 애플 규격이다. HIG는 로고와 문구를
+  //   "검정 아니면 흰색"으로만 허용하고 커스텀 색을 금지한다. 여기 값을 바꾸면 심사
+  //   지침 위반이 된다(카카오의 #FEE500이 카카오 규격인 것과 같은 성격).
+  apple: '#000000',
+  appleText: '#FFFFFF',
 } as const;
 
 export type ThemeColors = typeof T2;

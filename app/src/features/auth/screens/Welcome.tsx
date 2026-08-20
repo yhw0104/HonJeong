@@ -2,7 +2,8 @@
 // absolute 레이아웃을 flex 컬럼(상단 타이포 / 중단 카운터 / 하단 CTA)으로 재배치.
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert, Platform } from 'react-native';
-import * as AppleAuthentication from 'expo-apple-authentication';
+// expo-apple-authentication을 여기서 직접 import하지 않는다 — 버튼을 직접 그리게 되면서
+// 이 파일에 남은 애플 의존은 appleLogin.ts(로그인 호출·지원 여부)를 거치는 것뿐이다.
 import { Screen, Icon } from '@/shared/components';
 import { T2, C } from '@/shared/theme';
 import { apiGet, apiPost, ApiError } from '@/shared/api/client';
@@ -144,16 +145,27 @@ export function WelcomeScreen({ navigation }: RootStackScreenProps<'Welcome'>) {
         <View style={styles.cta}>
           {/* 애플 — 카카오보다 위에 둔다. HIG가 Sign in with Apple을 다른 로그인 수단보다
               덜 눈에 띄게 배치하지 말라고 요구한다. iOS 13+에서만 뜬다.
-              직접 그리지 않고 애플 공식 컴포넌트를 쓰는 이유: 로고·문구·색·현지화가 애플 승인
-              규격 그대로 나와 브랜딩 규칙을 어길 여지가 없다. */}
+              ★애플 공식 컴포넌트(AppleAuthenticationButton)를 쓰지 않고 직접 그린다.
+              그 컴포넌트는 글자 크기를 버튼 높이의 43%로 스스로 정하고(prop이 없다 —
+              buttonStyle·buttonType·cornerRadius·onPress·style이 전부다), 카카오 규격은
+              레이블을 높이의 1/3 이하로 요구한다. 두 비율이 겹치지 않아서, 공식 컴포넌트를
+              쓰는 한 같은 높이에서 두 버튼의 글자 크기는 절대 같아질 수 없다(실측: 높이 48에서
+              애플 20.6pt / 카카오 15pt). 그래서 카카오 버튼과 같은 styles.btn·styles.btnText로
+              그려 타이포를 하나로 맞춘다.
+              애플이 강제하는 나머지는 그대로 지킨다 — 공식 로고 모양(Icon 'apple'), 승인된 문구
+              ("Apple로 계속하기"는 공식 컴포넌트가 CONTINUE에 쓰던 한국어 문구 그대로),
+              검정 배경·흰 로고/글자(C.apple·C.appleText), 모서리 12(0~높이/2 허용), 높이 48
+              (최소 30 이상), 버튼 둘레 여백(좌우 28·위 28·아래 8 모두 높이/10=4.8 초과). */}
           {appleAvailability === 'available' ? (
-            <AppleAuthentication.AppleAuthenticationButton
-              buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-              cornerRadius={12}
-              style={styles.appleBtn}
+            <Pressable
+              style={[styles.btn, { backgroundColor: C.apple }]}
               onPress={onApple}
-            />
+              accessibilityRole="button"
+              accessibilityLabel="Apple로 계속하기"
+            >
+              <Icon name="apple" size={18} color={C.appleText} />
+              <Text style={[styles.btnText, { color: C.appleText }]}>Apple로 계속하기</Text>
+            </Pressable>
           ) : appleAvailability === 'unknown' ? (
             // 지원 여부를 묻는 동안 자리만 잡아 둔다(아무것도 그리지 않는 빈 View).
             // cta가 flex 컬럼 맨 아래에 있어서, 뒤늦게 버튼이 끼어들면 위쪽 카운터 블록이
@@ -225,16 +237,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   btnText: { fontSize: 15, fontWeight: '700', letterSpacing: -0.3 },
-  // 애플 네이티브 버튼(ASAuthorizationAppleIDButton)은 내용으로 높이가 잡히지 않아 명시해야 한다.
-  // 48 = 카카오 버튼의 실제 높이: paddingVertical 15×2 + 내용 한 줄 18. 내용 높이를 정하는 건
+  // 애플 버튼이 뜰 자리를 지원 여부 확인 동안 비워 두는 자리표시자 전용 스타일.
+  // 48 = 실제 버튼(styles.btn)의 높이: paddingVertical 15×2 + 내용 한 줄 18. 내용 높이를 정하는 건
   // 텍스트가 아니라 아이콘이다 — Icon이 <Svg height={18}>로 딱 18을 차지하고, 15pt 한 줄 텍스트는
   // 그보다 낮아서(≈17.9) 행 높이에 영향을 주지 않는다. 그래서 폰트 메트릭에 기대지 않고 확정된다.
-  // ★margin을 주지 않는다 — 부모 cta가 gap: 8로 간격을 이미 만든다(주면 이중 간격이 된다).
-  //   애플은 버튼 둘레에 높이의 1/10 이상(48 기준 4.8) 여백을 두라고 요구하는데, 좌우 28
-  //   (container.paddingHorizontal)·위 28(indicator.marginBottom)·아래 8(cta.gap)이 모두 그보다
-  //   크다. 높이를 키우거나 gap을 줄일 때만 이 계산을 다시 하면 된다(gap 8은 높이 80까지 버틴다).
-  // 모서리는 style이 아니라 cornerRadius **prop**으로 준다 — style 타입이 borderRadius를 아예
-  // 빼놓았고(SDK의 Omit<ViewStyle, 'backgroundColor' | 'borderRadius'>), 네이티브 버튼이라 스타일로
-  // 둥글리면 먹지 않는다. 값 12는 카카오 버튼의 borderRadius: 12와 맞춘 것이다.
+  // ★이 값이 styles.btn의 실제 높이와 어긋나면 버튼이 들어올 때 화면이 그 차이만큼 튄다 —
+  //   자리표시자를 두는 목적 자체가 사라진다. btn의 padding이나 아이콘 크기를 바꾸면 같이 고칠 것.
   appleBtn: { height: 48, width: '100%' },
 });
