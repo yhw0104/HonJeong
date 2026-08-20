@@ -16,6 +16,8 @@ import { FavoritesScreen } from '@/features/favorites/screens/Favorites';
 import { MoreScreen } from '@/features/profile/screens/More';
 import { useConversations } from '@/features/chat/queries';
 import { totalUnread } from '@/features/chat/chatFormat';
+import { useReceivedRequests } from '@/features/meal/queries';
+import { pendingReceivedCount } from '@/features/meal/pendingCount';
 import { hasPushPermission } from '@/shared/push';
 import { hasSeenPushPrompt, shouldPromptPush } from '@/shared/push/prompt';
 
@@ -90,9 +92,24 @@ function TabGlyph({ name, color }: { name: keyof MainTabParamList; color: string
   );
 }
 
+/** 탭별 뱃지 숫자. 0이면 뱃지를 그리지 않는다. */
+function badgeCount(name: keyof MainTabParamList, unread: number, pendingMeals: number): number {
+  if (name === 'Chat') return unread;
+  if (name === 'TogetherFeed') return pendingMeals;
+  return 0;
+}
+
+/** 세 자리를 넘으면 뱃지 원이 글자를 못 담는다 — 두 탭이 같은 규칙을 쓰도록 한 곳에 둔다. */
+function formatBadge(n: number): string {
+  return n > 99 ? '99+' : String(n);
+}
+
 function MinTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const unread = totalUnread(useConversations().data ?? []);
+  // 같이먹기 탭 뱃지 = 내 응답을 기다리는 받은 신청 수. 대화 탭이 안 읽은 메시지 수를 띄우는 것과
+  // 같은 성격이다. 두 쿼리 모두 LIVE_REFETCH_MS로 폴링하므로 탭바가 켜져 있는 동안 알아서 갱신된다.
+  const pendingMeals = pendingReceivedCount(useReceivedRequests().data ?? []);
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       {state.routes.map((route, index) => {
@@ -109,9 +126,9 @@ function MinTabBar({ state, navigation }: BottomTabBarProps) {
           <Pressable key={route.key} onPress={onPress} style={styles.item}>
             <View style={styles.glyphWrap}>
               <TabGlyph name={name} color={color} />
-              {name === 'Chat' && unread > 0 && (
+              {badgeCount(name, unread, pendingMeals) > 0 && (
                 <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{unread > 99 ? '99+' : String(unread)}</Text>
+                  <Text style={styles.badgeText}>{formatBadge(badgeCount(name, unread, pendingMeals))}</Text>
                 </View>
               )}
             </View>

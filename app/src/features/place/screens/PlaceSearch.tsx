@@ -10,6 +10,7 @@ import { useDebouncedValue } from '@/shared/useDebouncedValue';
 import { MIN_SEARCH_LEN } from '@/shared/search';
 import { useRecentSearches } from '@/features/place/recentSearches';
 import { nearbyDiningPlaces } from '@/features/place/nearbyDining';
+import { SeekingPlacesSection } from '@/features/place/components/SeekingPlacesSection';
 import { searchOrigin } from '@/features/place/searchOrigin';
 import { useLocation } from '@/shared/location/useLocation';
 import { formatDistance } from '@/shared/location/distance';
@@ -100,36 +101,15 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
                 </View>
               </View>
             )}
-            {nearby.length > 0 && (
-              <View style={styles.nearbyWrap}>
-                <Text style={styles.nearbyTitle}>지금 주변에서 같이 먹을 사람 구하는 중</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                  contentContainerStyle={styles.nearbyScroll}
-                >
-                  {nearby.map((p) => (
-                    <Pressable
-                      key={p.placeId}
-                      style={styles.nearbyCard}
-                      onPress={() => navigation.navigate('RestaurantDetail', { placeId: p.placeId, name: p.name })}
-                    >
-                      <View style={styles.nearbyAvatar}>
-                        <Text style={styles.nearbyEmoji}>🍽</Text>
-                      </View>
-                      <Text style={styles.nearbyCardName} numberOfLines={1}>{p.name}</Text>
-                      <Text style={styles.nearbyCardMeta} numberOfLines={1}>
-                        {[p.category, formatDistance(p.distanceMeters)].filter(Boolean).join(' · ')}
-                      </Text>
-                      <View style={styles.countBadge}>
-                        <Text style={styles.countText}>모집 {p.seekingCount}</Text>
-                      </View>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
+            {/* 같이 먹기 탭과 같은 컴포넌트를 쓴다. 예전에는 여기만 🍽 이모지 아바타에 가운데
+                정렬이라 같은 데이터가 두 화면에서 다르게 보였다. 비면 통째로 사라진다
+                (emptyText를 주지 않는다) — 여기서는 최근 검색어 아래 곁다리라 그게 낫다. */}
+            <View style={styles.nearbyWrap}>
+              <SeekingPlacesSection
+                places={nearby}
+                onPressPlace={(placeId, name) => navigation.navigate('RestaurantDetail', { placeId, name })}
+              />
+            </View>
           </ScrollView>
         )
       ) : isError ? (
@@ -270,34 +250,9 @@ const styles = StyleSheet.create({
   chipX: { width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
   chipXText: { fontSize: 10, color: T2.textMute, fontWeight: '700', lineHeight: 12 },
 
-  nearbyWrap: { paddingTop: 24 },
-  nearbyTitle: { fontSize: 13, fontWeight: '700', color: T2.text, letterSpacing: -0.3, marginBottom: 12, paddingHorizontal: 20 },
-  nearbyScroll: { paddingHorizontal: 20, gap: 12 },
-  nearbyCard: {
-    width: 150,
-    alignItems: 'center',
-    backgroundColor: T2.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: T2.border,
-    paddingVertical: 18,
-    paddingHorizontal: 14,
-    ...shadow,
-  },
-  nearbyAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: T2.bg,
-    borderWidth: 1,
-    borderColor: T2.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  nearbyEmoji: { fontSize: 24 },
-  nearbyCardName: { fontSize: 14, fontWeight: '700', color: T2.text, letterSpacing: -0.3, textAlign: 'center' },
-  nearbyCardMeta: { fontSize: 11, color: T2.textSub, marginTop: 3, textAlign: 'center', letterSpacing: -0.2 },
-  countBadge: { backgroundColor: T2.brand, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, marginTop: 12 },
-  countText: { fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: -0.2 },
+  // ★paddingHorizontal 20이 필요하다 — 감싸는 emptyScroll에는 좌우 여백이 없고,
+  //   SeekingPlacesSection이 bleed(기본 20)만큼 음수 마진으로 카드를 여백 밖까지 흘려보내기
+  //   때문이다. 여기가 0이면 헤더가 화면 왼쪽 끝에 붙고 카드는 화면 밖으로 밀린다.
+  //   같이 먹기 탭도 같은 구조다(그쪽은 바깥 scroll이 paddingHorizontal 20을 갖고 있다).
+  nearbyWrap: { paddingHorizontal: 20, paddingTop: 24 },
 });
