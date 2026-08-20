@@ -43,7 +43,7 @@ class NotificationSettingsRepositoryTest extends AbstractPostgresTest {
         assertThat(settingsRepository.findByUserId(me.getId())).isEmpty();
 
         NotificationSettings s = NotificationSettings.of(me.getId());
-        s.update(false, true, true, true); // meal off, mate on, notice on, marketing on
+        s.update(false, true, true, true, false); // meal off, mate on, notice on, marketing on, badge off
         settingsRepository.saveAndFlush(s);
         em.clear();
 
@@ -52,16 +52,21 @@ class NotificationSettingsRepositoryTest extends AbstractPostgresTest {
         assertThat(got.isMateEnabled()).isTrue();
         assertThat(got.isNoticeEnabled()).isTrue();
         assertThat(got.isMarketingEnabled()).isTrue();
+        // V30으로 새로 생긴 컬럼이다 — 매핑이 빠지면 여기서 잡힌다(기본 true라 false가 살아남아야 증거가 된다).
+        assertThat(got.isBadgeEnabled()).isFalse();
     }
 
     @Test
-    @DisplayName("of(): 기본값은 meal·mate·notice ON, marketing OFF")
+    @DisplayName("of(): 기본값은 meal·mate·notice·badge ON, marketing OFF")
     void defaults() {
         NotificationSettings s = NotificationSettings.of(42L);
         assertThat(s.isMealEnabled()).isTrue();
         assertThat(s.isMateEnabled()).isTrue();
         assertThat(s.isNoticeEnabled()).isTrue();
         assertThat(s.isMarketingEnabled()).isFalse();
+        // 뱃지는 ON이 기본이다 — 지금까지 전원이 받아 왔으므로 기본을 OFF로 두면
+        // 이 기능이 붙는 순간 아무도 끄지 않았는데 전원의 뱃지 알림이 조용히 꺼진다.
+        assertThat(s.isBadgeEnabled()).isTrue();
     }
 
     @Test

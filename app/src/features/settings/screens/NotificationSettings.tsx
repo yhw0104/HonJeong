@@ -19,8 +19,11 @@ const GROUPS: Group[] = [
     items: [
       { key: 'meal', title: '같이 먹기 알림', desc: '같이 먹기 신청·수락 알림' },
       { key: 'mate', title: '메이트 알림', desc: '메이트 신청·수락 알림' },
+      { key: 'badge', title: '뱃지 획득 알림', desc: '새 뱃지를 얻었을 때 알림' },
     ],
   },
+  // 채팅 알림은 여기 없다 — 대화방마다 따로 끄는 게 있어서(대화 목록에서 스와이프 → 알림 끄기)
+  // 전체 토글을 하나 더 두면 두 설정이 겹쳐 "어느 쪽이 이겼는지" 알 수 없게 된다.
   {
     title: '소식',
     items: [
@@ -96,7 +99,10 @@ export function NotificationSettingsScreen({ navigation }: RootStackScreenProps<
                       <Text style={styles.rowTitle}>{it.title}</Text>
                       <Text style={styles.rowDesc}>{it.desc}</Text>
                     </View>
-                    <Toggle value={data[it.key]} onValueChange={() => toggle(it.key)} />
+                    {/* badge는 서버가 나중에 추가한 필드라 타입이 optional이다. 값이 없으면
+                        서버 기본값과 같은 '켜짐'으로 그린다 — 여기서 off로 그리면 켜져 있는
+                        알림을 꺼져 있다고 보여주는 셈이 된다. */}
+                    <Toggle value={data[it.key] ?? true} onValueChange={() => toggle(it.key)} />
                   </View>
                 ))}
               </View>

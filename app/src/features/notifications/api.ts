@@ -26,6 +26,12 @@ export type NotificationSettings = {
   mate: boolean;
   notice: boolean;
   marketing: boolean;
+  /**
+   * 뱃지 획득 알림. 서버가 나중에 추가한 필드라 구버전 서버는 이 값을 안 준다 —
+   * 그래도 화면(NotificationSettings.tsx)이 토글을 그리려면 값이 필요하므로,
+   * undefined면 켜짐으로 본다(서버의 기본값과 같다).
+   */
+  badge?: boolean;
 };
 
 export const fetchNotificationSettings = () =>

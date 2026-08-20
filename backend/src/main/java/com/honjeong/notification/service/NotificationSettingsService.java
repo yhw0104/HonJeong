@@ -36,7 +36,7 @@ public class NotificationSettingsService {
     public NotificationSettingsResponse updateSettings(Long userId, NotificationSettingsRequest req) {
         NotificationSettings s = settingsRepository.findByUserId(userId)
                 .orElseGet(() -> NotificationSettings.of(userId));
-        s.update(req.meal(), req.mate(), req.notice(), req.marketing());
+        s.update(req.meal(), req.mate(), req.notice(), req.marketing(), req.badge());
         return NotificationSettingsResponse.from(settingsRepository.save(s));
     }
 
@@ -52,7 +52,8 @@ public class NotificationSettingsService {
                     opt.map(NotificationSettings::isMealEnabled).orElse(true);
             case MATE_REQUEST_RECEIVED, MATE_REQUEST_ACCEPTED ->
                     opt.map(NotificationSettings::isMateEnabled).orElse(true);
-            case BADGE_EARNED -> true; // 뱃지 알림은 항상 ON(설정 토글 없음)
+            // 예전에는 여기가 true로 못 박혀 있어 사용자가 끌 방법이 없었다. 이제 토글을 따른다.
+            case BADGE_EARNED -> opt.map(NotificationSettings::isBadgeEnabled).orElse(true);
         };
     }
 }
