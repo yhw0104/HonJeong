@@ -51,6 +51,9 @@ services:
       # real로 선언하므로, 여기서 다른 기본값을 주면 그 선언을 덮어써 mock으로 조용히 뜬다.
       # 그래서 기본값도 real로 맞춘다 — 호스트가 값을 안 주면 real, 그런데 KAKAO_APP_KEY가
       # 비어 있으면 부팅 시점에 실패한다(KakaoOAuthVerifier 참고) — 조용한 인증 우회를 막기 위함.
+      # ★이 줄은 이제 마지막 방어선이 아니다. 호스트 .env가 OAUTH_MODE=mock을 주더라도
+      # OAuthRealModeCheck가 부팅을 실패시킨다(배포 프로파일에서는 real만 허용). 2026-07-27의
+      # 우회는 정확히 이 줄의 기본값이 mock이어서 났고, 주석은 부팅을 막지 못한다.
       KAKAO_APP_KEY: ${KAKAO_APP_KEY:-}
       OAUTH_MODE: ${OAUTH_MODE:-real}
       # 푸시 발송 스위치. 위 OAUTH_MODE와 같은 이유로 기본값을 real로 맞춘다 —

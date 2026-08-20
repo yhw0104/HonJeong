@@ -21,6 +21,9 @@ spring:
 # (근거는 아래 항목 주석). real 구현이 생기면 그때 기본값을 올린다.
 honjeong:
   oauth:
+    # ★이 기본값은 OAUTH_MODE 환경변수 한 줄로 덮인다(2026-07-27에 실제로 그렇게 덮였다).
+    # 그래서 값 자체를 OAuthRealModeCheck가 부팅에서 확인한다 — 배포 프로파일에서 real이 아니면
+    # 기동에 실패한다. mock은 소셜 ID 토큰을 검증하지 않는다는 뜻이다.
     mode: ${OAUTH_MODE:real}
   sms:
     # real 구현체(SMS 게이트웨이 연동)가 아직 없다. 여기에 real을 기본값으로 두면
