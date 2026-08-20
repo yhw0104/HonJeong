@@ -111,9 +111,12 @@ class ExternalIntegrationWiringTest {
      *
      * <p><b>배경</b>: 2026-07-27, compose의 {@code OAUTH_MODE:-mock} 기본값이 이 yml의 real 선언을
      * 조용히 덮어써 카카오 로그인이 검증 없이(mock) 통과하는 열린 인증 우회가 있었다(임의 문자열로
-     * 계정 생성 가능). 이 설정값은 이 프로젝트에서 가장 결과가 큰 설정이라, 지금은 소스 코드 주석
-     * ({@code docker-compose.yml}의 {@code OAUTH_MODE} 블록)으로만 지켜지고 있다. 이 yml 자체가
-     * real이 아닌 다른 값으로 되돌아가면 여기서 잡는다(compose 쪽 우회는 이 테스트의 범위 밖).
+     * 계정 생성 가능). 이 설정값은 이 프로젝트에서 가장 결과가 큰 설정이다.
+     *
+     * <p>이 테스트가 지키는 것은 <b>yml의 기본값</b> 하나뿐이다 — 환경변수가 그 위에 얹히는 경로는
+     * 범위 밖이고, 실제 사고는 정확히 그 경로로 났다. 그쪽은 {@link OAuthRealModeCheck}가 값 자체를
+     * 부팅에서 확인한다(아래 {@code prod에서_oauth모드가_mock이면_기동실패}). 두 테스트는 서로를
+     * 대체하지 않는다: 여기는 "안전한 기본값", 저기는 "덮어써도 안 뜬다"를 맡는다.
      */
     @Test
     @DisplayName("prod 프로파일에서 honjeong.oauth.mode 기본값이 real로 고정된다(2026-07-27 조용한 mock 우회 회귀 방지)")
@@ -348,28 +351,120 @@ class ExternalIntegrationWiringTest {
     }
 
     /**
-     * ★위 실험군과 <b>프로파일 하나만</b> 다르다(prod 아님). 같은 어긋난 조합인데 여기서는 떠야 한다.
+     * ★위 실험군과 <b>프로파일 하나만</b> 다르다(local). 같은 어긋난 조합인데 여기서는 떠야 한다.
      *
-     * <p>가드를 prod로 자른 이유를 고정하는 테스트다: 로컬에는 카카오 로그인만 실서버로 검증하려고
+     * <p>가드에서 local을 뺀 이유를 고정하는 테스트다: 로컬에는 카카오 로그인만 실서버로 검증하려고
      * {@code OAUTH_MODE=real}을 켜는 워크플로가 있고, 전 프로파일에서 검사하면 카카오만 보려는
-     * 개발자에게 운영 애플 서명키(.p8)를 노트북에 두라고 요구하게 된다. 막으려는 규정 위반은 운영에서만
-     * 생긴다(로컬 DB의 계정은 심사 대상이 아니다). 이 단언이 없으면 {@code @Profile("prod")}가 조용히
-     * 사라져도 아무도 모르고, 그 회귀는 테스트가 아니라 개발자의 로컬 기동 실패로 드러난다.
+     * 개발자에게 운영 애플 서명키(.p8)를 노트북에 두라고 요구하게 된다. 막으려는 규정 위반은 배포에서만
+     * 생긴다(로컬 DB의 계정은 심사 대상이 아니다). 이 단언이 없으면 {@link DeployedProfiles}의 제외
+     * 목록이 조용히 사라져도 아무도 모르고, 그 회귀는 테스트가 아니라 개발자의 로컬 기동 실패로 드러난다.
+     *
+     * <p>같은 이유로 {@link OAuthRealModeCheck}도 로컬에서는 돌지 않는다 — 카카오 키 없이 서버만
+     * 띄워 화면을 확인하는 것이 로컬의 정상 워크플로다.
      *
      * <p>로컬 풀스택 경로({@code docker compose up -d})는 여전히 검사 대상이다 — compose가
      * {@code SPRING_PROFILES_ACTIVE=prod}로 띄우기 때문이다(위 실험군이 그 경로를 덮는다).
      */
     @Test
-    @DisplayName("prod가 아니면 두 모드가 어긋나도 기동한다 — 로컬 카카오 real 검증에 애플 .p8을 요구하지 않는다")
-    void 비prod에서는_두_모드가_어긋나도_기동한다() {
+    @DisplayName("local 프로파일에서는 배포 가드가 등록되지 않는다 — 로컬 카카오 real 검증에 애플 .p8을 요구하지 않는다")
+    void local에서는_배포가드가_등록되지_않는다() {
         new ApplicationContextRunner()
                 .withInitializer(new ConfigDataApplicationContextInitializer())
                 .withConfiguration(AutoConfigurations.of(PropertyPlaceholderAutoConfiguration.class))
-                .withUserConfiguration(AppleModeConsistencyCheck.class)
-                .withPropertyValues("honjeong.oauth.mode=real", "honjeong.apple.mode=mock")
+                .withUserConfiguration(AppleModeConsistencyCheck.class, OAuthRealModeCheck.class)
+                .withPropertyValues("spring.profiles.active=local",
+                        "honjeong.oauth.mode=real", "honjeong.apple.mode=mock")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).doesNotHaveBean(AppleModeConsistencyCheck.class);
+                    assertThat(context).doesNotHaveBean(OAuthRealModeCheck.class);
+                });
+    }
+
+    // --- 소셜 토큰 검증 스위치 자체(honjeong.oauth.mode) ---
+    //
+    // 위 정합성 가드는 "oauth.mode=real일 때 apple.mode도 real인가"만 본다. 그런데 이 프로젝트에서
+    // 결과가 가장 큰 설정은 oauth.mode 그 자체다 — 배포에서 이 값이 mock이면 서버는 소셜 ID 토큰을
+    // 검증하지 않고 문자열을 그대로 신뢰한다(임의 문자열로 남의 계정 생성·탈취 가능).
+
+    /** {@link OAuthRealModeCheck}만 올리는 러너. 아래 두 테스트는 oauth.mode 값 하나만 다르다. */
+    private ApplicationContextRunner oauthRealModeRunner() {
+        return prodRunner.withUserConfiguration(OAuthRealModeCheck.class);
+    }
+
+    @Test
+    @DisplayName("prod 기본값(oauth.mode=real)에서는 정상 기동한다(아래 기동실패 테스트의 대조군)")
+    void prod기본값에서_oauth가드를_통과한다() {
+        oauthRealModeRunner().run(context -> assertThat(context).hasNotFailed());
+    }
+
+    /**
+     * ★위 대조군과 {@code honjeong.oauth.mode} 값 하나만 다르다.
+     *
+     * <p>2026-07-27에 실제로 열려 있던 상태를 부팅에서 거부한다. 그때는 compose의
+     * {@code OAUTH_MODE:-mock} 기본값이 prod yml의 real 선언을 조용히 덮어써, 배포 서버가 소셜 토큰을
+     * 검증하지 않는 채로 떠 있었다. 이 파일의 {@code prod에서_oauth모드_기본값은_real이다}는 <b>yml의
+     * 기본값</b>만 지킨다 — 환경변수 한 줄로 그 기본값을 덮는 경로는 그 테스트의 범위 밖이고, 실제
+     * 사고도 정확히 그 경로로 났다. 여기서 그 경로를 닫는다.
+     */
+    @Test
+    @DisplayName("prod에서 OAUTH_MODE=mock으로 내리면 기동에 실패한다 — 2026-07-27 인증 우회를 환경변수 한 줄로 되살릴 수 없다")
+    void prod에서_oauth모드가_mock이면_기동실패() {
+        oauthRealModeRunner().withPropertyValues("honjeong.oauth.mode=mock").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context).getFailure().rootCause()
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("honjeong.oauth.mode=mock");
+        });
+    }
+
+    // --- 가드가 도는 프로파일 집합(DeployedProfiles) ---
+    //
+    // 위 테스트들은 전부 prod에서 돈다. 그래서 가드가 @Profile("prod")로 좁혀져 있어도 모두 통과한다 —
+    // 즉 "prod에서 돈다"는 고정하지만 "prod가 아닌 배포 환경에서도 도는가"는 아무도 지키지 않는다.
+    // 아래 두 테스트가 그 명제를 맡는다.
+
+    /**
+     * 이 저장소에 <b>아직 존재하지 않는</b> 프로파일 이름으로 도는 러너. application.yml을 읽지 않으므로
+     * (ConfigData 초기화 없음) honjeong.* 값은 각 테스트가 직접 준다.
+     */
+    private ApplicationContextRunner unknownProfileRunner() {
+        return new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(PropertyPlaceholderAutoConfiguration.class))
+                .withPropertyValues("spring.profiles.active=staging");
+    }
+
+    /**
+     * ★가드를 {@code @Profile("prod")}로 두면 이 테스트만 빨개진다. 그 형태는 <b>허용이 기본</b>이라,
+     * 나중에 staging·canary 같은 프로파일이 생기면 검사가 조용히 빠진 채로 배포된다 — 그리고 그 사실은
+     * 심사나 사고로만 드러난다. {@link DeployedProfiles}는 반대로 <b>거부가 기본</b>이라, 새 프로파일은
+     * 자동으로 검사 대상이 된다(제외하려면 명시적으로 이름을 적어야 한다).
+     */
+    @Test
+    @DisplayName("prod가 아닌 새 프로파일에서도 oauth 가드가 돈다 — 프로파일을 새로 만들어 검사를 빠져나갈 수 없다")
+    void 새_프로파일에서도_oauth가드가_돈다() {
+        unknownProfileRunner().withUserConfiguration(OAuthRealModeCheck.class).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context).getFailure().rootCause()
+                    .isInstanceOf(IllegalArgumentException.class)
+                    // 값을 주지 않았으니 @Value의 기본값(mock)이 걸린 것이다 —
+                    // 설정이 통째로 빠진 새 환경도 "검증 없음"으로 뜨지 못한다.
+                    .hasMessageContaining("honjeong.oauth.mode=mock");
+        });
+    }
+
+    /** 위와 같은 명제를 정합성 가드 쪽에서 고정한다. */
+    @Test
+    @DisplayName("prod가 아닌 새 프로파일에서도 두 모드 정합성 가드가 돈다")
+    void 새_프로파일에서도_정합성가드가_돈다() {
+        unknownProfileRunner()
+                .withUserConfiguration(AppleModeConsistencyCheck.class)
+                .withPropertyValues("honjeong.oauth.mode=real", "honjeong.apple.mode=mock")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context).getFailure().rootCause()
+                            .isInstanceOf(IllegalArgumentException.class)
+                            .hasMessageContaining("honjeong.apple.mode=mock");
                 });
     }
 }
