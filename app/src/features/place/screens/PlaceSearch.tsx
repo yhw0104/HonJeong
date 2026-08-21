@@ -136,11 +136,11 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
                 navigation.navigate('RestaurantDetail', { placeId: item.placeId, name: item.name });
               }}
             >
-              {/* 식당 사진이 아니라 위치 표시다 — 검색 결과는 "어디에 있는 곳인지"를 고르는
-                  화면이고 실제로 거리·주소를 옆에 띄운다. 음식 이모지(🍽)는 사진이 있는 것처럼
-                  보이게 만들 뿐 아무 정보도 주지 않았다. */}
+              {/* 같이 먹기 신청 화면·받은 신청 카드와 같은 브랜드 핀 타일. 원래는 🍽 이모지였는데
+                  사진이 있는 것처럼 보이게만 하고 아무 정보도 주지 않았다. 식당을 가리키는 표시는
+                  앱 전체에서 이 핀 하나로 통일한다(이모지는 기기·OS마다 모양이 달라지기도 한다). */}
               <View style={styles.cardIcon}>
-                <Text style={styles.cardEmoji}>📍</Text>
+                <Icon name="pin" size={20} color={T2.brand} />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
@@ -211,17 +211,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 8,
   },
+  // 같이 먹기 신청 화면의 placeThumb와 같은 모양(brandSoft 타일 + 핀). 크기만 44로 둔다 —
+  // 이 카드가 목록이라 46이면 행이 그만큼 두꺼워진다.
   cardIcon: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: T2.bg,
-    borderWidth: 1,
-    borderColor: T2.border,
+    backgroundColor: T2.brandSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardEmoji: { fontSize: 18 },
   cardName: { fontSize: 15, fontWeight: '700', color: T2.text, letterSpacing: -0.3 },
   cardMeta: { fontSize: 12, color: T2.textSub, marginTop: 3, letterSpacing: -0.2 },
 
