@@ -1,3 +1,5 @@
+import { DINING_STYLE_LABEL, type DiningStyle } from '@/shared/format';
+
 // 프로필 입력 선택지. 가입(ProfileSetup)과 수정(ProfileEdit) 두 화면이 같은 목록을 써야 한다.
 //
 // ★원래 두 파일에 똑같은 배열이 복붙돼 있었다. 한쪽만 고치면 "가입 때는 있던 항목이 수정에서는
@@ -24,8 +26,11 @@ export const FOODS = [
   '샐러드·건강식', '카페·브런치', '디저트', '매운맛',
 ] as const;
 
-/** 같이 먹을 때의 성향. key는 백엔드에 그대로 전송된다 — 바꾸면 저장된 값과 어긋난다. */
-export const STYLES_OPT = [
-  { key: 'talk', label: '도란도란 대화하며', sub: '가볍게 이야기 나누는 게 좋아요' },
-  { key: 'quiet', label: '조용히 각자', sub: '편하게, 말 없이 먹는 게 좋아요' },
-] as const;
+/** 선택 화면(칩)용. key는 백엔드로 보낼 enum 값 그대로다 — 문구는 shared/format 한 곳에서 온다. */
+export type { DiningStyle };
+
+export const STYLES_OPT = (['TALK', 'QUIET'] as const).map((key) => ({
+  key,
+  label: DINING_STYLE_LABEL[key].title,
+  sub: DINING_STYLE_LABEL[key].sub,
+}));

@@ -8,7 +8,7 @@ import { T2, C } from '@/shared/theme';
 import type { RootStackScreenProps } from '@/navigation/types';
 import { useUserProfile, useSendMateRequest, useDeleteMate } from '@/features/mate/queries';
 import { mateErrorMessage } from '@/features/mate/mateCopy';
-import { ageGenderLabel } from '@/shared/format';
+import { ageGenderLabel, DINING_STYLE_LABEL } from '@/shared/format';
 import { useBlockUser } from '@/features/safety/queries';
 
 export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'MateProfile'>) {
@@ -80,11 +80,11 @@ export function MateProfileScreen({ navigation, route }: RootStackScreenProps<'M
     );
   }
 
+  // 문구는 shared/format의 DINING_STYLE_LABEL 한 곳에서만 정한다(내 프로필·선택 화면과 같은 문장).
+  // 아이콘만 이 화면의 표현이라 여기서 붙인다. diningStyle이 없으면 이 블록 자체를 그리지 않는다.
   const diningStyleLabel =
-    p.diningStyle === 'TALK'
-      ? { icon: 'chat' as const, title: '도란도란 대화하며', sub: '가볍게 이야기 나누는 게 좋아요' }
-      : p.diningStyle === 'QUIET'
-      ? { icon: 'chat' as const, title: '조용히 각자 편하게', sub: '말 없이 각자 편안하게 드세요' }
+    p.diningStyle === 'TALK' || p.diningStyle === 'QUIET'
+      ? { icon: 'chat' as const, ...DINING_STYLE_LABEL[p.diningStyle] }
       : null;
 
   const mealEnabled = p.isOnline && p.currentPlaceId != null;

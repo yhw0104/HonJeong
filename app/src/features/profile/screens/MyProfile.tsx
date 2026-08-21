@@ -8,7 +8,7 @@ import { useMyProfile, useActivitySummary } from '@/features/users/queries';
 import { useBadges } from '@/features/record/queries';
 import { toBadgeViews } from '@/features/record/badges';
 import { BadgeMedal } from '@/features/record/BadgeMedal';
-import { diningStyleLabel, ageGenderLabel } from '@/shared/format';
+import { diningStyleLabel, ageGenderLabel, DINING_STYLE_LABEL } from '@/shared/format';
 import type { RootStackScreenProps } from '@/navigation/types';
 
 // 획득 뱃지 strip — 한 줄에 4개가 폭을 꽉 채우도록 메달 크기 계산(오른쪽 슬랙 제거).
@@ -34,10 +34,9 @@ export function MyProfileScreen({ navigation }: RootStackScreenProps<'MyProfile'
     .filter(Boolean)
     .join(' · ');
   const [photo, setPhoto] = useState<string | null>(null); // 프로필 사진 확대 뷰어 대상
-  const styleLabel =
-    profile?.diningStyle === 'QUIET'
-      ? { title: '조용히 각자', sub: '편하게, 말 없이 먹어도 좋아요' }
-      : { title: '도란도란 대화하며', sub: '가볍게 이야기 나누는 게 좋아요' };
+  // 문구는 shared/format의 DINING_STYLE_LABEL 한 곳에서만 정한다 — 예전엔 여기가 자기 문구를
+  // 들고 있어서, 선택 화면에서 문구를 고쳐도 이 화면만 옛 문구를 보여줬다(실기 지적).
+  const styleLabel = DINING_STYLE_LABEL[profile?.diningStyle === 'QUIET' ? 'QUIET' : 'TALK'];
 
   return (
     <Screen bg={T2.bg} edges={['top']}>

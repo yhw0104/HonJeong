@@ -9,7 +9,7 @@ import { pickImages, uploadImages } from '@/shared/upload/imageUpload';
 import { apiGet } from '@/shared/api/client';
 import { NICKNAME_MAX, NICK_HINT, canSubmitNickname, precheckNickname, type NickStatus } from '@/features/auth/nickname';
 import type { RootStackScreenProps } from '@/navigation/types';
-import { FOODS, STYLES_OPT } from '@/features/profile/profileOptions';
+import { FOODS, STYLES_OPT, type DiningStyle } from '@/features/profile/profileOptions';
 
 
 export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileEdit'>) {
@@ -19,7 +19,7 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
   const [nickname, setNickname] = useState('');
   const [bio, setBio] = useState('');
   const [foods, setFoods] = useState<string[]>([]);
-  const [style, setStyle] = useState('talk');
+  const [style, setStyle] = useState<DiningStyle>('TALK');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -29,7 +29,7 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
     setNickname(profile.nickname ?? '');
     setBio(profile.introduction ?? '');
     setFoods(profile.favoriteFoods ?? []);
-    setStyle(profile.diningStyle === 'QUIET' ? 'quiet' : 'talk');
+    setStyle(profile.diningStyle === 'QUIET' ? 'QUIET' : 'TALK');
     setImageUrl(profile.profileImageUrl ?? null);
   }, [profile]);
 
@@ -89,7 +89,7 @@ export function ProfileEditScreen({ navigation }: RootStackScreenProps<'ProfileE
       {
         nickname: nickname.trim(),
         introduction: bio,
-        diningStyle: style === 'quiet' ? 'QUIET' : 'TALK',
+        diningStyle: style, // STYLES_OPT의 key가 이미 백엔드 enum 값이다
         favoriteFoods: foods,
         // 새 사진=url 전송, 비움=빈 문자열로 서버 사진 제거(기존 사진이 있을 때만), 변경없음=미전송.
         profileImageUrl: imageUrl ?? (profile?.profileImageUrl ? '' : undefined),

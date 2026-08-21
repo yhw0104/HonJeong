@@ -1,4 +1,4 @@
-import { formatDistance, formatElapsed, addressHead, diningStyleLabel, ageGenderLabel, formatTimeAgo } from './format';
+import { formatDistance, formatElapsed, addressHead, diningStyleLabel, ageGenderLabel, formatTimeAgo, DINING_STYLE_LABEL } from './format';
 
 describe('formatDistance', () => {
   it('1000m 미만은 m', () => expect(formatDistance(120)).toBe('120m'));
@@ -34,6 +34,32 @@ describe('diningStyleLabel', () => {
   it('null·undefined는 null', () => {
     expect(diningStyleLabel(null)).toBeNull();
     expect(diningStyleLabel(undefined)).toBeNull();
+  });
+
+  it('제목은 DINING_STYLE_LABEL과 같은 값이다 — 출처가 둘로 갈라지지 않게', () => {
+    expect(diningStyleLabel('TALK')).toBe(DINING_STYLE_LABEL.TALK.title);
+    expect(diningStyleLabel('QUIET')).toBe(DINING_STYLE_LABEL.QUIET.title);
+  });
+});
+
+/**
+ * ★실기 지적(2026-08-20): 프로필에서 "조용히 각자"로 바꿨는데 내 프로필 화면만 옛 문구를
+ * 보여줬다. 원인은 같은 문구가 네 곳에 복사돼 있던 것이다 — 선택 화면·내 프로필·메이트
+ * 프로필이 각자 문장을 들고 있었고 diningStyleLabel이 제목을 또 들고 있었다.
+ * 이제 전부 여기 하나를 본다. 문구 자체를 고정해 두면, 누군가 화면에 문구를 다시 하드코딩할 때
+ * 적어도 "정본이 무엇인지"는 여기 남는다.
+ */
+describe('DINING_STYLE_LABEL', () => {
+  it('조용히 각자는 "먹어도"가 아니라 "먹는 게"다', () => {
+    expect(DINING_STYLE_LABEL.QUIET.sub).toBe('편하게, 말 없이 먹는 게 좋아요');
+    expect(DINING_STYLE_LABEL.QUIET.sub).not.toContain('먹어도');
+  });
+
+  it('두 성향 모두 제목과 설명이 채워져 있다', () => {
+    for (const v of Object.values(DINING_STYLE_LABEL)) {
+      expect(v.title.length).toBeGreaterThan(0);
+      expect(v.sub.length).toBeGreaterThan(0);
+    }
   });
 });
 

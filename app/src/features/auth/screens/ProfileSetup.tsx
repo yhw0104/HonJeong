@@ -10,7 +10,7 @@ import { useAuth } from '@/shared/auth/AuthContext';
 import { NICKNAME_MAX, NICK_HINT, canSubmitNickname, precheckNickname, type NickStatus } from '@/features/auth/nickname';
 import { type Birth, daysInMonth, isAtLeast14, formatBirth, toIsoDate, clampDay } from '@/features/auth/birthdate';
 import type { RootStackScreenProps } from '@/navigation/types';
-import { FOODS, STYLES_OPT } from '@/features/profile/profileOptions';
+import { FOODS, STYLES_OPT, type DiningStyle } from '@/features/profile/profileOptions';
 
 
 // 생년월일 피커 범위: 최소 90세~최대 만14세(연 기준). 실제 만14 판정은 제출 시 isAtLeast14로 한다.
@@ -40,7 +40,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
   const [intro, setIntro] = useState('');
   const [gender, setGender] = useState<'female' | 'male'>('female');
   const [foods, setFoods] = useState<string[]>([]);
-  const [style, setStyle] = useState('talk');
+  const [style, setStyle] = useState<DiningStyle>('TALK');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [birth, setBirth] = useState<Birth | null>(null);
@@ -132,7 +132,7 @@ export function ProfileSetupScreen({ navigation, route }: RootStackScreenProps<'
         {
           nickname,
           gender: gender === 'female' ? 'FEMALE' : 'MALE',
-          diningStyle: style === 'talk' ? 'TALK' : 'QUIET',
+          diningStyle: style, // STYLES_OPT의 key가 이미 백엔드 enum 값이다
           introduction: intro,
           // region은 보내지 않는다 — '내 동네' 기능 제거 결정(2026-07-04). 서버 필드는 선택이라 생략 가능.
           favoriteFoods: foods,
