@@ -19,6 +19,7 @@ import { checkInMode } from '@/features/checkin/statusView';
 import { formatDistance } from '@/shared/format';
 import { distanceMeters } from '@/shared/location/distance';
 import type { MainTabScreenProps } from '@/navigation/types';
+import { nextSnap, type SheetSnap } from '@/features/home/sheetSnap';
 
 const HONJEONG_ICON = require('../../../../assets/honjeong-icon.png'); // 같이 먹기 버튼 아이콘(혼정 로고)
 
@@ -45,7 +46,7 @@ const SHEET_MID_MIN_LIST = 120;
 // mid에 붙여두면 헤더가 큰 화면에서 기본 상태부터 버튼이 흐려진다.
 const FLOAT_FADE_FROM = Math.round(Dimensions.get('window').height * 0.5);
 const FLOAT_FADE_TO = Math.round(Dimensions.get('window').height * 0.68);
-type SheetSnap = 'collapsed' | 'mid' | 'expanded';
+// 단계 정의와 "놓았을 때 어디로 갈지"는 sheetSnap.ts에 있다(테스트가 붙어 있는 순수 로직).
 const SOURCE_RANK = { default: 0, region: 1, gps: 2 } as const;
 
 // 하단 주변 목록 정렬 옵션. rating은 맛 별점 기준(리뷰 수 → 거리로 tie-break).
@@ -195,12 +196,8 @@ export function MapHomeScreen({ navigation }: MainTabScreenProps<'MapHome'>) {
         sheetH.setValue(Math.min(SHEET_EXPANDED, Math.max(collapsedRef.current, base - g.dy)));
       },
       onPanResponderRelease: (_, g) => {
-        const cur = snapRef.current;
-        // 크게/빠르게 끌면 가운데를 건너뛰고 끝까지 간다 — 한 번에 지도를 다 열고 싶을 때 두 번 끌지 않게.
-        const far = Math.abs(g.dy) > 160 || Math.abs(g.vy) > 1.2;
-        if (g.dy < -50) snapSheet(cur === 'collapsed' && !far ? 'mid' : 'expanded');
-        else if (g.dy > 50) snapSheet(cur === 'expanded' && !far ? 'mid' : 'collapsed');
-        else snapSheet(cur);
+        // 항상 한 칸씩만 움직인다(끄는 세기와 무관). 판단은 sheetSnap.nextSnap이 한다.
+        snapSheet(nextSnap(snapRef.current, g.dy));
       },
     }),
   ).current;

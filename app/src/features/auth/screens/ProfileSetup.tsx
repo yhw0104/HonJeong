@@ -10,12 +10,8 @@ import { useAuth } from '@/shared/auth/AuthContext';
 import { NICKNAME_MAX, NICK_HINT, canSubmitNickname, precheckNickname, type NickStatus } from '@/features/auth/nickname';
 import { type Birth, daysInMonth, isAtLeast14, formatBirth, toIsoDate, clampDay } from '@/features/auth/birthdate';
 import type { RootStackScreenProps } from '@/navigation/types';
+import { FOODS, STYLES_OPT } from '@/features/profile/profileOptions';
 
-const FOODS = ['한식', '일식', '양식', '중식', '면 요리', '매운맛', '디저트'];
-const STYLES_OPT = [
-  { key: 'talk', label: '도란도란 대화하며', sub: '가볍게 이야기 나누는 게 좋아요' },
-  { key: 'quiet', label: '조용히 각자', sub: '편하게, 말 없이 먹어도 좋아요' },
-];
 
 // 생년월일 피커 범위: 최소 90세~최대 만14세(연 기준). 실제 만14 판정은 제출 시 isAtLeast14로 한다.
 const NOW_Y = new Date().getFullYear();

@@ -136,8 +136,11 @@ export function PlaceSearchScreen({ navigation }: RootStackScreenProps<'PlaceSea
                 navigation.navigate('RestaurantDetail', { placeId: item.placeId, name: item.name });
               }}
             >
+              {/* 식당 사진이 아니라 위치 표시다 — 검색 결과는 "어디에 있는 곳인지"를 고르는
+                  화면이고 실제로 거리·주소를 옆에 띄운다. 음식 이모지(🍽)는 사진이 있는 것처럼
+                  보이게 만들 뿐 아무 정보도 주지 않았다. */}
               <View style={styles.cardIcon}>
-                <Text style={styles.cardEmoji}>🍽</Text>
+                <Text style={styles.cardEmoji}>📍</Text>
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
