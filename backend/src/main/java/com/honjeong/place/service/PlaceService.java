@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -146,12 +145,24 @@ public class PlaceService {
             // null = 반경 안에 하나도 없었다 → 아래 전국 검색으로 떨어진다.
         }
 
-        Page<Place> result = placeRepository.searchOpenByName(
-                q, PageRequest.of(page, clampedSize, Sort.by("name")));
-        List<PlaceSearchResponse> content = result.getContent().stream()
+        // ★정렬을 name이 아니라 id로 한다. name 정렬은 LIMIT이 조기 종료를 못 하게 만든다 —
+        //   20건만 필요해도 조건에 맞는 행을 전부 찾아 정렬한 뒤 앞의 20건을 잘라야 하기 때문이다.
+        //   '김밥'은 매칭이 10,135건이라 그 정렬 하나가 655,163행 전체 스캔이 된다(실측 182.6ms).
+        //   id 정렬이면 옵티마이저가 기본키 인덱스를 id 순으로 훑다가 20건을 채우는 즉시 멈출 수
+        //   있어 3.8ms로 끝난다. 매칭이 희귀한 검색어('파스타집' 17건)에서는 그 계획이 불리해지지만,
+        //   그때는 옵티마이저가 알아서 trigram 인덱스로 돌아간다(실측 0.08ms) — 양쪽 다 빠르다.
+        //   ★정렬을 아예 빼면 0.31ms로 더 빠르지만 그러면 순서가 보장되지 않아 페이지를 넘길 때
+        //   같은 가게가 다시 나오거나 건너뛸 수 있다. id 정렬은 그 안정성을 지키면서 48배를 번다.
+        //
+        // 한 건 더 요청해서 다음 페이지 유무를 판단한다(카운트 쿼리를 없앤 대가로 치르는 비용이
+        // 행 하나뿐이다). PageResponse.ofSlice 주석 참고.
+        List<Place> rows = placeRepository.searchOpenByName(
+                q, PageRequest.of(page, clampedSize + 1, Sort.by("id")));
+        boolean hasNext = rows.size() > clampedSize;
+        List<PlaceSearchResponse> content = (hasNext ? rows.subList(0, clampedSize) : rows).stream()
                 .map(p -> PlaceSearchResponse.from(p, distanceOrNull(lat, lng, p)))
                 .toList();
-        return PageResponse.of(content, page, clampedSize, result.getTotalElements());
+        return PageResponse.ofSlice(content, page, clampedSize, hasNext);
     }
 
     /**
