@@ -40,8 +40,12 @@ DELETE FROM meal_requests WHERE from_user_id IN (SELECT id FROM victims)
    OR to_check_in_id IN (SELECT id FROM check_ins WHERE user_id IN (SELECT id FROM victims));
 DELETE FROM check_ins WHERE user_id IN (SELECT id FROM victims);
 
--- 즐겨찾기는 그룹을 참조한다
-DELETE FROM favorites       WHERE user_id IN (SELECT id FROM victims);
+-- ★즐겨찾기(favorites)에는 user_id가 없다. 그룹(favorite_groups)에만 있고 favorites는
+--   group_id로 그룹을 참조한다. 그래서 사용자 → 그룹 → 즐겨찾기 순으로 타고 들어가야 한다.
+--   (처음엔 favorites.user_id로 썼다가 "column user_id does not exist"로 트랜잭션이 통째로
+--    롤백됐다 — ON_ERROR_STOP=1과 BEGIN 덕분에 반쯤 지워진 상태가 되지는 않았다.)
+DELETE FROM favorites WHERE group_id IN (
+    SELECT id FROM favorite_groups WHERE user_id IN (SELECT id FROM victims));
 DELETE FROM favorite_groups WHERE user_id IN (SELECT id FROM victims);
 
 -- 나머지 사용자 부속 데이터
