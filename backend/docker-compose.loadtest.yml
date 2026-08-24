@@ -1,3 +1,13 @@
+# ★★ 이 파일은 절대 운영 서버에 두지 마라 ★★
+#
+# 아래 environment가 SPRING_PROFILES_ACTIVE=local + OAUTH_MODE=mock을 준다. 서버에서 이걸
+# `-f`로 겹치면 OAuthRealModeCheck가 막지 못한다 — 그 가드는 @Profile(DeployedProfiles.EXPRESSION)
+# 이라 local·test에서는 빈으로 등록조차 되지 않기 때문이다. 그 순간 운영 DB(db:5432)에 붙은 채
+# 누구나 임의 문자열로 아무 계정이나 사칭할 수 있게 된다(2026-07-27에 실제로 열려 있던 상태).
+#
+# 2026-08-24 배포에서 이 파일이 서버로 딸려 올라간 것을 발견하고 지웠다. 배포 tar의 제외 목록에
+# loadtest·docker-compose.loadtest.yml·docker-compose.gclog.yml을 추가했다(배포 런북 §F-5).
+#
 # 부하 테스트 전용 오버레이. 단독으로 쓰지 않고 항상 base와 겹쳐서 쓴다:
 #
 #   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d db app
