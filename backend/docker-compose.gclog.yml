@@ -1,0 +1,17 @@
+# GC 로깅 오버레이 — 테스트 3(폴링 부하)에서만 겹친다.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml \
+#                  -f docker-compose.gclog.yml up -d db app
+#
+# ★왜 별도 파일인가: 이 프로젝트에서 설정 변경이 결과를 두 번 무효화했다(show-sql, cpuset).
+#   GC 로깅 자체의 오버헤드는 무시할 수준이지만, "어떤 설정으로 잰 결과인가"를 파일 하나로
+#   명시해 두면 나중에 결과를 섞어 읽는 사고를 막는다. 테스트 1·2는 이 오버레이 없이 잰 것이다.
+#
+# ★JRE 이미지(eclipse-temurin:21-jre)에는 jcmd·jstat·jmap이 없다. 그래서 GC를 밖에서 들여다볼
+#   방법이 로그밖에 없다 — 힙 압박이 이 프로젝트의 가설 H4라 관측 수단이 꼭 필요하다.
+services:
+  app:
+    environment:
+      # gc: 각 GC의 원인·전후 힙·소요시간
+      # safepoint: STW(stop-the-world) 구간 — GC 외 원인으로 멈추는 것까지 잡는다
+      JAVA_TOOL_OPTIONS: "-Xlog:gc,safepoint:stdout:time,uptime,level,tags"

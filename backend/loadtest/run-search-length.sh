@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+#
+# 테스트 2(검색어 길이 비교) 실행기. k6와 함께 컨테이너 CPU·메모리를 1초 간격으로 수집한다.
+#
+#   ./run-search-length.sh              # 기본 VU 1개 순차 × 30초 × 6변형(경합 0에서의 순수 응답시간)
+#   VUS=1 DURATION_S=60 ./run-search-length.sh
+#
+# ★actuator가 없어 앱 내부 지표를 못 본다. 그래서 docker stats가 유일한 자원 관측 수단이다.
+#   k6는 "밖에서 본 응답시간"만 알고, 그게 CPU 때문인지 GC 때문인지는 이 샘플이 알려준다.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$HERE"
+
+STAMP="$(date +%Y%m%d-%H%M%S)"
+mkdir -p results
+
+# ── 사전 점검 ────────────────────────────────────────────────────────────────
+# 실패하면 몇 분 뒤에 빈 결과를 보는 대신 지금 멈춘다.
+[ -f tokens.json ] || { echo "tokens.json이 없다. ./seed-users.sh 를 먼저 돌릴 것." >&2; exit 1; }
+ntok="$(jq 'length' tokens.json)"
+[ "$ntok" -ge 1 ] || { echo "tokens.json이 비었다." >&2; exit 1; }
+
+code="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/health || true)"
+[ "$code" = "200" ] || { echo "앱이 응답하지 않는다(health=$code). compose를 먼저 띄울 것." >&2; exit 1; }
+
+# ★토큰이 아직 유효한지 확인한다. access token TTL이 1시간(application.yml)이라, 테스트를
+#   여러 개 이어 돌리다 보면 도중에 만료된다. 만료되면 전 요청이 401을 4ms에 받는데 —
+#   실패율을 안 보면 "서버가 엄청 빨라졌다"로 읽힌다. 실제로 08-24에 그렇게 한 번 속았다.
+probe="$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $(jq -r '.[0]' tokens.json)" \
+         http://localhost:8080/api/check-ins/me || true)"
+[ "$probe" = "200" ] || { echo "토큰이 만료됐다(HTTP $probe). ./seed-users.sh $ntok 로 다시 발급할 것." >&2; exit 1; }
+
+
+# ★제한이 걸린 컨테이너인지 확인한다. 제한 없이 재면 맥 전체 성능으로 측정돼 운영과 무관한
+#   숫자가 나오는데, 결과만 보면 그 사실이 드러나지 않는다(그래서 여기서 막는다).
+# ★app·db가 같은 코어 2개에 묶여 있는지 확인한다. 08-24에 이 검사 없이 돌린 1차 결과는
+#   db가 무제한이라 맥 10코어를 다 쓴 상태에서 나왔고, cpuset을 건 뒤 같은 요청이 145ms→34ms로
+#   바뀌어 통째로 폐기해야 했다. 설정이 결과를 바꾸므로 설정을 결과와 함께 고정한다.
+for c in honjeong-app honjeong-db; do
+  cs="$(docker inspect "$c" --format '{{.HostConfig.CpusetCpus}}')"
+  [ "$cs" = "0,1" ] || { echo "★ $c 가 코어에 묶여 있지 않다 (cpuset='$cs')." >&2; exit 1; }
+done
+cpus="$(docker inspect honjeong-app --format '{{.HostConfig.NanoCpus}}')"
+mem="$(docker inspect honjeong-app --format '{{.HostConfig.Memory}}')"
+[ "$cpus" = "2000000000" ] && [ "$mem" = "1992294400" ] || {
+  echo "★ honjeong-app에 운영 사양 제한이 없다 (cpus=$cpus mem=$mem)." >&2
+  echo "  docker-compose.loadtest.yml을 겹쳐서 다시 띄울 것:" >&2
+  echo "  docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d db app" >&2
+  exit 1
+}
+
+echo "토큰 ${ntok}개 · 제한 2CPU/1900MB 확인 · 결과 접두사 $STAMP"
+
+# ── 자원 수집기 ──────────────────────────────────────────────────────────────
+# ★docker stats 대신 cgroup을 직접 읽는다. `docker stats --no-stream`은 호출 한 번에 1~2초가
+#   걸려 40초 테스트에서 표본이 20개밖에 안 잡혔고, 값도 짧은 내부 구간의 근사치라 스파이크를
+#   놓친다. cgroup v2의 cpu.stat(usage_usec)은 단조 증가 누적값이라, 델타를 실제 경과시간으로
+#   나누면 그 구간의 CPU 사용률이 정확히 나온다.
+statsfile="results/$STAMP-stats.csv"
+echo "time,app_cpu_pct,app_mem_mb,db_cpu_pct,db_mem_mb" > "$statsfile"
+(
+  # ★타임스탬프는 perl로 받는다. macOS의 date는 %N(나노초)을 지원하지 않아 `date +%s%6N`이
+  #   "...276N" 같은 쓰레기를 조용히 뱉는다(exit 0이라 `||` 대체도 안 걸린다).
+  now_us() { perl -MTime::HiRes=time -e 'printf "%d", time()*1000000'; }
+  # ★app만이 아니라 db도 잰다. 처음엔 app만 쟀는데 CPU가 5.6%로 나와 "서버가 논다"고 읽혔다.
+  #   실제로는 app이 DB 응답을 기다리는 중이었고 일은 전부 postgres가 하고 있었다 — 측정 대상을
+  #   하나 빠뜨리면 병목이 없는 것처럼 보인다.
+  read_one() { docker exec "$1" sh -c \
+      'awk "/^usage_usec/{printf \"%s \", \$2}" /sys/fs/cgroup/cpu.stat; cat /sys/fs/cgroup/memory.current' 2>/dev/null; }
+  pct() { awk -v a="$1" -v b="$2" -v x="$3" -v y="$4" 'BEGIN{d=x-y; if(d>0) printf "%.1f", (a-b)*100/d}'; }
+
+  pa=""; pd=""; prev_t=""
+  while :; do
+    read -r au am <<<"$(read_one honjeong-app)"
+    read -r du dm <<<"$(read_one honjeong-db)"
+    t="$(now_us)"
+    if [ -n "${au:-}" ] && [ -n "$pa" ]; then
+      # 100% = 코어 1개. app은 2코어로 제한돼 상한 200%, db는 제한이 없다(아래 주석 참고).
+      echo "$(date +%H:%M:%S),$(pct "$au" "$pa" "$t" "$prev_t"),$(( ${am:-0} / 1048576 )),$(pct "$du" "$pd" "$t" "$prev_t"),$(( ${dm:-0} / 1048576 ))" >> "$statsfile"
+    fi
+    pa="${au:-}"; pd="${du:-}"; prev_t="$t"
+    sleep 1
+  done
+) &
+sampler=$!
+# kill 시 셸이 "Terminated" 잡메시지를 찍지 않게 작업 테이블에서 뗀다.
+trap 'kill "$sampler" 2>/dev/null || true' EXIT
+disown "$sampler" 2>/dev/null || true
+
+# ── 실행 ────────────────────────────────────────────────────────────────────
+STAMP="$STAMP" k6 run \
+  --env "STAMP=$STAMP" \
+  --env "VUS=${VUS:-1}" \
+  --env "DURATION_S=${DURATION_S:-30}" \
+  search-length.js
+
+kill "$sampler" 2>/dev/null || true
+
+# ── CPU 요약 ────────────────────────────────────────────────────────────────
+# 변형별로 쪼개지 않고 전체 최대/평균만 본다. 저부하 비교 테스트라 CPU는 "포화하지 않았음"을
+# 확인하는 용도다 — 포화했다면 응답시간 비교 자체가 경합에 오염된 것이라 다시 재야 한다.
+echo
+echo "컨테이너 자원 (CPU 100% = 코어 1개)"
+awk -F, 'NR>1 && $2 != "" { a+=$2; d+=$4; n++; if($2>ax)ax=$2; if($4>dx)dx=$4; if($3>am)am=$3; if($5>dm)dm=$5 }
+         END { if(n){ printf "  app  CPU 평균 %.1f%% 최대 %.1f%%  (상한 200%%)  메모리 최대 %d MB\n", a/n, ax, am
+                      printf "  db   CPU 평균 %.1f%% 최대 %.1f%%  (제한 없음)   메모리 최대 %d MB\n", d/n, dx, dm
+                      printf "  합계 CPU 평균 %.1f%%\n", (a+d)/n
+               } else print "  표본 없음" }' "$statsfile"
+echo "  원본: $statsfile"
+echo
+echo "★ app·db를 코어 0,1에 함께 묶어 운영 2vCPU를 흉내냈다. 다만 맥 코어가 Lightsail보다"
+echo "  3~4배 빠르므로 절대값이 아니라 변형 간 비율만 결론으로 쓸 것."

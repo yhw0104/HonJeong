@@ -1,0 +1,63 @@
+# 부하 테스트 전용 오버레이. 단독으로 쓰지 않고 항상 base와 겹쳐서 쓴다:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d db app
+#
+# ★base와 겹치는 이유: db 서비스·볼륨·네트워크를 그대로 재사용하기 위해서다. 여기서 db를
+#   따로 선언하면 프로젝트가 갈려 655,163행이 든 honjeong-db-data 볼륨을 못 쓰고, 빈 DB가
+#   새로 생긴다(그러면 쿼리 비용이 운영과 달라져 측정 자체가 무의미해진다).
+#
+# ★caddy는 띄우지 않는다. 위 명령이 `db app`만 지정하는 이유다 — 리버스 프록시를 끼우면
+#   측정하려는 게 앱인지 Caddy인지 구분되지 않는다. k6는 8080을 직접 때린다.
+services:
+  # ★app과 db를 **같은 물리 코어 2개**에 묶는다(cpuset). 운영은 Lightsail 한 대(2vCPU)에서
+  #   app·db·caddy가 OS 스케줄러를 통해 실제로 경합하는데, `cpus: 2`를 각각 주면 둘이 합쳐
+  #   4코어를 쓸 수 있어 경합이 재현되지 않는다. 특히 postgres의 병렬 seq scan은 코어를
+  #   최대 10개까지 끌어다 쓴다 — 실제로 db CPU가 1002%까지 올라갔다. 그 상태로 포화점을
+  #   재면 "맥 10코어의 한계"를 재는 것이지 운영의 한계가 아니다.
+  #
+  #   길이 비교(VU 1개)는 경합이 없어 이 설정의 영향이 작지만, 포화점 테스트는 코어 수가
+  #   답을 직접 정하므로 반드시 묶어야 한다.
+  db:
+    cpuset: "0,1"
+
+  app:
+    # ── 운영 사양 흉내 (Lightsail 2vCPU / 1907MB) ────────────────────────────
+    # ★cpus는 코어 "개수"만 제한하고 "속도"는 제한하지 못한다. 맥 코어가 훨씬 빠르므로
+    #   로컬 절대값은 운영값이 아니다. 개선 전/후 "비율"만 결과로 쓴다.
+    cpuset: "0,1"
+    cpus: 2
+    mem_limit: 1900m
+    # ★-Xmx를 일부러 주지 않는다. 운영 Dockerfile도 주지 않아서 JVM이 컨테이너 메모리의 25%
+    #   (약 475MB)를 힙으로 잡는데, 그 조건까지 똑같이 재현해야 GC 압박을 관찰할 수 있다.
+    #   여기서 힙을 키우면 측정하려던 현상이 사라진다.
+
+    environment:
+      # ── local 프로파일: 배포 프로파일의 real 강제 가드를 피한다 ──────────────
+      # OAuthRealModeCheck가 @Profile(DeployedProfiles.EXPRESSION)이라 local·test에서만 안 돈다.
+      # 가상 사용자 N명을 만들려면 mock 검증이 필수라서 local이어야 한다.
+      SPRING_PROFILES_ACTIVE: local
+
+      # local 프로파일의 datasource.url이 localhost로 하드코딩돼 있다. 컨테이너 안에서
+      # localhost는 자기 자신이라 DB에 못 닿는다 — compose 내부망 이름으로 덮어쓴다.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/honjeong?options=-c%20plan_cache_mode%3Dforce_custom_plan
+      SPRING_DATASOURCE_USERNAME: honjeong
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD를 backend/.env에 설정하세요}
+
+      # ★★ 이 두 줄이 없으면 측정이 통째로 무의미해진다 ★★
+      # local 프로파일은 show-sql: true + format_sql: true다. 부하 중에는 쿼리 한 건마다
+      # 정렬된 SQL이 stdout으로 나가는데, 그 로깅 비용이 쿼리 비용보다 커져서 "무엇이 느린가"가
+      # 로그 I/O에 묻힌다. nearby 한 번이 5쿼리, 300명이면 초당 수백 줄이다.
+      SPRING_JPA_SHOW_SQL: "false"
+      SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: "false"
+
+      # 외부 연동은 전부 mock. 특히 push를 real로 두면 실제 기기로 FCM이 날아간다.
+      OAUTH_MODE: mock
+      PUSH_MODE: mock
+      APPLE_MODE: mock
+
+      # 운영과 같은 이유로 KST 고정(스키마 관례가 KST naive라 어긋나면 통계 날짜 경계가 밀린다).
+      TZ: Asia/Seoul
+
+    # k6가 호스트에서 직접 때린다. base는 Caddy를 거치라고 포트를 안 열지만 여기선 연다.
+    ports:
+      - "127.0.0.1:8080:8080"

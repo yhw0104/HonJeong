@@ -38,7 +38,15 @@ services:
       # ★로컬(bootRun)·로컬 compose는 호스트가 KST라 이 결함이 드러나지 않는다 — 배포에서만 난다.
       TZ: Asia/Seoul
       SPRING_PROFILES_ACTIVE: prod
-      DB_URL: jdbc:postgresql://db:5432/honjeong
+      # ★options=-c plan_cache_mode=force_custom_plan
+      #   PostgreSQL은 같은 준비된 구문을 5번 실행하면 파라미터 값을 모르는 "제네릭 계획"으로
+      #   굳힌다. 그런데 식당 검색은 `LIKE '%' || ? || '%'` 라서, 값을 모르면 몇 건이 걸릴지
+      #   추정할 방법이 아예 없다 — 그 추정이 빗나가면 계획을 잘못 고른다.
+      #   2026-08-24 실측: 매칭이 21건뿐인 '삼겹살집'에서 기본키 인덱스를 순서대로 훑는 계획을
+      #   골라 227ms가 걸렸다(20건을 채우려고 테이블 절반을 지나감). 이 옵션으로 매 실행
+      #   재계획하게 하면 옵티마이저가 실제 검색어를 보고 trigram 인덱스를 골라 3ms로 끝난다.
+      #   흔한 검색어는 재계획 비용만큼 조금 느려지지만(2→8ms) 최악이 227→3ms로 줄어든다.
+      DB_URL: jdbc:postgresql://db:5432/honjeong?options=-c%20plan_cache_mode%3Dforce_custom_plan
       DB_USERNAME: honjeong
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD를 backend/.env에 설정하세요}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET을 backend/.env에 설정하세요}

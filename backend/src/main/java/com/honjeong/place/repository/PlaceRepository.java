@@ -2,7 +2,6 @@ package com.honjeong.place.repository;
 
 import java.util.List;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -18,20 +17,31 @@ import com.honjeong.place.domain.Place;
 public interface PlaceRepository extends JpaRepository<Place, Long> {
 
     /**
-     * 영업 중인 장소를 이름 부분일치(대소문자 무시)로 페이지 조회한다.
+     * 영업 중인 장소를 이름 부분일치(대소문자 무시)로 조회한다(위치를 모를 때의 전국 검색).
      *
-     * <p>pg_trgm GIN 인덱스가 LIKE 검색을 가속한다.
+     * <p><b>반환이 {@code Page}가 아니라 {@code List}인 이유:</b> {@code Page}를 쓰면 Spring Data가
+     * 총 개수를 구하려고 {@code SELECT count(*)}를 한 번 더 날린다. 그 카운트 쿼리에는 LIMIT이 없어
+     * 조건에 맞는 행을 <b>전부</b> 세야 하고, {@code LIKE '%..%'}는 인덱스로 범위를 좁히지 못해
+     * 655,163행을 통째로 훑는다. 2026-08-24 실측으로 그 한 방이 <b>298ms</b>였다(전체 응답 722ms 중).
+     * 총 개수는 응답 스키마에는 있었지만 앱의 어느 화면도 읽지 않았다 — 값을 만드느라 가장 비싼
+     * 쿼리를 돌리고 있었던 셈이다. 대신 호출자가 {@code size + 1}건을 요청해 다음 페이지 유무만 판단한다.
+     *
+     * <p>정렬은 호출자가 {@code Pageable}로 준다. ★{@code name} 정렬은 쓰지 말 것 —
+     * {@link com.honjeong.place.service.PlaceService#search} 주석에 이유를 적어 두었다.
+     *
+     * <p>pg_trgm GIN 인덱스가 LIKE 검색을 가속한다. 다만 검색어가 짧을수록(2글자) 옵티마이저가
+     * 선택도를 과소추정해 인덱스 대신 전체 스캔을 고르는 경향이 있다.
      *
      * @param q        검색어(trim 된 값)
-     * @param pageable 페이지네이션 파라미터
-     * @return 일치하는 영업 장소 페이지
+     * @param pageable 페이지네이션·정렬 파라미터
+     * @return 일치하는 영업 장소 목록(카운트 쿼리 없음)
      */
     @Query("""
             SELECT p FROM Place p
             WHERE p.businessStatus = '영업'
               AND LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%'))
             """)
-    Page<Place> searchOpenByName(@Param("q") String q, Pageable pageable);
+    List<Place> searchOpenByName(@Param("q") String q, Pageable pageable);
 
     /**
      * 위경도 바운딩박스 안의 영업 중인 장소를 모두 조회한다(주변 조회의 1차 필터).

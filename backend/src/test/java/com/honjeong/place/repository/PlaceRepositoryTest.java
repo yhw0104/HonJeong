@@ -78,18 +78,17 @@ class PlaceRepositoryTest extends AbstractPostgresTest {
         em.clear();
 
         // when: "김밥"으로 검색하면
-        org.springframework.data.domain.Page<Place> result =
+        java.util.List<Place> result =
                 placeRepository.searchOpenByName("김밥",
                         org.springframework.data.domain.PageRequest.of(0, 10));
 
         // then: 영업 중인 장소만 반환된다(폐업은 제외)
-        assertThat(result.getContent())
+        assertThat(result)
                 .hasSize(1)
                 .allSatisfy(p -> {
                     assertThat(p.getName()).contains("김밥");
                     assertThat(p.getBusinessStatus()).isEqualTo("영업");
                 });
-        assertThat(result.getTotalElements()).isEqualTo(1);
     }
 
     @Test
@@ -101,10 +100,10 @@ class PlaceRepositoryTest extends AbstractPostgresTest {
         em.clear();
 
         // when & then: 소문자로 검색해도 찾힌다
-        org.springframework.data.domain.Page<Place> result =
+        java.util.List<Place> result =
                 placeRepository.searchOpenByName("tokyo",
                         org.springframework.data.domain.PageRequest.of(0, 10));
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).getName()).isEqualTo("Tokyo Ramen");
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getName()).isEqualTo("Tokyo Ramen");
     }
 }

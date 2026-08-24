@@ -20,7 +20,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -184,8 +183,7 @@ class PlaceServiceTest {
     @DisplayName("검색어로 우리 DB를 조회해 페이지 엔벨로프로 매핑한다")
     void search() {
         Place p = Place.ofPublicData("M1", "혼밥김밥", "분식", "주소", "도로명", 37.5, 127.0, "02-111", "영업");
-        when(placeRepository.searchOpenByName(eq("김밥"), any()))
-                .thenReturn(new PageImpl<>(List.of(p), PageRequest.of(0, 20), 1));
+        when(placeRepository.searchOpenByName(eq("김밥"), any())).thenReturn(List.of(p));
 
         var res = service.search("김밥", null, null, 1000, 0, 20);
 
@@ -194,14 +192,15 @@ class PlaceServiceTest {
         assertThat(res.content().get(0).category()).isEqualTo("분식");
         assertThat(res.page()).isEqualTo(0);
         assertThat(res.size()).isEqualTo(20);
-        assertThat(res.totalElements()).isEqualTo(1L);
+        // 총 개수는 더 이상 세지 않는다(카운트 쿼리 제거) — 대신 hasNext로 다음 페이지 유무만 알린다.
+        assertThat(res.totalElements()).isNull();
+        assertThat(res.hasNext()).isFalse();
     }
 
     @Test
     @DisplayName("size가 MAX_SIZE(50)를 넘으면 50으로 클램프하고 응답 size도 50이다")
     void searchClampsSizeToMax() {
-        when(placeRepository.searchOpenByName(any(), any()))
-                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 50), 0));
+        when(placeRepository.searchOpenByName(any(), any())).thenReturn(List.of());
 
         var res = service.search("김밥", null, null, 1000, 0, 999);
 
@@ -211,8 +210,7 @@ class PlaceServiceTest {
     @Test
     @DisplayName("검색어 앞뒤 공백은 trim해서 조회한다")
     void searchTrimsQuery() {
-        when(placeRepository.searchOpenByName(eq("김밥"), any()))
-                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+        when(placeRepository.searchOpenByName(eq("김밥"), any())).thenReturn(List.of());
 
         service.search("  김밥  ", null, null, 1000, 0, 20);
 
@@ -264,6 +262,8 @@ class PlaceServiceTest {
         var res = service.search("김밥", MY_LAT, MY_LNG, 1000, 0, 20);
 
         assertThat(res.content()).extracting(PlaceSearchResponse::placeId).containsExactly(1L);
+        // ★좌표 경로는 총 개수를 그대로 돌려준다. 후보를 이미 메모리에 들고 있어 세는 데 쿼리가
+        //   들지 않기 때문이다 — 카운트 쿼리를 없앤 건 위치 없는 전국 검색 쪽뿐이다.
         assertThat(res.totalElements()).isEqualTo(1L);
     }
 
@@ -277,8 +277,7 @@ class PlaceServiceTest {
         Place farAway = placeAt("Z", "부산김밥", 9L, 35.1796, 129.0756); // 부산
         when(placeRepository.searchOpenByNameWithinBounds(eq("김밥"), anyDouble(), anyDouble(),
                 anyDouble(), anyDouble())).thenReturn(List.of()); // 반경 안엔 없다
-        when(placeRepository.searchOpenByName(eq("김밥"), any()))
-                .thenReturn(new PageImpl<>(List.of(farAway), PageRequest.of(0, 20), 1));
+        when(placeRepository.searchOpenByName(eq("김밥"), any())).thenReturn(List.of(farAway));
 
         var res = service.search("김밥", MY_LAT, MY_LNG, 1000, 0, 20);
 
@@ -291,8 +290,7 @@ class PlaceServiceTest {
     @DisplayName("좌표가 없으면 기존대로 전국 이름순이고 거리는 null이다")
     void search_withoutCoords_keepsNameOrderAndNullDistance() {
         Place p = placeAt("A", "혼밥김밥", 1L, 37.5, 127.0);
-        when(placeRepository.searchOpenByName(eq("김밥"), any()))
-                .thenReturn(new PageImpl<>(List.of(p), PageRequest.of(0, 20), 1));
+        when(placeRepository.searchOpenByName(eq("김밥"), any())).thenReturn(List.of(p));
 
         var res = service.search("김밥", null, null, 1000, 0, 20);
 
