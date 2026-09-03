@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.honjeong.checkin.dto.PlaceActiveCount;
 import com.honjeong.checkin.repository.CheckInRepository;
-import com.honjeong.global.common.PageResponse;
+import com.honjeong.global.common.ListResponse;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
@@ -45,8 +45,8 @@ import com.honjeong.review.repository.ReviewRepository.PlaceReviewStatRow;
 @Service
 public class PlaceService {
 
-    // 한 번에 가져올 수 있는 검색 결과 상한. 이보다 큰 size 요청은 이 값으로 줄인다(방어적 클램프).
-    static final int MAX_SIZE = 50;
+    // 한 번에 돌려주는 결과 건수. 앱은 이 한 화면만 쓰고 다음 페이지를 요청하지 않는다.
+    static final int RESULT_SIZE = 20;
 
     // nearby 반경 상한(m). 이보다 큰 radius는 이 값으로 클램프한다.
     static final int MAX_RADIUS = 10_000;
@@ -114,31 +114,18 @@ public class PlaceService {
      * @param lat    내 위도(null이면 위치 기준 검색을 하지 않는다)
      * @param lng    내 경도(null이면 위치 기준 검색을 하지 않는다)
      * @param radius 반경(m, 1~{@link #MAX_RADIUS} 클램프). lat/lng가 없으면 무시된다.
-     * @param page   0-base 페이지 번호(0 이상)
-     * @param size   페이지 크기(1 이상, {@link #MAX_SIZE} 초과 시 클램프)
-     * @return content/page/size/totalElements를 담은 페이지 엔벨로프
-     * @throws BusinessException 검색어가 공백이거나 page가 범위를 벗어나거나 size가 1 미만이면
-     *                           {@link ErrorCode#INVALID_INPUT}
+     * @return content에 최대 {@link #RESULT_SIZE}건을 담은 목록 엔벨로프
+     * @throws BusinessException 검색어가 공백이면 {@link ErrorCode#INVALID_INPUT}
      */
     @Transactional(readOnly = true)
-    public PageResponse<PlaceSearchResponse> search(String query, Double lat, Double lng, int radius,
-            int page, int size) {
+    public ListResponse<PlaceSearchResponse> search(String query, Double lat, Double lng, int radius) {
         if (query == null || query.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "검색어를 입력해주세요.");
         }
-        // 상한을 두는 이유는 아래 page * clampedSize다 — 둘 다 int라 큰 page에서 곱이 넘쳐
-        // 음수가 되고, subList가 IndexOutOfBounds로 터진다(nearby가 같은 이유로 같은 상한을 쓴다).
-        if (page < 0 || page > 1_000_000) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "page는 0 이상이어야 합니다.");
-        }
-        if (size < 1) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "size는 1 이상이어야 합니다.");
-        }
-        int clampedSize = Math.min(size, MAX_SIZE);
         String q = query.trim();
 
         if (lat != null && lng != null) {
-            PageResponse<PlaceSearchResponse> nearbyHits = searchNearby(q, lat, lng, radius, page, clampedSize);
+            ListResponse<PlaceSearchResponse> nearbyHits = searchNearby(q, lat, lng, radius);
             if (nearbyHits != null) {
                 return nearbyHits;
             }
@@ -153,29 +140,26 @@ public class PlaceService {
         //   그때는 옵티마이저가 알아서 trigram 인덱스로 돌아간다(실측 0.08ms) — 양쪽 다 빠르다.
         //   ★정렬을 아예 빼면 0.31ms로 더 빠르지만 그러면 순서가 보장되지 않아 페이지를 넘길 때
         //   같은 가게가 다시 나오거나 건너뛸 수 있다. id 정렬은 그 안정성을 지키면서 48배를 번다.
-        //
-        // 한 건 더 요청해서 다음 페이지 유무를 판단한다(카운트 쿼리를 없앤 대가로 치르는 비용이
-        // 행 하나뿐이다). PageResponse.ofSlice 주석 참고.
+        //   ★페이지를 넘기는 기능은 지금 없지만 정렬은 그대로 둔다 — 같은 검색어에 같은 결과가
+        //   나오는 편이 캐시·테스트·재현 모두에 유리하고, 정렬을 빼서 버는 3.5ms는 이 경로에서
+        //   의미가 없다(전체가 1.2ms대다).
         List<Place> rows = placeRepository.searchOpenByName(
-                q, PageRequest.of(page, clampedSize + 1, Sort.by("id")));
-        boolean hasNext = rows.size() > clampedSize;
-        List<PlaceSearchResponse> content = (hasNext ? rows.subList(0, clampedSize) : rows).stream()
+                q, PageRequest.of(0, RESULT_SIZE, Sort.by("id")));
+        List<PlaceSearchResponse> content = rows.stream()
                 .map(p -> PlaceSearchResponse.from(p, distanceOrNull(lat, lng, p)))
                 .toList();
-        return PageResponse.ofSlice(content, page, clampedSize, hasNext);
+        return ListResponse.of(content);
     }
 
     /**
      * 반경 안을 거리순으로 검색한다. {@code nearby}와 같은 방식이다 — 바운딩박스로 1차 필터한 뒤
      * Haversine으로 원형 보정·정렬하고 메모리에서 페이지를 자른다(DB가 거리를 못 계산한다).
      *
-     * @return 반경 안에 하나도 없으면 <b>null</b>(호출자가 전국 검색으로 떨어뜨린다). 빈 페이지를
+     * @return 반경 안에 하나도 없으면 <b>null</b>(호출자가 전국 검색으로 떨어뜨린다). 빈 목록을
      *         돌려주면 "결과 없음"과 구분되지 않아 그 판단을 호출자가 할 수 없다.
      */
-    private PageResponse<PlaceSearchResponse> searchNearby(String q, double lat, double lng, int radius,
-            int page, int clampedSize) {
+    private ListResponse<PlaceSearchResponse> searchNearby(String q, double lat, double lng, int radius) {
         int max = Math.min(Math.max(radius, 1), MAX_RADIUS);
-        int needed = (page + 1) * clampedSize;   // 이 페이지를 채우는 데 필요한 최소 건수
 
         record PlaceDistance(Place place, double meters) {}
 
@@ -209,20 +193,19 @@ public class PlaceService {
                             .thenComparingLong(pd -> pd.place().getId())) // 동거리 동점은 id로 안정 정렬
                     .toList();
 
-            if (within.size() >= needed) {
-                break; // 이 페이지를 채우고도 남는다 → 더 넓혀도 답이 안 바뀐다
+            if (within.size() >= RESULT_SIZE) {
+                break; // 한 화면을 채우고도 남는다 → 더 넓혀도 답이 안 바뀐다
             }
         }
 
         if (within.isEmpty()) {
             return null;
         }
-        int from = Math.min(page * clampedSize, within.size());
-        int to = Math.min(from + clampedSize, within.size());
-        List<PlaceSearchResponse> content = within.subList(from, to).stream()
+        List<PlaceSearchResponse> content = within.stream()
+                .limit(RESULT_SIZE)
                 .map(pd -> PlaceSearchResponse.from(pd.place(), Math.round(pd.meters())))
                 .toList();
-        return PageResponse.of(content, page, clampedSize, within.size());
+        return ListResponse.of(content);
     }
 
     /**
@@ -261,20 +244,14 @@ public class PlaceService {
      * @param lat    요청 위도(필수 — null이면 INVALID_INPUT)
      * @param lng    요청 경도(필수 — null이면 INVALID_INPUT)
      * @param radius 반경(m, 1~MAX_RADIUS 클램프)
-     * @param page   0-base 페이지 번호
-     * @param size   페이지 크기(MAX_SIZE 클램프)
-     * @return 거리순 주변 장소 페이지 엔벨로프
-     * @throws BusinessException lat 또는 lng가 null이거나 page/size가 올바르지 않으면 INVALID_INPUT
+     * @return 거리순 주변 장소 목록 엔벨로프(최대 {@link #RESULT_SIZE}건)
+     * @throws BusinessException lat 또는 lng가 null이면 INVALID_INPUT
      */
     @Transactional(readOnly = true)
-    public PageResponse<PlaceNearbyResponse> nearby(Double lat, Double lng, int radius, int page, int size) {
+    public ListResponse<PlaceNearbyResponse> nearby(Double lat, Double lng, int radius) {
         if (lat == null || lng == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "lat/lng는 필수입니다.");
         }
-        if (page < 0 || size < 1 || page > 1_000_000) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "page/size가 올바르지 않습니다.");
-        }
-        int clampedSize = Math.min(size, MAX_SIZE);
         int r = Math.min(Math.max(radius, 1), MAX_RADIUS);
 
         double dLat = r / METERS_PER_DEGREE_LAT;
@@ -292,31 +269,29 @@ public class PlaceService {
                         .thenComparingLong(pd -> pd.place().getId()))
                 .toList();
 
+        // ★돌려줄 만큼만 남기고 자른다. 아래 집계·사진·리뷰 조회가 전부 이 목록의 id로 나가므로,
+        //   자르기를 뒤로 미루면 화면에 안 나올 식당까지 집계하게 된다.
+        List<PlaceDistance> shown = within.stream().limit(RESULT_SIZE).toList();
+        List<Long> placeIds = shown.stream().map(pd -> pd.place().getId()).toList();
+
         // 빈 리스트로 IN () 쿼리를 날리면 일부 JPQL 구현체에서 오류가 발생하므로 단락 처리한다.
         Map<Long, Long> counts;
         Map<Long, Long> seekingCounts;
-        if (within.isEmpty()) {
+        if (shown.isEmpty()) {
             counts = Map.of();
             seekingCounts = Map.of();
         } else {
-            List<Long> placeIds = within.stream().map(pd -> pd.place().getId()).toList();
             counts = checkInRepository.countActiveByPlaceIds(placeIds).stream()
                     .collect(Collectors.toMap(PlaceActiveCount::placeId, PlaceActiveCount::activeCount));
             seekingCounts = checkInRepository.countSeekingByPlaceIds(placeIds).stream()
                     .collect(Collectors.toMap(PlaceActiveCount::placeId, PlaceActiveCount::activeCount));
         }
 
-        long total = within.size();
-        int from = Math.min(page * clampedSize, within.size());
-        int to = Math.min(from + clampedSize, within.size());
-        List<PlaceDistance> pageSlice = within.subList(from, to);
+        // 대표 사진(리뷰 사진)·리뷰 집계(수·별점 평균)도 보여줄 식당 것만 배치 조회해 오버레이한다.
+        Map<Long, List<String>> photosByPlace = loadPhotos(placeIds);
+        Map<Long, PlaceReviewStatRow> statsByPlace = loadReviewStats(placeIds);
 
-        // 현재 페이지 식당들의 대표 사진(리뷰 사진)·리뷰 집계(수·별점 평균)만 배치 조회해 오버레이한다.
-        List<Long> pagePlaceIds = pageSlice.stream().map(pd -> pd.place().getId()).toList();
-        Map<Long, List<String>> photosByPlace = loadPhotos(pagePlaceIds);
-        Map<Long, PlaceReviewStatRow> statsByPlace = loadReviewStats(pagePlaceIds);
-
-        List<PlaceNearbyResponse> content = pageSlice.stream()
+        List<PlaceNearbyResponse> content = shown.stream()
                 .map(pd -> {
                     Long id = pd.place().getId();
                     PlaceReviewStatRow stat = statsByPlace.get(id);
@@ -333,7 +308,7 @@ public class PlaceService {
                 })
                 .toList();
 
-        return PageResponse.of(content, page, clampedSize, total);
+        return ListResponse.of(content);
     }
 
     /**

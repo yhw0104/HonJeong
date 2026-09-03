@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.honjeong.global.common.ApiResponse;
-import com.honjeong.global.common.PageResponse;
+import com.honjeong.global.common.ListResponse;
 import com.honjeong.place.dto.PlaceDetailResponse;
 import com.honjeong.place.dto.PlaceNearbyResponse;
 import com.honjeong.place.dto.PlaceSearchResponse;
@@ -39,22 +39,22 @@ public class PlaceController {
      * <p>사용 화면: 식당 검색(PlaceSearch) — 검색어 입력 시 결과 목록.
      *
      * <p>{@code query}는 필수라 누락 시 400({@code INVALID_INPUT})이다.
-     * 응답은 {@code content}/{@code page}/{@code size}/{@code totalElements} 구조다.
+     * 응답은 {@code content} 하나짜리 목록 엔벨로프다({@link ListResponse} 주석 참고).
+     *
+     * <p>★<b>{@code page}/{@code size}는 받지 않는다.</b> 무한 스크롤을 쓰지 않게 되면서 앱이 늘
+     * 첫 20건만 요청하기 때문이다. 구버전 앱이 쿼리스트링에 붙여 보내도 Spring이 무시하므로
+     * 그대로 동작한다.
      *
      * @param query 검색어(필수)
-     * @param page  0-base 페이지 번호(기본 0)
-     * @param size  페이지 크기(기본 20)
-     * @return 검색 결과 페이지 엔벨로프
+     * @return 검색 결과 목록 엔벨로프
      */
     @GetMapping("/search")
-    public ApiResponse<PageResponse<PlaceSearchResponse>> search(
+    public ApiResponse<ListResponse<PlaceSearchResponse>> search(
             @RequestParam String query,
             @RequestParam(required = false) Double lat,
             @RequestParam(required = false) Double lng,
-            @RequestParam(defaultValue = "10000") int radius,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.success(placeService.search(query, lat, lng, radius, page, size));
+            @RequestParam(defaultValue = "10000") int radius) {
+        return ApiResponse.success(placeService.search(query, lat, lng, radius));
     }
 
     /**
@@ -68,18 +68,14 @@ public class PlaceController {
      * @param lat    요청 위도(필수)
      * @param lng    요청 경도(필수)
      * @param radius 반경(m, 기본 1000, 최대 10000)
-     * @param page   0-base 페이지 번호(기본 0)
-     * @param size   페이지 크기(기본 20)
-     * @return 주변 식당 페이지 엔벨로프
+     * @return 주변 식당 목록 엔벨로프
      */
     @GetMapping("/nearby")
-    public ApiResponse<PageResponse<PlaceNearbyResponse>> nearby(
+    public ApiResponse<ListResponse<PlaceNearbyResponse>> nearby(
             @RequestParam(required = false) Double lat,
             @RequestParam(required = false) Double lng,
-            @RequestParam(defaultValue = "1000") int radius,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.success(placeService.nearby(lat, lng, radius, page, size));
+            @RequestParam(defaultValue = "1000") int radius) {
+        return ApiResponse.success(placeService.nearby(lat, lng, radius));
     }
 
     /**
