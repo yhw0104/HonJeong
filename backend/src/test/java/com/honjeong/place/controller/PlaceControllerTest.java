@@ -22,7 +22,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.honjeong.global.common.PageResponse;
+import com.honjeong.global.common.ListResponse;
 import com.honjeong.global.config.SecurityConfig;
 import com.honjeong.global.config.WebConfig;
 import com.honjeong.global.exception.BusinessException;
@@ -53,40 +53,68 @@ class PlaceControllerTest extends ActiveUserSliceSupport {
     @MockitoBean
     private PlaceService placeService;
 
-    private PageResponse<PlaceSearchResponse> samplePage() {
+    private ListResponse<PlaceSearchResponse> sampleList() {
         List<PlaceSearchResponse> content = IntStream.range(0, 5)
                 .mapToObj(i -> new PlaceSearchResponse(
                         (long) (i + 1), "김밥 맛집 " + (i + 1), "분식",
                         "서울 어딘가", "서울 도로명", 37.5 + i * 0.001, 127.0, "02-111", 120L + i))
                 .toList();
-        return PageResponse.of(content, 0, 5, 23L);
+        return ListResponse.of(content);
     }
 
     @Test
-    @DisplayName("GET /search: USER 토큰이면 200 + 페이지 엔벨로프(content/page/size/totalElements)")
-    void search_ok_pagedEnvelope() throws Exception {
-        // given: 서비스가 5건·전체 23건 페이지를 돌려주도록 스텁 + USER access 토큰
-        when(placeService.search(any(), any(), any(), anyInt(), anyInt(), anyInt())).thenReturn(samplePage());
+    @DisplayName("GET /search: USER 토큰이면 200 + content 목록 엔벨로프")
+    void search_ok_listEnvelope() throws Exception {
+        // given: 서비스가 5건을 돌려주도록 스텁 + USER access 토큰
+        when(placeService.search(any(), any(), any(), anyInt())).thenReturn(sampleList());
         String token = jwtProvider.createAccessToken(1L);
 
         // when & then
         mockMvc.perform(get("/api/places/search")
-                        .param("query", "김밥").param("page", "0").param("size", "5")
+                        .param("query", "김밥")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.content.length()").value(5))
                 .andExpect(jsonPath("$.data.content[0].placeId").value(1))
-                .andExpect(jsonPath("$.data.content[0].name").value("김밥 맛집 1"))
-                .andExpect(jsonPath("$.data.page").value(0))
-                .andExpect(jsonPath("$.data.size").value(5))
-                .andExpect(jsonPath("$.data.totalElements").value(23));
+                .andExpect(jsonPath("$.data.content[0].name").value("김밥 맛집 1"));
+    }
+
+    /**
+     * ★배포된 앱이 {@code data.content}를 읽는다. 봉투를 벗겨 배열을 그대로 내려보내면 구버전
+     * 앱에서 목록이 통째로 비어 보이는데, 서버는 200을 주므로 아무 신호가 없다. 그 회귀를 막는다.
+     */
+    @Test
+    @DisplayName("★GET /search: 응답이 배열이 아니라 content 봉투다(구버전 앱 호환)")
+    void search_keepsContentEnvelope() throws Exception {
+        when(placeService.search(any(), any(), any(), anyInt())).thenReturn(sampleList());
+        String token = jwtProvider.createAccessToken(1L);
+
+        mockMvc.perform(get("/api/places/search")
+                        .param("query", "김밥")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content").isArray());
+    }
+
+    /** page/size를 보내도 400이 아니다 — 구버전 앱이 붙여 보내는 값이라 무시하고 받아야 한다. */
+    @Test
+    @DisplayName("★GET /search: 구버전 앱이 page/size를 붙여 보내도 200이다")
+    void search_ignoresLegacyPagingParams() throws Exception {
+        when(placeService.search(any(), any(), any(), anyInt())).thenReturn(sampleList());
+        String token = jwtProvider.createAccessToken(1L);
+
+        mockMvc.perform(get("/api/places/search")
+                        .param("query", "김밥").param("page", "0").param("size", "20")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(5));
     }
 
     /**
      * ★lat/lng가 서비스까지 실제로 전달되는지 못 박는다.
      *
-     * <p>위 {@code search_ok_pagedEnvelope}는 {@code any()}로 스텁해서, 컨트롤러가 lat/lng를
+     * <p>위 {@code search_ok_listEnvelope}는 {@code any()}로 스텁해서, 컨트롤러가 lat/lng를
      * 받지 않도록 되돌려도(또는 null로 넘겨도) 그대로 초록이다. 그러면 "내 위치 기준 검색"이
      * 조용히 전국 이름순으로 돌아가는데, 서버는 200을 주고 결과도 나오므로 아무 신호가 없다.
      * 값 자체를 캡처해 확인해야 그 회귀가 잡힌다.
@@ -94,7 +122,7 @@ class PlaceControllerTest extends ActiveUserSliceSupport {
     @Test
     @DisplayName("★GET /search: lat/lng/radius를 주면 그 값이 서비스로 전달된다")
     void search_forwardsCoordinates() throws Exception {
-        when(placeService.search(any(), any(), any(), anyInt(), anyInt(), anyInt())).thenReturn(samplePage());
+        when(placeService.search(any(), any(), any(), anyInt())).thenReturn(sampleList());
         String token = jwtProvider.createAccessToken(1L);
 
         mockMvc.perform(get("/api/places/search")
@@ -103,14 +131,14 @@ class PlaceControllerTest extends ActiveUserSliceSupport {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
 
-        verify(placeService).search(eq("김밥"), eq(37.5), eq(127.0), eq(3000), anyInt(), anyInt());
+        verify(placeService).search(eq("김밥"), eq(37.5), eq(127.0), eq(3000));
     }
 
     /** 좌표를 안 주면 null로 내려간다 — 서비스가 그 null을 보고 전국 이름순으로 간다. */
     @Test
     @DisplayName("GET /search: lat/lng가 없으면 서비스에 null로 전달된다")
     void search_withoutCoordinates_passesNull() throws Exception {
-        when(placeService.search(any(), any(), any(), anyInt(), anyInt(), anyInt())).thenReturn(samplePage());
+        when(placeService.search(any(), any(), any(), anyInt())).thenReturn(sampleList());
         String token = jwtProvider.createAccessToken(1L);
 
         mockMvc.perform(get("/api/places/search")
@@ -118,7 +146,7 @@ class PlaceControllerTest extends ActiveUserSliceSupport {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
 
-        verify(placeService).search(eq("김밥"), isNull(), isNull(), anyInt(), anyInt(), anyInt());
+        verify(placeService).search(eq("김밥"), isNull(), isNull(), anyInt());
     }
 
     @Test
@@ -151,20 +179,20 @@ class PlaceControllerTest extends ActiveUserSliceSupport {
 
     // ─── nearby ──────────────────────────────────────────────────────────────
 
-    private PageResponse<PlaceNearbyResponse> sampleNearbyPage() {
+    private ListResponse<PlaceNearbyResponse> sampleNearbyList() {
         List<PlaceNearbyResponse> content = List.of(
                 new PlaceNearbyResponse(10L, "혼밥집", "한식", "서울 도로명", 37.5001, 127.0001, 15L, 3L, 2L,
                         List.of("https://img/1.jpg", "https://img/2.jpg"), 12L, 4.5, 4.0),
                 new PlaceNearbyResponse(11L, "먼집", "분식", "서울 도로명", 37.5050, 127.0050, 680L, 0L, 0L,
                         List.of(), 0L, null, null));
-        return PageResponse.of(content, 0, 20, 2L);
+        return ListResponse.of(content);
     }
 
     @Test
-    @DisplayName("GET /nearby: USER 토큰 + lat/lng 있으면 200 + 페이지 엔벨로프(혼밥러수·모집중수 포함)")
+    @DisplayName("GET /nearby: USER 토큰 + lat/lng 있으면 200 + content 엔벨로프(혼밥러수·모집중수 포함)")
     void nearby_ok() throws Exception {
-        when(placeService.nearby(anyDouble(), anyDouble(), anyInt(), anyInt(), anyInt()))
-                .thenReturn(sampleNearbyPage());
+        when(placeService.nearby(anyDouble(), anyDouble(), anyInt()))
+                .thenReturn(sampleNearbyList());
         String token = jwtProvider.createAccessToken(1L);
 
         mockMvc.perform(get("/api/places/nearby")
@@ -180,14 +208,13 @@ class PlaceControllerTest extends ActiveUserSliceSupport {
                 .andExpect(jsonPath("$.data.content[0].avgTasteRating").value(4.5))
                 .andExpect(jsonPath("$.data.content[1].reviewCount").value(0))
                 .andExpect(jsonPath("$.data.content[1].activeCount").value(0))
-                .andExpect(jsonPath("$.data.content[1].seekingCount").value(0))
-                .andExpect(jsonPath("$.data.totalElements").value(2));
+                .andExpect(jsonPath("$.data.content[1].seekingCount").value(0));
     }
 
     @Test
     @DisplayName("GET /nearby: lat/lng 누락이면 서비스가 INVALID_INPUT 예외를 던져 400")
     void nearby_missingLatLng_400() throws Exception {
-        when(placeService.nearby(any(), any(), anyInt(), anyInt(), anyInt()))
+        when(placeService.nearby(any(), any(), anyInt()))
                 .thenThrow(new com.honjeong.global.exception.BusinessException(
                         com.honjeong.global.exception.ErrorCode.INVALID_INPUT, "lat/lng는 필수입니다."));
         String token = jwtProvider.createAccessToken(1L);

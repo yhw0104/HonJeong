@@ -1,5 +1,5 @@
 import { apiGet } from '@/shared/api/client';
-import type { Page } from '@/shared/api/types';
+import type { ListEnvelope } from '@/shared/api/types';
 
 export type PlaceSearchItem = {
   placeId: number; name: string; category: string | null;
@@ -36,17 +36,15 @@ export type PlaceDetail = {
  * 하나도 없으면 전국 이름순으로 떨어진다 — 멀리 있는 가게를 이름으로 찾는 길은 열어 둔다).
  * coord가 없으면 예전처럼 전국 이름순이다.
  */
-export const searchPlaces = (query: string, coord?: { lat: number; lng: number } | null, page = 0, size = 20) => {
+export const searchPlaces = (query: string, coord?: { lat: number; lng: number } | null) => {
   const where = coord ? `&lat=${coord.lat}&lng=${coord.lng}` : '';
-  return apiGet<Page<PlaceSearchItem>>(
-    `/places/search?query=${encodeURIComponent(query)}${where}&page=${page}&size=${size}`,
+  return apiGet<ListEnvelope<PlaceSearchItem>>(
+    `/places/search?query=${encodeURIComponent(query)}${where}`,
   );
 };
 
-export const fetchNearby = (lat: number, lng: number, radius = 1000, page = 0, size = 20) =>
-  apiGet<Page<PlaceNearbyItem>>(
-    `/places/nearby?lat=${lat}&lng=${lng}&radius=${radius}&page=${page}&size=${size}`,
-  );
+export const fetchNearby = (lat: number, lng: number, radius = 1000) =>
+  apiGet<ListEnvelope<PlaceNearbyItem>>(`/places/nearby?lat=${lat}&lng=${lng}&radius=${radius}`);
 
 export const fetchPlaceDetail = (placeId: number) =>
   apiGet<PlaceDetail>(`/places/${placeId}`);

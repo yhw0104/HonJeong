@@ -27,7 +27,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.honjeong.checkin.dto.PlaceActiveCount;
 import com.honjeong.checkin.repository.CheckInRepository;
-import com.honjeong.global.common.PageResponse;
+import com.honjeong.global.common.ListResponse;
 import com.honjeong.global.exception.BusinessException;
 import com.honjeong.global.exception.ErrorCode;
 import com.honjeong.place.domain.Place;
@@ -39,6 +39,8 @@ import com.honjeong.review.repository.ReviewPhotoRepository;
 import com.honjeong.review.repository.ReviewPhotoRepository.PlacePhotoRow;
 import com.honjeong.review.repository.ReviewRepository;
 import com.honjeong.review.repository.ReviewRepository.PlaceReviewStatRow;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Pageable;
 
 /**
  * PlaceService 단위 테스트(순수 Mockito).
@@ -144,7 +146,7 @@ class PlaceServiceTest {
     @Test
     @DisplayName("빈 검색어는 INVALID_INPUT")
     void blankQuery() {
-        assertThatThrownBy(() -> service.search("  ", null, null, 1000, 0, 20))
+        assertThatThrownBy(() -> service.search("  ", null, null, 1000))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -154,7 +156,7 @@ class PlaceServiceTest {
     @Test
     @DisplayName("null 검색어는 INVALID_INPUT")
     void nullQuery() {
-        assertThatThrownBy(() -> service.search(null, null, null, 1000, 0, 20))
+        assertThatThrownBy(() -> service.search(null, null, null, 1000))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -162,51 +164,34 @@ class PlaceServiceTest {
     }
 
     @Test
-    @DisplayName("page가 음수면 INVALID_INPUT")
-    void negativePage() {
-        assertThatThrownBy(() -> service.search("김밥", null, null, 1000, -1, 20))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.INVALID_INPUT);
-        verifyNoInteractions(placeRepository);
-    }
-
-    @Test
-    @DisplayName("size가 1 미만이면 INVALID_INPUT")
-    void zeroSize() {
-        assertThatThrownBy(() -> service.search("김밥", null, null, 1000, 0, 0))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.INVALID_INPUT);
-        verifyNoInteractions(placeRepository);
-    }
-
-    @Test
-    @DisplayName("검색어로 우리 DB를 조회해 페이지 엔벨로프로 매핑한다")
+    @DisplayName("검색어로 우리 DB를 조회해 content 목록으로 매핑한다")
     void search() {
         Place p = Place.ofPublicData("M1", "혼밥김밥", "분식", "주소", "도로명", 37.5, 127.0, "02-111", "영업");
         when(placeRepository.searchOpenByName(eq("김밥"), any())).thenReturn(List.of(p));
 
-        var res = service.search("김밥", null, null, 1000, 0, 20);
+        var res = service.search("김밥", null, null, 1000);
 
         assertThat(res.content()).hasSize(1);
         assertThat(res.content().get(0).name()).isEqualTo("혼밥김밥");
         assertThat(res.content().get(0).category()).isEqualTo("분식");
-        assertThat(res.page()).isEqualTo(0);
-        assertThat(res.size()).isEqualTo(20);
-        // 총 개수는 더 이상 세지 않는다(카운트 쿼리 제거) — 대신 hasNext로 다음 페이지 유무만 알린다.
-        assertThat(res.totalElements()).isNull();
-        assertThat(res.hasNext()).isFalse();
     }
 
+    /**
+     * ★DB에 20건만 요청하는지 못 박는다. 이 값이 커지거나 사라지면 655,163행짜리 테이블에서
+     * 필요 없는 행까지 끌어오게 되는데, 결과는 똑같이 나오므로 테스트 없이는 안 드러난다.
+     */
     @Test
-    @DisplayName("size가 MAX_SIZE(50)를 넘으면 50으로 클램프하고 응답 size도 50이다")
-    void searchClampsSizeToMax() {
+    @DisplayName("★검색은 DB에 20건만 요청한다(정렬은 id순)")
+    void searchRequestsExactlyOnePage() {
         when(placeRepository.searchOpenByName(any(), any())).thenReturn(List.of());
 
-        var res = service.search("김밥", null, null, 1000, 0, 999);
+        service.search("김밥", null, null, 1000);
 
-        assertThat(res.size()).isEqualTo(50);
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(placeRepository).searchOpenByName(eq("김밥"), captor.capture());
+        assertThat(captor.getValue().getPageSize()).isEqualTo(20);
+        assertThat(captor.getValue().getPageNumber()).isZero();
+        assertThat(captor.getValue().getSort().getOrderFor("id")).isNotNull();
     }
 
     @Test
@@ -214,7 +199,7 @@ class PlaceServiceTest {
     void searchTrimsQuery() {
         when(placeRepository.searchOpenByName(eq("김밥"), any())).thenReturn(List.of());
 
-        service.search("  김밥  ", null, null, 1000, 0, 20);
+        service.search("  김밥  ", null, null, 1000);
 
         verify(placeRepository).searchOpenByName(eq("김밥"), any());
     }
@@ -243,7 +228,7 @@ class PlaceServiceTest {
         when(placeRepository.searchOpenByNameWithinBounds(eq("김밥"), anyDouble(), anyDouble(),
                 anyDouble(), anyDouble())).thenReturn(List.of(far, near));
 
-        var res = service.search("김밥", MY_LAT, MY_LNG, 1000, 0, 20);
+        var res = service.search("김밥", MY_LAT, MY_LNG, 1000);
 
         assertThat(res.content()).extracting(PlaceSearchResponse::placeId).containsExactly(1L, 2L);
         assertThat(res.content().get(0).distanceMeters()).isZero();
@@ -261,12 +246,9 @@ class PlaceServiceTest {
         when(placeRepository.searchOpenByNameWithinBounds(eq("김밥"), anyDouble(), anyDouble(),
                 anyDouble(), anyDouble())).thenReturn(List.of(inside, corner));
 
-        var res = service.search("김밥", MY_LAT, MY_LNG, 1000, 0, 20);
+        var res = service.search("김밥", MY_LAT, MY_LNG, 1000);
 
         assertThat(res.content()).extracting(PlaceSearchResponse::placeId).containsExactly(1L);
-        // ★좌표 경로는 총 개수를 그대로 돌려준다. 후보를 이미 메모리에 들고 있어 세는 데 쿼리가
-        //   들지 않기 때문이다 — 카운트 쿼리를 없앤 건 위치 없는 전국 검색 쪽뿐이다.
-        assertThat(res.totalElements()).isEqualTo(1L);
     }
 
     /**
@@ -285,7 +267,7 @@ class PlaceServiceTest {
         when(placeRepository.searchOpenByNameWithinBounds(eq("김밥"), anyDouble(), anyDouble(),
                 anyDouble(), anyDouble())).thenReturn(twenty);
 
-        var res = service.search("김밥", MY_LAT, MY_LNG, 10_000, 0, 20);
+        var res = service.search("김밥", MY_LAT, MY_LNG, 10_000);
 
         assertThat(res.content()).hasSize(20);
         // 사다리(1km→3km→10km)를 다 돌지 않고 첫 단계에서 멈춘다.
@@ -302,7 +284,7 @@ class PlaceServiceTest {
         when(placeRepository.searchOpenByNameWithinBounds(eq("김밥"), anyDouble(), anyDouble(),
                 anyDouble(), anyDouble())).thenReturn(List.of(far));
 
-        var res = service.search("김밥", MY_LAT, MY_LNG, 10_000, 0, 20);
+        var res = service.search("김밥", MY_LAT, MY_LNG, 10_000);
 
         assertThat(res.content()).extracting(PlaceSearchResponse::placeId).containsExactly(7L);
         assertThat(res.content().get(0).distanceMeters()).isBetween(7_000L, 7_400L);
@@ -319,7 +301,7 @@ class PlaceServiceTest {
                 anyDouble(), anyDouble())).thenReturn(List.of()); // 반경 안엔 없다
         when(placeRepository.searchOpenByName(eq("김밥"), any())).thenReturn(List.of(farAway));
 
-        var res = service.search("김밥", MY_LAT, MY_LNG, 1000, 0, 20);
+        var res = service.search("김밥", MY_LAT, MY_LNG, 1000);
 
         assertThat(res.content()).extracting(PlaceSearchResponse::placeId).containsExactly(9L);
         // 좌표를 알고 있으므로 떨어진 경로에서도 거리는 채워 준다(정렬만 이름순일 뿐이다).
@@ -332,7 +314,7 @@ class PlaceServiceTest {
         Place p = placeAt("A", "혼밥김밥", 1L, 37.5, 127.0);
         when(placeRepository.searchOpenByName(eq("김밥"), any())).thenReturn(List.of(p));
 
-        var res = service.search("김밥", null, null, 1000, 0, 20);
+        var res = service.search("김밥", null, null, 1000);
 
         assertThat(res.content().get(0).distanceMeters()).isNull();
         verify(placeRepository, never()).searchOpenByNameWithinBounds(any(), anyDouble(), anyDouble(),
@@ -351,7 +333,7 @@ class PlaceServiceTest {
         when(checkInRepository.countActiveByPlaceIds(anyList()))
                 .thenReturn(List.of(new PlaceActiveCount(1L, 3L)));
 
-        PageResponse<PlaceNearbyResponse> res = service.nearby(37.5000, 127.0000, 1000, 0, 20);
+        ListResponse<PlaceNearbyResponse> res = service.nearby(37.5000, 127.0000, 1000);
 
         assertThat(res.content().get(0).placeId()).isEqualTo(1L);   // 가까운 a가 먼저
         assertThat(res.content().get(0).activeCount()).isEqualTo(3); // 오버레이 확인
@@ -372,7 +354,7 @@ class PlaceServiceTest {
         when(checkInRepository.countSeekingByPlaceIds(anyList()))
                 .thenReturn(List.of(new PlaceActiveCount(1L, 2L)));
 
-        PageResponse<PlaceNearbyResponse> res = service.nearby(37.5000, 127.0000, 1000, 0, 20);
+        ListResponse<PlaceNearbyResponse> res = service.nearby(37.5000, 127.0000, 1000);
 
         assertThat(res.content().get(0).placeId()).isEqualTo(1L);     // 가까운 a가 먼저
         assertThat(res.content().get(0).seekingCount()).isEqualTo(2L); // 오버레이 확인
@@ -394,7 +376,7 @@ class PlaceServiceTest {
                         photoRow(1L, "u1"), photoRow(1L, "u2"), photoRow(1L, "u3"),
                         photoRow(1L, "u4"), photoRow(1L, "u5"), photoRow(1L, "u6")));
 
-        PageResponse<PlaceNearbyResponse> res = service.nearby(37.5000, 127.0000, 1000, 0, 20);
+        ListResponse<PlaceNearbyResponse> res = service.nearby(37.5000, 127.0000, 1000);
 
         assertThat(res.content().get(0).placeId()).isEqualTo(1L);
         assertThat(res.content().get(0).photoUrls()).containsExactly("u1", "u2", "u3", "u4", "u5"); // 최대 5장
@@ -414,7 +396,7 @@ class PlaceServiceTest {
         when(reviewRepository.summarizeByPlaceIds(anyList()))
                 .thenReturn(List.of(statRow(1L, 3L, 4.34, 3.66)));
 
-        PageResponse<PlaceNearbyResponse> res = service.nearby(37.5000, 127.0000, 1000, 0, 20);
+        ListResponse<PlaceNearbyResponse> res = service.nearby(37.5000, 127.0000, 1000);
 
         assertThat(res.content().get(0).reviewCount()).isEqualTo(3L);
         assertThat(res.content().get(0).avgTasteRating()).isEqualTo(4.3);        // 소수1자리 반올림
@@ -426,7 +408,7 @@ class PlaceServiceTest {
     @Test
     @DisplayName("lat/lng 누락이면 INVALID_INPUT")
     void nearbyMissingCoord() {
-        assertThatThrownBy(() -> service.nearby(null, 127.0, 1000, 0, 20))
+        assertThatThrownBy(() -> service.nearby(null, 127.0, 1000))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -437,7 +419,7 @@ class PlaceServiceTest {
     void nearby_emptyBox_noCountQuery() {
         when(placeRepository.findOpenWithinBounds(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
                 .thenReturn(java.util.List.of());
-        var res = service.nearby(37.5, 127.0, 1000, 0, 20);
+        var res = service.nearby(37.5, 127.0, 1000);
         assertThat(res.content()).isEmpty();
         verify(checkInRepository, never()).countActiveByPlaceIds(anyList());
         verify(checkInRepository, never()).countSeekingByPlaceIds(anyList());
