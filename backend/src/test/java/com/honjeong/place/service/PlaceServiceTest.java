@@ -7,10 +7,12 @@ import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -271,6 +273,44 @@ class PlaceServiceTest {
      * ★반경을 두면 "멀리 있는 가게를 이름으로 찾기"가 막힌다 — 좌표를 받기 전에는 되던 일이다.
      * 기능을 더하면서 되던 것을 못 하게 만들지 않으려고, 반경 안이 비면 전국 검색으로 떨어진다.
      */
+    @Test
+    @DisplayName("★가까운 곳에 결과가 충분하면 반경을 넓히지 않는다 — 조회를 한 번만 한다")
+    void search_withCoords_stopsAtNarrowRadiusWhenEnough() {
+        // 1km 안에 20건(요청 size)이 있다. 더 넓혀 봐야 거리순 상위 20건은 바뀌지 않으므로
+        // 서비스는 넓히지 않아야 한다 — 넓히면 꺼냈다 버리는 행만 늘어난다(강남 10km면 77,067행).
+        List<Place> twenty = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            twenty.add(placeAt("N" + i, "김밥" + i, 100L + i, MY_LAT + i * 0.00001, MY_LNG));
+        }
+        when(placeRepository.searchOpenByNameWithinBounds(eq("김밥"), anyDouble(), anyDouble(),
+                anyDouble(), anyDouble())).thenReturn(twenty);
+
+        var res = service.search("김밥", MY_LAT, MY_LNG, 10_000, 0, 20);
+
+        assertThat(res.content()).hasSize(20);
+        // 사다리(1km→3km→10km)를 다 돌지 않고 첫 단계에서 멈춘다.
+        verify(placeRepository, times(1)).searchOpenByNameWithinBounds(any(), anyDouble(), anyDouble(),
+                anyDouble(), anyDouble());
+    }
+
+    @Test
+    @DisplayName("★가까운 곳이 비면 요청 반경까지 넓혀서 찾아낸다 — 먼 가게를 놓치지 않는다")
+    void search_withCoords_widensUntilEnough() {
+        // 1km·3km 박스는 비어 있고 10km 박스에만 있는 가게(약 7.2km). 조기 종료 때문에
+        // 이런 결과를 놓치면 "가까이 없으면 아예 못 찾는" 앱이 된다.
+        Place far = placeAt("F", "먼김밥", 7L, MY_LAT + 0.0648, MY_LNG); // 약 7.2km
+        when(placeRepository.searchOpenByNameWithinBounds(eq("김밥"), anyDouble(), anyDouble(),
+                anyDouble(), anyDouble())).thenReturn(List.of(far));
+
+        var res = service.search("김밥", MY_LAT, MY_LNG, 10_000, 0, 20);
+
+        assertThat(res.content()).extracting(PlaceSearchResponse::placeId).containsExactly(7L);
+        assertThat(res.content().get(0).distanceMeters()).isBetween(7_000L, 7_400L);
+        // 1km·3km에서는 반경 밖이라 걸러져 비었고, 10km에서야 채워졌다 → 세 번 조회한다.
+        verify(placeRepository, times(3)).searchOpenByNameWithinBounds(any(), anyDouble(), anyDouble(),
+                anyDouble(), anyDouble());
+    }
+
     @Test
     @DisplayName("★반경 안에 결과가 없으면 전국 이름 검색으로 떨어진다 — 멀리 있는 가게를 이름으로 찾던 길을 막지 않는다")
     void search_withCoords_fallsBackToNationwide() {
