@@ -41,3 +41,6 @@ out/
 # (로컬 전용 시크릿으로 서명돼 운영에선 못 쓰지만, 토큰을 저장소에 남기는 습관 자체가 위험하다).
 loadtest/tokens.json
 loadtest/results/
+
+# 대화방 시드가 만드는 그룹별 토큰 매핑(tokens.json과 같은 이유로 제외)
+loadtest/conv-groups.json
